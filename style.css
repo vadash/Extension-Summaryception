@@ -423,3 +423,50 @@
 .summaryception-connection-status.loading {
     color: #ff9800;
 }
+
+/* ─── Custom Prompt Manager ───────────────────────────────── */
+
+.sc-custom-prompt-manager {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor, #444);
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.sc-custom-prompt-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sc-custom-prompt-slot-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.sc-custom-prompt-slot-row select {
+    flex: 1;
+}
+
+.sc-custom-prompt-save-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.sc-custom-prompt-save-row input {
+    flex: 1;
+}
+
+.sc-custom-prompt-io-row {
+    display: flex;
+    gap: 4px;
+}
+
+.sc-custom-prompt-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

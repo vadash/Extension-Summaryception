@@ -1,5 +1,5 @@
 /**
- * Summaryception v5.3.3 — Layered Recursive Summarization for SillyTavern
+ * Summaryception v5.4.0 — Layered Recursive Summarization for SillyTavern
  *
  * NON-DESTRUCTIVE: Uses SillyTavern's native /hide and /unhide commands
  * to exclude summarized messages from LLM context while keeping them
@@ -49,6 +49,8 @@ const defaultSettings = Object.freeze({
     Write in short phrases, no more than 20; output must be a single line:`,
 
     promptPreset: 'narrative',  // 'narrative' | 'gamestate' | 'custom'
+    savedCustomPrompts: {},        // { name: promptText } — named custom prompt slots
+    lastCustomPrompt: '',          // Auto-saved when switching away from custom
     pauseSummarization: false,  // true = stop processing, keep injecting
 
     stripPatterns: [
@@ -1567,8 +1569,35 @@ function updateUI() {
         $('#sc_preview').val(preview || '(empty — no summaries yet)');
 
         updateSnippetBrowser();
+        updateCustomPromptSlots();
     } catch (e) {
         log('updateUI error:', e);
+    }
+}
+
+function updateCustomPromptSlots() {
+    const s = getSettings();
+    const select = $('#sc_custom_prompt_slot');
+    select.empty().append('<option value="">-- Load a saved prompt --</option>');
+
+    const prompts = s.savedCustomPrompts || {};
+    const names = Object.keys(prompts).sort();
+
+    for (const name of names) {
+        const preview = prompts[name].substring(0, 60).replace(/\n/g, ' ');
+        select.append(
+            $('<option></option>')
+            .val(name)
+            .text(`${name}`)
+            .attr('title', preview)
+        );
+    }
+
+    // Show/hide the prompt manager based on current preset
+    if (s.promptPreset === 'custom') {
+        $('#sc_custom_prompt_manager').show();
+    } else {
+        $('#sc_custom_prompt_manager').hide();
     }
 }
 
@@ -2047,15 +2076,33 @@ function bindUIEvents() {
     $(document).on('change', '#sc_prompt_preset', function () {
         const selected = $(this).val();
         const s = getSettings();
+        const previousPreset = s.promptPreset;
+
+        // Auto-save custom prompt before switching away
+        if (previousPreset === 'custom') {
+            s.lastCustomPrompt = s.summarizerUserPrompt || '';
+            log('Auto-saved custom prompt before switching to', selected);
+        }
+
         s.promptPreset = selected;
 
-        if (selected !== 'custom') {
+        if (selected === 'custom') {
+            // Restore the last custom prompt if we have one
+            if (s.lastCustomPrompt) {
+                $('#sc_summarizer_user_prompt').val(s.lastCustomPrompt);
+                s.summarizerUserPrompt = s.lastCustomPrompt;
+                log('Restored auto-saved custom prompt');
+            }
+            $('#sc_custom_prompt_manager').show();
+        } else {
             const presetText = PROMPT_PRESETS[selected];
             $('#sc_summarizer_user_prompt').val(presetText);
             s.summarizerUserPrompt = presetText;
+            $('#sc_custom_prompt_manager').hide();
         }
 
         saveSettings();
+        updateCustomPromptSlots();
     });
 
     // Auto-switch to 'custom' when user manually edits the prompt textarea
@@ -2068,12 +2115,151 @@ function bindUIEvents() {
         if (s.promptPreset !== 'custom') {
             const presetText = PROMPT_PRESETS[s.promptPreset];
             if (currentText !== presetText) {
+                // Auto-save before we switch to custom
                 s.promptPreset = 'custom';
+                s.lastCustomPrompt = currentText;
                 $('#sc_prompt_preset').val('custom');
+                $('#sc_custom_prompt_manager').show();
+                updateCustomPromptSlots();
             }
+        } else {
+            // Keep lastCustomPrompt in sync while editing in custom mode
+            s.lastCustomPrompt = currentText;
         }
 
         saveSettings();
+    });
+
+    // ── Custom Prompt: Save to named slot ──
+    $(document).on('click', '#sc_custom_prompt_save', function () {
+        const name = $('#sc_custom_prompt_name').val().trim();
+        if (!name) {
+            toastr.warning('Enter a name for the prompt.', 'Summaryception');
+            return;
+        }
+
+        const s = getSettings();
+        if (!s.savedCustomPrompts) s.savedCustomPrompts = {};
+
+        const promptText = $('#sc_summarizer_user_prompt').val();
+        if (!promptText.trim()) {
+            toastr.warning('Prompt is empty — nothing to save.', 'Summaryception');
+            return;
+        }
+
+        const isOverwrite = s.savedCustomPrompts[name];
+        s.savedCustomPrompts[name] = promptText;
+        saveSettings();
+
+        $('#sc_custom_prompt_name').val('');
+        updateCustomPromptSlots();
+
+        toastr.success(
+            `Prompt "${name}" ${isOverwrite ? 'updated' : 'saved'}.`,
+            'Summaryception',
+            { timeOut: 2000 }
+        );
+    });
+
+    // ── Custom Prompt: Load from named slot ──
+    $(document).on('click', '#sc_custom_prompt_load', function () {
+        const name = $('#sc_custom_prompt_slot').val();
+        if (!name) {
+            toastr.warning('Select a saved prompt to load.', 'Summaryception');
+            return;
+        }
+
+        const s = getSettings();
+        const promptText = s.savedCustomPrompts?.[name];
+        if (!promptText) {
+            toastr.error(`Prompt "${name}" not found.`, 'Summaryception');
+            return;
+        }
+
+        $('#sc_summarizer_user_prompt').val(promptText);
+        s.summarizerUserPrompt = promptText;
+        s.lastCustomPrompt = promptText;
+        s.promptPreset = 'custom';
+        $('#sc_prompt_preset').val('custom');
+        saveSettings();
+
+        toastr.success(`Loaded prompt "${name}".`, 'Summaryception', { timeOut: 2000 });
+    });
+
+    // ── Custom Prompt: Delete named slot ──
+    $(document).on('click', '#sc_custom_prompt_delete_slot', function () {
+        const name = $('#sc_custom_prompt_slot').val();
+        if (!name) {
+            toastr.warning('Select a saved prompt to delete.', 'Summaryception');
+            return;
+        }
+
+        if (!confirm(`Delete saved prompt "${name}"?`)) return;
+
+        const s = getSettings();
+        if (s.savedCustomPrompts) {
+            delete s.savedCustomPrompts[name];
+            saveSettings();
+        }
+
+        updateCustomPromptSlots();
+        toastr.info(`Prompt "${name}" deleted.`, 'Summaryception', { timeOut: 2000 });
+    });
+
+    // ── Custom Prompt: Export as .txt ──
+    $(document).on('click', '#sc_custom_prompt_export', function () {
+        const promptText = $('#sc_summarizer_user_prompt').val();
+        if (!promptText.trim()) {
+            toastr.warning('Prompt is empty — nothing to export.', 'Summaryception');
+            return;
+        }
+
+        const blob = new Blob([promptText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `summaryception_prompt_${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toastr.success('Prompt exported.', 'Summaryception', { timeOut: 2000 });
+    });
+
+    // ── Custom Prompt: Import from .txt ──
+    $(document).on('click', '#sc_custom_prompt_import', function () {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt,.text';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                if (!text.trim()) {
+                    toastr.warning('File is empty.', 'Summaryception');
+                    return;
+                }
+
+                const s = getSettings();
+                $('#sc_summarizer_user_prompt').val(text);
+                s.summarizerUserPrompt = text;
+                s.lastCustomPrompt = text;
+                s.promptPreset = 'custom';
+                $('#sc_prompt_preset').val('custom');
+                $('#sc_custom_prompt_manager').show();
+                saveSettings();
+                updateCustomPromptSlots();
+
+                toastr.success(
+                    `Prompt imported from "${file.name}".`,
+                    'Summaryception',
+                    { timeOut: 3000 }
+                );
+            } catch (err) {
+                console.error(LOG_PREFIX, err);
+                toastr.error('Import failed — check console.', 'Summaryception');
+            }
+        };
+        input.click();
     });
 }
 
@@ -2340,8 +2526,6 @@ async function fetchProfilesFallback(selectElement, currentValue) {
 
 // ─── Initialization ──────────────────────────────────────────────────
 
-// ─── Initialization ──────────────────────────────────────────────────
-
 (async function init() {
     const {
         eventSource,
@@ -2370,6 +2554,6 @@ async function fetchProfilesFallback(selectElement, currentValue) {
     eventSource.on(event_types.APP_READY, () => {
         updateInjection();
         updateUI();
-        console.log(LOG_PREFIX, 'v5.3.3 loaded. Connection Settings available');
+        console.log(LOG_PREFIX, 'v5.4.0 loaded. Connection Settings available');
     });
 })();
