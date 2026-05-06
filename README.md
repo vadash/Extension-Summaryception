@@ -192,7 +192,7 @@ All settings are adjustable from the SillyTavern Extensions panel:
 
 | Setting | Default | Description |
 |---|---|---|
-| Verbatim Turns | 7 | Recent assistant turns kept word-for-word |
+| Verbatim Turns | 10 | Recent assistant turns kept word-for-word |
 | Turns per Batch | 3 | Oldest turns summarized together per trigger |
 | Snippets per Layer | 30 | Max snippets before promoting to next layer |
 | Snippets per Promotion | 3 | How many snippets merge on promotion |
