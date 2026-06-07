@@ -30,10 +30,10 @@ const defaultSettings = Object.freeze({
     snippetsPerLayer: 30,
     snippetsPerPromotion: 3,
     maxLayers: 5,
-    injectionTemplate: '<summary>\n{{summary}}\n</summary>\n[The following is the current live roleplay, continuing from the above summary.]',
+    injectionTemplate: '\n\n<summary>\n{{summary}}\n</summary>\n\n',
 
     summarizerSystemPrompt:
-        'You are a precise narrative-state tracker. You output only the summary line — no preamble, no commentary, no markdown.',
+        'Role: precise narrative-state tracker. Output only the summary line — no preamble, no commentary, no markdown.',
 
     summarizerUserPrompt:
         `<player_name>
@@ -48,12 +48,12 @@ const defaultSettings = Object.freeze({
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context.
+Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context. If the passage_in_question has 2nd person point of view, 'you' pronoun in prose refers to the player. Use the player name in the summary output instead of 'you'.
 
-Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, places, and time references; plot developments and unresolved tensions; details that distinguish this moment from any other.
+Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, location changes, and time; plot developments and unresolved tensions; details that distinguish this moment from any other.
 
 Exclude anything insubstantial, fluff, atmospheric details, or events already covered in Prior Context.
-Skip any passages that are empty, unclear, or lack significant content.
+
 Write in short phrases, no more than 20; output must be a single line:`,
 
     promptPreset: 'narrative',  // 'narrative' | 'gamestate' | 'custom'
@@ -102,12 +102,12 @@ const PROMPT_PRESETS = {
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context.
+Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context. If the passage_in_question has 2nd person point of view, 'you' pronoun in prose refers to the player. Use the player name in the summary output instead of 'you'.
 
-Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, places, and time references; plot developments and unresolved tensions; details that distinguish this moment from any other.
+Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, location changes, and time; plot developments and unresolved tensions; details that distinguish this moment from any other.
 
 Exclude anything insubstantial, fluff, atmospheric details, or events already covered in Prior Context.
-Skip any passages that are empty, unclear, or lack significant content.
+
 Write in short phrases, no more than 20; output must be a single line:`,
 
     gamestate: `<player_name>
