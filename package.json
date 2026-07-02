@@ -22,6 +22,9 @@
         "*.js": [
             "eslint --fix",
             "prettier --write"
+        ],
+        "*.{json,md,ts}": [
+            "prettier --write"
         ]
     },
     "repository": {
