@@ -5,9 +5,10 @@ import { ConnectionError } from './connection-error.js';
  * @param {string} profileId - The connection profile identifier
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
+ * @param {number} maxTokens - Max tokens for the response, or 0 to use the profile preset
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaProfile(profileId, systemPrompt, userPrompt) {
+export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTokens = 0) {
     if (!profileId) {
         throw new ConnectionError(
             'No Connection Profile selected. Please select one in Summaryception settings.',
@@ -23,8 +24,9 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt) {
             { role: 'user', content: userPrompt },
         ];
 
-        const raw = await service.sendRequest(profileId, messages, {
-            ignoreInstruct: true,
+        const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
+        const raw = await service.sendRequest(profileId, messages, tokenLimit, {
+            includeInstruct: false,
         });
 
         console.log('[Summaryception][Connection] Profile sendRequest returned:', typeof raw, raw);

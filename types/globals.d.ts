@@ -62,13 +62,17 @@ interface ConnectionManagerRequestService {
     /**
      * @param {string} profileId
      * @param {Array<{ role: string; content: unknown }>} messages
-     * @param {Record<string, unknown>} options
+     * @param {number} [maxTokens]
+     * @param {Record<string, unknown>} [custom]
+     * @param {Record<string, unknown>} [overridePayload]
      * @returns {Promise<string | Record<string, unknown>>}
      */
     sendRequest(
         profileId: string,
         messages: unknown,
-        options: Record<string, unknown>,
+        maxTokens?: number,
+        custom?: Record<string, unknown>,
+        overridePayload?: Record<string, unknown>,
     ): Promise<unknown>;
     handleDropdown(element: HTMLSelectElement): void;
 }

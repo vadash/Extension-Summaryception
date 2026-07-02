@@ -29,7 +29,12 @@ export async function sendSummarizerRequest(settings, systemPrompt, userPrompt) 
 
     switch (source) {
         case 'profile':
-            return await sendViaProfile(settings.connectionProfileId, systemPrompt, userPrompt);
+            return await sendViaProfile(
+                settings.connectionProfileId,
+                systemPrompt,
+                userPrompt,
+                settings.summarizerResponseLength,
+            );
         case 'ollama':
             return await sendViaOllama(
                 settings.ollamaUrl,
