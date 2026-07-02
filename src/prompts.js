@@ -13,9 +13,13 @@ export function snapshotPromptToggles() {
             return snapshot;
         }
         const collection = promptManager.getPromptCollection();
-        if (!collection?.collection) return snapshot;
+        if (!collection?.collection) {
+            return snapshot;
+        }
         const orderList = promptManager.getPromptOrderEntries();
-        if (!orderList) return snapshot;
+        if (!orderList) {
+            return snapshot;
+        }
         for (const entry of collection.collection) {
             for (const orderEntry of orderList) {
                 if (orderEntry.identifier === entry.identifier) {
@@ -34,9 +38,13 @@ export function disableAllPromptToggles() {
     try {
         const ctx = SillyTavern.getContext();
         const promptManager = ctx.promptManager;
-        if (!promptManager) return;
+        if (!promptManager) {
+            return;
+        }
         const orderList = promptManager.getPromptOrderEntries();
-        if (!orderList) return;
+        if (!orderList) {
+            return;
+        }
         let count = 0;
         for (const entry of orderList) {
             if (entry.enabled) {
@@ -51,13 +59,19 @@ export function disableAllPromptToggles() {
 }
 
 export function restorePromptToggles(snapshot) {
-    if (!snapshot || snapshot.size === 0) return;
+    if (!snapshot || snapshot.size === 0) {
+        return;
+    }
     try {
         const ctx = SillyTavern.getContext();
         const promptManager = ctx.promptManager;
-        if (!promptManager) return;
+        if (!promptManager) {
+            return;
+        }
         const orderList = promptManager.getPromptOrderEntries();
-        if (!orderList) return;
+        if (!orderList) {
+            return;
+        }
         let count = 0;
         for (const entry of orderList) {
             if (snapshot.has(entry.identifier)) {

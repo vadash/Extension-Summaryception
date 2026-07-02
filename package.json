@@ -1,0 +1,32 @@
+{
+    "name": "extension-summaryception",
+    "version": "5.5.3",
+    "description": "Layered recursive summarization SillyTavern extension",
+    "type": "module",
+    "main": "index.js",
+    "directories": {
+        "doc": "docs"
+    },
+    "scripts": {
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/vadash/Extension-Summaryception.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/vadash/Extension-Summaryception/issues"
+    },
+    "homepage": "https://github.com/vadash/Extension-Summaryception#readme",
+    "devDependencies": {
+        "eslint": "^9.39.4",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.7.0",
+        "prettier": "^3.9.4"
+    }
+}

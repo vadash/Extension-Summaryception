@@ -8,13 +8,17 @@ export function assembleSummaryBlock() {
     const s = getSettings();
     const store = getChatStore();
 
-    if (!store.layers || store.layers.every(l => !l || l.length === 0)) return '';
+    if (!store.layers || store.layers.every((l) => !l || l.length === 0)) {
+        return '';
+    }
 
     const snippets = [];
 
     for (let i = store.layers.length - 1; i >= 1; i--) {
         const layer = store.layers[i];
-        if (!layer || layer.length === 0) continue;
+        if (!layer || layer.length === 0) {
+            continue;
+        }
         for (const sn of layer) {
             snippets.push(sn.text);
         }
@@ -26,7 +30,9 @@ export function assembleSummaryBlock() {
         }
     }
 
-    if (snippets.length === 0) return '';
+    if (snippets.length === 0) {
+        return '';
+    }
 
     return s.injectionTemplate.replace('{{summary}}', snippets.join(' '));
 }
@@ -49,7 +55,9 @@ export function updateInjection() {
         }
 
         const summaryBlock = assembleSummaryBlock();
-        if (summaryBlock === _lastInjected) return;
+        if (summaryBlock === _lastInjected) {
+            return;
+        }
 
         setExtensionPrompt(MODULE_NAME, summaryBlock || '', 0, 0, false, 0);
         _lastInjected = summaryBlock || '';

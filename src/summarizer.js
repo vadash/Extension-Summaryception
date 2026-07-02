@@ -5,7 +5,12 @@ import { log, trace } from './logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from './retry.js';
 import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
 import { getAssistantTurns, buildPassageFromRange, buildFullContext } from './chatutils.js';
-import { snapshotPromptToggles, disableAllPromptToggles, restorePromptToggles, cleanSummarizerOutput } from './prompts.js';
+import {
+    snapshotPromptToggles,
+    disableAllPromptToggles,
+    restorePromptToggles,
+    cleanSummarizerOutput,
+} from './prompts.js';
 import { persistChatState } from './persist.js';
 
 let uiUpdater = null;
@@ -15,7 +20,9 @@ export function setUiUpdater(callback) {
 }
 
 function refreshUI() {
-    if (typeof uiUpdater === 'function') uiUpdater();
+    if (typeof uiUpdater === 'function') {
+        uiUpdater();
+    }
 }
 
 // ─── Core: Summarization State ───────────────────────────────────────
@@ -72,7 +79,9 @@ export async function callSummarizer(storyTxt, contextStr) {
 
     const isDefaultMode = !s.connectionSource || s.connectionSource === 'default';
     const snapshot = isDefaultMode ? snapshotPromptToggles() : null;
-    if (isDefaultMode) disableAllPromptToggles();
+    if (isDefaultMode) {
+        disableAllPromptToggles();
+    }
 
     currentAbortController = new AbortController();
     const { signal } = currentAbortController;
@@ -94,7 +103,7 @@ export async function callSummarizer(storyTxt, contextStr) {
                     log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
                 }
 
-                trace(`  About to call sendSummarizerRequest with:`, {
+                trace('  About to call sendSummarizerRequest with:', {
                     connectionSource: s.connectionSource,
                     summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
                     promptLength: prompt.length,
@@ -104,7 +113,10 @@ export async function callSummarizer(storyTxt, contextStr) {
                 const result = await Promise.race([
                     sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt),
                     new Promise((_, reject) => {
-                        const timer = setTimeout(() => reject(new Error('Request timed out after 120s')), timeoutMs);
+                        const timer = setTimeout(
+                            () => reject(new Error('Request timed out after 120s')),
+                            timeoutMs,
+                        );
                         signal.addEventListener('abort', () => {
                             clearTimeout(timer);
                             reject(new Error('Aborted by user'));
@@ -125,7 +137,6 @@ export async function callSummarizer(storyTxt, contextStr) {
                 log('Result:', trimmed);
                 trace('<<< EXITING callSummarizer WITH SUCCESS');
                 return trimmed;
-
             } catch (err) {
                 lastError = err;
                 trace(`  Caught error on attempt ${attempt}:`, {
@@ -158,7 +169,8 @@ export async function callSummarizer(storyTxt, contextStr) {
                     delay = Math.min(retryAfterMs, RETRY_CONFIG.maxDelay);
                     log(`Server requested retry after ${delay}ms`);
                 } else {
-                    const exponentialDelay = RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
+                    const exponentialDelay =
+                        RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
                     const jitter = Math.random() * RETRY_CONFIG.baseDelay;
                     delay = Math.min(exponentialDelay + jitter, RETRY_CONFIG.maxDelay);
                 }
@@ -166,12 +178,16 @@ export async function callSummarizer(storyTxt, contextStr) {
                 const delaySec = (delay / 1000).toFixed(1);
                 const status = err?.status || err?.response?.status || '?';
 
-                console.warn(LOG_PREFIX, `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`, err.message || err);
+                console.warn(
+                    LOG_PREFIX,
+                    `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
+                    err.message || err,
+                );
 
                 toastr.warning(
                     `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${RETRY_CONFIG.maxRetries})`,
                     'Summaryception',
-                    { timeOut: delay }
+                    { timeOut: delay },
                 );
 
                 await new Promise((resolve) => {
@@ -189,11 +205,10 @@ export async function callSummarizer(storyTxt, contextStr) {
         toastr.error(
             `Summarization failed after ${RETRY_CONFIG.maxRetries} retries${status ? ` (${status})` : ''}. Batch skipped — will retry on next trigger.`,
             'Summaryception',
-            { timeOut: 8000 }
+            { timeOut: 8000 },
         );
         trace('<<< EXITING callSummarizer WITH FAILURE');
         return '';
-
     } finally {
         currentAbortController = null;
         if (isDefaultMode && snapshot) {
@@ -206,19 +221,27 @@ export async function callSummarizer(storyTxt, contextStr) {
 
 export async function maybeSummarizeTurns() {
     const s = getSettings();
-    if (!s.enabled) return;
-    if (s.pauseSummarization) return;  // ← new
-    if (isSummarizing) return;
+    if (!s.enabled) {
+        return;
+    }
+    if (s.pauseSummarization) {
+        return;
+    } // ← new
+    if (isSummarizing) {
+        return;
+    }
 
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
 
     const allAssistantTurns = getAssistantTurns(chat);
-    const visibleTurns = allAssistantTurns.filter(t => !chat[t.index].extra?.sc_ghosted);
+    const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
 
     log(`Visible assistant turns: ${visibleTurns.length}, limit: ${s.verbatimTurns}`);
 
-    if (visibleTurns.length <= s.verbatimTurns) return;
+    if (visibleTurns.length <= s.verbatimTurns) {
+        return;
+    }
 
     const overflow = visibleTurns.length - s.verbatimTurns;
 
@@ -258,8 +281,11 @@ export async function maybeSummarizeTurns() {
         return;
     }
 
-    const remaining = getAssistantTurns(chat).filter(t => !chat[t.index].extra?.sc_ghosted);
-    if (remaining.length > s.verbatimTurns && remaining.length - s.verbatimTurns <= backlogThreshold) {
+    const remaining = getAssistantTurns(chat).filter((t) => !chat[t.index].extra?.sc_ghosted);
+    if (
+        remaining.length > s.verbatimTurns &&
+        remaining.length - s.verbatimTurns <= backlogThreshold
+    ) {
         await maybeSummarizeTurns();
     }
 }
@@ -274,7 +300,10 @@ export async function maybeSummarizeTurns() {
  * @param {boolean} opts.catchExceptions - Catch and swallow exceptions, returning false (catch-up mode)
  * @returns {Promise<boolean>} - Whether the batch was successfully summarized
  */
-async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catchExceptions = false } = {}) {
+async function summarizeBatchFromTurns(
+    visibleTurns,
+    { showToasts = false, catchExceptions = false } = {},
+) {
     trace('>>> ENTERING summarizeBatchFromTurns');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
 
@@ -286,12 +315,12 @@ async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catch
     // This handles desync where summarizedUpTo advanced but ghosting failed
     // (e.g., connection drop mid-summarization). Without this filter, the batch
     // always starts at the first un-ghosted turn, gets rejected, and loops forever.
-    const eligibleTurns = visibleTurns.filter(t => t.index > store.summarizedUpTo);
+    const eligibleTurns = visibleTurns.filter((t) => t.index > store.summarizedUpTo);
     trace('  eligibleTurns after filtering:', eligibleTurns.length);
 
     if (eligibleTurns.length === 0) {
         log('All visible turns are already summarized — repairing ghosting...');
-        const turnsToGhost = visibleTurns.filter(t => t.index <= store.summarizedUpTo);
+        const turnsToGhost = visibleTurns.filter((t) => t.index <= store.summarizedUpTo);
         for (const t of turnsToGhost) {
             await ghostMessage(t.index);
         }
@@ -315,11 +344,15 @@ async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catch
 
     log(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
 
-    if (!store.layers[0]) store.layers[0] = [];
+    if (!store.layers[0]) {
+        store.layers[0] = [];
+    }
     const passageStart = store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
 
     if (passageStart > endIdx) {
-        log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
+        log(
+            `ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`,
+        );
         trace('<<< EXITING summarizeBatchFromTurns - PASSAGE START GREATER THAN END');
         return false;
     }
@@ -336,10 +369,14 @@ async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catch
         trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
 
         if (showToasts) {
-            toastr.info(`Summarizing ${batch.length} turn${batch.length > 1 ? 's' : ''}…`, 'Summaryception', {
-                timeOut: 3000,
-                progressBar: true,
-            });
+            toastr.info(
+                `Summarizing ${batch.length} turn${batch.length > 1 ? 's' : ''}…`,
+                'Summaryception',
+                {
+                    timeOut: 3000,
+                    progressBar: true,
+                },
+            );
         }
 
         trace('  About to call callSummarizer...');
@@ -370,14 +407,19 @@ async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catch
         log(`Layer 0 now has ${store.layers[0].length} snippets`);
 
         if (showToasts) {
-            toastr.success(`Summary saved (Layer 0: ${store.layers[0].length} snippets)`, 'Summaryception', { timeOut: 2000 });
+            toastr.success(
+                `Summary saved (Layer 0: ${store.layers[0].length} snippets)`,
+                'Summaryception',
+                { timeOut: 2000 },
+            );
         }
 
         trace('<<< EXITING summarizeBatchFromTurns - SUCCESS');
         return true;
-
     } catch (err) {
-        if (!catchExceptions) throw err;
+        if (!catchExceptions) {
+            throw err;
+        }
         trace('  CAUGHT EXCEPTION:', {
             name: err?.name,
             message: err?.message,
@@ -409,7 +451,6 @@ export async function summarizeOneBatchFromTurns(visibleTurns) {
 // ─── Core: Catchup Processing ────────────────────────────────────────
 
 export async function runCatchup(visibleTurns, overflow) {
-
     trace('>>> ENTERING runCatchup');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
     trace('  overflow:', overflow);
@@ -434,7 +475,7 @@ export async function runCatchup(visibleTurns, overflow) {
                 cancelled = true;
                 abortSummarization();
             },
-        }
+        },
     );
 
     isSummarizing = true;
@@ -447,9 +488,13 @@ export async function runCatchup(visibleTurns, overflow) {
 
             const { chat } = SillyTavern.getContext();
             const allAssistantTurns = getAssistantTurns(chat);
-            const currentVisible = allAssistantTurns.filter(t => !chat[t.index].extra?.sc_ghosted);
+            const currentVisible = allAssistantTurns.filter(
+                (t) => !chat[t.index].extra?.sc_ghosted,
+            );
 
-            trace(`  currentVisible turns: ${currentVisible.length}, verbatimTurns limit: ${s.verbatimTurns}`);
+            trace(
+                `  currentVisible turns: ${currentVisible.length}, verbatimTurns limit: ${s.verbatimTurns}`,
+            );
 
             if (currentVisible.length <= s.verbatimTurns) {
                 trace('  Visible turns now within limit, breaking');
@@ -472,7 +517,7 @@ export async function runCatchup(visibleTurns, overflow) {
                     toastr.error(
                         '3 consecutive failures — API may be down. Pausing catch-up. Progress saved; will resume on next message.',
                         'Summaryception',
-                        { timeOut: 8000 }
+                        { timeOut: 8000 },
                     );
                     trace('  3 consecutive failures, breaking');
                     break;
@@ -481,11 +526,13 @@ export async function runCatchup(visibleTurns, overflow) {
 
             const pct = Math.round((completed / totalBatches) * 100);
             const failStr = failed > 0 ? ` | ${failed} failed` : '';
-            $(progressToast).find('.toast-message').text(
-                `Processing: ${completed} / ${totalBatches} batches (${pct}%)${failStr}\nClick ✕ to pause`
-            );
+            $(progressToast)
+                .find('.toast-message')
+                .text(
+                    `Processing: ${completed} / ${totalBatches} batches (${pct}%)${failStr}\nClick ✕ to pause`,
+                );
 
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise((r) => setTimeout(r, 200));
         }
 
         toastr.clear(progressToast);
@@ -494,24 +541,21 @@ export async function runCatchup(visibleTurns, overflow) {
             toastr.warning(
                 `Catch-up paused at ${completed}/${totalBatches}. Progress saved — will continue on next message.`,
                 'Summaryception',
-                { timeOut: 5000 }
+                { timeOut: 5000 },
             );
         } else if (failed === 0) {
-            toastr.success(
-                `Catch-up complete! ${completed} batches processed.`,
-                'Summaryception',
-                { timeOut: 4000 }
-            );
+            toastr.success(`Catch-up complete! ${completed} batches processed.`, 'Summaryception', {
+                timeOut: 4000,
+            });
         } else {
             toastr.warning(
                 `Catch-up finished. ${completed} succeeded, ${failed} failed (will retry on next trigger).`,
                 'Summaryception',
-                { timeOut: 6000 }
+                { timeOut: 6000 },
             );
         }
 
         refreshUI();
-
     } finally {
         isSummarizing = false;
     }
@@ -588,11 +632,15 @@ export async function maybePromoteLayer(layerIndex) {
     }
 
     const layer = store.layers[layerIndex];
-    if (!layer || layer.length <= s.snippetsPerLayer) return;
+    if (!layer || layer.length <= s.snippetsPerLayer) {
+        return;
+    }
 
     log(`Layer ${layerIndex}: ${layer.length} snippets > limit ${s.snippetsPerLayer} → promoting`);
 
-    if (!store.layers[layerIndex + 1]) store.layers[layerIndex + 1] = [];
+    if (!store.layers[layerIndex + 1]) {
+        store.layers[layerIndex + 1] = [];
+    }
     const destLayer = store.layers[layerIndex + 1];
 
     if (destLayer.length === 0) {
@@ -601,12 +649,14 @@ export async function maybePromoteLayer(layerIndex) {
         seed.seedFromLayer = layerIndex;
         destLayer.push(seed);
 
-        log(`Seeded Layer ${layerIndex + 1} with oldest snippet from Layer ${layerIndex} (no LLM call)`);
+        log(
+            `Seeded Layer ${layerIndex + 1} with oldest snippet from Layer ${layerIndex} (no LLM call)`,
+        );
 
         toastr.info(
             `Seeded Layer ${layerIndex + 1} from Layer ${layerIndex} (free promotion)`,
             'Summaryception',
-            { timeOut: 2000 }
+            { timeOut: 2000 },
         );
 
         if (layer.length > s.snippetsPerLayer) {
@@ -619,13 +669,13 @@ export async function maybePromoteLayer(layerIndex) {
     }
 
     const toMerge = layer.splice(0, s.snippetsPerPromotion);
-    const storyTxt = toMerge.map(sn => sn.text).join(' ');
+    const storyTxt = toMerge.map((sn) => sn.text).join(' ');
     const contextStr = buildFullContext(layerIndex + 1);
 
     toastr.info(
         `Promoting ${toMerge.length} snippets: Layer ${layerIndex} → Layer ${layerIndex + 1}`,
         'Summaryception',
-        { timeOut: 3000, progressBar: true }
+        { timeOut: 3000, progressBar: true },
     );
 
     const metaSummary = await callSummarizer(storyTxt, contextStr);

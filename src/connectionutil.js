@@ -44,7 +44,9 @@ export { ConnectionError };
  * @returns {string} - The (possibly proxied) URL
  */
 function proxiedUrl(url, useProxy = true) {
-    if (!useProxy) return url;
+    if (!useProxy) {
+        return url;
+    }
     return `/proxy/${url}`;
 }
 
@@ -59,13 +61,16 @@ function getProxyHeaders() {
         if (typeof ctx.getRequestHeaders === 'function') {
             return ctx.getRequestHeaders();
         }
-    } catch (e) { /* fallback */ }
+    } catch (_e) {
+        /* fallback */
+    }
     return { 'Content-Type': 'application/json' };
 }
 
 // ─── Transport Helpers ───────────────────────────────────────────────
 
-const LOCAL_URL_RE = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i;
+const LOCAL_URL_RE =
+    /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i;
 
 /**
  * Check whether a URL points to a local/private network address.
@@ -151,12 +156,28 @@ export async function sendSummarizerRequest(settings, systemPrompt, userPrompt) 
         case 'profile':
             return await sendViaProfile(settings.connectionProfileId, systemPrompt, userPrompt);
         case 'ollama':
-            return await sendViaOllama(settings.ollamaUrl, settings.ollamaModel, systemPrompt, userPrompt);
+            return await sendViaOllama(
+                settings.ollamaUrl,
+                settings.ollamaModel,
+                systemPrompt,
+                userPrompt,
+            );
         case 'openai':
-            return await sendViaOpenAI(settings.openaiUrl, settings.openaiKey, settings.openaiModel, systemPrompt, userPrompt, settings.openaiMaxTokens);
+            return await sendViaOpenAI(
+                settings.openaiUrl,
+                settings.openaiKey,
+                settings.openaiModel,
+                systemPrompt,
+                userPrompt,
+                settings.openaiMaxTokens,
+            );
         case 'default':
         default:
-            return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
+            return await sendViaDefault(
+                systemPrompt,
+                userPrompt,
+                settings.summarizerResponseLength,
+            );
     }
 }
 
@@ -171,7 +192,7 @@ async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
     if (!generateRaw) {
         throw new ConnectionError(
             'generateRaw is not available in the current SillyTavern context.',
-            { retryable: false }
+            { retryable: false },
         );
     }
 
@@ -204,16 +225,15 @@ async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
         // Note: legacy signature does not support responseLength override
         console.warn(
             '[Summaryception] Detected legacy generateRaw (positional args). ' +
-            'Consider updating SillyTavern to July 2025+ for full feature support.'
+                'Consider updating SillyTavern to July 2025+ for full feature support.',
         );
         result = await generateRaw(userPrompt, systemPrompt);
     }
 
     if (!result || typeof result !== 'string') {
-        throw new ConnectionError(
-            'generateRaw returned an empty or invalid response.',
-            { retryable: true }
-        );
+        throw new ConnectionError('generateRaw returned an empty or invalid response.', {
+            retryable: true,
+        });
     }
 
     return result;
@@ -235,7 +255,7 @@ async function sendViaProfile(profileId, systemPrompt, userPrompt) {
     if (!profileId) {
         throw new ConnectionError(
             'No Connection Profile selected. Please select one in Summaryception settings.',
-            { retryable: false }
+            { retryable: false },
         );
     }
 
@@ -245,16 +265,16 @@ async function sendViaProfile(profileId, systemPrompt, userPrompt) {
     if (!service) {
         throw new ConnectionError(
             'ConnectionManagerRequestService is not available. ' +
-            'Your SillyTavern version may be too old. Requires ST with PR #3603 (March 2025+).',
-                                  { retryable: false }
+                'Your SillyTavern version may be too old. Requires ST with PR #3603 (March 2025+).',
+            { retryable: false },
         );
     }
 
     if (typeof service.sendRequest !== 'function') {
         throw new ConnectionError(
             'ConnectionManagerRequestService.sendRequest() is not available. ' +
-            'Please update SillyTavern to the latest staging version.',
-            { retryable: false }
+                'Please update SillyTavern to the latest staging version.',
+            { retryable: false },
         );
     }
 
@@ -288,56 +308,58 @@ async function sendViaProfile(profileId, systemPrompt, userPrompt) {
             result = typeof raw.data === 'string' ? raw.data : JSON.stringify(raw.data);
         } else if (raw && typeof raw === 'object') {
             const str = JSON.stringify(raw);
-            console.warn('[Summaryception][Connection] Unexpected return type from sendRequest:', str.substring(0, 500));
+            console.warn(
+                '[Summaryception][Connection] Unexpected return type from sendRequest:',
+                str.substring(0, 500),
+            );
             throw new ConnectionError(
                 `Connection Profile returned unexpected type: ${typeof raw}. ` +
-                `Preview: ${str.substring(0, 200)}. ` +
-                `Please report this on the Summaryception GitHub.`,
-                { retryable: false }
+                    `Preview: ${str.substring(0, 200)}. ` +
+                    'Please report this on the Summaryception GitHub.',
+                { retryable: false },
             );
         } else {
-            throw new ConnectionError(
-                'Connection Profile returned an empty or invalid response.',
-                { retryable: true }
-            );
+            throw new ConnectionError('Connection Profile returned an empty or invalid response.', {
+                retryable: true,
+            });
         }
 
         if (!result || !result.trim()) {
-            throw new ConnectionError(
-                'Connection Profile returned an empty response.',
-                { retryable: true }
-            );
+            throw new ConnectionError('Connection Profile returned an empty response.', {
+                retryable: true,
+            });
         }
 
         return result;
-
     } catch (error) {
-        if (error instanceof ConnectionError) throw error;
+        if (error instanceof ConnectionError) {
+            throw error;
+        }
 
         const msg = error?.message || String(error);
         const status = error?.status || error?.response?.status;
 
         if (status === 401 || msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
             throw new ConnectionError(
-                `Connection Profile auth failed (401). This is likely the API key switching bug ` +
-                `(ST Issue #5348). Update SillyTavern to staging (March 30, 2026+) to fix this. ` +
-                `Original error: ${msg}`,
-                { retryable: false, status: 401 }
+                'Connection Profile auth failed (401). This is likely the API key switching bug ' +
+                    '(ST Issue #5348). Update SillyTavern to staging (March 30, 2026+) to fix this. ' +
+                    `Original error: ${msg}`,
+                { retryable: false, status: 401 },
             );
         }
 
         if (msg.includes('not found') || msg.includes('profile')) {
             throw new ConnectionError(
                 `Connection Profile "${profileId}" not found. It may have been deleted. ` +
-                `Please re-select a profile in Summaryception settings.`,
-                { retryable: false, status: 404 }
+                    'Please re-select a profile in Summaryception settings.',
+                { retryable: false, status: 404 },
             );
         }
 
-        throw new ConnectionError(
-            `Connection Profile request failed: ${msg}`,
-            { retryable: true, status: status }
-        );
+        throw new ConnectionError(`Connection Profile request failed: ${msg}`, {
+            retryable: true,
+            status: status,
+        });
     }
 }
 
@@ -351,13 +373,13 @@ async function sendViaOllama(url, model, systemPrompt, userPrompt) {
     if (!url) {
         throw new ConnectionError(
             'Ollama URL is not configured. Please set it in Summaryception settings.',
-            { retryable: false }
+            { retryable: false },
         );
     }
     if (!model) {
         throw new ConnectionError(
             'Ollama model is not selected. Please select one in Summaryception settings.',
-            { retryable: false }
+            { retryable: false },
         );
     }
 
@@ -379,27 +401,26 @@ async function sendViaOllama(url, model, systemPrompt, userPrompt) {
     } catch (e) {
         throw new ConnectionError(
             `Failed to connect to Ollama at ${baseUrl}. ` +
-            `CORS proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}. ` +
-            `Make sure enableCorsProxy is set to true in config.yaml, or set OLLAMA_ORIGINS=* on your Ollama instance.`,
-            { retryable: true }
+                `CORS proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}. ` +
+                'Make sure enableCorsProxy is set to true in config.yaml, or set OLLAMA_ORIGINS=* on your Ollama instance.',
+            { retryable: true },
         );
     }
 
     if (!response.ok) {
         const errorText = await readErrorText(response);
-        throw new ConnectionError(
-            `Ollama request failed (${response.status}): ${errorText}`,
-            { retryable: response.status >= 500, status: response.status }
-        );
+        throw new ConnectionError(`Ollama request failed (${response.status}): ${errorText}`, {
+            retryable: response.status >= 500,
+            status: response.status,
+        });
     }
 
     const data = await response.json();
 
     if (!data?.message?.content) {
-        throw new ConnectionError(
-            'Ollama returned an empty or invalid response.',
-            { retryable: true }
-        );
+        throw new ConnectionError('Ollama returned an empty or invalid response.', {
+            retryable: true,
+        });
     }
 
     return data.message.content;
@@ -424,8 +445,8 @@ export async function fetchOllamaModels(url) {
     } catch (e) {
         throw new Error(
             `Failed to connect to Ollama at ${baseUrl}. ` +
-            `Enable the CORS proxy in config.yaml (enableCorsProxy: true) or set OLLAMA_ORIGINS=* on your Ollama instance. ` +
-            `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`
+                'Enable the CORS proxy in config.yaml (enableCorsProxy: true) or set OLLAMA_ORIGINS=* on your Ollama instance. ' +
+                `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`,
         );
     }
 
@@ -457,13 +478,13 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
     if (!url) {
         throw new ConnectionError(
             'OpenAI Compatible URL is not configured. Please set it in Summaryception settings.',
-            { retryable: false }
+            { retryable: false },
         );
     }
     if (!model) {
         throw new ConnectionError(
             'OpenAI Compatible model name is not set. Please enter one in Summaryception settings.',
-            { retryable: false }
+            { retryable: false },
         );
     }
 
@@ -505,15 +526,14 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
         if (e.proxyError) {
             throw new ConnectionError(
                 `Failed to connect to ${baseUrl}. ` +
-                `Enable the CORS proxy in config.yaml (enableCorsProxy: true). ` +
-                `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`,
-                { retryable: true }
+                    'Enable the CORS proxy in config.yaml (enableCorsProxy: true). ' +
+                    `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`,
+                { retryable: true },
             );
         }
-        throw new ConnectionError(
-            `Failed to connect to ${baseUrl}: ${e.message}`,
-            { retryable: true }
-        );
+        throw new ConnectionError(`Failed to connect to ${baseUrl}: ${e.message}`, {
+            retryable: true,
+        });
     }
 
     if (!response.ok) {
@@ -521,18 +541,21 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
         if (response.status === 401) {
             throw new ConnectionError(
                 'OpenAI Compatible endpoint returned 401 Unauthorized. Check your API key.',
-                { retryable: false, status: 401 }
+                { retryable: false, status: 401 },
             );
         }
         if (response.status === 403) {
             throw new ConnectionError(
                 `OpenAI Compatible endpoint returned 403 Forbidden: ${errorText}`,
-                { retryable: false, status: 403 }
+                { retryable: false, status: 403 },
             );
         }
         throw new ConnectionError(
             `OpenAI Compatible request failed (${response.status}): ${errorText}`,
-            { retryable: response.status >= 500 || response.status === 429, status: response.status }
+            {
+                retryable: response.status >= 500 || response.status === 429,
+                status: response.status,
+            },
         );
     }
 
@@ -546,7 +569,9 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
     try {
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+                break;
+            }
 
             buffer += decoder.decode(value, { stream: true });
 
@@ -557,10 +582,14 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
 
             for (const line of lines) {
                 const trimmed = line.trim();
-                if (!trimmed || !trimmed.startsWith('data:')) continue;
+                if (!trimmed || !trimmed.startsWith('data:')) {
+                    continue;
+                }
 
                 const data = trimmed.slice(5).trim();
-                if (data === '[DONE]') continue;
+                if (data === '[DONE]') {
+                    continue;
+                }
 
                 try {
                     const parsed = JSON.parse(data);
@@ -568,7 +597,7 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
                     if (delta) {
                         fullContent += delta;
                     }
-                } catch (e) {
+                } catch (_e) {
                     // Skip unparseable chunks (comments, keep-alive, etc.)
                 }
             }
@@ -580,7 +609,7 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
     if (!fullContent.trim()) {
         throw new ConnectionError(
             'OpenAI Compatible endpoint returned an empty response (streaming).',
-                                  { retryable: true }
+            { retryable: true },
         );
     }
 
@@ -602,7 +631,7 @@ export async function testOpenAIConnection(url, apiKey, model) {
             model || 'test',
             'You are a test assistant.',
             'Respond with exactly: CONNECTION_OK',
-            100 // small token limit for test
+            100, // small token limit for test
         );
         return {
             success: true,

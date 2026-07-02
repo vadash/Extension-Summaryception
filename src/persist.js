@@ -18,7 +18,9 @@ export async function persistChatState() {
     await saveChatStore();
     try {
         const ctx = SillyTavern.getContext();
-        if (ctx.saveChat) await ctx.saveChat();
+        if (ctx.saveChat) {
+            await ctx.saveChat();
+        }
     } catch (e) {
         log('Could not save chat:', e);
     }
@@ -31,8 +33,12 @@ export async function persistChatState() {
  * @param {boolean} opts.ui - Whether to refresh the UI (default false)
  */
 export function refreshExtensionState({ injection = true, ui = false } = {}) {
-    if (injection) updateInjection();
-    if (ui && _uiRefresher) _uiRefresher();
+    if (injection) {
+        updateInjection();
+    }
+    if (ui && _uiRefresher) {
+        _uiRefresher();
+    }
 }
 
 /**

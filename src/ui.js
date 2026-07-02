@@ -1,10 +1,22 @@
 import { LOG_PREFIX, defaultSettings, PROMPT_PRESETS } from './constants.js';
-import { fetchOllamaModels, testOpenAIConnection, populateProfileDropdown } from './connectionutil.js';
+import {
+    fetchOllamaModels,
+    testOpenAIConnection,
+    populateProfileDropdown,
+} from './connectionutil.js';
 import { log } from './logger.js';
 import { getSettings, saveSettings, getChatStore, saveChatStore } from './state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from './ghosting.js';
 import { getAssistantTurns, buildPassageFromRange } from './chatutils.js';
-import { abortSummarization, callSummarizer, getIsSummarizing, hasActiveAbortController, resetCatchupDismissed, runCatchup, setSummarizing } from './summarizer.js';
+import {
+    abortSummarization,
+    callSummarizer,
+    getIsSummarizing,
+    hasActiveAbortController,
+    resetCatchupDismissed,
+    runCatchup,
+    setSummarizing,
+} from './summarizer.js';
 import { assembleSummaryBlock, updateInjection } from './injection.js';
 import { persistAndRefresh } from './persist.js';
 import { clearSummaryceptionMemory } from './memory.js';
@@ -60,8 +72,10 @@ export function updateUI() {
         let ghostedCount = 0;
         try {
             const { chat } = SillyTavern.getContext();
-            ghostedCount = chat.filter(m => m.extra?.sc_ghosted).length;
-        } catch (e) { /* no chat loaded */ }
+            ghostedCount = chat.filter((m) => m.extra?.sc_ghosted).length;
+        } catch (_e) {
+            /* no chat loaded */
+        }
 
         let statsHtml = '';
         if (s.disableGhosting) {
@@ -73,7 +87,8 @@ export function updateUI() {
             for (let i = store.layers.length - 1; i >= 0; i--) {
                 const layer = store.layers[i];
                 if (layer && layer.length > 0) {
-                    const label = i === 0 ? 'Layer 0 (turn summaries)' : `Layer ${i} (depth ${i} meta)`;
+                    const label =
+                        i === 0 ? 'Layer 0 (turn summaries)' : `Layer ${i} (depth ${i} meta)`;
                     statsHtml += `<div class="sc-layer-stat">
                     <span class="sc-layer-label">${label}:</span>
                     <strong>${layer.length}</strong> / ${s.snippetsPerLayer} snippets
@@ -82,7 +97,7 @@ export function updateUI() {
             }
         }
         statsHtml += `<div class="sc-layer-stat sc-muted">Summarized up to chat index: ${store.summarizedUpTo ?? -1}</div>`;
-        if (!store.layers?.length || store.layers.every(l => !l || l.length === 0)) {
+        if (!store.layers?.length || store.layers.every((l) => !l || l.length === 0)) {
             statsHtml = '<div class="sc-layer-stat sc-muted">No summaries yet for this chat.</div>';
         }
 
@@ -108,12 +123,7 @@ export function updateCustomPromptSlots() {
 
     for (const name of names) {
         const preview = prompts[name].substring(0, 60).replace(/\n/g, ' ');
-        select.append(
-            $('<option></option>')
-            .val(name)
-            .text(`${name}`)
-            .attr('title', preview)
-        );
+        select.append($('<option></option>').val(name).text(`${name}`).attr('title', preview));
     }
 
     // Show/hide the prompt manager based on current preset
@@ -128,12 +138,14 @@ export function updateSnippetBrowser() {
     const store = getChatStore();
     let html = '';
 
-    if (!store.layers || store.layers.every(l => !l || l.length === 0)) {
+    if (!store.layers || store.layers.every((l) => !l || l.length === 0)) {
         html = '<div class="sc-muted">No snippets to display.</div>';
     } else {
         for (let i = store.layers.length - 1; i >= 0; i--) {
             const layer = store.layers[i];
-            if (!layer || layer.length === 0) continue;
+            if (!layer || layer.length === 0) {
+                continue;
+            }
             const label = i === 0 ? 'Layer 0 (Turn Summaries)' : `Layer ${i} (Meta-Summary)`;
             html += `<div class="sc-browser-layer"><div class="sc-browser-layer-title">${label}</div>`;
             for (let j = 0; j < layer.length; j++) {
@@ -141,12 +153,12 @@ export function updateSnippetBrowser() {
                 const rangeStr = sn.turnRange
                     ? `turns ${sn.turnRange[0]}–${sn.turnRange[1]}`
                     : sn.mergedCount
-                        ? `merged ${sn.mergedCount} from L${sn.fromLayer}`
-                        : '';
+                      ? `merged ${sn.mergedCount} from L${sn.fromLayer}`
+                      : '';
                 const seedStr = sn.promoted ? ' 🌱' : '';
-                const canRedo = (i === 0 && sn.turnRange);
+                const canRedo = i === 0 && sn.turnRange;
                 const redoBtn = canRedo
-                    ? `<button class="sc-snippet-redo menu_button fa-solid fa-rotate-right" title="Regenerate this snippet"></button>`
+                    ? '<button class="sc-snippet-redo menu_button fa-solid fa-rotate-right" title="Regenerate this snippet"></button>'
                     : '';
 
                 html += `<div class="sc-snippet" data-layer="${i}" data-idx="${j}">
@@ -163,155 +175,184 @@ export function updateSnippetBrowser() {
     $('#sc_snippet_browser').html(html);
 
     // Edit snippet on click
-    $('.sc-snippet-text').off('click').on('click', function () {
-        const layerIdx = parseInt($(this).data('layer'));
-        const snippetIdx = parseInt($(this).data('idx'));
-        const layer = store.layers[layerIdx];
-        if (!layer || !layer[snippetIdx]) return;
+    $('.sc-snippet-text')
+        .off('click')
+        .on('click', function () {
+            const layerIdx = parseInt($(this).data('layer'));
+            const snippetIdx = parseInt($(this).data('idx'));
+            const layer = store.layers[layerIdx];
+            if (!layer || !layer[snippetIdx]) {
+                return;
+            }
 
-        const sn = layer[snippetIdx];
-        const textEl = $(this);
+            const sn = layer[snippetIdx];
+            const textEl = $(this);
 
-        const textarea = $('<textarea class="sc-snippet-edit"></textarea>')
-            .val(sn.text)
-            .on('keydown', async function (e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
+            const textarea = $('<textarea class="sc-snippet-edit"></textarea>')
+                .val(sn.text)
+                .on('keydown', async function (e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        const newText = $(this).val().trim();
+                        if (newText) {
+                            sn.text = newText;
+                            await saveChatStore();
+                            updateInjection();
+                            toastr.success('Snippet updated', 'Summaryception', { timeOut: 1500 });
+                        }
+                        updateSnippetBrowser();
+                    } else if (e.key === 'Escape') {
+                        updateSnippetBrowser();
+                    }
+                })
+                .on('blur', async function () {
                     const newText = $(this).val().trim();
-                    if (newText) {
+                    if (newText && newText !== sn.text) {
                         sn.text = newText;
                         await saveChatStore();
                         updateInjection();
                         toastr.success('Snippet updated', 'Summaryception', { timeOut: 1500 });
                     }
                     updateSnippetBrowser();
-                } else if (e.key === 'Escape') {
-                    updateSnippetBrowser();
-                }
-            })
-            .on('blur', async function () {
-                const newText = $(this).val().trim();
-                if (newText && newText !== sn.text) {
-                    sn.text = newText;
-                    await saveChatStore();
-                    updateInjection();
-                    toastr.success('Snippet updated', 'Summaryception', { timeOut: 1500 });
-                }
-                updateSnippetBrowser();
-            });
+                });
 
-        textEl.replaceWith(textarea);
+            textEl.replaceWith(textarea);
 
-        // Auto-size to fit content
-        textarea[0].style.height = 'auto';
-        textarea[0].style.height = textarea[0].scrollHeight + 'px';
+            // Auto-size to fit content
+            textarea[0].style.height = 'auto';
+            textarea[0].style.height = textarea[0].scrollHeight + 'px';
 
-        textarea.focus().select();
-    });
+            textarea.focus().select();
+        });
 
     // Redo snippet
-    $('.sc-snippet-redo').off('click').on('click', async function () {
-        const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
-        const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
-        const store = getChatStore();
-        const layer = store.layers[layerIdx];
-        if (!layer || !layer[snippetIdx]) return;
-
-        const sn = layer[snippetIdx];
-
-        if (!sn.turnRange) {
-            toastr.warning(
-                'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
-                'Summaryception',
-                { timeOut: 5000 }
-            );
-            return;
-        }
-
-        if (getIsSummarizing()) {
-            toastr.warning('Already summarizing. Please wait.', 'Summaryception');
-            return;
-        }
-
-        const [rangeStart, rangeEnd] = sn.turnRange;
-        const { chat } = SillyTavern.getContext();
-
-        if (!confirm(`Regenerate summary for turns ${rangeStart}–${rangeEnd}?`)) return;
-
-        setSummarizing(true);
-        const btn = $(this);
-        btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
-
-        try {
-            const storyTxt = buildPassageFromRange(chat, rangeStart, rangeEnd);
-
-            if (!storyTxt.trim()) {
-                toastr.error('Source turns are empty — cannot regenerate.', 'Summaryception');
+    $('.sc-snippet-redo')
+        .off('click')
+        .on('click', async function () {
+            const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
+            const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
+            const store = getChatStore();
+            const layer = store.layers[layerIdx];
+            if (!layer || !layer[snippetIdx]) {
                 return;
             }
 
-            const contextParts = [];
-            for (let i = store.layers.length - 1; i >= 0; i--) {
-                const l = store.layers[i];
-                if (!l) continue;
-                for (let j = 0; j < l.length; j++) {
-                    if (i === layerIdx && j === snippetIdx) continue;
-                    contextParts.push(l[j].text);
+            const sn = layer[snippetIdx];
+
+            if (!sn.turnRange) {
+                toastr.warning(
+                    'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
+                    'Summaryception',
+                    { timeOut: 5000 },
+                );
+                return;
+            }
+
+            if (getIsSummarizing()) {
+                toastr.warning('Already summarizing. Please wait.', 'Summaryception');
+                return;
+            }
+
+            const [rangeStart, rangeEnd] = sn.turnRange;
+            const { chat } = SillyTavern.getContext();
+
+            if (!confirm(`Regenerate summary for turns ${rangeStart}–${rangeEnd}?`)) {
+                return;
+            }
+
+            setSummarizing(true);
+            const btn = $(this);
+            btn.prop('disabled', true)
+                .removeClass('fa-rotate-right')
+                .addClass('fa-spinner fa-spin');
+
+            try {
+                const storyTxt = buildPassageFromRange(chat, rangeStart, rangeEnd);
+
+                if (!storyTxt.trim()) {
+                    toastr.error('Source turns are empty — cannot regenerate.', 'Summaryception');
+                    return;
                 }
+
+                const contextParts = [];
+                for (let i = store.layers.length - 1; i >= 0; i--) {
+                    const l = store.layers[i];
+                    if (!l) {
+                        continue;
+                    }
+                    for (let j = 0; j < l.length; j++) {
+                        if (i === layerIdx && j === snippetIdx) {
+                            continue;
+                        }
+                        contextParts.push(l[j].text);
+                    }
+                }
+                const contextStr = contextParts.length > 0 ? contextParts.join(' ') : '(none yet)';
+
+                toastr.info(
+                    `Regenerating summary for turns ${rangeStart}–${rangeEnd}…`,
+                    'Summaryception',
+                    {
+                        timeOut: 3000,
+                        progressBar: true,
+                    },
+                );
+
+                const newSummary = await callSummarizer(storyTxt, contextStr);
+
+                if (!newSummary) {
+                    toastr.error('Regeneration failed — original snippet kept.', 'Summaryception');
+                    return;
+                }
+
+                sn.text = newSummary;
+                sn.timestamp = Date.now();
+                sn.regenerated = true;
+
+                await saveChatStore();
+                updateInjection();
+                updateUI();
+
+                toastr.success(
+                    `Snippet regenerated for turns ${rangeStart}–${rangeEnd}`,
+                    'Summaryception',
+                    { timeOut: 3000 },
+                );
+            } finally {
+                setSummarizing(false);
+                btn.prop('disabled', false)
+                    .removeClass('fa-spinner fa-spin')
+                    .addClass('fa-rotate-right');
             }
-            const contextStr = contextParts.length > 0 ? contextParts.join(' ') : '(none yet)';
-
-            toastr.info(`Regenerating summary for turns ${rangeStart}–${rangeEnd}…`, 'Summaryception', {
-                timeOut: 3000,
-                progressBar: true,
-            });
-
-            const newSummary = await callSummarizer(storyTxt, contextStr);
-
-            if (!newSummary) {
-                toastr.error('Regeneration failed — original snippet kept.', 'Summaryception');
-                return;
-            }
-
-            sn.text = newSummary;
-            sn.timestamp = Date.now();
-            sn.regenerated = true;
-
-            await saveChatStore();
-            updateInjection();
-            updateUI();
-
-            toastr.success(`Snippet regenerated for turns ${rangeStart}–${rangeEnd}`, 'Summaryception', { timeOut: 3000 });
-
-        } finally {
-            setSummarizing(false);
-            btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');
-        }
-    });
+        });
 
     // Delete snippet
-    $('.sc-snippet-delete').off('click').on('click', async function () {
-        const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
-        const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
-        const layer = store.layers[layerIdx];
-        if (layer) {
-            layer.splice(snippetIdx, 1);
+    $('.sc-snippet-delete')
+        .off('click')
+        .on('click', async function () {
+            const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
+            const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
+            const layer = store.layers[layerIdx];
+            if (layer) {
+                layer.splice(snippetIdx, 1);
 
-            if (store.layers[0] && store.layers[0].length > 0) {
-                const maxEnd = Math.max(...store.layers[0]
-                    .filter(sn => sn.turnRange)
-                    .map(sn => sn.turnRange[1]));
-                store.summarizedUpTo = maxEnd;
-            } else {
-                store.summarizedUpTo = -1;
+                if (store.layers[0] && store.layers[0].length > 0) {
+                    const maxEnd = Math.max(
+                        ...store.layers[0]
+                            .filter((sn) => sn.turnRange)
+                            .map((sn) => sn.turnRange[1]),
+                    );
+                    store.summarizedUpTo = maxEnd;
+                } else {
+                    store.summarizedUpTo = -1;
+                }
+
+                await saveChatStore();
+                updateInjection();
+                updateUI();
+                toastr.info(`Snippet removed from Layer ${layerIdx}`, 'Summaryception');
             }
-
-            await saveChatStore();
-            updateInjection();
-            updateUI();
-            toastr.info(`Snippet removed from Layer ${layerIdx}`, 'Summaryception');
-        }
-    });
+        });
 }
 
 export function escapeHtml(text) {
@@ -336,13 +377,13 @@ export function bindUIEvents() {
             toastr.info(
                 'Summarization paused. Existing summaries will continue to be injected. Use Force Summarize or unpause to catch up.',
                 'Summaryception',
-                { timeOut: 5000 }
+                { timeOut: 5000 },
             );
         } else {
             toastr.info(
                 'Summarization resumed. Will process new turns automatically.',
                 'Summaryception',
-                { timeOut: 3000 }
+                { timeOut: 3000 },
             );
         }
     });
@@ -355,7 +396,7 @@ export function bindUIEvents() {
             toastr.info(
                 'Message hiding disabled. Summarized messages will remain visible but still be excluded from LLM context via the sc_ghosted flag.',
                 'Summaryception',
-                { timeOut: 5000 }
+                { timeOut: 5000 },
             );
         }
     });
@@ -366,16 +407,32 @@ export function bindUIEvents() {
     });
 
     $(document).on('change', '#sc_strip_patterns', function () {
-        const lines = $(this).val().split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const lines = $(this)
+            .val()
+            .split('\n')
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
         getSettings().stripPatterns = lines;
         saveSettings();
     });
 
     const sliders = [
         { id: '#sc_verbatim_turns', key: 'verbatimTurns', display: '#sc_verbatim_turns_val' },
-        { id: '#sc_turns_per_summary', key: 'turnsPerSummary', display: '#sc_turns_per_summary_val' },
-        { id: '#sc_snippets_per_layer', key: 'snippetsPerLayer', display: '#sc_snippets_per_layer_val' },
-        { id: '#sc_snippets_per_promotion', key: 'snippetsPerPromotion', display: '#sc_snippets_per_promotion_val' },
+        {
+            id: '#sc_turns_per_summary',
+            key: 'turnsPerSummary',
+            display: '#sc_turns_per_summary_val',
+        },
+        {
+            id: '#sc_snippets_per_layer',
+            key: 'snippetsPerLayer',
+            display: '#sc_snippets_per_layer_val',
+        },
+        {
+            id: '#sc_snippets_per_promotion',
+            key: 'snippetsPerPromotion',
+            display: '#sc_snippets_per_promotion_val',
+        },
         { id: '#sc_max_layers', key: 'maxLayers', display: '#sc_max_layers_val' },
     ];
 
@@ -418,21 +475,24 @@ export function bindUIEvents() {
         const progressToast = toastr.info(
             'Scanning for orphaned messages...',
             'Summaryception — Repair',
-            { timeOut: 0, extendedTimeOut: 0, tapToDismiss: false }
+            { timeOut: 0, extendedTimeOut: 0, tapToDismiss: false },
         );
 
         for (let i = 0; i < chat.length; i++) {
             const m = chat[i];
 
-            const isStuckHidden = (m.is_system || m.is_hidden)
-            && !m.is_user
-            && !m.extra?.sc_ghosted
-            && m.mes
-            && m.mes.trim().length > 0;
+            const isStuckHidden =
+                (m.is_system || m.is_hidden) &&
+                !m.is_user &&
+                !m.extra?.sc_ghosted &&
+                m.mes &&
+                m.mes.trim().length > 0;
 
             if (isStuckHidden) {
                 try {
-                    await SillyTavern.getContext().executeSlashCommandsWithOptions(`/unhide ${i}`, { showOutput: false });
+                    await SillyTavern.getContext().executeSlashCommandsWithOptions(`/unhide ${i}`, {
+                        showOutput: false,
+                    });
                 } catch (e) {
                     log(`Repair: failed to unhide ${i}:`, e);
                 }
@@ -443,9 +503,9 @@ export function bindUIEvents() {
                 repaired++;
 
                 if (repaired % 5 === 0) {
-                    $(progressToast).find('.toast-message').text(
-                        `Repairing: found ${repaired} orphaned messages...`
-                    );
+                    $(progressToast)
+                        .find('.toast-message')
+                        .text(`Repairing: found ${repaired} orphaned messages...`);
                 }
             }
         }
@@ -455,7 +515,9 @@ export function bindUIEvents() {
         if (repaired > 0) {
             try {
                 const ctx = SillyTavern.getContext();
-                if (ctx.saveChat) await ctx.saveChat();
+                if (ctx.saveChat) {
+                    await ctx.saveChat();
+                }
             } catch (e) {
                 log('Could not save chat:', e);
             }
@@ -463,7 +525,7 @@ export function bindUIEvents() {
             toastr.success(
                 `Repaired ${repaired} orphaned messages. They are now visible to the summarizer again.`,
                 'Summaryception',
-                { timeOut: 5000 }
+                { timeOut: 5000 },
             );
         } else {
             toastr.info('No orphaned messages found.', 'Summaryception', { timeOut: 3000 });
@@ -471,7 +533,9 @@ export function bindUIEvents() {
     });
 
     $(document).on('click', '#sc_clear_memory', async function () {
-        if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) return;
+        if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) {
+            return;
+        }
 
         await clearSummaryceptionMemory({ updateUi: true });
         toastr.success('Memory cleared & messages unghosted', 'Summaryception');
@@ -496,20 +560,27 @@ export function bindUIEvents() {
 
             const { chat } = SillyTavern.getContext();
             const allAssistantTurns = getAssistantTurns(chat);
-            const visibleTurns = allAssistantTurns.filter(t => !chat[t.index].extra?.sc_ghosted);
+            const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
 
             if (visibleTurns.length <= s.verbatimTurns) {
-                toastr.info('Nothing to summarize — visible turns are within the verbatim limit.', 'Summaryception');
+                toastr.info(
+                    'Nothing to summarize — visible turns are within the verbatim limit.',
+                    'Summaryception',
+                );
                 return;
             }
 
             const overflow = visibleTurns.length - s.verbatimTurns;
-            toastr.info(`${overflow} turns to process. Starting...`, 'Summaryception', { timeOut: 2000 });
+            toastr.info(`${overflow} turns to process. Starting...`, 'Summaryception', {
+                timeOut: 2000,
+            });
 
             await runCatchup(visibleTurns, overflow);
             updateInjection();
         } finally {
-            $(this).prop('disabled', false).html('<i class="fa-solid fa-bolt"></i> Force Summarize Now');
+            $(this)
+                .prop('disabled', false)
+                .html('<i class="fa-solid fa-bolt"></i> Force Summarize Now');
             updateUI();
         }
     });
@@ -520,7 +591,9 @@ export function bindUIEvents() {
             return;
         }
         abortSummarization();
-        toastr.warning('Summarization stopped. Progress has been saved.', 'Summaryception', { timeOut: 4000 });
+        toastr.warning('Summarization stopped. Progress has been saved.', 'Summaryception', {
+            timeOut: 4000,
+        });
         $(this).prop('disabled', true);
         setTimeout(() => $(this).prop('disabled', false), 2000);
         updateUI();
@@ -546,7 +619,9 @@ export function bindUIEvents() {
         input.accept = '.json';
         input.onchange = async (e) => {
             const file = e.target.files[0];
-            if (!file) return;
+            if (!file) {
+                return;
+            }
             try {
                 const text = await file.text();
                 const data = JSON.parse(text);
@@ -555,7 +630,6 @@ export function bindUIEvents() {
                     return;
                 }
 
-                const { chat } = SillyTavern.getContext();
                 const store = getChatStore();
 
                 await unghostAllMessages();
@@ -571,8 +645,8 @@ export function bindUIEvents() {
                 await persistAndRefresh({ ui: true });
                 toastr.success(
                     `Memory imported. ${store.layers.reduce((sum, l) => sum + (l?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
-                               'Summaryception',
-                               { timeOut: 4000 }
+                    'Summaryception',
+                    { timeOut: 4000 },
                 );
             } catch (err) {
                 console.error(LOG_PREFIX, err);
@@ -649,7 +723,9 @@ export function bindUIEvents() {
         }
 
         const s = getSettings();
-        if (!s.savedCustomPrompts) s.savedCustomPrompts = {};
+        if (!s.savedCustomPrompts) {
+            s.savedCustomPrompts = {};
+        }
 
         const promptText = $('#sc_summarizer_user_prompt').val();
         if (!promptText.trim()) {
@@ -664,11 +740,9 @@ export function bindUIEvents() {
         $('#sc_custom_prompt_name').val('');
         updateCustomPromptSlots();
 
-        toastr.success(
-            `Prompt "${name}" ${isOverwrite ? 'updated' : 'saved'}.`,
-            'Summaryception',
-            { timeOut: 2000 }
-        );
+        toastr.success(`Prompt "${name}" ${isOverwrite ? 'updated' : 'saved'}.`, 'Summaryception', {
+            timeOut: 2000,
+        });
     });
 
     // ── Custom Prompt: Load from named slot ──
@@ -704,7 +778,9 @@ export function bindUIEvents() {
             return;
         }
 
-        if (!confirm(`Delete saved prompt "${name}"?`)) return;
+        if (!confirm(`Delete saved prompt "${name}"?`)) {
+            return;
+        }
 
         const s = getSettings();
         if (s.savedCustomPrompts) {
@@ -741,7 +817,9 @@ export function bindUIEvents() {
         input.accept = '.txt,.text';
         input.onchange = async (e) => {
             const file = e.target.files[0];
-            if (!file) return;
+            if (!file) {
+                return;
+            }
             try {
                 const text = await file.text();
                 if (!text.trim()) {
@@ -759,11 +837,9 @@ export function bindUIEvents() {
                 saveSettings();
                 updateCustomPromptSlots();
 
-                toastr.success(
-                    `Prompt imported from "${file.name}".`,
-                    'Summaryception',
-                    { timeOut: 3000 }
-                );
+                toastr.success(`Prompt imported from "${file.name}".`, 'Summaryception', {
+                    timeOut: 3000,
+                });
             } catch (err) {
                 console.error(LOG_PREFIX, err);
                 toastr.error('Import failed — check console.', 'Summaryception');
@@ -773,11 +849,15 @@ export function bindUIEvents() {
     });
 
     $(document).on('click', '#sc_reset_defaults', function () {
-        if (!confirm(
-            'Reset all Advanced Settings to defaults?\n\n' +
-            'This will reset sliders, prompts, injection template, and strip patterns.\n' +
-            'It will NOT clear your summary memory or connection settings.'
-        )) return;
+        if (
+            !confirm(
+                'Reset all Advanced Settings to defaults?\n\n' +
+                    'This will reset sliders, prompts, injection template, and strip patterns.\n' +
+                    'It will NOT clear your summary memory or connection settings.',
+            )
+        ) {
+            return;
+        }
 
         const s = getSettings();
 
@@ -807,7 +887,7 @@ export function bindUIEvents() {
         toastr.success(
             'Advanced settings reset to defaults. Connection settings and summary memory were preserved.',
             'Summaryception',
-            { timeOut: 4000 }
+            { timeOut: 4000 },
         );
     });
 }
@@ -929,8 +1009,10 @@ export function updateConnectionSubPanels(source) {
         openai: document.getElementById('summaryception_openai_settings'),
     };
 
-    Object.values(panels).forEach(panel => {
-        if (panel) panel.style.display = 'none';
+    Object.values(panels).forEach((panel) => {
+        if (panel) {
+            panel.style.display = 'none';
+        }
     });
 
     if (panels[source]) {
@@ -964,7 +1046,7 @@ export async function refreshOllamaModels() {
 
     try {
         const models = await fetchOllamaModels(ollamaUrl);
-        s.ollamaModelsCache = models.map(m => ({ name: m.name }));
+        s.ollamaModelsCache = models.map((m) => ({ name: m.name }));
         saveSettings();
 
         if (modelSelect) {
@@ -1010,7 +1092,9 @@ export function showConnectionStatus(type, message) {
     const icon = document.getElementById('summaryception_connection_status_icon');
     const text = document.getElementById('summaryception_connection_status_text');
 
-    if (!container || !icon || !text) return;
+    if (!container || !icon || !text) {
+        return;
+    }
 
     container.style.display = 'flex';
     container.className = 'summaryception-connection-status ' + type;
@@ -1026,7 +1110,9 @@ export function showConnectionStatus(type, message) {
 
     if (type !== 'loading') {
         setTimeout(() => {
-            if (container) container.style.display = 'none';
+            if (container) {
+                container.style.display = 'none';
+            }
         }, 8000);
     }
 }

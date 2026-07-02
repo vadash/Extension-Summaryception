@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+docs/
+.git/
+AGENTS.md
+README.md
+manifest.json
+settings.html
+style.css

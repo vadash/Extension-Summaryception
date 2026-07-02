@@ -17,7 +17,10 @@ export async function clearSummaryceptionMemory({ updateUi = false } = {}) {
         await unghostAllMessages();
     } catch (e) {
         console.error(LOG_PREFIX, 'Error during unghost (continuing with clear):', e);
-        toastr.warning('Some messages could not be unghosted, but memory will still be cleared.', 'Summaryception');
+        toastr.warning(
+            'Some messages could not be unghosted, but memory will still be cleared.',
+            'Summaryception',
+        );
     }
 
     const store = getChatStore();

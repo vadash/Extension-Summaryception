@@ -15,8 +15,7 @@ export const defaultSettings = Object.freeze({
     summarizerSystemPrompt:
         'Role: precise narrative-state tracker. Output only the summary line — no preamble, no commentary, no markdown.',
 
-    summarizerUserPrompt:
-        `<player_name>
+    summarizerUserPrompt: `<player_name>
 {{player_name}}
 </player_name>
 
@@ -36,11 +35,11 @@ Exclude anything insubstantial, fluff, atmospheric details, or events already co
 
 Write in short phrases, no more than 20; output must be a single line:`,
 
-    promptPreset: 'narrative',  // 'narrative' | 'gamestate' | 'custom'
-    savedCustomPrompts: {},        // { name: promptText } — named custom prompt slots
-    lastCustomPrompt: '',          // Auto-saved when switching away from custom
-    pauseSummarization: false,  // true = stop processing, keep injecting
-    disableGhosting: false,  // true = mark as summarized but don't hide messages
+    promptPreset: 'narrative', // 'narrative' | 'gamestate' | 'custom'
+    savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
+    lastCustomPrompt: '', // Auto-saved when switching away from custom
+    pauseSummarization: false, // true = stop processing, keep injecting
+    disableGhosting: false, // true = mark as summarized but don't hide messages
 
     stripPatterns: [
         '<|channel>thought',
@@ -55,16 +54,16 @@ Write in short phrases, no more than 20; output must be a single line:`,
     traceMode: false,
 
     // ─── Connection Settings ─────────────────────────────────────
-    connectionSource: 'default',          // 'default' | 'profile' | 'ollama' | 'openai'
-    summarizerResponseLength: 0,          // 0 = use preset default; set lower if you get "max_tokens > 4096 must have stream=true" errors
-    connectionProfileId: '',              // ID of selected ST Connection Profile
+    connectionSource: 'default', // 'default' | 'profile' | 'ollama' | 'openai'
+    summarizerResponseLength: 0, // 0 = use preset default; set lower if you get "max_tokens > 4096 must have stream=true" errors
+    connectionProfileId: '', // ID of selected ST Connection Profile
     ollamaUrl: 'http://localhost:11434',
     ollamaModel: '',
-    ollamaModelsCache: [],                // Cached model list from Ollama
+    ollamaModelsCache: [], // Cached model list from Ollama
     openaiUrl: '',
     openaiKey: '',
     openaiModel: '',
-    openaiMaxTokens: 0,                   // 0 = no limit (provider default)
+    openaiMaxTokens: 0, // 0 = no limit (provider default)
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────

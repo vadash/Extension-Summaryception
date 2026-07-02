@@ -18,11 +18,7 @@ import { onChatChanged, onGenerationStarted, onMessageReceived } from './src/eve
 import { registerSlashCommands } from './src/commands.js';
 
 (async function init() {
-    const {
-        eventSource,
-        event_types,
-        renderExtensionTemplateAsync,
-    } = SillyTavern.getContext();
+    const { eventSource, event_types, renderExtensionTemplateAsync } = SillyTavern.getContext();
 
     getSettings();
     setUiUpdater(updateUI);
@@ -31,7 +27,7 @@ import { registerSlashCommands } from './src/commands.js';
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',
         'settings',
-        {}
+        {},
     );
     $('#extensions_settings2').append(html);
 
