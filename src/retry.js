@@ -2,10 +2,16 @@ import { RETRY_CONFIG } from './constants.js';
 
 export { RETRY_CONFIG };
 
+/**
+ *
+ */
 export function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ *
+ */
 export function parseRetryAfter(error) {
     try {
         const retryAfter =
@@ -29,6 +35,9 @@ export function parseRetryAfter(error) {
     return null;
 }
 
+/**
+ *
+ */
 export function isRetryableError(error) {
     if (error?.name === 'AbortError') {
         return false;

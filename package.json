@@ -36,6 +36,7 @@
         "@eslint/js": "^9.39.4",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-boundaries": "^6.0.2",
         "eslint-plugin-jsdoc": "^50.8.0",
         "eslint-plugin-unicorn": "^65.0.0",
         "globals": "^17.7.0",
@@ -43,6 +44,7 @@
         "jscpd": "^5.0.11",
         "knip": "^6.24.0",
         "lint-staged": "^17.0.8",
-        "prettier": "^3.9.4"
+        "prettier": "^3.9.4",
+        "typescript": "^6.0.3"
     }
 }

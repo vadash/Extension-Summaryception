@@ -15,6 +15,9 @@ import { persistChatState } from './persist.js';
 
 let uiUpdater = null;
 
+/**
+ *
+ */
 export function setUiUpdater(callback) {
     uiUpdater = callback;
 }
@@ -31,22 +34,37 @@ let isSummarizing = false;
 let catchupDismissed = false;
 let currentAbortController = null;
 
+/**
+ *
+ */
 export function resetCatchupDismissed() {
     catchupDismissed = false;
 }
 
+/**
+ *
+ */
 export function getIsSummarizing() {
     return isSummarizing;
 }
 
+/**
+ *
+ */
 export function setSummarizing(value) {
     isSummarizing = value;
 }
 
+/**
+ *
+ */
 export function hasActiveAbortController() {
     return Boolean(currentAbortController);
 }
 
+/**
+ *
+ */
 export function abortSummarization() {
     if (currentAbortController) {
         currentAbortController.abort();
@@ -57,6 +75,9 @@ export function abortSummarization() {
 
 // ─── Core: LLM Summarization with Retry ──────────────────────────────
 
+/**
+ *
+ */
 export async function callSummarizer(storyTxt, contextStr) {
     trace('>>> ENTERING callSummarizer');
     trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
@@ -190,13 +211,15 @@ export async function callSummarizer(storyTxt, contextStr) {
                     { timeOut: delay },
                 );
 
-                await new Promise((resolve) => {
-                    const timer = setTimeout(resolve, delay);
-                    signal.addEventListener('abort', () => {
-                        clearTimeout(timer);
-                        resolve();
-                    });
-                });
+                await /** @type {Promise<void>} */ (
+                    new Promise((resolve) => {
+                        const timer = setTimeout(resolve, delay);
+                        signal.addEventListener('abort', () => {
+                            clearTimeout(timer);
+                            resolve();
+                        });
+                    })
+                );
             }
         }
 
@@ -219,6 +242,9 @@ export async function callSummarizer(storyTxt, contextStr) {
 
 // ─── Core: Summarize Oldest Verbatim Turns ──────────────────────────
 
+/**
+ *
+ */
 export async function maybeSummarizeTurns() {
     const s = getSettings();
     if (!s.enabled) {
@@ -294,14 +320,13 @@ export async function maybeSummarizeTurns() {
 
 /**
  * Shared batch summarization logic used by both normal and catch-up paths.
- * @param {Array} visibleTurns - Visible (non-ghosted) assistant turns
- * @param {object} opts
- * @param {boolean} opts.showToasts - Show user-facing toasts (normal mode)
- * @param {boolean} opts.catchExceptions - Catch and swallow exceptions, returning false (catch-up mode)
- * @returns {Promise<boolean>} - Whether the batch was successfully summarized
+ * @param {Array<Record<string, unknown>>} visibleTurns
+ * @param {{ showToasts?: boolean, catchExceptions?: boolean }} [opts]
+ * @returns {Promise<boolean>}
  */
 async function summarizeBatchFromTurns(
-    visibleTurns,
+    /** @type {Array<Record<string, unknown>>} */ visibleTurns,
+    /** @type {{ showToasts?: boolean, catchExceptions?: boolean }} */
     { showToasts = false, catchExceptions = false } = {},
 ) {
     trace('>>> ENTERING summarizeBatchFromTurns');
@@ -315,14 +340,18 @@ async function summarizeBatchFromTurns(
     // This handles desync where summarizedUpTo advanced but ghosting failed
     // (e.g., connection drop mid-summarization). Without this filter, the batch
     // always starts at the first un-ghosted turn, gets rejected, and loops forever.
-    const eligibleTurns = visibleTurns.filter((t) => t.index > store.summarizedUpTo);
+    const eligibleTurns = visibleTurns.filter(
+        (t) => /** @type {number} */ (t.index) > store.summarizedUpTo,
+    );
     trace('  eligibleTurns after filtering:', eligibleTurns.length);
 
     if (eligibleTurns.length === 0) {
         log('All visible turns are already summarized — repairing ghosting...');
-        const turnsToGhost = visibleTurns.filter((t) => t.index <= store.summarizedUpTo);
+        const turnsToGhost = visibleTurns.filter(
+            (t) => /** @type {number} */ (t.index) <= store.summarizedUpTo,
+        );
         for (const t of turnsToGhost) {
-            await ghostMessage(t.index);
+            await ghostMessage(/** @type {number} */ (t.index));
         }
         await persistChatState();
         trace('<<< EXITING summarizeBatchFromTurns - REPAIRED GHOSTING');
@@ -337,8 +366,8 @@ async function summarizeBatchFromTurns(
         return false;
     }
 
-    const startIdx = batch[0].index;
-    const endIdx = batch[batch.length - 1].index;
+    const startIdx = /** @type {number} */ (batch[0].index);
+    const endIdx = /** @type {number} */ (batch[batch.length - 1].index);
     trace('  startIdx:', startIdx, 'endIdx:', endIdx);
     trace('  store.summarizedUpTo:', store.summarizedUpTo);
 
@@ -433,6 +462,9 @@ async function summarizeBatchFromTurns(
 
 // ─── Core: Single Batch (Normal Mode) ────────────────────────────────
 
+/**
+ *
+ */
 export async function summarizeOneBatch(visibleTurns) {
     isSummarizing = true;
     try {
@@ -444,12 +476,18 @@ export async function summarizeOneBatch(visibleTurns) {
 
 // ─── Core: Inner Batch for Catchup ───────────────────────────────────
 
+/**
+ *
+ */
 export async function summarizeOneBatchFromTurns(visibleTurns) {
     return await summarizeBatchFromTurns(visibleTurns, { catchExceptions: true });
 }
 
 // ─── Core: Catchup Processing ────────────────────────────────────────
 
+/**
+ *
+ */
 export async function runCatchup(visibleTurns, overflow) {
     trace('>>> ENTERING runCatchup');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
@@ -563,6 +601,9 @@ export async function runCatchup(visibleTurns, overflow) {
 
 // ─── Catch-Up Dialog ─────────────────────────────────────────────────
 
+/**
+ *
+ */
 export async function showCatchupDialog(overflowCount, estimatedCalls) {
     return new Promise((resolve) => {
         const s = getSettings();
@@ -604,24 +645,31 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
         </div>
         `;
         document.body.appendChild(overlay);
-
-        overlay.querySelector('#sc_catchup_full').addEventListener('click', () => {
+        const fullBtn = /** @type {HTMLElement} */ (overlay.querySelector('#sc_catchup_full'));
+        const skipBtn = /** @type {HTMLElement} */ (overlay.querySelector('#sc_catchup_skip'));
+        const partialBtn = /** @type {HTMLElement} */ (
+            overlay.querySelector('#sc_catchup_partial')
+        );
+        fullBtn.addEventListener('click', () => {
             overlay.remove();
-            resolve('catchup');
+            resolve(/** @type {string} */ ('catchup'));
         });
-        overlay.querySelector('#sc_catchup_skip').addEventListener('click', () => {
+        skipBtn.addEventListener('click', () => {
             overlay.remove();
-            resolve('skip');
+            resolve(/** @type {string} */ ('skip'));
         });
-        overlay.querySelector('#sc_catchup_partial').addEventListener('click', () => {
+        partialBtn.addEventListener('click', () => {
             overlay.remove();
-            resolve('partial');
+            resolve(/** @type {string} */ ('partial'));
         });
     });
 }
 
 // ─── Core: Layer Promotion ("ception") ──────────────────────────────
 
+/**
+ *
+ */
 export async function maybePromoteLayer(layerIndex) {
     const s = getSettings();
     const store = getChatStore();
@@ -645,9 +693,11 @@ export async function maybePromoteLayer(layerIndex) {
 
     if (destLayer.length === 0) {
         const seed = layer.shift();
-        seed.promoted = true;
-        seed.seedFromLayer = layerIndex;
-        destLayer.push(seed);
+        if (seed) {
+            seed.promoted = true;
+            seed.seedFromLayer = layerIndex;
+            destLayer.push(seed);
+        }
 
         log(
             `Seeded Layer ${layerIndex + 1} with oldest snippet from Layer ${layerIndex} (no LLM call)`,

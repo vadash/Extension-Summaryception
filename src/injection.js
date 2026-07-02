@@ -4,6 +4,9 @@ import { log } from './logger.js';
 
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 
+/**
+ *
+ */
 export function assembleSummaryBlock() {
     const s = getSettings();
     const store = getChatStore();
@@ -41,6 +44,9 @@ export function assembleSummaryBlock() {
 
 let _lastInjected = '';
 
+/**
+ *
+ */
 export function updateInjection() {
     try {
         const { setExtensionPrompt } = SillyTavern.getContext();

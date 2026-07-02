@@ -2,6 +2,9 @@ import { getChatStore } from './state.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
+/**
+ *
+ */
 export function getAssistantTurns(chat) {
     const turns = [];
     for (let i = 0; i < chat.length; i++) {
@@ -15,6 +18,9 @@ export function getAssistantTurns(chat) {
     return turns;
 }
 
+/**
+ *
+ */
 export function getVisibleAssistantTurns(chat) {
     const turns = [];
     for (let i = 0; i < chat.length; i++) {

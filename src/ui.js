@@ -23,6 +23,9 @@ import { clearSummaryceptionMemory } from './memory.js';
 
 // ─── Settings UI ─────────────────────────────────────────────────────
 
+/**
+ *
+ */
 export function updateUI() {
     try {
         const s = getSettings();
@@ -113,6 +116,9 @@ export function updateUI() {
     }
 }
 
+/**
+ *
+ */
 export function updateCustomPromptSlots() {
     const s = getSettings();
     const select = $('#sc_custom_prompt_slot');
@@ -134,6 +140,9 @@ export function updateCustomPromptSlots() {
     }
 }
 
+/**
+ *
+ */
 export function updateSnippetBrowser() {
     const store = getChatStore();
     let html = '';
@@ -253,7 +262,7 @@ export function updateSnippetBrowser() {
                 return;
             }
 
-            const [rangeStart, rangeEnd] = sn.turnRange;
+            const [rangeStart, rangeEnd] = /** @type {Array<number>} */ (sn.turnRange);
             const { chat } = SillyTavern.getContext();
 
             if (!confirm(`Regenerate summary for turns ${rangeStart}–${rangeEnd}?`)) {
@@ -340,7 +349,7 @@ export function updateSnippetBrowser() {
                     const maxEnd = Math.max(
                         ...store.layers[0]
                             .filter((sn) => sn.turnRange)
-                            .map((sn) => sn.turnRange[1]),
+                            .map((sn) => /** @type {Array<number>} */ (sn.turnRange)[1]),
                     );
                     store.summarizedUpTo = maxEnd;
                 } else {
@@ -355,12 +364,18 @@ export function updateSnippetBrowser() {
         });
 }
 
+/**
+ *
+ */
 export function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
+/**
+ *
+ */
 export function bindUIEvents() {
     $(document).on('change', '#sc_enabled', function () {
         getSettings().enabled = $(this).prop('checked');
@@ -618,7 +633,8 @@ export function bindUIEvents() {
         input.type = 'file';
         input.accept = '.json';
         input.onchange = async (e) => {
-            const file = e.target.files[0];
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            const file = target.files?.[0];
             if (!file) {
                 return;
             }
@@ -644,7 +660,7 @@ export function bindUIEvents() {
 
                 await persistAndRefresh({ ui: true });
                 toastr.success(
-                    `Memory imported. ${store.layers.reduce((sum, l) => sum + (l?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
+                    `Memory imported. ${store.layers.reduce((sum, l) => sum + /** @type {Array<?>} */ ((l)?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
                     'Summaryception',
                     { timeOut: 4000 },
                 );
@@ -816,7 +832,8 @@ export function bindUIEvents() {
         input.type = 'file';
         input.accept = '.txt,.text';
         input.onchange = async (e) => {
-            const file = e.target.files[0];
+            const target = /** @type {HTMLInputElement} */ (e.target);
+            const file = target.files?.[0];
             if (!file) {
                 return;
             }
@@ -894,12 +911,17 @@ export function bindUIEvents() {
 
 // ─── Connection Settings UI ──────────────────────────────────────────
 
+/**
+ *
+ */
 export function initConnectionUI() {
     const s = () => getSettings();
     const save = () => saveSettings();
 
     // ── Source dropdown ──
-    const sourceSelect = document.getElementById('summaryception_connection_source');
+    const sourceSelect = /** @type {HTMLSelectElement} */ (
+        document.getElementById('summaryception_connection_source')
+    );
     if (sourceSelect) {
         sourceSelect.value = s().connectionSource || 'default';
         sourceSelect.addEventListener('change', () => {
@@ -910,7 +932,9 @@ export function initConnectionUI() {
     }
 
     // ── Connection Profile dropdown ──
-    const profileSelect = document.getElementById('summaryception_connection_profile');
+    const profileSelect = /** @type {HTMLSelectElement} */ (
+        document.getElementById('summaryception_connection_profile')
+    );
     if (profileSelect) {
         const populated = populateProfileDropdown(profileSelect, s().connectionProfileId);
         if (!populated) {
@@ -923,7 +947,9 @@ export function initConnectionUI() {
     }
 
     // ── Ollama URL ──
-    const ollamaUrl = document.getElementById('summaryception_ollama_url');
+    const ollamaUrl = /** @type {HTMLInputElement} */ (
+        document.getElementById('summaryception_ollama_url')
+    );
     if (ollamaUrl) {
         ollamaUrl.value = s().ollamaUrl || 'http://localhost:11434';
         ollamaUrl.addEventListener('input', () => {
@@ -933,7 +959,9 @@ export function initConnectionUI() {
     }
 
     // ── Ollama Model dropdown ──
-    const ollamaModel = document.getElementById('summaryception_ollama_model');
+    const ollamaModel = /** @type {HTMLSelectElement} */ (
+        document.getElementById('summaryception_ollama_model')
+    );
     if (ollamaModel) {
         populateOllamaModelDropdown(ollamaModel, s().ollamaModelsCache || [], s().ollamaModel);
         ollamaModel.addEventListener('change', () => {
@@ -943,7 +971,9 @@ export function initConnectionUI() {
     }
 
     // ── Ollama Refresh button ──
-    const ollamaRefresh = document.getElementById('summaryception_ollama_refresh');
+    const ollamaRefresh = /** @type {HTMLButtonElement} */ (
+        document.getElementById('summaryception_ollama_refresh')
+    );
     if (ollamaRefresh) {
         ollamaRefresh.addEventListener('click', async () => {
             await refreshOllamaModels();
@@ -951,7 +981,9 @@ export function initConnectionUI() {
     }
 
     // ── OpenAI URL ──
-    const openaiUrl = document.getElementById('summaryception_openai_url');
+    const openaiUrl = /** @type {HTMLInputElement} */ (
+        document.getElementById('summaryception_openai_url')
+    );
     if (openaiUrl) {
         openaiUrl.value = s().openaiUrl || '';
         openaiUrl.addEventListener('input', () => {
@@ -961,7 +993,9 @@ export function initConnectionUI() {
     }
 
     // ── OpenAI Key ──
-    const openaiKey = document.getElementById('summaryception_openai_key');
+    const openaiKey = /** @type {HTMLInputElement} */ (
+        document.getElementById('summaryception_openai_key')
+    );
     if (openaiKey) {
         openaiKey.value = s().openaiKey || '';
         openaiKey.addEventListener('input', () => {
@@ -971,7 +1005,9 @@ export function initConnectionUI() {
     }
 
     // ── OpenAI Model ──
-    const openaiModel = document.getElementById('summaryception_openai_model');
+    const openaiModel = /** @type {HTMLInputElement} */ (
+        document.getElementById('summaryception_openai_model')
+    );
     if (openaiModel) {
         openaiModel.value = s().openaiModel || '';
         openaiModel.addEventListener('input', () => {
@@ -981,9 +1017,11 @@ export function initConnectionUI() {
     }
 
     // ── OpenAI Max Tokens ──
-    const openaiMaxTokens = document.getElementById('summaryception_openai_max_tokens');
+    const openaiMaxTokens = /** @type {HTMLInputElement} */ (
+        document.getElementById('summaryception_openai_max_tokens')
+    );
     if (openaiMaxTokens) {
-        openaiMaxTokens.value = s().openaiMaxTokens || 0;
+        openaiMaxTokens.value = String(s().openaiMaxTokens || 0);
         openaiMaxTokens.addEventListener('input', () => {
             s().openaiMaxTokens = parseInt(openaiMaxTokens.value, 10) || 0;
             save();
@@ -991,7 +1029,9 @@ export function initConnectionUI() {
     }
 
     // ── OpenAI Test button ──
-    const openaiTest = document.getElementById('summaryception_openai_test');
+    const openaiTest = /** @type {HTMLButtonElement} */ (
+        document.getElementById('summaryception_openai_test')
+    );
     if (openaiTest) {
         openaiTest.addEventListener('click', async () => {
             await testOpenAIConnectionHandler();
@@ -1002,11 +1042,20 @@ export function initConnectionUI() {
     updateConnectionSubPanels(s().connectionSource || 'default');
 }
 
-export function updateConnectionSubPanels(source) {
+/**
+ *
+ */
+export function updateConnectionSubPanels(/** @type {string} */ source) {
     const panels = {
-        profile: document.getElementById('summaryception_profile_settings'),
-        ollama: document.getElementById('summaryception_ollama_settings'),
-        openai: document.getElementById('summaryception_openai_settings'),
+        profile: /** @type {HTMLElement} */ (
+            document.getElementById('summaryception_profile_settings')
+        ),
+        ollama: /** @type {HTMLElement} */ (
+            document.getElementById('summaryception_ollama_settings')
+        ),
+        openai: /** @type {HTMLElement} */ (
+            document.getElementById('summaryception_openai_settings')
+        ),
     };
 
     Object.values(panels).forEach((panel) => {
@@ -1020,7 +1069,14 @@ export function updateConnectionSubPanels(source) {
     }
 }
 
-export function populateOllamaModelDropdown(selectElement, models, currentValue) {
+/**
+ *
+ */
+export function populateOllamaModelDropdown(
+    /** @type {HTMLSelectElement} */ selectElement,
+    models,
+    currentValue,
+) {
     selectElement.innerHTML = '<option value="">-- Select Model --</option>';
 
     if (models && models.length > 0) {
@@ -1037,10 +1093,15 @@ export function populateOllamaModelDropdown(selectElement, models, currentValue)
     }
 }
 
+/**
+ *
+ */
 export async function refreshOllamaModels() {
     const s = getSettings();
     const ollamaUrl = s.ollamaUrl || 'http://localhost:11434';
-    const modelSelect = document.getElementById('summaryception_ollama_model');
+    const modelSelect = /** @type {HTMLSelectElement} */ (
+        document.getElementById('summaryception_ollama_model')
+    );
 
     showConnectionStatus('loading', 'Fetching Ollama models...');
 
@@ -1062,6 +1123,9 @@ export async function refreshOllamaModels() {
     }
 }
 
+/**
+ *
+ */
 export async function testOpenAIConnectionHandler() {
     const s = getSettings();
 
@@ -1087,7 +1151,10 @@ export async function testOpenAIConnectionHandler() {
     }
 }
 
-export function showConnectionStatus(type, message) {
+/**
+ *
+ */
+export function showConnectionStatus(/** @type {string} */ type, /** @type {string} */ message) {
     const container = document.getElementById('summaryception_connection_status');
     const icon = document.getElementById('summaryception_connection_status_icon');
     const text = document.getElementById('summaryception_connection_status_text');
@@ -1117,7 +1184,13 @@ export function showConnectionStatus(type, message) {
     }
 }
 
-export async function fetchProfilesFallback(selectElement, currentValue) {
+/**
+ *
+ */
+export async function fetchProfilesFallback(
+    /** @type {HTMLSelectElement} */ selectElement,
+    currentValue,
+) {
     try {
         const response = await fetch('/api/connection-manager/profiles', {
             method: 'GET',

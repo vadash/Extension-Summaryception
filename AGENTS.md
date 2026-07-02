@@ -1,8 +1,8 @@
-## Overview
+## Summaryception
 
 SillyTavern browser extension for layered recursive summarization. No build step, no bundler, no test suite. ES modules run directly in the browser.
 
-## Coding Style
+## Code Style
 
 - Vanilla JS (ES2022+, ES modules), camelCase / `SCREAMING_SNAKE_CASE` / PascalCase classes
 - 4-space indent, single quotes, `const fn = () => {}` inline / `function name() {}` hoisted
@@ -10,9 +10,27 @@ SillyTavern browser extension for layered recursive summarization. No build step
 - Max complexity 15, max 80 lines/function, max 500 lines/file, JSDoc on exports
 - Globals: `SillyTavern.getContext()`, `toastr`, `$`
 
-## Linting
+## Linting and Committing
 
-ESLint + Prettier run **only on pre-commit** via husky/lint-staged. Never invoke manually -- they auto-fix and re-stage on commit.
+ESLint + Prettier + `tsc --noEmit` run on pre-commit via husky/lint-staged. Don't invoke manually -- they auto-fix and re-stage on commit.
+
+### Import Zone Boundaries
+
+Enforced by `eslint-plugin-boundaries`. Lower layers **must not** import from higher layers. Allowed direction:
+
+```
+constants ← logger, retry ← state ← core ← feature ← entry
+```
+
+| Zone | Files |
+|------|-------|
+| constants | `src/constants.js` |
+| logger | `src/logger.js` |
+| retry | `src/retry.js` |
+| state | `src/state.js` |
+| core | `src/ghosting.js`, `src/chatutils.js`, `src/connectionutil.js`, `src/summarizer.js` |
+| feature | `src/injection.js`, `src/persist.js`, `src/memory.js`, `src/prompts.js` |
+| entry | `src/ui.js`, `src/events.js`, `src/commands.js` |
 
 ## Architecture
 

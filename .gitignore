@@ -1,3 +1,32 @@
+# Dependencies
 node_modules/
+
+# Generated reports
 report/
 jscpd-badge.svg
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+
+# IDE / Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build / dist
+dist/
+build/
+*.log
+
+# TypeScript build output
+*.tsbuildinfo
+.tsbuildinfo

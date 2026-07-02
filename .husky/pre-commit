@@ -1,1 +1,2 @@
+npx tsc --noEmit --pretty false
 npx lint-staged --verbose

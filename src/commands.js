@@ -5,6 +5,9 @@ import { clearSummaryceptionMemory } from './memory.js';
 
 // ─── Slash Commands ──────────────────────────────────────────────────
 
+/**
+ *
+ */
 export function registerSlashCommands() {
     try {
         const ctx = SillyTavern.getContext();

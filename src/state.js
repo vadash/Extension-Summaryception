@@ -1,5 +1,8 @@
 import { MODULE_NAME, defaultSettings } from './constants.js';
 
+/**
+ *
+ */
 export function getSettings() {
     const { extensionSettings } = SillyTavern.getContext();
     if (!extensionSettings[MODULE_NAME]) {
@@ -13,10 +16,16 @@ export function getSettings() {
     return extensionSettings[MODULE_NAME];
 }
 
+/**
+ *
+ */
 export function saveSettings() {
     SillyTavern.getContext().saveSettingsDebounced();
 }
 
+/**
+ *
+ */
 export function getChatStore() {
     const { chatMetadata } = SillyTavern.getContext();
     if (!chatMetadata[MODULE_NAME]) {
@@ -32,10 +41,16 @@ export function getChatStore() {
     return chatMetadata[MODULE_NAME];
 }
 
+/**
+ *
+ */
 export async function saveChatStore() {
     await SillyTavern.getContext().saveMetadata();
 }
 
+/**
+ *
+ */
 export function getPlayerName() {
     const ctx = SillyTavern.getContext();
     return ctx.name1 || 'User';

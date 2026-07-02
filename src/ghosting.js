@@ -3,6 +3,9 @@ import { getChatStore, getSettings, saveChatStore } from './state.js';
 import { log, trace } from './logger.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
+/**
+ *
+ */
 export async function repairGhostingForRange(startIdx, endIdx) {
     trace('>>> ENTERING repairGhostingForRange');
     trace(' startIdx:', startIdx, 'endIdx:', endIdx);
@@ -69,6 +72,9 @@ export async function repairGhostingForRange(startIdx, endIdx) {
     return repaired;
 }
 
+/**
+ *
+ */
 export async function ghostMessage(messageIndex) {
     const { chat } = SillyTavern.getContext();
     const msg = chat[messageIndex];
@@ -106,6 +112,9 @@ export async function ghostMessage(messageIndex) {
     log(`Ghosted message at index ${messageIndex}${s.disableGhosting ? ' (hiding disabled)' : ''}`);
 }
 
+/**
+ *
+ */
 export async function unghostAllMessages() {
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
@@ -171,6 +180,9 @@ export async function unghostAllMessages() {
     log(`Unghosted ${toUnhide.length} messages (only Summaryception-hidden ones)`);
 }
 
+/**
+ *
+ */
 export async function ghostMessagesUpTo(endIndex) {
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
@@ -292,7 +304,9 @@ export async function repairIfBranched() {
         // Recalculate summarizedUpTo based on remaining snippets
         if (store.layers[0] && store.layers[0].length > 0) {
             const maxEnd = Math.max(
-                ...store.layers[0].filter((sn) => sn.turnRange).map((sn) => sn.turnRange[1]),
+                ...store.layers[0]
+                    .filter((sn) => sn.turnRange)
+                    .map((sn) => /** @type {Array<number>} */ (sn.turnRange)[1]),
             );
             store.summarizedUpTo = maxEnd;
         } else {

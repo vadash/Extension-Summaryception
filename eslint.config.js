@@ -3,6 +3,7 @@ import globals from 'globals';
 import prettierConfig from 'eslint-config-prettier';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
 import unicornPlugin from 'eslint-plugin-unicorn';
+import boundariesPlugin from 'eslint-plugin-boundaries';
 
 export default [
     {
@@ -15,6 +16,7 @@ export default [
         files: ['**/*.js'],
         plugins: {
             unicorn: unicornPlugin,
+            boundaries: boundariesPlugin,
         },
         languageOptions: {
             ecmaVersion: 2022,
@@ -28,7 +30,7 @@ export default [
             },
         },
         rules: {
-            // ── Naming conventions (enforces AGENTS.md standards) ──────
+            // Naming conventions (enforces AGENTS.md standards)
             camelcase: [
                 'error',
                 {
@@ -39,7 +41,7 @@ export default [
             ],
             'new-cap': ['error', { capIsNew: false }],
 
-            // ── Complexity limits ──────────────────────────────────────
+            // Complexity limits
             complexity: ['warn', { max: 15 }],
             'max-depth': ['warn', { max: 4 }],
             'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
@@ -69,12 +71,7 @@ export default [
             curly: ['error', 'all'],
             'no-implicit-globals': 'error',
 
-            // ── Technical debt tracking ──────────────────────────────────
-            // ESLint warns when a deprecation-tracking comment lacks a
-            // resolution condition (date, version gate, package dependency,
-            // or peer dependency promise).
-            // eslint-plugin-unicorn rule, configured to spot unreferenced
-            // tags and escalate them as warnings.
+            // Technical debt tracking
             'unicorn/expiring-todo-comments': [
                 'warn',
                 {
@@ -84,9 +81,7 @@ export default [
                 },
             ],
 
-            // ── JSDoc type enforcement on public exports ──────────────
-            // Note: these rules apply only to exported functions and classes,
-            // matching the `ExportNamedDeclaration` contexts below.
+            // JSDoc type enforcement on public exports
             'jsdoc/require-jsdoc': [
                 'warn',
                 {
@@ -109,13 +104,73 @@ export default [
             'jsdoc/require-returns-type': 'warn',
             'jsdoc/check-types': 'warn',
             'jsdoc/valid-types': 'warn',
-            // Allow @type, @typedef, and utility-style docs without requiring description
             'jsdoc/require-description': 'off',
             'jsdoc/require-returns-description': 'off',
             'jsdoc/tag-lines': 'off',
             'jsdoc/check-param-names': 'off',
             'jsdoc/require-param-description': 'off',
             'jsdoc/require-param': 'off',
+
+            // Module boundary enforcement: foundation -> core -> feature -> entry
+            'boundaries/element-types': [
+                'warn',
+                {
+                    default: 'disallow',
+                    rules: [
+                        { from: 'constants', allow: ['constants'] },
+                        { from: 'logger', allow: ['constants', 'logger'] },
+                        { from: 'retry', allow: ['constants', 'retry'] },
+                        { from: 'state', allow: ['constants', 'logger', 'state'] },
+                        { from: 'core', allow: ['constants', 'logger', 'retry', 'state', 'core'] },
+                        {
+                            from: 'feature',
+                            allow: ['constants', 'logger', 'state', 'core', 'feature'],
+                        },
+                        {
+                            from: 'entry',
+                            allow: [
+                                'constants',
+                                'logger',
+                                'retry',
+                                'state',
+                                'core',
+                                'feature',
+                                'entry',
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: ['src/**/*.js'],
+        settings: {
+            'boundaries/elements': [
+                { type: 'constants', pattern: 'src/constants.js' },
+                { type: 'logger', pattern: 'src/logger.js' },
+                { type: 'retry', pattern: 'src/retry.js' },
+                { type: 'state', pattern: 'src/state.js' },
+                {
+                    type: 'core',
+                    pattern: [
+                        'src/ghosting.js',
+                        'src/chatutils.js',
+                        'src/connectionutil.js',
+                        'src/summarizer.js',
+                    ],
+                },
+                {
+                    type: 'feature',
+                    pattern: [
+                        'src/injection.js',
+                        'src/persist.js',
+                        'src/memory.js',
+                        'src/prompts.js',
+                    ],
+                },
+                { type: 'entry', pattern: ['src/ui.js', 'src/events.js', 'src/commands.js'] },
+            ],
         },
     },
 ];

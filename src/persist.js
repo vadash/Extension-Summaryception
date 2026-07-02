@@ -6,6 +6,9 @@ import { log } from './logger.js';
 
 let _uiRefresher = null;
 
+/**
+ *
+ */
 export function setUiRefresher(fn) {
     _uiRefresher = fn;
 }
@@ -28,11 +31,11 @@ export async function persistChatState() {
 
 /**
  * Refresh extension state after a mutation.
- * @param {object} opts
- * @param {boolean} opts.injection - Whether to refresh injection (default true)
- * @param {boolean} opts.ui - Whether to refresh the UI (default false)
+ * @param {{ injection?: boolean, ui?: boolean }} [opts]
  */
-export function refreshExtensionState({ injection = true, ui = false } = {}) {
+export function refreshExtensionState(
+    /** @type {{ injection?: boolean, ui?: boolean }} */ { injection = true, ui = false } = {},
+) {
     if (injection) {
         updateInjection();
     }
@@ -43,8 +46,11 @@ export function refreshExtensionState({ injection = true, ui = false } = {}) {
 
 /**
  * Persist chat state then refresh extension state.
+ * @param {{ injection?: boolean, ui?: boolean }} [opts]
  */
-export async function persistAndRefresh({ injection = true, ui = false } = {}) {
+export async function persistAndRefresh(
+    /** @type {{ injection?: boolean, ui?: boolean }} */ { injection = true, ui = false } = {},
+) {
     await persistChatState();
     refreshExtensionState({ injection, ui });
 }

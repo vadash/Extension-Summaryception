@@ -6,6 +6,9 @@ import { updateUI } from './ui.js';
 
 // ─── Event Handlers ──────────────────────────────────────────────────
 
+/**
+ *
+ */
 export function onMessageReceived(messageIndex) {
     try {
         const { chat } = SillyTavern.getContext();
@@ -23,6 +26,9 @@ export function onMessageReceived(messageIndex) {
     }
 }
 
+/**
+ *
+ */
 export function onChatChanged() {
     log('Chat changed.');
     resetCatchupDismissed();
@@ -33,6 +39,9 @@ export function onChatChanged() {
     }, 100);
 }
 
+/**
+ *
+ */
 export function onGenerationStarted() {
     updateInjection();
 }

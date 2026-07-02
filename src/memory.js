@@ -9,10 +9,11 @@ import { persistAndRefresh } from './persist.js';
 /**
  * Clear all Summaryception memory for the current chat and unghost all messages.
  * Shared between the UI button handler and the /sc-clear slash command.
- * @param {object} opts
- * @param {boolean} opts.updateUi - Whether to refresh the UI after clearing (default false)
+ * @param {{ updateUi?: boolean }} [opts]
  */
-export async function clearSummaryceptionMemory({ updateUi = false } = {}) {
+export async function clearSummaryceptionMemory(
+    /** @type {{ updateUi?: boolean }} */ { updateUi = false } = {},
+) {
     try {
         await unghostAllMessages();
     } catch (e) {

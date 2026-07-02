@@ -3,6 +3,9 @@ import { log } from './logger.js';
 
 // ─── Prompt Toggle Management ────────────────────────────────────────
 
+/**
+ *
+ */
 export function snapshotPromptToggles() {
     const snapshot = new Map();
     try {
@@ -34,6 +37,9 @@ export function snapshotPromptToggles() {
     return snapshot;
 }
 
+/**
+ *
+ */
 export function disableAllPromptToggles() {
     try {
         const ctx = SillyTavern.getContext();
@@ -58,6 +64,9 @@ export function disableAllPromptToggles() {
     }
 }
 
+/**
+ *
+ */
 export function restorePromptToggles(snapshot) {
     if (!snapshot || snapshot.size === 0) {
         return;

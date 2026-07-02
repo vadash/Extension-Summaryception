@@ -1,12 +1,18 @@
 import { LOG_PREFIX } from './constants.js';
 import { getSettings } from './state.js';
 
+/**
+ *
+ */
 export function log(...args) {
     if (getSettings().debugMode) {
         console.log(LOG_PREFIX, ...args);
     }
 }
 
+/**
+ *
+ */
 export function trace(...args) {
     const s = getSettings();
     if (s.debugMode && s.traceMode) {
@@ -17,6 +23,9 @@ export function trace(...args) {
     }
 }
 
+/**
+ *
+ */
 export function debugVisibleTurns(chat, store) {
     trace('=== DEBUG VISIBLE TURNS ===');
     trace('  store.summarizedUpTo:', store.summarizedUpTo);

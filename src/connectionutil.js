@@ -25,6 +25,10 @@ const MODULE_NAME = '[Summaryception][Connection]';
  * (e.g. missing config, auth failures, deleted profiles).
  */
 class ConnectionError extends Error {
+    /**
+     * @param {string} message
+     * @param {{ retryable?: boolean, status?: number | null }} [options]
+     */
     constructor(message, { retryable = false, status = null } = {}) {
         super(message);
         this.name = 'ConnectionError';
@@ -131,7 +135,9 @@ async function fetchWithProxyFallback(targetUrl, { method = 'GET', headers = {},
                 body,
             });
         } catch (directError) {
-            const combined = new Error('Both proxy and direct fetch failed');
+            const combined = /** @type {Error & { proxyError: unknown, directError: unknown }} */ (
+                new Error('Both proxy and direct fetch failed')
+            );
             combined.proxyError = proxyError;
             combined.directError = directError;
             throw combined;
@@ -298,30 +304,49 @@ async function sendViaProfile(profileId, systemPrompt, userPrompt) {
         let result;
         if (typeof raw === 'string') {
             result = raw;
-        } else if (raw?.content) {
-            result = raw.content;
-        } else if (raw?.message?.content) {
-            result = raw.message.content;
-        } else if (raw?.choices?.[0]?.message?.content) {
-            result = raw.choices[0].message.content;
-        } else if (raw?.data) {
-            result = typeof raw.data === 'string' ? raw.data : JSON.stringify(raw.data);
-        } else if (raw && typeof raw === 'object') {
-            const str = JSON.stringify(raw);
-            console.warn(
-                '[Summaryception][Connection] Unexpected return type from sendRequest:',
-                str.substring(0, 500),
-            );
-            throw new ConnectionError(
-                `Connection Profile returned unexpected type: ${typeof raw}. ` +
-                    `Preview: ${str.substring(0, 200)}. ` +
-                    'Please report this on the Summaryception GitHub.',
-                { retryable: false },
-            );
         } else {
-            throw new ConnectionError('Connection Profile returned an empty or invalid response.', {
-                retryable: true,
-            });
+            const obj = /** @type {Record<string, unknown>} */ (raw);
+            if (typeof obj.content === 'string') {
+                result = obj.content;
+            } else if (
+                obj.message &&
+                typeof obj.message === 'object' &&
+                typeof (/** @type {Record<string, unknown>} */ (obj.message).content) === 'string'
+            ) {
+                result = /** @type {Record<string, unknown>} */ (obj.message).content;
+            } else if (Array.isArray(obj.choices) && obj.choices[0]) {
+                const choice = /** @type {Record<string, unknown>} */ (obj.choices[0]);
+                if (choice.message && typeof choice.message === 'object') {
+                    const msg = /** @type {Record<string, unknown>} */ (choice.message);
+                    if (typeof msg.content === 'string') {
+                        result = msg.content;
+                    }
+                }
+            }
+            if (result === null && obj.data !== null && obj.data !== undefined) {
+                result = typeof obj.data === 'string' ? obj.data : JSON.stringify(obj.data);
+            }
+            if (result === null && raw !== null && raw !== undefined && typeof raw === 'object') {
+                const str = JSON.stringify(raw);
+                console.warn(
+                    '[Summaryception][Connection] Unexpected return type from sendRequest:',
+                    str.substring(0, 500),
+                );
+                throw new ConnectionError(
+                    `Connection Profile returned unexpected type: ${typeof raw}. ` +
+                        `Preview: ${str.substring(0, 200)}. ` +
+                        'Please report this on the Summaryception GitHub.',
+                    { retryable: false },
+                );
+            }
+            if (result === null || result === undefined) {
+                throw new ConnectionError(
+                    'Connection Profile returned an empty or invalid response.',
+                    {
+                        retryable: true,
+                    },
+                );
+            }
         }
 
         if (!result || !result.trim()) {
@@ -561,7 +586,7 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
 
     // ─── Stream reading ──────────────────────────────────────────
     // Read SSE chunks and assemble the full response content.
-    const reader = response.body.getReader();
+    const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
     let buffer = '';
@@ -653,7 +678,10 @@ export async function testOpenAIConnection(url, apiKey, model) {
  * @param {string} currentValue - The currently selected profile ID
  * @returns {boolean} - Whether population succeeded
  */
-export function populateProfileDropdown(selectElement, currentValue) {
+export function populateProfileDropdown(
+    /** @type {HTMLSelectElement} */ selectElement,
+    currentValue,
+) {
     try {
         const context = SillyTavern.getContext();
         const service = context.ConnectionManagerRequestService;
