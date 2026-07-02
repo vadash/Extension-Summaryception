@@ -53,7 +53,16 @@ export default [
                         'src/prompts.js',
                     ],
                 },
-                { type: 'entry', pattern: ['src/ui.js', 'src/events.js', 'src/commands.js'] },
+                {
+                    type: 'entry',
+                    pattern: [
+                        'src/ui.js',
+                        'src/ui-events.js',
+                        'src/ui-connection.js',
+                        'src/events.js',
+                        'src/commands.js',
+                    ],
+                },
             ],
         },
         rules: {

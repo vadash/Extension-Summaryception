@@ -238,13 +238,48 @@ function shouldSkipGhosting(msg, isSystemGhosted) {
 }
 
 /**
+ * Record a single message as ghosted in memory (metadata + store tracking).
+ * @param {object} msg - The chat message
+ * @param {number} i - The message index
+ */
+function markGhosted(msg, i) {
+    if (!msg.extra) {
+        msg.extra = {};
+    }
+    msg.extra.sc_ghosted = true;
+    const store = getChatStore();
+    if (!store.ghostedIndices.includes(i)) {
+        store.ghostedIndices.push(i);
+    }
+}
+
+/**
+ * Ghost a single message by index, respecting the disableGhosting setting.
+ * @param {object} msg - The chat message
+ * @param {number} i - The message index
+ * @returns {Promise<void>}
+ */
+async function applyGhostToMessage(msg, i) {
+    markGhosted(msg, i);
+    const s = getSettings();
+    if (!s.disableGhosting) {
+        try {
+            await SillyTavern.getContext().executeSlashCommandsWithOptions(`/hide ${i}`, {
+                showOutput: false,
+            });
+        } catch (e) {
+            log(`Failed to hide message ${i}:`, e);
+        }
+    }
+}
+
+/**
  * Ghost all messages from index 0 up to and including endIndex.
  * @param {number} endIndex - The highest index to ghost
  * @returns {Promise<void>}
  */
 export async function ghostMessagesUpTo(endIndex) {
     const { chat } = SillyTavern.getContext();
-    const store = getChatStore();
     const s = getSettings();
 
     const progressToast = !s.disableGhosting
@@ -266,24 +301,8 @@ export async function ghostMessagesUpTo(endIndex) {
             }
             continue;
         }
-        if (!msg.extra) {
-            msg.extra = {};
-        }
 
-        msg.extra.sc_ghosted = true;
-        if (!store.ghostedIndices.includes(i)) {
-            store.ghostedIndices.push(i);
-        }
-
-        if (!s.disableGhosting) {
-            try {
-                await SillyTavern.getContext().executeSlashCommandsWithOptions(`/hide ${i}`, {
-                    showOutput: false,
-                });
-            } catch (e) {
-                log(`Failed to hide message ${i}:`, e);
-            }
-        }
+        await applyGhostToMessage(msg, i);
 
         processed++;
         if (progressToast && processed % 10 === 0) {

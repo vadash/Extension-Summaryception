@@ -79,6 +79,18 @@ function statusCodeIsRetryable(error) {
 }
 
 /**
+ * Check for well-known retryable error types.
+ * @param {object} error
+ * @returns {boolean}
+ */
+function isRetryableTypeError(error) {
+    if (error?.name === 'TypeError' && error?.message?.includes('fetch')) {
+        return true;
+    }
+    return statusCodeIsRetryable(error);
+}
+
+/**
  * Determine if an error warrants a retry attempt.
  * @param {object} error - The error to evaluate
  * @returns {boolean} True if the error is retryable
@@ -90,10 +102,7 @@ export function isRetryableError(error) {
     if (error?.name === 'ConnectionError' && typeof error.retryable === 'boolean') {
         return error.retryable;
     }
-    if (error?.name === 'TypeError' && error?.message?.includes('fetch')) {
-        return true;
-    }
-    if (statusCodeIsRetryable(error)) {
+    if (isRetryableTypeError(error)) {
         return true;
     }
     const msg = (error?.message || error?.toString() || '').toLowerCase();

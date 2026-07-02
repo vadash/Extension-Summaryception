@@ -322,6 +322,45 @@ async function sendViaProfile(profileId, systemPrompt, userPrompt) {
 }
 
 /**
+ * Extract content from a `choices[0].message.content` structure.
+ * @param {Array<Record<string, unknown>>} choices
+ * @returns {string|null} The content string, or null if not found
+ */
+function extractChoiceContent(choices) {
+    const choice = choices[0];
+    if (!choice?.message || typeof choice.message !== 'object') {
+        return null;
+    }
+    const msg = /** @type {Record<string, unknown>} */ (choice.message);
+    return typeof msg.content === 'string' ? msg.content : null;
+}
+
+/**
+ * Extract content from a `message.content` wrapper.
+ * @param {Record<string, unknown>} obj
+ * @returns {string|null} The content string, or null if not found
+ */
+function extractMessageContent(obj) {
+    if (!obj.message || typeof obj.message !== 'object') {
+        return null;
+    }
+    const content = /** @type {Record<string, unknown>} */ (obj.message).content;
+    return typeof content === 'string' ? content : null;
+}
+
+/**
+ * Extract content from a `data` field.
+ * @param {Record<string, unknown>} obj
+ * @returns {string|null} The data string, or null if absent
+ */
+function extractDataField(obj) {
+    if (obj.data === null || obj.data === undefined) {
+        return null;
+    }
+    return typeof obj.data === 'string' ? obj.data : JSON.stringify(obj.data);
+}
+
+/**
  * Parse the various possible return types from ConnectionManagerRequestService.sendRequest.
  * @param {unknown} raw - The raw response from sendRequest
  * @returns {string} The extracted content string
@@ -338,26 +377,21 @@ function parseProfileResponse(raw) {
         return obj.content;
     }
 
-    if (
-        obj.message &&
-        typeof obj.message === 'object' &&
-        typeof (/** @type {Record<string, unknown>} */ (obj.message).content) === 'string'
-    ) {
-        return /** @type {Record<string, unknown>} */ (obj.message).content;
+    const messageContent = extractMessageContent(obj);
+    if (messageContent) {
+        return messageContent;
     }
 
-    if (Array.isArray(obj.choices) && obj.choices[0]) {
-        const choice = /** @type {Record<string, unknown>} */ (obj.choices[0]);
-        if (choice.message && typeof choice.message === 'object') {
-            const msg = /** @type {Record<string, unknown>} */ (choice.message);
-            if (typeof msg.content === 'string') {
-                return msg.content;
-            }
+    if (Array.isArray(obj.choices)) {
+        const choiceContent = extractChoiceContent(obj.choices);
+        if (choiceContent) {
+            return choiceContent;
         }
     }
 
-    if (obj.data !== null && obj.data !== undefined) {
-        return typeof obj.data === 'string' ? obj.data : JSON.stringify(obj.data);
+    const dataContent = extractDataField(obj);
+    if (dataContent) {
+        return dataContent;
     }
 
     if (raw !== null && raw !== undefined && typeof raw === 'object') {
@@ -556,29 +590,35 @@ function buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit })
 
 /**
  * Execute the fetch for an OpenAI-compatible endpoint, using proxy for local URLs.
- * @param {string} endpoint - The normalized endpoint URL
- * @param {boolean} useProxy - Whether to route through ST's CORS proxy
- * @param {object} headers - Request headers
- * @param {string} body - JSON request body
- * @param {string} baseUrl - The original base URL (for error messages)
+ * @param {object} opts
+ * @param {string} opts.endpoint - The normalized endpoint URL
+ * @param {boolean} opts.useProxy - Whether to route through ST's CORS proxy
+ * @param {object} opts.headers - Request headers
+ * @param {string} opts.body - JSON request body
+ * @param {string} opts.baseUrl - The original base URL (for error messages)
  * @returns {Promise<Response>}
+ * @throws {ConnectionError}
  */
-async function executeOpenAIFetch(endpoint, useProxy, headers, body, baseUrl) {
+async function executeOpenAIFetch({ endpoint, useProxy, headers, body, baseUrl }) {
     try {
         if (useProxy) {
             return await fetchWithProxyFallback(endpoint, { method: 'POST', headers, body });
         }
         return await fetch(endpoint, { method: 'POST', headers, body });
     } catch (e) {
-        if (e.proxyError) {
+        const err =
+            /** @type {{ proxyError?: { message: string }, directError?: { message: string }, message: string }} */ (
+                e
+            );
+        if (err.proxyError) {
             throw new ConnectionError(
                 `Failed to connect to ${baseUrl}. ` +
                     'Enable the CORS proxy in config.yaml (enableCorsProxy: true). ' +
-                    `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`,
+                    `Proxy error: ${err.proxyError.message}. Direct error: ${err.directError?.message ?? 'unknown'}`,
                 { retryable: true },
             );
         }
-        throw new ConnectionError(`Failed to connect to ${baseUrl}: ${e.message}`, {
+        throw new ConnectionError(`Failed to connect to ${baseUrl}: ${err.message}`, {
             retryable: true,
         });
     }
@@ -614,6 +654,31 @@ async function handleOpenAIErrorResponse(response) {
 }
 
 /**
+ * Parse a single SSE data line and extract delta content.
+ * @param {string} line - Raw SSE line (e.g. "data: {...}")
+ * @returns {string} The delta content, or '' if unparseable/irrelevant
+ */
+function parseSSELine(line) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.startsWith('data:')) {
+        return '';
+    }
+
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') {
+        return '';
+    }
+
+    try {
+        const parsed = JSON.parse(data);
+        return parsed.choices?.[0]?.delta?.content || '';
+    } catch (_e) {
+        /* skip unparseable chunks */
+        return '';
+    }
+}
+
+/**
  * Read an SSE stream and assemble the full content.
  * @param {Response} response
  * @returns {Promise<string>} The assembled content
@@ -636,25 +701,7 @@ async function readSSEStream(response) {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || !trimmed.startsWith('data:')) {
-                    continue;
-                }
-
-                const data = trimmed.slice(5).trim();
-                if (data === '[DONE]') {
-                    continue;
-                }
-
-                try {
-                    const parsed = JSON.parse(data);
-                    const delta = parsed.choices?.[0]?.delta?.content;
-                    if (delta) {
-                        fullContent += delta;
-                    }
-                } catch (_e) {
-                    /* skip unparseable chunks */
-                }
+                fullContent += parseSSELine(line);
             }
         }
     } finally {
@@ -706,7 +753,7 @@ async function sendViaOpenAI({ url, apiKey, model, systemPrompt, userPrompt, max
     const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
     const body = buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit });
 
-    const response = await executeOpenAIFetch(endpoint, useProxy, headers, body, baseUrl);
+    const response = await executeOpenAIFetch({ endpoint, useProxy, headers, body, baseUrl });
 
     if (!response.ok) {
         await handleOpenAIErrorResponse(response);

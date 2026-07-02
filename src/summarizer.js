@@ -35,35 +35,41 @@ let catchupDismissed = false;
 let currentAbortController = null;
 
 /**
- *
+ * Reset the catch-up dismissed flag so the dialog shows again.
+ * @returns {void}
  */
 export function resetCatchupDismissed() {
     catchupDismissed = false;
 }
 
 /**
- *
+ * Check whether a summarization cycle is currently running.
+ * @returns {boolean}
  */
 export function getIsSummarizing() {
     return isSummarizing;
 }
 
 /**
- *
+ * Set the summarizing flag.
+ * @param {boolean} value
+ * @returns {void}
  */
 export function setSummarizing(value) {
     isSummarizing = value;
 }
 
 /**
- *
+ * Check whether an abort controller is active.
+ * @returns {boolean}
  */
 export function hasActiveAbortController() {
     return Boolean(currentAbortController);
 }
 
 /**
- *
+ * Abort the in-flight summarization request.
+ * @returns {void}
  */
 export function abortSummarization() {
     if (currentAbortController) {
@@ -76,7 +82,144 @@ export function abortSummarization() {
 // ─── Core: LLM Summarization with Retry ──────────────────────────────
 
 /**
- *
+ * Build a promise that rejects on abort or after a timeout, whichever comes first.
+ * @param {AbortSignal} signal
+ * @param {number} timeoutMs
+ * @returns {Promise<never>}
+ */
+function makeTimeoutRace(signal, timeoutMs) {
+    return new Promise((_, reject) => {
+        const timer = setTimeout(
+            () => reject(new Error('Request timed out after 120s')),
+            timeoutMs,
+        );
+        signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(new Error('Aborted by user'));
+        });
+    });
+}
+
+/**
+ * Wait for a delay, resolving early if the signal is aborted.
+ * @param {number} delay - Milliseconds to wait
+ * @param {AbortSignal} signal
+ * @returns {Promise<void>}
+ */
+function sleepUntilOrAborted(delay, signal) {
+    return new Promise((resolve) => {
+        const timer = setTimeout(resolve, delay);
+        signal.addEventListener('abort', () => {
+            clearTimeout(timer);
+            resolve();
+        });
+    });
+}
+
+/**
+ * Compute the retry delay for a given attempt, honoring Retry-After headers.
+ * @param {Error} err - The error from the failed attempt
+ * @param {number} attempt - Zero-based attempt index
+ * @returns {number} Delay in milliseconds
+ */
+function computeRetryDelay(err, attempt) {
+    const retryAfterMs = parseRetryAfter(err);
+    if (retryAfterMs) {
+        return Math.min(retryAfterMs, RETRY_CONFIG.maxDelay);
+    }
+    const exponentialDelay =
+        RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
+    const jitter = Math.random() * RETRY_CONFIG.baseDelay;
+    return Math.min(exponentialDelay + jitter, RETRY_CONFIG.maxDelay);
+}
+
+/**
+ * Run a single summarizer attempt and classify the outcome.
+ * @param {object} p
+ * @param {object} p.s - Settings
+ * @param {string} p.prompt - The fully substituted prompt
+ * @param {AbortSignal} p.signal
+ * @param {number} p.attempt - Zero-based attempt index
+ * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
+ */
+async function executeSummarizerAttempt({ s, prompt, signal, attempt }) {
+    trace(`  Attempt ${attempt} starting...`);
+
+    try {
+        if (attempt > 0) {
+            log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
+        }
+
+        trace('  About to call sendSummarizerRequest with:', {
+            connectionSource: s.connectionSource,
+            summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
+            promptLength: prompt.length,
+        });
+
+        const result = await Promise.race([
+            sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt),
+            makeTimeoutRace(signal, 120000),
+        ]);
+
+        trace('  sendSummarizerRequest returned:', result?.substring?.(0, 50));
+
+        let trimmed = (result || '').trim();
+        trimmed = cleanSummarizerOutput(trimmed);
+
+        if (!trimmed) {
+            log('Empty response from LLM, treating as retryable');
+            return {
+                success: false,
+                result: '',
+                error: new Error('Empty response from summarizer'),
+                aborted: false,
+                shouldRetry: true,
+            };
+        }
+
+        log('Result:', trimmed);
+        trace('<<< EXITING callSummarizer WITH SUCCESS');
+        return {
+            success: true,
+            result: trimmed,
+            error: new Error('no error'),
+            aborted: false,
+            shouldRetry: false,
+        };
+    } catch (err) {
+        const error =
+            /** @type {Error & { retryable?: boolean, message?: string, status?: number, response?: { status?: number } }} */ (
+                err
+            );
+        trace(`  Caught error on attempt ${attempt}:`, {
+            name: error?.name,
+            message: error?.message,
+            retryable: error?.retryable,
+        });
+
+        if (signal.aborted || error.message === 'Aborted by user') {
+            return { success: false, result: '', error, aborted: true, shouldRetry: false };
+        }
+
+        if (!isRetryableError(error)) {
+            console.error(LOG_PREFIX, 'Non-retryable error:', error);
+        }
+
+        return {
+            success: false,
+            result: '',
+            error,
+            aborted: false,
+            shouldRetry: isRetryableError(error),
+        };
+    }
+}
+
+/**
+ * Call the configured summarizer backend with retry logic.
+ * @param {string} storyTxt - The story text to summarize
+ * @param {string} contextStr - The accumulated context string
+ * @returns {Promise<string>} The generated summary, or '' on failure/abort
  */
 export async function callSummarizer(storyTxt, contextStr) {
     trace('>>> ENTERING callSummarizer');
@@ -107,120 +250,39 @@ export async function callSummarizer(storyTxt, contextStr) {
     currentAbortController = new AbortController();
     const { signal } = currentAbortController;
 
-    let lastError = null;
+    /** @type {Error & { status?: number, response?: { status?: number } }} */
+    let lastError = new Error('no error');
 
     try {
         for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
-            trace(`  Attempt ${attempt} starting...`);
-
             if (signal.aborted) {
-                log('Summarization aborted by user.');
-                toastr.warning('Summarization aborted.', 'Summaryception', { timeOut: 3000 });
-                return '';
+                return abortWithToast();
             }
 
-            try {
-                if (attempt > 0) {
-                    log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
-                }
+            const attemptResult = await executeSummarizerAttempt({ s, prompt, signal, attempt });
 
-                trace('  About to call sendSummarizerRequest with:', {
-                    connectionSource: s.connectionSource,
-                    summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
-                    promptLength: prompt.length,
-                });
-
-                const timeoutMs = 120000;
-                const result = await Promise.race([
-                    sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt),
-                    new Promise((_, reject) => {
-                        const timer = setTimeout(
-                            () => reject(new Error('Request timed out after 120s')),
-                            timeoutMs,
-                        );
-                        signal.addEventListener('abort', () => {
-                            clearTimeout(timer);
-                            reject(new Error('Aborted by user'));
-                        });
-                    }),
-                ]);
-
-                trace('  sendSummarizerRequest returned:', result?.substring?.(0, 50));
-
-                let trimmed = (result || '').trim();
-                trimmed = cleanSummarizerOutput(trimmed);
-
-                if (!trimmed) {
-                    log('Empty response from LLM, treating as retryable');
-                    throw new Error('Empty response from summarizer');
-                }
-
-                log('Result:', trimmed);
-                trace('<<< EXITING callSummarizer WITH SUCCESS');
-                return trimmed;
-            } catch (err) {
-                lastError = err;
-                trace(`  Caught error on attempt ${attempt}:`, {
-                    name: err?.name,
-                    message: err?.message,
-                    retryable: err?.retryable,
-                });
-
-                if (signal.aborted || err.message === 'Aborted by user') {
-                    log('Summarization aborted by user.');
-                    toastr.warning('Summarization aborted.', 'Summaryception', { timeOut: 3000 });
-                    return '';
-                }
-
-                if (!isRetryableError(err)) {
-                    trace('  ERROR IS NON-RETRYABLE, BREAKING');
-                    console.error(LOG_PREFIX, 'Non-retryable error:', err);
-                    break;
-                }
-
-                if (attempt >= RETRY_CONFIG.maxRetries) {
-                    trace('  MAX RETRIES EXHAUSTED');
-                    console.error(LOG_PREFIX, `All ${RETRY_CONFIG.maxRetries} retries exhausted.`);
-                    break;
-                }
-
-                let delay;
-                const retryAfterMs = parseRetryAfter(err);
-                if (retryAfterMs) {
-                    delay = Math.min(retryAfterMs, RETRY_CONFIG.maxDelay);
-                    log(`Server requested retry after ${delay}ms`);
-                } else {
-                    const exponentialDelay =
-                        RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
-                    const jitter = Math.random() * RETRY_CONFIG.baseDelay;
-                    delay = Math.min(exponentialDelay + jitter, RETRY_CONFIG.maxDelay);
-                }
-
-                const delaySec = (delay / 1000).toFixed(1);
-                const status = err?.status || err?.response?.status || '?';
-
-                console.warn(
-                    LOG_PREFIX,
-                    `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
-                    err.message || err,
-                );
-
-                toastr.warning(
-                    `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${RETRY_CONFIG.maxRetries})`,
-                    'Summaryception',
-                    { timeOut: delay },
-                );
-
-                await /** @type {Promise<void>} */ (
-                    new Promise((resolve) => {
-                        const timer = setTimeout(resolve, delay);
-                        signal.addEventListener('abort', () => {
-                            clearTimeout(timer);
-                            resolve();
-                        });
-                    })
-                );
+            if (attemptResult.success) {
+                return attemptResult.result;
             }
+
+            lastError = attemptResult.error;
+
+            if (attemptResult.aborted) {
+                return abortWithToast();
+            }
+
+            if (!attemptResult.shouldRetry) {
+                trace('  ERROR IS NON-RETRYABLE, BREAKING');
+                break;
+            }
+
+            if (attempt >= RETRY_CONFIG.maxRetries) {
+                trace('  MAX RETRIES EXHAUSTED');
+                console.error(LOG_PREFIX, `All ${RETRY_CONFIG.maxRetries} retries exhausted.`);
+                break;
+            }
+
+            await notifyRetryAndWait(lastError, attempt, signal);
         }
 
         const status = lastError?.status || lastError?.response?.status || '';
@@ -240,10 +302,52 @@ export async function callSummarizer(storyTxt, contextStr) {
     }
 }
 
+/**
+ * Log + toast an abort and return the sentinel '' value.
+ * @returns {string} Always ''
+ */
+function abortWithToast() {
+    log('Summarization aborted by user.');
+    toastr.warning('Summarization aborted.', 'Summaryception', { timeOut: 3000 });
+    return '';
+}
+
+/**
+ * Notify the user about a retry attempt and wait the computed delay.
+ * @param {Error} lastError - The error that triggered the retry
+ * @param {number} attempt - Zero-based attempt index
+ * @param {AbortSignal} signal
+ * @returns {Promise<void>}
+ */
+async function notifyRetryAndWait(
+    /** @type {Error & { status?: number, response?: { status?: number } }} */ lastError,
+    attempt,
+    signal,
+) {
+    const delay = computeRetryDelay(lastError, attempt);
+    const delaySec = (delay / 1000).toFixed(1);
+    const status = lastError?.status || lastError?.response?.status || '?';
+
+    console.warn(
+        LOG_PREFIX,
+        `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
+        lastError.message || lastError,
+    );
+
+    toastr.warning(
+        `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${RETRY_CONFIG.maxRetries})`,
+        'Summaryception',
+        { timeOut: delay },
+    );
+
+    await sleepUntilOrAborted(delay, signal);
+}
+
 // ─── Core: Summarize Oldest Verbatim Turns ──────────────────────────
 
 /**
- *
+ * Summarize the oldest verbatim turns if the overflow exceeds the limit.
+ * @returns {Promise<void>}
  */
 export async function maybeSummarizeTurns() {
     const s = getSettings();
@@ -358,8 +462,64 @@ async function summarizeBatchFromTurns(
         return false;
     }
 
-    const batchSize = Math.min(s.turnsPerSummary, eligibleTurns.length);
-    const batch = eligibleTurns.slice(0, batchSize);
+    return await summarizeBatchCore({
+        s,
+        chat,
+        store,
+        eligibleTurns,
+        opts: { showToasts, catchExceptions },
+    });
+}
+
+/**
+ * Core logic for summarizing a batch of turns, separated to reduce complexity.
+ * @param {object} s - Settings
+ * @param {Array} chat - The chat array
+ * @param {object} store - The chat store
+ * @param {Array<Record<string, unknown>>} eligibleTurns - Turns eligible for summarization
+ * @param {boolean} showToasts - Whether to show progress toasts
+ * @param {boolean} catchExceptions - Whether to catch and swallow exceptions
+ * @returns {Promise<boolean>}
+ */
+/**
+ * Record a successful summary into Layer 0 and trigger downstream bookkeeping.
+ * @param {object} p
+ * @param {object} p.store - The chat store
+ * @param {string} p.summary - The LLM-generated summary text
+ * @param {number} p.passageStart - First chat index covered
+ * @param {number} p.endIdx - Last chat index covered
+ * @param {boolean} p.showToasts - Whether to show success toast
+ * @returns {Promise<void>}
+ */
+async function commitLayer0Snippet({ store, summary, passageStart, endIdx, showToasts }) {
+    store.layers[0].push({
+        text: summary,
+        turnRange: [passageStart, endIdx],
+        timestamp: Date.now(),
+    });
+
+    store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
+    trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
+
+    // Save before ghosting so summarizedUpTo persists even if ghosting is interrupted
+    await saveChatStore();
+    await ghostMessagesUpTo(endIdx);
+    await maybePromoteLayer(0);
+    await persistChatState();
+
+    log(`Layer 0 now has ${store.layers[0].length} snippets`);
+
+    if (showToasts) {
+        toastr.success(
+            `Summary saved (Layer 0: ${store.layers[0].length} snippets)`,
+            'Summaryception',
+            { timeOut: 2000 },
+        );
+    }
+}
+
+async function summarizeBatchCore({ s, chat, store, eligibleTurns, opts }) {
+    const batch = eligibleTurns.slice(0, Math.min(s.turnsPerSummary, eligibleTurns.length));
 
     if (batch.length === 0) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY BATCH');
@@ -397,7 +557,7 @@ async function summarizeBatchFromTurns(
         const contextStr = buildFullContext(0);
         trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
 
-        if (showToasts) {
+        if (opts.showToasts) {
             toastr.info(
                 `Summarizing ${batch.length} turn${batch.length > 1 ? 's' : ''}…`,
                 'Summaryception',
@@ -418,35 +578,18 @@ async function summarizeBatchFromTurns(
             return false;
         }
 
-        store.layers[0].push({
-            text: summary,
-            turnRange: [passageStart, endIdx],
-            timestamp: Date.now(),
+        await commitLayer0Snippet({
+            store,
+            summary,
+            passageStart,
+            endIdx,
+            showToasts: opts.showToasts,
         });
-
-        store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
-        trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
-
-        // Save before ghosting so summarizedUpTo persists even if ghosting is interrupted
-        await saveChatStore();
-        await ghostMessagesUpTo(endIdx);
-        await maybePromoteLayer(0);
-        await persistChatState();
-
-        log(`Layer 0 now has ${store.layers[0].length} snippets`);
-
-        if (showToasts) {
-            toastr.success(
-                `Summary saved (Layer 0: ${store.layers[0].length} snippets)`,
-                'Summaryception',
-                { timeOut: 2000 },
-            );
-        }
 
         trace('<<< EXITING summarizeBatchFromTurns - SUCCESS');
         return true;
     } catch (err) {
-        if (!catchExceptions) {
+        if (!opts.catchExceptions) {
             throw err;
         }
         trace('  CAUGHT EXCEPTION:', {
@@ -463,7 +606,9 @@ async function summarizeBatchFromTurns(
 // ─── Core: Single Batch (Normal Mode) ────────────────────────────────
 
 /**
- *
+ * Summarize a single batch of turns (normal mode, with toasts).
+ * @param {Array<Record<string, unknown>>} visibleTurns
+ * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatch(visibleTurns) {
     isSummarizing = true;
@@ -477,7 +622,9 @@ export async function summarizeOneBatch(visibleTurns) {
 // ─── Core: Inner Batch for Catchup ───────────────────────────────────
 
 /**
- *
+ * Summarize one batch from pre-computed turns with exception catching.
+ * @param {Array<Record<string, unknown>>} visibleTurns
+ * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatchFromTurns(visibleTurns) {
     return await summarizeBatchFromTurns(visibleTurns, { catchExceptions: true });
@@ -574,35 +721,49 @@ export async function runCatchup(visibleTurns, overflow) {
         }
 
         toastr.clear(progressToast);
-
-        if (cancelled) {
-            toastr.warning(
-                `Catch-up paused at ${completed}/${totalBatches}. Progress saved — will continue on next message.`,
-                'Summaryception',
-                { timeOut: 5000 },
-            );
-        } else if (failed === 0) {
-            toastr.success(`Catch-up complete! ${completed} batches processed.`, 'Summaryception', {
-                timeOut: 4000,
-            });
-        } else {
-            toastr.warning(
-                `Catch-up finished. ${completed} succeeded, ${failed} failed (will retry on next trigger).`,
-                'Summaryception',
-                { timeOut: 6000 },
-            );
-        }
-
+        showCatchupOutcome({ cancelled, completed, failed, totalBatches });
         refreshUI();
     } finally {
         isSummarizing = false;
     }
 }
 
+/**
+ * Show the appropriate toast after a catch-up run finishes.
+ * @param {object} p
+ * @param {boolean} p.cancelled
+ * @param {number} p.completed
+ * @param {number} p.failed
+ * @param {number} p.totalBatches
+ * @returns {void}
+ */
+function showCatchupOutcome({ cancelled, completed, failed, totalBatches }) {
+    if (cancelled) {
+        toastr.warning(
+            `Catch-up paused at ${completed}/${totalBatches}. Progress saved — will continue on next message.`,
+            'Summaryception',
+            { timeOut: 5000 },
+        );
+    } else if (failed === 0) {
+        toastr.success(`Catch-up complete! ${completed} batches processed.`, 'Summaryception', {
+            timeOut: 4000,
+        });
+    } else {
+        toastr.warning(
+            `Catch-up finished. ${completed} succeeded, ${failed} failed (will retry on next trigger).`,
+            'Summaryception',
+            { timeOut: 6000 },
+        );
+    }
+}
+
 // ─── Catch-Up Dialog ─────────────────────────────────────────────────
 
 /**
- *
+ * Show the backlog catch-up dialog with process/skip/partial options.
+ * @param {number} overflowCount - Number of unsummarized turns beyond the verbatim limit
+ * @param {number} estimatedCalls - Estimated number of summarizer calls required
+ * @returns {Promise<string>} 'catchup' | 'skip' | 'partial'
  */
 export async function showCatchupDialog(overflowCount, estimatedCalls) {
     return new Promise((resolve) => {
@@ -668,7 +829,9 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
 // ─── Core: Layer Promotion ("ception") ──────────────────────────────
 
 /**
- *
+ * Promote a layer's snippets to the next layer if over the limit.
+ * @param {number} layerIndex - The layer to evaluate
+ * @returns {Promise<void>}
  */
 export async function maybePromoteLayer(layerIndex) {
     const s = getSettings();
