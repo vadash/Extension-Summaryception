@@ -5,7 +5,8 @@ import { log } from './logger.js';
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 
 /**
- *
+ * Build the summary block by combining all layer snippets.
+ * @returns {string} The assembled summary block, or '' if no snippets exist
  */
 export function assembleSummaryBlock() {
     const s = getSettings();

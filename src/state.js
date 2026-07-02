@@ -1,7 +1,8 @@
 import { MODULE_NAME, defaultSettings } from './constants.js';
 
 /**
- *
+ * Get the extension settings object.
+ * @returns {object} The current settings
  */
 export function getSettings() {
     const { extensionSettings } = SillyTavern.getContext();
@@ -24,7 +25,8 @@ export function saveSettings() {
 }
 
 /**
- *
+ * Get the chat-specific store for summary data.
+ * @returns {object} The chat store with layers, summarizedUpTo, ghostedIndices
  */
 export function getChatStore() {
     const { chatMetadata } = SillyTavern.getContext();
@@ -49,7 +51,8 @@ export async function saveChatStore() {
 }
 
 /**
- *
+ * Get the player's display name.
+ * @returns {string} The player name from ST context, or 'User' as fallback
  */
 export function getPlayerName() {
     const ctx = SillyTavern.getContext();

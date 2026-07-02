@@ -3,7 +3,9 @@ import { getChatStore } from './state.js';
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
 /**
- *
+ * Extract all assistant turns from the chat.
+ * @param {Array} chat - The SillyTavern chat array
+ * @returns {Array<{index: number, mes: string, name: string}>} Assistant turns
  */
 export function getAssistantTurns(chat) {
     const turns = [];
@@ -19,7 +21,9 @@ export function getAssistantTurns(chat) {
 }
 
 /**
- *
+ * Get assistant turns that are not ghosted or hidden.
+ * @param {Array} chat - The SillyTavern chat array
+ * @returns {Array<{index: number, mes: string, name: string}>} Visible assistant turns
  */
 export function getVisibleAssistantTurns(chat) {
     const turns = [];

@@ -4,7 +4,35 @@ import { log, trace } from './logger.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
 /**
- *
+ * Check if a message should be skipped during ghost repair.
+ * @param {object} m - The chat message
+ * @param {boolean} isGhosted - Whether the message is already ghosted by us
+ * @returns {boolean} True if the message should be skipped
+ */
+function skipRepairGhost(m, isGhosted) {
+    if (!m) {
+        return true;
+    }
+    if (isGhosted) {
+        return true;
+    }
+    if (m.is_hidden && !isGhosted) {
+        return true;
+    }
+    if (m.is_system || !m.mes?.trim()) {
+        return true;
+    }
+    if (m.is_user) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Ensure all messages in a range are ghosted (hidden from LLM).
+ * @param {number} startIdx - Start index in chat
+ * @param {number} endIdx - End index in chat
+ * @returns {Promise<number>} Number of messages newly ghosted
  */
 export async function repairGhostingForRange(startIdx, endIdx) {
     trace('>>> ENTERING repairGhostingForRange');
@@ -18,27 +46,12 @@ export async function repairGhostingForRange(startIdx, endIdx) {
 
     for (let i = startIdx; i <= endIdx; i++) {
         const m = chat[i];
-        if (!m) {
-            continue;
-        }
+        const isGhosted = m?.extra?.sc_ghosted === true;
 
-        if (m.extra?.sc_ghosted) {
-            skipped++;
-            continue;
-        }
-
-        if (m.is_hidden && !m.extra?.sc_ghosted) {
-            trace(' Skipping message ' + i + ' - user-hidden');
-            skipped++;
-            continue;
-        }
-
-        if (m.is_system || !m.mes?.trim()) {
-            skipped++;
-            continue;
-        }
-
-        if (m.is_user) {
+        if (skipRepairGhost(m, isGhosted)) {
+            if (m?.is_hidden && !isGhosted) {
+                trace(' Skipping message ' + i + ' - user-hidden');
+            }
             skipped++;
             continue;
         }
@@ -51,7 +64,6 @@ export async function repairGhostingForRange(startIdx, endIdx) {
             store.ghostedIndices.push(i);
         }
 
-        // Only visually hide if ghosting is enabled
         if (!s.disableGhosting) {
             try {
                 await SillyTavern.getContext().executeSlashCommandsWithOptions(`/hide ${i}`, {
@@ -73,7 +85,9 @@ export async function repairGhostingForRange(startIdx, endIdx) {
 }
 
 /**
- *
+ * Ghost a single message by index.
+ * @param {number} messageIndex - The chat index to ghost
+ * @returns {Promise<void>}
  */
 export async function ghostMessage(messageIndex) {
     const { chat } = SillyTavern.getContext();
@@ -113,25 +127,48 @@ export async function ghostMessage(messageIndex) {
 }
 
 /**
- *
+ * Collect indices of messages that we ghosted.
+ * @param {Array} chat - The chat array
+ * @param {object} store - The chat store
+ * @returns {number[]} Indices to unhide
+ */
+function collectGhostedIndices(chat, store) {
+    if (store.ghostedIndices && store.ghostedIndices.length > 0) {
+        return [...store.ghostedIndices];
+    }
+    const result = [];
+    for (let i = 0; i < chat.length; i++) {
+        if (chat[i]?.extra?.sc_ghosted) {
+            result.push(i);
+        }
+    }
+    return result;
+}
+
+/**
+ * Update the progress toast at regular intervals.
+ * @param {object} progressToast - The toastr toast object
+ * @param {number} processed - Number processed so far
+ * @param {number} total - Total to process
+ */
+function updateUnhideProgress(progressToast, processed, total) {
+    if (processed % 10 !== 0) {
+        return;
+    }
+    const pct = Math.round((processed / total) * 100);
+    $(progressToast)
+        .find('.toast-message')
+        .text(`Unhiding messages: ${processed} / ${total} (${pct}%)`);
+}
+
+/**
+ * Unghost all messages that Summaryception ghosted.
+ * @returns {Promise<void>}
  */
 export async function unghostAllMessages() {
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
-
-    // Only unhide messages that WE ghosted, not user-hidden messages
-    const toUnhide =
-        store.ghostedIndices && store.ghostedIndices.length > 0 ? [...store.ghostedIndices] : [];
-
-    // Fallback for older saves that don't have ghostedIndices:
-    // find messages with our sc_ghosted flag
-    if (toUnhide.length === 0) {
-        for (let i = 0; i < chat.length; i++) {
-            if (chat[i]?.extra?.sc_ghosted) {
-                toUnhide.push(i);
-            }
-        }
-    }
+    const toUnhide = collectGhostedIndices(chat, store);
 
     if (toUnhide.length === 0) {
         return;
@@ -149,12 +186,8 @@ export async function unghostAllMessages() {
 
     let processed = 0;
     for (const idx of toUnhide) {
-        if (idx >= 0 && idx < chat.length) {
-            // Clear our ghost flag
-            if (chat[idx]?.extra?.sc_ghosted) {
-                delete chat[idx].extra.sc_ghosted;
-            }
-
+        if (idx >= 0 && idx < chat.length && chat[idx]?.extra?.sc_ghosted) {
+            delete chat[idx].extra.sc_ghosted;
             try {
                 await SillyTavern.getContext().executeSlashCommandsWithOptions(`/unhide ${idx}`, {
                     showOutput: false,
@@ -163,25 +196,51 @@ export async function unghostAllMessages() {
                 log(`Failed to unhide message ${idx}:`, e);
             }
         }
-
         processed++;
-        if (processed % 10 === 0) {
-            const pct = Math.round((processed / toUnhide.length) * 100);
-            $(progressToast)
-                .find('.toast-message')
-                .text(`Unhiding messages: ${processed} / ${toUnhide.length} (${pct}%)`);
-        }
+        updateUnhideProgress(progressToast, processed, toUnhide.length);
     }
 
-    // Clear the tracking array
     store.ghostedIndices = [];
-
     toastr.clear(progressToast);
     log(`Unghosted ${toUnhide.length} messages (only Summaryception-hidden ones)`);
 }
 
 /**
- *
+ * Update the ghosting progress toast.
+ * @param {object} progressToast - The toastr toast object
+ * @param {number} current - Current index
+ * @param {number} total - Total indices
+ */
+function updateHideProgress(progressToast, current, total) {
+    const pct = Math.round((current / total) * 100);
+    $(progressToast)
+        .find('.toast-message')
+        .text(`Hiding messages: ${current} / ${total} (${pct}%)`);
+}
+
+/**
+ * Determine if a message should be skipped during ghosting.
+ * @param {object} msg - The chat message
+ * @param {boolean} isSystemGhosted - Whether this is a system msg we already ghosted
+ * @returns {boolean} True if the message should be skipped
+ */
+function shouldSkipGhosting(msg, isSystemGhosted) {
+    if (!msg) {
+        return true;
+    }
+    if (msg.is_system && !isSystemGhosted) {
+        return true;
+    }
+    if (msg.is_hidden) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Ghost all messages from index 0 up to and including endIndex.
+ * @param {number} endIndex - The highest index to ghost
+ * @returns {Promise<void>}
  */
 export async function ghostMessagesUpTo(endIndex) {
     const { chat } = SillyTavern.getContext();
@@ -199,33 +258,23 @@ export async function ghostMessagesUpTo(endIndex) {
     let processed = 0;
     for (let i = 0; i <= endIndex; i++) {
         const msg = chat[i];
-        if (!msg) {
-            continue;
-        }
-        if (msg.is_system && !msg.extra?.sc_ghosted) {
+        const ghosted = msg?.extra?.sc_ghosted === true;
+
+        if (shouldSkipGhosting(msg, ghosted)) {
+            if (msg?.is_hidden) {
+                log(`Skipping message ${i} — already hidden by user`);
+            }
             continue;
         }
         if (!msg.extra) {
             msg.extra = {};
         }
-        if (msg.extra.sc_ghosted) {
-            continue;
-        }
-
-        // Check if the message is already hidden by the user (not by us)
-        if (msg.is_hidden) {
-            log(`Skipping message ${i} — already hidden by user`);
-            continue;
-        }
 
         msg.extra.sc_ghosted = true;
-
-        // Track that WE ghosted this message
         if (!store.ghostedIndices.includes(i)) {
             store.ghostedIndices.push(i);
         }
 
-        // Only visually hide if ghosting is enabled
         if (!s.disableGhosting) {
             try {
                 await SillyTavern.getContext().executeSlashCommandsWithOptions(`/hide ${i}`, {
@@ -237,11 +286,8 @@ export async function ghostMessagesUpTo(endIndex) {
         }
 
         processed++;
-        if (!s.disableGhosting && progressToast && processed % 10 === 0) {
-            const pct = Math.round((i / (endIndex + 1)) * 100);
-            $(progressToast)
-                .find('.toast-message')
-                .text(`Hiding messages: ${i} / ${endIndex + 1} (${pct}%)`);
+        if (progressToast && processed % 10 === 0) {
+            updateHideProgress(progressToast, i, endIndex + 1);
         }
     }
 

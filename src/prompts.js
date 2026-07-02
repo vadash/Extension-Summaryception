@@ -4,7 +4,8 @@ import { log } from './logger.js';
 // ─── Prompt Toggle Management ────────────────────────────────────────
 
 /**
- *
+ * Capture current prompt toggle states from ST's prompt manager.
+ * @returns {Map<string, boolean>} Map of prompt identifier to enabled state
  */
 export function snapshotPromptToggles() {
     const snapshot = new Map();
@@ -100,6 +101,8 @@ export function restorePromptToggles(snapshot) {
  * Strip reasoning tags, thinking blocks, and other model artifacts
  * from the summarizer output. Uses configurable patterns plus
  * regex for common reasoning block formats.
+ * @param {string} raw - The raw summarizer response
+ * @returns {string} Cleaned text
  */
 export function cleanSummarizerOutput(raw) {
     let text = raw;
