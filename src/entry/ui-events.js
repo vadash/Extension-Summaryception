@@ -83,6 +83,11 @@ function bindToggleHandlers() {
         getSettings().traceMode = $(this).prop('checked');
         saveSettings();
     });
+
+    $(document).on('change', '#sc_apply_regex_scripts', function () {
+        getSettings().applyRegexScripts = $(this).prop('checked');
+        saveSettings();
+    });
 }
 
 /**
@@ -361,6 +366,7 @@ function onResetDefaults() {
     // Reset debug
     s.debugMode = defaultSettings.debugMode;
     s.traceMode = defaultSettings.traceMode;
+    s.applyRegexScripts = defaultSettings.applyRegexScripts;
 
     saveSettings();
     updateInjection();

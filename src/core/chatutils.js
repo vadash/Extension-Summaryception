@@ -1,4 +1,5 @@
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore, getSettings } from '../foundation/state.js';
+import { applyRegexToMessage } from './regex-proxy.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
@@ -46,14 +47,14 @@ export function getVisibleAssistantTurns(chat) {
  * Build passage text from a range of chat messages.
  * Skips messages that are hidden (by user or system) UNLESS they were
  * hidden by Summaryception (sc_ghosted). Also skips empty messages.
- */
-/**
+ * If enabled in settings, applies SillyTavern's regex scripts to each
+ * message so the summarizer sees the same text the RP model sees.
  * @param {Array} chat
  * @param {number} startIdx
  * @param {number} endIdx
- * @returns {string}
+ * @returns {Promise<string>}
  */
-export function buildPassageFromRange(chat, startIdx, endIdx) {
+export async function buildPassageFromRange(chat, startIdx, endIdx) {
     const lines = [];
     for (let i = startIdx; i <= endIdx; i++) {
         const m = chat[i];
@@ -72,8 +73,13 @@ export function buildPassageFromRange(chat, startIdx, endIdx) {
             continue;
         }
 
+        let text = m.mes.trim();
+        if (getSettings().applyRegexScripts) {
+            text = await applyRegexToMessage(text, m.is_user);
+        }
+
         const speaker = m.is_user ? 'Player' : 'Assistant';
-        lines.push(`${speaker}: ${m.mes.trim()}`);
+        lines.push(`${speaker}: ${text}`);
     }
     return lines.join('\n');
 }

@@ -141,8 +141,15 @@ async function summarizeBatchSafely(p) {
  * @returns {Promise<boolean>}
  */
 async function performBatchSummary({ batch, chat, store, passageStart, endIdx, opts }) {
-    const storyTxt = buildPassageFromRange(chat, passageStart, endIdx);
-    trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
+    const rawLen = getRawPassageLength(chat, passageStart, endIdx);
+    trace('  raw passage chars: ~' + rawLen);
+
+    const storyTxt = await buildPassageFromRange(chat, passageStart, endIdx);
+    trace(
+        '  storyTxt length:',
+        storyTxt?.length ?? 'UNDEFINED',
+        'after regex (was ~' + rawLen + ' raw)',
+    );
     if (!storyTxt.trim()) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
         return false;
@@ -248,6 +255,29 @@ function isPassageRangeValid(passageStart, endIdx) {
     log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
     trace('<<< EXITING summarizeBatchFromTurns - PASSAGE START GREATER THAN END');
     return false;
+}
+
+/**
+ * Calculate raw passage length before regex transformation (for trace logging).
+ * @param {Array} chat
+ * @param {number} startIdx
+ * @param {number} endIdx
+ * @returns {number}
+ */
+function getRawPassageLength(chat, startIdx, endIdx) {
+    let len = 0;
+    for (let i = startIdx; i <= endIdx; i++) {
+        const m = chat[i];
+        if (!m?.mes?.trim()) {
+            continue;
+        }
+        const isUserHidden = (m.is_system || m.is_hidden) && !m.extra?.sc_ghosted;
+        if (isUserHidden) {
+            continue;
+        }
+        len += m.mes.trim().length + 10;
+    }
+    return len;
 }
 
 /**

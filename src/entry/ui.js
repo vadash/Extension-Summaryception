@@ -22,6 +22,7 @@ export function updateUI() {
         $('#sc_prompt_preset').val(s.promptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
         $('#sc_trace_mode').prop('checked', s.traceMode);
+        $('#sc_apply_regex_scripts').prop('checked', s.applyRegexScripts);
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
 
@@ -336,7 +337,7 @@ async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
     btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
 
     try {
-        const storyTxt = buildPassageFromRange(chat, rangeStart, rangeEnd);
+        const storyTxt = await buildPassageFromRange(chat, rangeStart, rangeEnd);
 
         if (!storyTxt.trim()) {
             toastr.error('Source turns are empty — cannot regenerate.', 'Summaryception');

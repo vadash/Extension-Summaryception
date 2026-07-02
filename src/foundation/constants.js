@@ -40,6 +40,7 @@ Write in short phrases, no more than 20; output must be a single line:`,
     lastCustomPrompt: '', // Auto-saved when switching away from custom
     pauseSummarization: false, // true = stop processing, keep injecting
     disableGhosting: false, // true = mark as summarized but don't hide messages
+    applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
 
     stripPatterns: [
         '<|channel>thought',
