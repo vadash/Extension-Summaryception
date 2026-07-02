@@ -6,7 +6,7 @@
 ### Approach
 Add a regex application step in `buildPassageFromRange()` that calls ST's `getRegexedString()` for each message, using the appropriate placement enum (`USER_INPUT` for user messages, `AI_OUTPUT` for assistant messages). This matches exactly what ST itself does in `script.js` when preparing chat context for the RP model.
 
-ST's `getRegexedString` internally handles all script filtering: disabled scripts, `markdownOnly`/`promptOnly` flags, depth limits, character-scoped scripts, and preset scripts. No manual filtering needed.
+ST's `getRegexedString` internally handles all script filtering: disabled scripts, `markdownOnly`/`promptOnly` flags, depth limits, character-scoped scripts, and preset scripts. Call it with `{ isPrompt: true, depth }` so prompt-only scripts and depth limits match ST's RP prompt construction.
 
 ### Import Strategy
 Use a **dynamic import with graceful fallback** to avoid hard coupling to ST's module path (which could change between ST versions):
@@ -15,18 +15,21 @@ Use a **dynamic import with graceful fallback** to avoid hard coupling to ST's m
 // New file: src/core/regex-proxy.js
 let _regexModule = null;
 
-export async function applyRegexToMessage(mes, isUser) {
+export async function applyRegexToMessage(mes, isUser, depth) {
     if (!mes || typeof mes !== 'string') return mes;
     try {
         if (!_regexModule) {
             _regexModule = await import(
-                '../../../../scripts/extensions/regex/engine.js'
+                '../../../../regex/engine.js'
             );
         }
         const placement = isUser
             ? _regexModule.regex_placement.USER_INPUT
             : _regexModule.regex_placement.AI_OUTPUT;
-        return _regexModule.getRegexedString(mes, placement);
+        return _regexModule.getRegexedString(mes, placement, {
+            isPrompt: true,
+            depth,
+        });
     } catch (e) {
         // Fallback: return raw text if regex engine unavailable
         return mes;
@@ -34,7 +37,7 @@ export async function applyRegexToMessage(mes, isUser) {
 }
 ```
 
-**Why dynamic import:** The extension currently uses zero dynamic imports and the path `../../../../scripts/extensions/regex/engine.js` is relative to the extension's installed location inside `third-party/Extension-Summaryception/src/core/`. If ST reorganizes this module in a future version, the dynamic import fails gracefully and the extension continues working with raw text. A static import would crash the entire extension on load.
+**Why dynamic import:** The extension currently uses zero dynamic imports and the path `../../../../regex/engine.js` is relative to the extension's GitHub-installed location inside `third-party/Extension-Summaryception/src/core/`. If ST reorganizes this module in a future version, the dynamic import fails gracefully and the extension continues working with raw text. A static import would crash the entire extension on load.
 
 **Why a separate module:** Keeps `chatutils.js` clean and isolates the ST-specific import path. The module caches the import so the dynamic import overhead is paid only once.
 

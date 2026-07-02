@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock state.js so chatutils does not need a live SillyTavern global.
 vi.mock('../src/foundation/state.js', () => ({
     getChatStore: vi.fn(() => ({ layers: [] })),
+    getSettings: vi.fn(() => ({ applyRegexScripts: false })),
 }));
 
 beforeEach(() => {
@@ -79,20 +80,20 @@ describe('getVisibleAssistantTurns', () => {
 });
 
 describe('buildPassageFromRange', () => {
-    it('prefixes each speaker and joins with newlines', () => {
+    it('prefixes each speaker and joins with newlines', async () => {
         const chat = [msg({ isUser: true, mes: 'go north' }), msg({ mes: 'You enter a forest.' })];
-        const passage = buildPassageFromRange(chat, 0, 1);
+        const passage = await buildPassageFromRange(chat, 0, 1);
         expect(passage).toBe(['Player: go north', 'Assistant: You enter a forest.'].join('\n'));
     });
 
-    it('skips messages hidden by the user but keeps our ghosted ones', () => {
+    it('skips messages hidden by the user but keeps our ghosted ones', async () => {
         const chat = [msg({ isHidden: true, mes: 'secret' }), msg({ ghosted: true, mes: 'ours' })];
-        expect(buildPassageFromRange(chat, 0, 1)).toBe('Assistant: ours');
+        await expect(buildPassageFromRange(chat, 0, 1)).resolves.toBe('Assistant: ours');
     });
 
-    it('handles a missing or empty message inside the range', () => {
+    it('handles a missing or empty message inside the range', async () => {
         const chat = [msg({ mes: 'good' }), msg({ mes: '' })];
-        expect(buildPassageFromRange(chat, 0, 1)).toBe('Assistant: good');
+        await expect(buildPassageFromRange(chat, 0, 1)).resolves.toBe('Assistant: good');
     });
 });
 
@@ -104,6 +105,7 @@ describe('buildFullContext', () => {
     it('builds context from layers when the store has content', async () => {
         vi.resetModules();
         vi.doMock('../src/foundation/state.js', () => ({
+            getSettings: () => ({ applyRegexScripts: false }),
             getChatStore: () => ({
                 layers: [[{ text: 'tip 1' }, { text: 'tip 2' }], [{ text: 'meta 1' }]],
             }),

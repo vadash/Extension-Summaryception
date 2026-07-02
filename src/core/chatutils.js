@@ -43,6 +43,23 @@ export function getVisibleAssistantTurns(chat) {
     return turns;
 }
 
+function getPromptDepthsByChatIndex(chat) {
+    const promptIndexes = [];
+    const depths = new Map();
+
+    for (let i = 0; i < chat.length; i++) {
+        if (!chat[i]?.is_system) {
+            promptIndexes.push(i);
+        }
+    }
+
+    for (let i = 0; i < promptIndexes.length; i++) {
+        depths.set(promptIndexes[i], promptIndexes.length - i - 1);
+    }
+
+    return depths;
+}
+
 /**
  * Build passage text from a range of chat messages.
  * Skips messages that are hidden (by user or system) UNLESS they were
@@ -56,6 +73,8 @@ export function getVisibleAssistantTurns(chat) {
  */
 export async function buildPassageFromRange(chat, startIdx, endIdx) {
     const lines = [];
+    const promptDepths = getPromptDepthsByChatIndex(chat);
+
     for (let i = startIdx; i <= endIdx; i++) {
         const m = chat[i];
         if (!m) {
@@ -75,7 +94,7 @@ export async function buildPassageFromRange(chat, startIdx, endIdx) {
 
         let text = m.mes.trim();
         if (getSettings().applyRegexScripts) {
-            text = await applyRegexToMessage(text, m.is_user);
+            text = await applyRegexToMessage(text, m.is_user, promptDepths.get(i));
         }
 
         const speaker = m.is_user ? 'Player' : 'Assistant';
