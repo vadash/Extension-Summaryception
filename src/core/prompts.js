@@ -1,5 +1,5 @@
-import { getSettings } from './state.js';
-import { log } from './logger.js';
+import { getSettings } from '../foundation/state.js';
+import { log } from '../foundation/logger.js';
 
 // ─── Prompt Toggle Management ────────────────────────────────────────
 

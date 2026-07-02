@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { sleep, parseRetryAfter, isRetryableError, RETRY_CONFIG } from '../src/retry.js';
+import { sleep, parseRetryAfter, isRetryableError, RETRY_CONFIG } from '../src/foundation/retry.js';
 
 afterEach(() => {
     vi.useRealTimers();

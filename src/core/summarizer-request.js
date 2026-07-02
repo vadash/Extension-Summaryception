@@ -1,8 +1,8 @@
-import { LOG_PREFIX } from './constants.js';
+import { LOG_PREFIX } from '../foundation/constants.js';
 import { sendSummarizerRequest } from './connectionutil.js';
-import { getSettings, getPlayerName } from './state.js';
-import { log, trace } from './logger.js';
-import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from './retry.js';
+import { getSettings, getPlayerName } from '../foundation/state.js';
+import { log, trace } from '../foundation/logger.js';
+import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
 import {
     snapshotPromptToggles,
     disableAllPromptToggles,

@@ -26,12 +26,12 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
             include: [
-                'src/constants.js',
-                'src/retry.js',
-                'src/chatutils.js',
-                'src/prompts.js',
-                'src/state.js',
-                'src/logger.js',
+                'src/foundation/constants.js',
+                'src/foundation/retry.js',
+                'src/core/chatutils.js',
+                'src/core/prompts.js',
+                'src/foundation/state.js',
+                'src/foundation/logger.js',
             ],
             thresholds: {
                 lines: 70,

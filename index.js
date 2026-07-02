@@ -1,5 +1,5 @@
 /**
- * Summaryception v5.5.3 - Layered Recursive Summarization for SillyTavern
+ * Summaryception v6.0.0 - Layered Recursive Summarization for SillyTavern
  *
  * NON-DESTRUCTIVE: Uses SillyTavern's native /hide and /unhide commands
  * to exclude summarized messages from LLM context while keeping them
@@ -8,16 +8,16 @@
  * AGPL-3.0
  */
 
-import { LOG_PREFIX } from './src/constants.js';
-import { getSettings } from './src/state.js';
-import { setUiUpdater } from './src/summarizer.js';
-import { setUiRefresher } from './src/persist.js';
-import { updateUI } from './src/ui.js';
-import { bindUIEvents } from './src/ui-events.js';
-import { initConnectionUI } from './src/ui-connection.js';
-import { updateInjection } from './src/injection.js';
-import { onChatChanged, onGenerationStarted, onMessageReceived } from './src/events.js';
-import { registerSlashCommands } from './src/commands.js';
+import { LOG_PREFIX } from './src/foundation/constants.js';
+import { getSettings } from './src/foundation/state.js';
+import { setUiUpdater } from './src/core/summarizer.js';
+import { setUiRefresher } from './src/features/persist.js';
+import { updateUI } from './src/entry/ui.js';
+import { bindUIEvents } from './src/entry/ui-events.js';
+import { initConnectionUI } from './src/entry/ui-connection.js';
+import { updateInjection } from './src/features/injection.js';
+import { onChatChanged, onGenerationStarted, onMessageReceived } from './src/entry/events.js';
+import { registerSlashCommands } from './src/entry/commands.js';
 
 (async function init() {
     const { eventSource, event_types, renderExtensionTemplateAsync } = SillyTavern.getContext();
@@ -45,6 +45,6 @@ import { registerSlashCommands } from './src/commands.js';
     eventSource.on(event_types.APP_READY, () => {
         updateInjection();
         updateUI();
-        console.log(LOG_PREFIX, 'v5.5.3 loaded. Connection Settings available');
+        console.log(LOG_PREFIX, 'v6.0.0 loaded. Connection Settings available');
     });
 })();

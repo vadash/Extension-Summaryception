@@ -1,7 +1,7 @@
-import { LOG_PREFIX, MODULE_NAME } from './constants.js';
-import { log } from './logger.js';
-import { getChatStore } from './state.js';
-import { unghostAllMessages } from './ghosting.js';
+import { LOG_PREFIX, MODULE_NAME } from '../foundation/constants.js';
+import { log } from '../foundation/logger.js';
+import { getChatStore } from '../foundation/state.js';
+import { unghostAllMessages } from '../core/ghosting.js';
 import { persistAndRefresh } from './persist.js';
 
 // ─── Memory Clear Workflow ───────────────────────────────────────────

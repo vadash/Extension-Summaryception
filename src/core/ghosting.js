@@ -1,6 +1,6 @@
-import { LOG_PREFIX } from './constants.js';
-import { getChatStore, getSettings, saveChatStore } from './state.js';
-import { log, trace } from './logger.js';
+import { LOG_PREFIX } from '../foundation/constants.js';
+import { getChatStore, getSettings, saveChatStore } from '../foundation/state.js';
+import { log, trace } from '../foundation/logger.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
 /**

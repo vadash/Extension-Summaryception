@@ -1,5 +1,5 @@
-import { getSettings, getChatStore } from './state.js';
-import { log } from './logger.js';
+import { getSettings, getChatStore } from '../foundation/state.js';
+import { log } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { callSummarizer } from './summarizer-request.js';
 

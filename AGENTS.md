@@ -24,13 +24,13 @@ constants ← logger, retry ← state ← core ← feature ← entry
 
 | Zone | Files |
 |------|-------|
-| constants | `src/constants.js` |
-| logger | `src/logger.js` |
-| retry | `src/retry.js` |
-| state | `src/state.js` |
-| core | `src/ghosting.js`, `src/chatutils.js`, `src/connection*.js`, `src/connectionutil.js`, `src/summarizer*.js` |
-| feature | `src/injection.js`, `src/persist.js`, `src/memory.js`, `src/prompts.js` |
-| entry | `src/ui.js`, `src/events.js`, `src/commands.js` |
+| constants | `src/foundation/constants.js` |
+| logger | `src/foundation/logger.js` |
+| retry | `src/foundation/retry.js` |
+| state | `src/foundation/state.js` |
+| core | `src/core/*.js` |
+| feature | `src/features/*.js` |
+| entry | `src/entry/*.js` |
 
 ## Architecture
 

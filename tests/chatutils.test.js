@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock state.js so chatutils does not need a live SillyTavern global.
-vi.mock('../src/state.js', () => ({
+vi.mock('../src/foundation/state.js', () => ({
     getChatStore: vi.fn(() => ({ layers: [] })),
 }));
 
@@ -14,7 +14,7 @@ import {
     getVisibleAssistantTurns,
     buildPassageFromRange,
     buildFullContext,
-} from '../src/chatutils.js';
+} from '../src/core/chatutils.js';
 
 function msg({
     isUser = false,
@@ -103,15 +103,15 @@ describe('buildFullContext', () => {
 
     it('builds context from layers when the store has content', async () => {
         vi.resetModules();
-        vi.doMock('../src/state.js', () => ({
+        vi.doMock('../src/foundation/state.js', () => ({
             getChatStore: () => ({
                 layers: [[{ text: 'tip 1' }, { text: 'tip 2' }], [{ text: 'meta 1' }]],
             }),
         }));
-        const mod = await import('../src/chatutils.js');
+        const mod = await import('../src/core/chatutils.js');
         expect(mod.buildFullContext(0)).toContain('tip 1');
         expect(mod.buildFullContext(0)).toContain('meta 1');
         expect(mod.buildFullContext(1)).toBe('meta 1');
-        vi.doUnmock('../src/state.js');
+        vi.doUnmock('../src/foundation/state.js');
     });
 });

@@ -1,9 +1,9 @@
-import { PROMPT_PRESETS } from './constants.js';
-import { log } from './logger.js';
-import { getSettings, saveSettings, getChatStore, saveChatStore } from './state.js';
-import { buildPassageFromRange } from './chatutils.js';
-import { callSummarizer, getIsSummarizing, setSummarizing } from './summarizer.js';
-import { assembleSummaryBlock, updateInjection } from './injection.js';
+import { PROMPT_PRESETS } from '../foundation/constants.js';
+import { log } from '../foundation/logger.js';
+import { getSettings, saveSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import { buildPassageFromRange } from '../core/chatutils.js';
+import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
+import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
 // ─── Settings UI ─────────────────────────────────────────────────────
 

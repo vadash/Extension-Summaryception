@@ -6,7 +6,7 @@ import {
     PROMPT_PRESETS,
     DEFAULT_PROMPT_PRESET,
     RETRY_CONFIG,
-} from '../src/constants.js';
+} from '../src/foundation/constants.js';
 
 describe('constants', () => {
     it('exports the module name used for chatMetadata extensionSettings keys', () => {

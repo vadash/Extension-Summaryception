@@ -1,18 +1,22 @@
 I’ll split the large `index.js` into small ES modules while keeping browser behavior unchanged and preserving `connectionutil.js` as the API backend layer.
 
-Planned module layout (all implementation modules under `src/`, with root `index.js` kept as the extension entry point):
-- `src/constants.js`: `MODULE_NAME`, `LOG_PREFIX`, prompt presets, retry config, default settings.
-- `src/state.js`: settings/chat metadata accessors, save helpers, player name lookup.
-- `src/logger.js`: `log`, `trace`, and debug helpers.
-- `src/retry.js`: retry helpers for summarizer errors.
-- `src/ghosting.js`: ghost/unghost/repair message hiding logic.
-- `src/chatutils.js`: assistant-turn filtering, passage building, context building.
-- `src/prompts.js`: prompt toggle snapshot/disable/restore and summarizer output cleanup.
-- `src/summarizer.js`: summarizer state, abort handling, `callSummarizer`, batch/catch-up processing, layer promotion.
-- `src/injection.js`: summary block assembly and `setExtensionPrompt` updates.
-- `src/commands.js`: slash command registration.
-- `src/ui.js`: settings UI, snippet browser, prompt manager, connection UI handlers.
-- `src/events.js`: SillyTavern event handlers.
+Current module layout (all implementation modules under `src/`, with root `index.js` kept as the extension entry point):
+- `src/foundation/constants.js`: `MODULE_NAME`, `LOG_PREFIX`, prompt presets, retry config, default settings.
+- `src/foundation/state.js`: settings/chat metadata accessors, save helpers, player name lookup.
+- `src/foundation/logger.js`: `log`, `trace`, and debug helpers.
+- `src/foundation/retry.js`: retry helpers for summarizer errors.
+- `src/core/ghosting.js`: ghost/unghost/repair message hiding logic.
+- `src/core/chatutils.js`: assistant-turn filtering, passage building, context building.
+- `src/core/prompts.js`: prompt toggle snapshot/disable/restore and summarizer output cleanup.
+- `src/core/summarizer.js`: summarizer state, abort handling, `callSummarizer`, batch/catch-up processing, layer promotion.
+- `src/features/injection.js`: summary block assembly and `setExtensionPrompt` updates.
+- `src/features/persist.js`: chat persistence plus injection/UI refresh sequencing.
+- `src/features/memory.js`: shared memory clear workflow.
+- `src/entry/commands.js`: slash command registration.
+- `src/entry/ui.js`: settings UI, snippet browser, prompt manager.
+- `src/entry/ui-connection.js`: connection settings UI handlers.
+- `src/entry/ui-events.js`: UI event bindings.
+- `src/entry/events.js`: SillyTavern event handlers.
 - `index.js`: thin bootstrap that imports modules, renders settings, binds UI, registers events/commands.
 
 Implementation approach:

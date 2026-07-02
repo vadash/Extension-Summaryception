@@ -1,7 +1,7 @@
-import { log } from './logger.js';
-import { repairIfBranched } from './ghosting.js';
-import { maybeSummarizeTurns, resetCatchupDismissed } from './summarizer.js';
-import { updateInjection } from './injection.js';
+import { log } from '../foundation/logger.js';
+import { repairIfBranched } from '../core/ghosting.js';
+import { maybeSummarizeTurns, resetCatchupDismissed } from '../core/summarizer.js';
+import { updateInjection } from '../features/injection.js';
 import { updateUI } from './ui.js';
 
 // ─── Event Handlers ──────────────────────────────────────────────────

@@ -1,11 +1,19 @@
-import { LOG_PREFIX } from './constants.js';
-import { getSettings } from './state.js';
+import { LOG_PREFIX, MODULE_NAME, defaultSettings } from './constants.js';
+
+function getDebugSettings() {
+    try {
+        const { extensionSettings } = SillyTavern.getContext();
+        return extensionSettings[MODULE_NAME] || defaultSettings;
+    } catch (_e) {
+        return defaultSettings;
+    }
+}
 
 /**
  *
  */
 export function log(...args) {
-    if (getSettings().debugMode) {
+    if (getDebugSettings().debugMode) {
         console.log(LOG_PREFIX, ...args);
     }
 }
@@ -14,7 +22,7 @@ export function log(...args) {
  *
  */
 export function trace(...args) {
-    const s = getSettings();
+    const s = getDebugSettings();
     if (s.debugMode && s.traceMode) {
         const normalized = args.map((arg, idx) =>
             idx === 0 && typeof arg === 'string' ? arg.toUpperCase() : arg,

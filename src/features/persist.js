@@ -1,6 +1,5 @@
-import { saveChatStore } from './state.js';
+import { persistChatState } from '../core/persist-state.js';
 import { updateInjection } from './injection.js';
-import { log } from './logger.js';
 
 // ─── Chat State Persistence & Extension Refresh ─────────────────────
 
@@ -13,21 +12,7 @@ export function setUiRefresher(fn) {
     _uiRefresher = fn;
 }
 
-/**
- * Persist chat metadata and chat state in one step.
- * Equivalent to: saveChatStore() + ctx.saveChat().
- */
-export async function persistChatState() {
-    await saveChatStore();
-    try {
-        const ctx = SillyTavern.getContext();
-        if (ctx.saveChat) {
-            await ctx.saveChat();
-        }
-    } catch (e) {
-        log('Could not save chat:', e);
-    }
-}
+export { persistChatState };
 
 /**
  * Refresh extension state after a mutation.

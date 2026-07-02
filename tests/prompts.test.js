@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 // Mock state so prompts.js can call getSettings() without a live runtime.
 const getSettingsMock = vi.fn(() => ({ stripPatterns: ['<thinking>', '</thinking>'] }));
 
-vi.mock('../src/state.js', () => ({
+vi.mock('../src/foundation/state.js', () => ({
     getSettings: () => getSettingsMock(),
 }));
 
@@ -11,7 +11,7 @@ function setStripPatterns(patterns) {
     getSettingsMock.mockReturnValue({ stripPatterns: patterns });
 }
 
-import { cleanSummarizerOutput } from '../src/prompts.js';
+import { cleanSummarizerOutput } from '../src/core/prompts.js';
 
 describe('cleanSummarizerOutput', () => {
     it('removes configured strip patterns (destroys tags, leaving inner text)', () => {
@@ -88,7 +88,7 @@ describe('prompt toggle management', () => {
             },
         };
         globalThis.SillyTavern = { getContext: () => ctx };
-        const { snapshotPromptToggles } = await import('../src/prompts.js');
+        const { snapshotPromptToggles } = await import('../src/core/prompts.js');
         const snap = snapshotPromptToggles();
         expect(snap.get('a')).toBe(true);
         expect(snap.get('b')).toBe(false);
@@ -104,7 +104,7 @@ describe('prompt toggle management', () => {
             },
         };
         globalThis.SillyTavern = { getContext: () => ctx };
-        const { disableAllPromptToggles } = await import('../src/prompts.js');
+        const { disableAllPromptToggles } = await import('../src/core/prompts.js');
         disableAllPromptToggles();
         expect(mgr.order.filter((e) => e.enabled)).toHaveLength(0);
     });
@@ -131,11 +131,11 @@ describe('prompt toggle management', () => {
                 },
             }),
         };
-        const { snapshotPromptToggles } = await import('../src/prompts.js');
+        const { snapshotPromptToggles } = await import('../src/core/prompts.js');
         const snap = snapshotPromptToggles();
         // Now switch back to the disabled manager and restore.
         globalThis.SillyTavern = { getContext: () => ctx };
-        const { restorePromptToggles } = await import('../src/prompts.js');
+        const { restorePromptToggles } = await import('../src/core/prompts.js');
         restorePromptToggles(snap);
         expect(mgr.order.find((e) => e.identifier === 'a').enabled).toBe(true);
         expect(mgr.order.find((e) => e.identifier === 'b').enabled).toBe(false);

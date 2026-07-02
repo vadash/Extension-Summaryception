@@ -1,9 +1,9 @@
-import { LOG_PREFIX } from './constants.js';
-import { getSettings, getChatStore, saveChatStore } from './state.js';
-import { log, trace } from './logger.js';
+import { LOG_PREFIX } from '../foundation/constants.js';
+import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import { log, trace } from '../foundation/logger.js';
 import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
 import { buildPassageFromRange, buildFullContext } from './chatutils.js';
-import { persistChatState } from './persist.js';
+import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { maybePromoteLayer } from './summarizer-promotion.js';
 

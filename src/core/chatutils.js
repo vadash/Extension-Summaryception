@@ -1,4 +1,4 @@
-import { getChatStore } from './state.js';
+import { getChatStore } from '../foundation/state.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 

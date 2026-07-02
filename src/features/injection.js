@@ -1,6 +1,6 @@
-import { MODULE_NAME } from './constants.js';
-import { getChatStore, getSettings } from './state.js';
-import { log } from './logger.js';
+import { MODULE_NAME } from '../foundation/constants.js';
+import { getChatStore, getSettings } from '../foundation/state.js';
+import { log } from '../foundation/logger.js';
 
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 

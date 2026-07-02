@@ -2,8 +2,8 @@ import {
     fetchOllamaModels,
     testOpenAIConnection,
     populateProfileDropdown,
-} from './connectionutil.js';
-import { getSettings, saveSettings } from './state.js';
+} from '../core/connectionutil.js';
+import { getSettings, saveSettings } from '../foundation/state.js';
 
 // ─── Connection Settings UI ──────────────────────────────────────────
 

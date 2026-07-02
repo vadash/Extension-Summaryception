@@ -1,5 +1,5 @@
-import { getSettings, getChatStore, saveChatStore } from './state.js';
-import { log, trace } from './logger.js';
+import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import { log, trace } from '../foundation/logger.js';
 import { getAssistantTurns } from './chatutils.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';

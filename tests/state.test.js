@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { installSillyTavernStub, makeContext, makeMessage } from './test-helpers.js';
-import { defaultSettings } from '../src/constants.js';
+import { defaultSettings } from '../src/foundation/constants.js';
 
 describe('state.js', () => {
     beforeEach(() => {
@@ -8,7 +8,7 @@ describe('state.js', () => {
     });
 
     it('returns a backfilled settings object with every default key present', async () => {
-        const { getSettings } = await import('../src/state.js');
+        const { getSettings } = await import('../src/foundation/state.js');
         installSillyTavernStub({ settings: {} });
         const s = getSettings();
         expect(s).toBeDefined();
@@ -19,7 +19,7 @@ describe('state.js', () => {
 
     it('does not clobber an explicit user setting (e.g., disabled pause flag)', async () => {
         installSillyTavernStub({ settings: { enabled: false, verbatimTurns: 3 } });
-        const { getSettings } = await import('../src/state.js');
+        const { getSettings } = await import('../src/foundation/state.js');
         const s = getSettings();
         expect(s.enabled).toBe(false);
         expect(s.verbatimTurns).toBe(3);
@@ -29,7 +29,7 @@ describe('state.js', () => {
 
     it('initializes the chat store with empty layers and a sentinel summarizedUpTo', async () => {
         installSillyTavernStub();
-        const { getChatStore, getSettings } = await import('../src/state.js');
+        const { getChatStore, getSettings } = await import('../src/foundation/state.js');
         getSettings(); // ensure access path works
         const store = getChatStore();
         expect(store.layers).toEqual([]);
@@ -45,7 +45,7 @@ describe('state.js', () => {
             settings: {},
         });
         globalThis.SillyTavern = { getContext: () => ctx };
-        const { getChatStore } = await import('../src/state.js');
+        const { getChatStore } = await import('../src/foundation/state.js');
         const store = getChatStore();
         expect(store.ghostedIndices).toEqual([]);
     });
@@ -56,9 +56,9 @@ describe('state.js', () => {
         const ctx = makeContext({ chat: [], metadata: {}, settings: {} });
         ctx.name1 = 'Lyra';
         globalThis.SillyTavern = { getContext: () => ctx };
-        const { getSettings } = await import('../src/state.js');
+        const { getSettings } = await import('../src/foundation/state.js');
         getSettings();
-        const { getPlayerName } = await import('../src/state.js');
+        const { getPlayerName } = await import('../src/foundation/state.js');
         expect(getPlayerName()).toBe('Lyra');
     });
 });

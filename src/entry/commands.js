@@ -1,7 +1,7 @@
-import { log } from './logger.js';
-import { getChatStore } from './state.js';
-import { assembleSummaryBlock } from './injection.js';
-import { clearSummaryceptionMemory } from './memory.js';
+import { log } from '../foundation/logger.js';
+import { getChatStore } from '../foundation/state.js';
+import { assembleSummaryBlock } from '../features/injection.js';
+import { clearSummaryceptionMemory } from '../features/memory.js';
 
 // ─── Slash Commands ──────────────────────────────────────────────────
 

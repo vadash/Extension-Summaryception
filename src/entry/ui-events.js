@@ -1,18 +1,18 @@
-import { LOG_PREFIX, PROMPT_PRESETS, defaultSettings } from './constants.js';
-import { log } from './logger.js';
-import { getSettings, saveSettings, getChatStore } from './state.js';
-import { ghostMessagesUpTo, unghostAllMessages } from './ghosting.js';
-import { getAssistantTurns } from './chatutils.js';
+import { LOG_PREFIX, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
+import { log } from '../foundation/logger.js';
+import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
+import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
+import { getAssistantTurns } from '../core/chatutils.js';
 import {
     abortSummarization,
     getIsSummarizing,
     hasActiveAbortController,
     resetCatchupDismissed,
     runCatchup,
-} from './summarizer.js';
-import { updateInjection } from './injection.js';
-import { persistAndRefresh } from './persist.js';
-import { clearSummaryceptionMemory } from './memory.js';
+} from '../core/summarizer.js';
+import { updateInjection } from '../features/injection.js';
+import { persistAndRefresh } from '../features/persist.js';
+import { clearSummaryceptionMemory } from '../features/memory.js';
 import { updateUI, updateCustomPromptSlots } from './ui.js';
 
 // ─── Event Bindings ──────────────────────────────────────────────────
