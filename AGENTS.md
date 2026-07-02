@@ -28,7 +28,7 @@ constants ← logger, retry ← state ← core ← feature ← entry
 | logger | `src/logger.js` |
 | retry | `src/retry.js` |
 | state | `src/state.js` |
-| core | `src/ghosting.js`, `src/chatutils.js`, `src/connectionutil.js`, `src/summarizer.js` |
+| core | `src/ghosting.js`, `src/chatutils.js`, `src/connection*.js`, `src/connectionutil.js`, `src/summarizer*.js` |
 | feature | `src/injection.js`, `src/persist.js`, `src/memory.js`, `src/prompts.js` |
 | entry | `src/ui.js`, `src/events.js`, `src/commands.js` |
 
