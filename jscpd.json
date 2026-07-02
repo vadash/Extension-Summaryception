@@ -2,12 +2,8 @@
     "threshold": 5,
     "minLines": 20,
     "minTokens": 50,
-    "reporters": [
-        "console"
-    ],
-    "format": [
-        "javascript"
-    ],
+    "reporters": ["console"],
+    "format": ["javascript"],
     "ignore": [],
     "absolute": true,
     "exitCode": 1,

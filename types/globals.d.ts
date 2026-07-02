@@ -65,7 +65,11 @@ interface ConnectionManagerRequestService {
      * @param {Record<string, unknown>} options
      * @returns {Promise<string | Record<string, unknown>>}
      */
-    sendRequest(profileId: string, messages: unknown, options: Record<string, unknown>): Promise<unknown>;
+    sendRequest(
+        profileId: string,
+        messages: unknown,
+        options: Record<string, unknown>,
+    ): Promise<unknown>;
     handleDropdown(element: HTMLSelectElement): void;
 }
 
@@ -88,7 +92,10 @@ interface SillyTavernContext {
         command: string,
         options: Record<string, unknown>,
     ): Promise<void>;
-    generateRaw(messages: string[] | Record<string, unknown>, systemPrompt?: string): Promise<string>;
+    generateRaw(
+        messages: string[] | Record<string, unknown>,
+        systemPrompt?: string,
+    ): Promise<string>;
     promptManager?: {
         addPrompt(name: string, content: string): boolean;
         getPrompt(name: string): string | null;
