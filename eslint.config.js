@@ -179,6 +179,13 @@ export default [
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
+            globals: {
+                ...globals.browser,
+                SillyTavern: 'readonly',
+                toastr: 'readonly',
+                jQuery: 'readonly',
+                $: 'readonly',
+            },
         },
         rules: {
             camelcase: [
