@@ -37,6 +37,12 @@ export function getVisibleAssistantTurns(chat) {
  * Skips messages that are hidden (by user or system) UNLESS they were
  * hidden by Summaryception (sc_ghosted). Also skips empty messages.
  */
+/**
+ * @param {Array} chat
+ * @param {number} startIdx
+ * @param {number} endIdx
+ * @returns {string}
+ */
 export function buildPassageFromRange(chat, startIdx, endIdx) {
     const lines = [];
     for (let i = startIdx; i <= endIdx; i++) {

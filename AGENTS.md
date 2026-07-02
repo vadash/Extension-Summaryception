@@ -35,8 +35,7 @@ There are no automated tests. Manual testing requires a running SillyTavern inst
 - **Strings**: Single quotes preferred
 - **Functions**: `const fn = () => {}` for inline, `function name() {}` for hoisted/top-level
 - **Prefix all console output** with `[Summaryception]` (stored in `LOG_PREFIX`)
-- Linting (ESLint) and formatting (Prettier) are installed and enforced automatically. A pre-commit hook runs them on staged files; CI runs them on every PR.
-- **Do NOT manually reformat or lint-fix code before committing.** Commit your changes raw, then fix lint/format failures in a follow-up commit. This keeps diffs focused on the actual change.
+- Linting (ESLint) and formatting (Prettier) are installed and enforced automatically. A pre-commit hook (`lint-staged`) auto-fixes and re-stages JS files before every commit; CI runs them on every PR. No manual formatting needed.
 
 Key globals: `SillyTavern.getContext()`, `toastr` (notifications), `jQuery` (`$`) for DOM manipulation.
 
@@ -70,6 +69,17 @@ The extension manages a recursive layer system stored in `chatMetadata[MODULE_NA
 - **Ghosted messages** are hidden from LLM context via SillyTavern's `/hide` command but remain visible in the UI
 - **Injection** uses `setExtensionPrompt()` to prepend the assembled summary block to LLM context
 - **API calls** respect exponential backoff (up to 5 retries, 2s-60s delays) and disable all prompt toggles during summarizer calls to isolate the task from the user's writing preset
+
+## Tooling
+
+| Tool | Purpose | Run | Enforced |
+|---|---|---|---|
+| ESLint | Linting (naming, complexity, JSDoc) | `npm run lint` | CI + pre-commit |
+| Prettier | Formatting | `npm run format` | CI + pre-commit |
+| Husky + lint-staged | Auto-fix staged JS on commit | auto on `git commit` | local |
+| eslint-plugin-jsdoc | JSDoc enforcement on exports | via ESLint | CI |
+
+Key rules enforced: camelCase naming, max complexity 15, max 80 lines/function, max 500 lines/file, JSDoc on exports.
 
 ## Security & Configuration Tips
 
