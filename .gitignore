@@ -25,6 +25,7 @@ desktop.ini
 # Build / dist
 dist/
 build/
+coverage/
 *.log
 
 # TypeScript build output

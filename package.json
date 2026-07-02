@@ -8,6 +8,9 @@
         "doc": "docs"
     },
     "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
         "lint": "eslint .",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
@@ -34,6 +37,7 @@
     "homepage": "https://github.com/vadash/Extension-Summaryception#readme",
     "devDependencies": {
         "@eslint/js": "^9.39.4",
+        "@vitest/coverage-v8": "^3.2.6",
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-boundaries": "^6.0.2",
@@ -45,6 +49,7 @@
         "knip": "^6.24.0",
         "lint-staged": "^17.0.8",
         "prettier": "^3.9.4",
-        "typescript": "^6.0.3"
+        "typescript": "^6.0.3",
+        "vitest": "^3.2.6"
     }
 }
