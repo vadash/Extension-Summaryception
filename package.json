@@ -10,7 +10,14 @@
     "scripts": {
         "lint": "eslint .",
         "format": "prettier --write .",
-        "format:check": "prettier --check ."
+        "format:check": "prettier --check .",
+        "prepare": "husky"
+    },
+    "lint-staged": {
+        "*.js": [
+            "eslint --fix",
+            "prettier --write"
+        ]
     },
     "repository": {
         "type": "git",
@@ -27,6 +34,8 @@
         "eslint": "^9.39.4",
         "eslint-config-prettier": "^10.1.8",
         "globals": "^17.7.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^17.0.8",
         "prettier": "^3.9.4"
     }
 }

@@ -35,7 +35,8 @@ There are no automated tests. Manual testing requires a running SillyTavern inst
 - **Strings**: Single quotes preferred
 - **Functions**: `const fn = () => {}` for inline, `function name() {}` for hoisted/top-level
 - **Prefix all console output** with `[Summaryception]` (stored in `LOG_PREFIX`)
-- **No linting or formatting tools** configured; match the surrounding code style
+- Linting (ESLint) and formatting (Prettier) are installed and enforced automatically. A pre-commit hook runs them on staged files; CI runs them on every PR.
+- **Do NOT manually reformat or lint-fix code before committing.** Commit your changes raw, then fix lint/format failures in a follow-up commit. This keeps diffs focused on the actual change.
 
 Key globals: `SillyTavern.getContext()`, `toastr` (notifications), `jQuery` (`$`) for DOM manipulation.
 
