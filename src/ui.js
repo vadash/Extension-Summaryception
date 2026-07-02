@@ -660,7 +660,7 @@ export function bindUIEvents() {
 
                 await persistAndRefresh({ ui: true });
                 toastr.success(
-                    `Memory imported. ${store.layers.reduce((sum, l) => sum + /** @type {Array<?>} */ ((l)?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
+                    `Memory imported. ${store.layers.reduce((sum, l) => sum + (l?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
                     'Summaryception',
                     { timeOut: 4000 },
                 );

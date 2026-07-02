@@ -13,7 +13,7 @@ export default [
     prettierConfig,
     jsdocPlugin.configs['flat/recommended'],
     {
-        files: ['**/*.js'],
+        files: ['src/**/*.js'],
         plugins: {
             unicorn: unicornPlugin,
             boundaries: boundariesPlugin,
@@ -28,6 +28,33 @@ export default [
                 jQuery: 'readonly',
                 $: 'readonly',
             },
+        },
+        settings: {
+            'boundaries/elements': [
+                { type: 'constants', pattern: 'src/constants.js' },
+                { type: 'logger', pattern: 'src/logger.js' },
+                { type: 'retry', pattern: 'src/retry.js' },
+                { type: 'state', pattern: 'src/state.js' },
+                {
+                    type: 'core',
+                    pattern: [
+                        'src/ghosting.js',
+                        'src/chatutils.js',
+                        'src/connectionutil.js',
+                        'src/summarizer.js',
+                    ],
+                },
+                {
+                    type: 'feature',
+                    pattern: [
+                        'src/injection.js',
+                        'src/persist.js',
+                        'src/memory.js',
+                        'src/prompts.js',
+                    ],
+                },
+                { type: 'entry', pattern: ['src/ui.js', 'src/events.js', 'src/commands.js'] },
+            ],
         },
         rules: {
             // Naming conventions (enforces AGENTS.md standards)
@@ -144,33 +171,61 @@ export default [
         },
     },
     {
-        files: ['src/**/*.js'],
-        settings: {
-            'boundaries/elements': [
-                { type: 'constants', pattern: 'src/constants.js' },
-                { type: 'logger', pattern: 'src/logger.js' },
-                { type: 'retry', pattern: 'src/retry.js' },
-                { type: 'state', pattern: 'src/state.js' },
+        files: ['*.js'],
+        ignores: ['src/**'],
+        plugins: {
+            unicorn: unicornPlugin,
+        },
+        languageOptions: {
+            ecmaVersion: 2022,
+            sourceType: 'module',
+        },
+        rules: {
+            camelcase: [
+                'error',
                 {
-                    type: 'core',
-                    pattern: [
-                        'src/ghosting.js',
-                        'src/chatutils.js',
-                        'src/connectionutil.js',
-                        'src/summarizer.js',
-                    ],
+                    properties: 'never',
+                    ignoreDestructuring: true,
+                    allow: ['^event_types$', '^chat_metadata$'],
                 },
-                {
-                    type: 'feature',
-                    pattern: [
-                        'src/injection.js',
-                        'src/persist.js',
-                        'src/memory.js',
-                        'src/prompts.js',
-                    ],
-                },
-                { type: 'entry', pattern: ['src/ui.js', 'src/events.js', 'src/commands.js'] },
             ],
+            'new-cap': ['error', { capIsNew: false }],
+            complexity: ['warn', { max: 15 }],
+            'max-depth': ['warn', { max: 4 }],
+            semi: ['error', 'always'],
+            'no-unused-vars': [
+                'error',
+                {
+                    argsIgnorePattern: '^_',
+                    varsIgnorePattern: '^_',
+                    caughtErrorsIgnorePattern: '^_',
+                },
+            ],
+            'no-console': 'off',
+            'no-var': 'error',
+            'prefer-const': 'error',
+            eqeqeq: ['error', 'always'],
+            curly: ['error', 'all'],
+            'no-implicit-globals': 'error',
+            'unicorn/expiring-todo-comments': [
+                'warn',
+                {
+                    allowWarningComments: false,
+                    ignore: [],
+                    terms: ['todo', 'fixme', 'xxx', 'hack'],
+                },
+            ],
+            'jsdoc/require-param-type': 'warn',
+            'jsdoc/require-returns': 'warn',
+            'jsdoc/require-returns-type': 'warn',
+            'jsdoc/check-types': 'warn',
+            'jsdoc/valid-types': 'warn',
+            'jsdoc/require-description': 'off',
+            'jsdoc/require-returns-description': 'off',
+            'jsdoc/tag-lines': 'off',
+            'jsdoc/check-param-names': 'off',
+            'jsdoc/require-param-description': 'off',
+            'jsdoc/require-param': 'off',
         },
     },
 ];
