@@ -1,0 +1,16 @@
+# Default repository owners
+*   @vadash
+
+# Source code changes
+src/   @vadash
+
+# Documentation
+docs/           @vadash
+*.md            @vadash
+
+# Tooling / CI / GitHub config
+.github/        @vadash
+*.config.js     @vadash
+.husky/         @vadash
+knip.json       @vadash
+jscpd.json      @vadash

@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import prettierConfig from 'eslint-config-prettier';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
+import unicornPlugin from 'eslint-plugin-unicorn';
 
 export default [
     {
@@ -12,6 +13,9 @@ export default [
     jsdocPlugin.configs['flat/recommended'],
     {
         files: ['**/*.js'],
+        plugins: {
+            unicorn: unicornPlugin,
+        },
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
@@ -64,6 +68,21 @@ export default [
             eqeqeq: ['error', 'always'],
             curly: ['error', 'all'],
             'no-implicit-globals': 'error',
+
+            // ── Technical debt tracking ──────────────────────────────────
+            // ESLint warns when a deprecation-tracking comment lacks a
+            // resolution condition (date, version gate, package dependency,
+            // or peer dependency promise).
+            // eslint-plugin-unicorn rule, configured to spot unreferenced
+            // tags and escalate them as warnings.
+            'unicorn/expiring-todo-comments': [
+                'warn',
+                {
+                    allowWarningComments: false,
+                    ignore: [],
+                    terms: ['todo', 'fixme', 'xxx', 'hack'],
+                },
+            ],
 
             // ── JSDoc type enforcement on public exports ──────────────
             // Note: these rules apply only to exported functions and classes,
