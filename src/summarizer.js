@@ -6,6 +6,7 @@ import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from './retry.js';
 import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
 import { getAssistantTurns, buildPassageFromRange, buildFullContext } from './chatutils.js';
 import { snapshotPromptToggles, disableAllPromptToggles, restorePromptToggles, cleanSummarizerOutput } from './prompts.js';
+import { persistChatState } from './persist.js';
 
 let uiUpdater = null;
 
@@ -263,198 +264,91 @@ export async function maybeSummarizeTurns() {
     }
 }
 
-// ─── Core: Single Batch Summarization ────────────────────────────────
+// ─── Core: Batch Summarization (shared) ─────────────────────────────
 
-export async function summarizeOneBatch(visibleTurns) {
-    trace('>>> ENTERING summarizeOneBatch');
+/**
+ * Shared batch summarization logic used by both normal and catch-up paths.
+ * @param {Array} visibleTurns - Visible (non-ghosted) assistant turns
+ * @param {object} opts
+ * @param {boolean} opts.showToasts - Show user-facing toasts (normal mode)
+ * @param {boolean} opts.catchExceptions - Catch and swallow exceptions, returning false (catch-up mode)
+ * @returns {Promise<boolean>} - Whether the batch was successfully summarized
+ */
+async function summarizeBatchFromTurns(visibleTurns, { showToasts = false, catchExceptions = false } = {}) {
+    trace('>>> ENTERING summarizeBatchFromTurns');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
 
     const s = getSettings();
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
 
-    // ─── FIX: Filter out turns that are at or before summarizedUpTo ───
-    const eligibleTurns = visibleTurns.filter(t => t.index > store.summarizedUpTo);
-    trace('  eligibleTurns after filtering:', eligibleTurns.length);
-
-    if (eligibleTurns.length === 0) {
-        log('All visible turns are already summarized — repairing ghosting...');
-        const turnsToGhost = visibleTurns.filter(t => t.index <= store.summarizedUpTo);
-        for (const t of turnsToGhost) {
-            await ghostMessage(t.index);
-        }
-        await saveChatStore();
-        trace('<<< EXITING summarizeOneBatch - REPAIRED GHOSTING');
-        return false;
-    }
-
-    const batchSize = Math.min(s.turnsPerSummary, eligibleTurns.length);
-    const batch = eligibleTurns.slice(0, batchSize);
-
-    if (batch.length === 0) {
-        trace('<<< EXITING summarizeOneBatch - EMPTY BATCH');
-        return false;
-    }
-
-    isSummarizing = true;
-
-    try {
-        const startIdx = batch[0].index;
-        const endIdx = batch[batch.length - 1].index;
-        trace('  startIdx:', startIdx, 'endIdx:', endIdx);
-        trace('  store.summarizedUpTo:', store.summarizedUpTo);
-
-        log(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
-
-        if (!store.layers[0]) store.layers[0] = [];
-        const passageStart = store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
-
-        // ─── SANITY CHECK ───
-        if (passageStart > endIdx) {
-            log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
-            trace('<<< EXITING summarizeOneBatch - PASSAGE START GREATER THAN END');
-            return false;
-        }
-
-        const storyTxt = buildPassageFromRange(chat, passageStart, endIdx);
-        trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
-        if (!storyTxt.trim()) {
-            trace('<<< EXITING summarizeOneBatch - EMPTY PASSAGE');
-            return false;
-        }
-
-        const contextStr = buildFullContext(0);
-
-        toastr.info(`Summarizing ${batch.length} turn${batch.length > 1 ? 's' : ''}…`, 'Summaryception', {
-            timeOut: 3000,
-            progressBar: true,
-        });
-
-        const summary = await callSummarizer(storyTxt, contextStr);
-        trace('  summary length:', summary?.length ?? 'UNDEFINED');
-
-        if (!summary) {
-            log('Summarization failed for batch, leaving turns intact for next attempt.');
-            trace('<<< EXITING summarizeOneBatch - EMPTY SUMMARY');
-            return false;
-        }
-
-        store.layers[0].push({
-            text: summary,
-            turnRange: [passageStart, endIdx],
-            timestamp: Date.now(),
-        });
-
-        store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
-        await ghostMessagesUpTo(endIdx);
-
-        log(`Layer 0 now has ${store.layers[0].length} snippets`);
-
-        await maybePromoteLayer(0);
-        await saveChatStore();
-
-        try {
-            const ctx = SillyTavern.getContext();
-            if (ctx.saveChat) await ctx.saveChat();
-        } catch (e) {
-            log('Could not save chat:', e);
-        }
-
-        toastr.success(`Summary saved (Layer 0: ${store.layers[0].length} snippets)`, 'Summaryception', { timeOut: 2000 });
-        trace('<<< EXITING summarizeOneBatch - SUCCESS');
-        return true;
-
-    } finally {
-        isSummarizing = false;
-    }
-}
-
-// ─── Core: Inner Batch for Catchup ───────────────────────────────────
-
-export async function summarizeOneBatchFromTurns(visibleTurns) {
-    trace('>>> ENTERING summarizeOneBatchFromTurns');
-    trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
-
-    const s = getSettings();
-    const { chat } = SillyTavern.getContext();
-    const store = getChatStore();
-
-    // ─── FIX: Filter out turns that are at or before summarizedUpTo ───
+    // Filter out turns that are at or before summarizedUpTo.
     // This handles desync where summarizedUpTo advanced but ghosting failed
     // (e.g., connection drop mid-summarization). Without this filter, the batch
-    // always starts at the first un-ghosted turn, gets rejected by the
-    // startIdx <= summarizedUpTo guard, and loops forever.
+    // always starts at the first un-ghosted turn, gets rejected, and loops forever.
     const eligibleTurns = visibleTurns.filter(t => t.index > store.summarizedUpTo);
     trace('  eligibleTurns after filtering:', eligibleTurns.length);
 
     if (eligibleTurns.length === 0) {
-        // All "visible" turns are actually already summarized but not ghosted.
-        // Ghost them now to fix the desync.
         log('All visible turns are already summarized — repairing ghosting...');
         const turnsToGhost = visibleTurns.filter(t => t.index <= store.summarizedUpTo);
         for (const t of turnsToGhost) {
             await ghostMessage(t.index);
         }
-        await saveChatStore();
-        trace('<<< EXITING summarizeOneBatchFromTurns - REPAIRED GHOSTING');
+        await persistChatState();
+        trace('<<< EXITING summarizeBatchFromTurns - REPAIRED GHOSTING');
         return false;
     }
 
     const batchSize = Math.min(s.turnsPerSummary, eligibleTurns.length);
     const batch = eligibleTurns.slice(0, batchSize);
 
-    trace('  batchSize:', batchSize);
-    trace('  batch prepared:', batch.length);
-
     if (batch.length === 0) {
-        trace('<<< EXITING summarizeOneBatchFromTurns - EMPTY BATCH');
+        trace('<<< EXITING summarizeBatchFromTurns - EMPTY BATCH');
         return false;
     }
 
     const startIdx = batch[0].index;
     const endIdx = batch[batch.length - 1].index;
-
     trace('  startIdx:', startIdx, 'endIdx:', endIdx);
     trace('  store.summarizedUpTo:', store.summarizedUpTo);
 
-    if (!store.layers[0]) store.layers[0] = [];
+    log(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
 
-    // ─── Start from the message AFTER the last summarized one ───
+    if (!store.layers[0]) store.layers[0] = [];
     const passageStart = store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
 
-    trace('  passageStart:', passageStart, 'endIdx:', endIdx);
-
-    // ─── SANITY CHECK: passageStart should always be <= endIdx ───
     if (passageStart > endIdx) {
-        trace('  CRITICAL: passageStart > endIdx! This should never happen.');
-        trace('  This likely means the batch was already summarized.');
-        trace('<<< EXITING - passageStart > endIdx');
+        log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
+        trace('<<< EXITING summarizeBatchFromTurns - PASSAGE START GREATER THAN END');
         return false;
     }
 
-    trace('  About to call buildPassageFromRange...');
-
     try {
         const storyTxt = buildPassageFromRange(chat, passageStart, endIdx);
-        trace('  buildPassageFromRange returned, length:', storyTxt?.length ?? 'UNDEFINED');
-
+        trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
         if (!storyTxt.trim()) {
-            trace('  <<< EXITING - storyTxt is empty after trim');
-            trace('  This suggests all messages in range [' + passageStart + ', ' + endIdx + '] are hidden or empty');
+            trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
             return false;
         }
 
-        trace('  About to call buildFullContext...');
         const contextStr = buildFullContext(0);
-        trace('  buildFullContext returned, length:', contextStr?.length ?? 'UNDEFINED');
+        trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
+
+        if (showToasts) {
+            toastr.info(`Summarizing ${batch.length} turn${batch.length > 1 ? 's' : ''}…`, 'Summaryception', {
+                timeOut: 3000,
+                progressBar: true,
+            });
+        }
 
         trace('  About to call callSummarizer...');
         const summary = await callSummarizer(storyTxt, contextStr);
-        trace('  callSummarizer returned, length:', summary?.length ?? 'UNDEFINED');
+        trace('  summary length:', summary?.length ?? 'UNDEFINED');
 
         if (!summary) {
             log('Summarization failed for batch, leaving turns intact for next attempt.');
-            trace('  <<< EXITING - summary is empty');
+            trace('<<< EXITING summarizeBatchFromTurns - EMPTY SUMMARY');
             return false;
         }
 
@@ -467,31 +361,49 @@ export async function summarizeOneBatchFromTurns(visibleTurns) {
         store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
         trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
+        // Save before ghosting so summarizedUpTo persists even if ghosting is interrupted
         await saveChatStore();
         await ghostMessagesUpTo(endIdx);
         await maybePromoteLayer(0);
-        await saveChatStore();
+        await persistChatState();
 
-        try {
-            const ctx = SillyTavern.getContext();
-            if (ctx.saveChat) await ctx.saveChat();
-        } catch (e) {
-            log('Could not save chat:', e);
+        log(`Layer 0 now has ${store.layers[0].length} snippets`);
+
+        if (showToasts) {
+            toastr.success(`Summary saved (Layer 0: ${store.layers[0].length} snippets)`, 'Summaryception', { timeOut: 2000 });
         }
 
-        trace('<<< EXITING summarizeOneBatchFromTurns - SUCCESS');
+        trace('<<< EXITING summarizeBatchFromTurns - SUCCESS');
         return true;
 
     } catch (err) {
+        if (!catchExceptions) throw err;
         trace('  CAUGHT EXCEPTION:', {
             name: err?.name,
             message: err?.message,
             stack: err?.stack?.substring?.(0, 200),
         });
-        console.error(LOG_PREFIX, 'summarizeOneBatchFromTurns exception:', err);
-        trace('<<< EXITING summarizeOneBatchFromTurns - EXCEPTION');
+        console.error(LOG_PREFIX, 'summarizeBatchFromTurns exception:', err);
+        trace('<<< EXITING summarizeBatchFromTurns - EXCEPTION');
         return false;
     }
+}
+
+// ─── Core: Single Batch (Normal Mode) ────────────────────────────────
+
+export async function summarizeOneBatch(visibleTurns) {
+    isSummarizing = true;
+    try {
+        return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
+    } finally {
+        isSummarizing = false;
+    }
+}
+
+// ─── Core: Inner Batch for Catchup ───────────────────────────────────
+
+export async function summarizeOneBatchFromTurns(visibleTurns) {
+    return await summarizeBatchFromTurns(visibleTurns, { catchExceptions: true });
 }
 
 // ─── Core: Catchup Processing ────────────────────────────────────────

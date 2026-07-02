@@ -63,6 +63,77 @@ function getProxyHeaders() {
     return { 'Content-Type': 'application/json' };
 }
 
+// ─── Transport Helpers ───────────────────────────────────────────────
+
+const LOCAL_URL_RE = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i;
+
+/**
+ * Check whether a URL points to a local/private network address.
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isLocalUrl(url) {
+    return LOCAL_URL_RE.test(url);
+}
+
+/**
+ * Normalize an OpenAI-compatible base URL into a /chat/completions endpoint.
+ * @param {string} baseUrl
+ * @returns {string}
+ */
+function normalizeOpenAIEndpoint(baseUrl) {
+    let endpoint = baseUrl.replace(/\/+$/, '');
+    if (!endpoint.endsWith('/chat/completions')) {
+        if (endpoint.endsWith('/v1')) {
+            endpoint += '/chat/completions';
+        } else if (!endpoint.includes('/chat/completions')) {
+            endpoint += '/v1/chat/completions';
+        }
+    }
+    return endpoint;
+}
+
+/**
+ * Read response error text with a safe fallback.
+ * @param {Response} response
+ * @returns {Promise<string>}
+ */
+async function readErrorText(response) {
+    return await response.text().catch(() => 'Unknown error');
+}
+
+/**
+ * Attempt a fetch through ST's CORS proxy, falling back to a direct request.
+ * Throws an Error with .proxyError and .directError properties if both fail.
+ * @param {string} targetUrl - The direct URL to fetch
+ * @param {object} opts - Fetch options (method, headers, body)
+ * @returns {Promise<Response>}
+ */
+async function fetchWithProxyFallback(targetUrl, { method = 'GET', headers = {}, body } = {}) {
+    const requestHeaders = { 'Content-Type': 'application/json', ...headers };
+    try {
+        return await fetch(proxiedUrl(targetUrl), {
+            method,
+            headers: { ...getProxyHeaders(), ...requestHeaders },
+            body,
+        });
+    } catch (proxyError) {
+        console.warn(`${MODULE_NAME} CORS proxy failed, trying direct:`, proxyError.message);
+        try {
+            return await fetch(targetUrl, {
+                method,
+                headers: requestHeaders,
+                body,
+            });
+        } catch (directError) {
+            const combined = new Error('Both proxy and direct fetch failed');
+            combined.proxyError = proxyError;
+            combined.directError = directError;
+            throw combined;
+        }
+    }
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────
 
 /**
@@ -292,58 +363,33 @@ async function sendViaOllama(url, model, systemPrompt, userPrompt) {
 
     const baseUrl = url.replace(/\/+$/, '');
     const targetUrl = `${baseUrl}/api/chat`;
+    const body = JSON.stringify({
+        model: model,
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+        ],
+        stream: false,
+        options: { temperature: 0.3 },
+    });
 
     let response;
     try {
-        response = await fetch(proxiedUrl(targetUrl), {
-            method: 'POST',
-            headers: {
-                ...getProxyHeaders(),
-                               'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                model: model,
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt },
-                ],
-                stream: false,
-                options: {
-                    temperature: 0.3,
-                },
-            }),
-        });
-    } catch (proxyError) {
-        console.warn(`${MODULE_NAME} CORS proxy failed, trying direct:`, proxyError.message);
-        try {
-            response = await fetch(targetUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt },
-                    ],
-                    stream: false,
-                    options: { temperature: 0.3 },
-                }),
-            });
-        } catch (directError) {
-            throw new ConnectionError(
-                `Failed to connect to Ollama at ${baseUrl}. ` +
-                `CORS proxy error: ${proxyError.message}. Direct error: ${directError.message}. ` +
-                `Make sure enableCorsProxy is set to true in config.yaml, or set OLLAMA_ORIGINS=* on your Ollama instance.`,
-                { retryable: true }
-            );
-        }
+        response = await fetchWithProxyFallback(targetUrl, { method: 'POST', body });
+    } catch (e) {
+        throw new ConnectionError(
+            `Failed to connect to Ollama at ${baseUrl}. ` +
+            `CORS proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}. ` +
+            `Make sure enableCorsProxy is set to true in config.yaml, or set OLLAMA_ORIGINS=* on your Ollama instance.`,
+            { retryable: true }
+        );
     }
 
     if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = await readErrorText(response);
         throw new ConnectionError(
             `Ollama request failed (${response.status}): ${errorText}`,
-                                  { retryable: response.status >= 500, status: response.status }
+            { retryable: response.status >= 500, status: response.status }
         );
     }
 
@@ -374,28 +420,17 @@ export async function fetchOllamaModels(url) {
 
     let response;
     try {
-        response = await fetch(proxiedUrl(targetUrl), {
-            method: 'GET',
-            headers: getProxyHeaders(),
-        });
-    } catch (proxyError) {
-        console.warn(`${MODULE_NAME} CORS proxy failed for model list, trying direct:`, proxyError.message);
-        try {
-            response = await fetch(targetUrl, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-            });
-        } catch (directError) {
-            throw new Error(
-                `Failed to connect to Ollama at ${baseUrl}. ` +
-                `Enable the CORS proxy in config.yaml (enableCorsProxy: true) or set OLLAMA_ORIGINS=* on your Ollama instance. ` +
-                `Proxy error: ${proxyError.message}. Direct error: ${directError.message}`
-            );
-        }
+        response = await fetchWithProxyFallback(targetUrl, { method: 'GET' });
+    } catch (e) {
+        throw new Error(
+            `Failed to connect to Ollama at ${baseUrl}. ` +
+            `Enable the CORS proxy in config.yaml (enableCorsProxy: true) or set OLLAMA_ORIGINS=* on your Ollama instance. ` +
+            `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`
+        );
     }
 
     if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = await readErrorText(response);
         throw new Error(`Failed to fetch Ollama models (${response.status}): ${errorText}`);
     }
 
@@ -433,28 +468,14 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
     }
 
     const baseUrl = url.replace(/\/+$/, '');
+    const endpoint = normalizeOpenAIEndpoint(baseUrl);
+    const useProxy = isLocalUrl(endpoint);
 
-    // Build the endpoint URL
-    let endpoint = baseUrl;
-    if (!endpoint.endsWith('/chat/completions')) {
-        if (endpoint.endsWith('/v1')) {
-            endpoint += '/chat/completions';
-        } else if (!endpoint.includes('/chat/completions')) {
-            endpoint += '/v1/chat/completions';
-        }
-    }
-
-    // Decide whether to use CORS proxy
-    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i.test(endpoint);
-
-    const headers = {
-        'Content-Type': 'application/json',
-    };
+    const headers = { 'Content-Type': 'application/json' };
     if (apiKey) {
         headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
-    // Use maxTokens from settings, default to 0 (no limit / provider default)
     const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
 
     const requestBody = {
@@ -467,7 +488,6 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
         stream: true,
     };
 
-    // Only include max_tokens if explicitly set
     if (tokenLimit) {
         requestBody.max_tokens = tokenLimit;
     }
@@ -475,47 +495,29 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
     const body = JSON.stringify(requestBody);
 
     let response;
-    if (isLocal) {
-        try {
-            response = await fetch(proxiedUrl(endpoint), {
-                method: 'POST',
-                headers: { ...getProxyHeaders(), ...headers },
-                                   body: body,
-            });
-        } catch (proxyError) {
-            console.warn(`${MODULE_NAME} CORS proxy failed for OpenAI endpoint, trying direct:`, proxyError.message);
-            try {
-                response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: headers,
-                    body: body,
-                });
-            } catch (directError) {
-                throw new ConnectionError(
-                    `Failed to connect to ${baseUrl}. ` +
-                    `Enable the CORS proxy in config.yaml (enableCorsProxy: true). ` +
-                    `Proxy error: ${proxyError.message}. Direct error: ${directError.message}`,
-                    { retryable: true }
-                );
-            }
+    try {
+        if (useProxy) {
+            response = await fetchWithProxyFallback(endpoint, { method: 'POST', headers, body });
+        } else {
+            response = await fetch(endpoint, { method: 'POST', headers, body });
         }
-    } else {
-        try {
-            response = await fetch(endpoint, {
-                method: 'POST',
-                headers: headers,
-                body: body,
-            });
-        } catch (fetchError) {
+    } catch (e) {
+        if (e.proxyError) {
             throw new ConnectionError(
-                `Failed to connect to ${baseUrl}: ${fetchError.message}`,
+                `Failed to connect to ${baseUrl}. ` +
+                `Enable the CORS proxy in config.yaml (enableCorsProxy: true). ` +
+                `Proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}`,
                 { retryable: true }
             );
         }
+        throw new ConnectionError(
+            `Failed to connect to ${baseUrl}: ${e.message}`,
+            { retryable: true }
+        );
     }
 
     if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
+        const errorText = await readErrorText(response);
         if (response.status === 401) {
             throw new ConnectionError(
                 'OpenAI Compatible endpoint returned 401 Unauthorized. Check your API key.',
@@ -530,7 +532,7 @@ async function sendViaOpenAI(url, apiKey, model, systemPrompt, userPrompt, maxTo
         }
         throw new ConnectionError(
             `OpenAI Compatible request failed (${response.status}): ${errorText}`,
-                                  { retryable: response.status >= 500 || response.status === 429, status: response.status }
+            { retryable: response.status >= 500 || response.status === 429, status: response.status }
         );
     }
 

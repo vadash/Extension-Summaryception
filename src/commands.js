@@ -1,9 +1,7 @@
-import { MODULE_NAME } from './constants.js';
 import { log } from './logger.js';
-import { getChatStore, saveChatStore } from './state.js';
-import { unghostAllMessages } from './ghosting.js';
-import { assembleSummaryBlock, updateInjection } from './injection.js';
-import { updateUI } from './ui.js';
+import { getChatStore } from './state.js';
+import { assembleSummaryBlock } from './injection.js';
+import { clearSummaryceptionMemory } from './memory.js';
 
 // ─── Slash Commands ──────────────────────────────────────────────────
 
@@ -40,25 +38,7 @@ export function registerSlashCommands() {
         SlashCommandParser.addCommandObject(SlashCommand.fromProps({
             name: 'sc-clear',
             callback: async () => {
-                await unghostAllMessages();
-
-                const store = getChatStore();
-                store.layers.length = 0;
-                store.summarizedUpTo = -1;
-                store.ghostedIndices = [];
-
-                const { chatMetadata } = SillyTavern.getContext();
-                chatMetadata[MODULE_NAME] = store;
-
-                await saveChatStore();
-                try {
-                    const ctx2 = SillyTavern.getContext();
-                    if (ctx2.saveChat) await ctx2.saveChat();
-                } catch (e) {
-                    log('Could not save chat:', e);
-                }
-                updateInjection();
-                updateUI();
+                await clearSummaryceptionMemory({ updateUi: true });
                 return 'Summaryception memory cleared and messages unghosted.';
             },
             helpString: 'Clear all Summaryception memory and unghost messages for this chat',

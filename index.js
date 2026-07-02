@@ -11,6 +11,7 @@
 import { LOG_PREFIX } from './src/constants.js';
 import { getSettings } from './src/state.js';
 import { setUiUpdater } from './src/summarizer.js';
+import { setUiRefresher } from './src/persist.js';
 import { bindUIEvents, initConnectionUI, updateUI } from './src/ui.js';
 import { updateInjection } from './src/injection.js';
 import { onChatChanged, onGenerationStarted, onMessageReceived } from './src/events.js';
@@ -25,6 +26,7 @@ import { registerSlashCommands } from './src/commands.js';
 
     getSettings();
     setUiUpdater(updateUI);
+    setUiRefresher(updateUI);
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',

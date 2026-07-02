@@ -1,4 +1,4 @@
-import { LOG_PREFIX, MODULE_NAME, defaultSettings, PROMPT_PRESETS } from './constants.js';
+import { LOG_PREFIX, defaultSettings, PROMPT_PRESETS } from './constants.js';
 import { fetchOllamaModels, testOpenAIConnection, populateProfileDropdown } from './connectionutil.js';
 import { log } from './logger.js';
 import { getSettings, saveSettings, getChatStore, saveChatStore } from './state.js';
@@ -6,6 +6,8 @@ import { ghostMessagesUpTo, unghostAllMessages } from './ghosting.js';
 import { getAssistantTurns, buildPassageFromRange } from './chatutils.js';
 import { abortSummarization, callSummarizer, getIsSummarizing, hasActiveAbortController, resetCatchupDismissed, runCatchup, setSummarizing } from './summarizer.js';
 import { assembleSummaryBlock, updateInjection } from './injection.js';
+import { persistAndRefresh } from './persist.js';
+import { clearSummaryceptionMemory } from './memory.js';
 
 // ─── Settings UI ─────────────────────────────────────────────────────
 
@@ -471,30 +473,7 @@ export function bindUIEvents() {
     $(document).on('click', '#sc_clear_memory', async function () {
         if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) return;
 
-        try {
-            await unghostAllMessages();
-        } catch (e) {
-            console.error(LOG_PREFIX, 'Error during unghost (continuing with clear):', e);
-            toastr.warning('Some messages could not be unghosted, but memory will still be cleared.', 'Summaryception');
-        }
-
-        const store = getChatStore();
-        store.layers.length = 0;
-        store.summarizedUpTo = -1;
-        store.ghostedIndices = [];
-
-        const { chatMetadata } = SillyTavern.getContext();
-        chatMetadata[MODULE_NAME] = store;
-
-        await saveChatStore();
-        try {
-            const ctx = SillyTavern.getContext();
-            if (ctx.saveChat) await ctx.saveChat();
-        } catch (e) {
-            log('Could not save chat:', e);
-        }
-        updateInjection();
-        updateUI();
+        await clearSummaryceptionMemory({ updateUi: true });
         toastr.success('Memory cleared & messages unghosted', 'Summaryception');
     });
 
@@ -589,15 +568,7 @@ export function bindUIEvents() {
                     await ghostMessagesUpTo(store.summarizedUpTo);
                 }
 
-                await saveChatStore();
-                try {
-                    const ctx = SillyTavern.getContext();
-                    if (ctx.saveChat) await ctx.saveChat();
-                } catch (e) {
-                    log('Could not save chat:', e);
-                }
-                updateInjection();
-                updateUI();
+                await persistAndRefresh({ ui: true });
                 toastr.success(
                     `Memory imported. ${store.layers.reduce((sum, l) => sum + (l?.length || 0), 0)} snippets loaded, messages ghosted up to index ${store.summarizedUpTo}.`,
                                'Summaryception',
