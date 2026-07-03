@@ -11,6 +11,7 @@ SillyTavern browser extension for layered recursive summarization. No build step
 - Keep functions under 80 lines, files under 500 lines, complexity under 15.
 - Add JSDoc to exports and useful internal transaction/worker types.
 - Runtime globals: `SillyTavern.getContext()`, `toastr`, `$`.
+- Settings UI: keep control IDs stable; prefer compact theme-aware panels and Font Awesome icons over emoji headings.
 
 ## Boundaries
 
@@ -46,7 +47,8 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 
 ## Testing and Commits
 
-- Use `npm test` for behavior changes; tests are Vitest.
+- Never run manual verification checks (`npm test`, lint, format, typecheck, build) unless explicitly requested; if skipped, report that verification was not run.
+- When checks are explicitly requested, use `npm test` for behavior changes; tests are Vitest.
 - Manual-check SillyTavern integration with `debugMode` or `traceMode`.
 - Test each connection source independently when connection code changes.
 - Verify backlog detection, foreground-generation freeze, ghosting, and layer promotion with large chats.

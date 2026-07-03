@@ -1,118 +1,174 @@
 <div class="sc-settings">
     <div class="inline-drawer">
-        <div class="inline-drawer-toggle inline-drawer-header">
-            <b>🧠 Summaryception</b>
+        <div class="inline-drawer-toggle inline-drawer-header sc-drawer-header">
+            <div class="sc-title">
+                <span class="fa-solid fa-brain"></span>
+                <b>Summaryception</b>
+            </div>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
 
-            <!-- ═══ Enable ═══ -->
-            <div class="sc-row">
-                <label class="checkbox_label" for="sc_enabled">
-                    <input type="checkbox" id="sc_enabled" />
-                    <span>Enable Summaryception</span>
-                </label>
-            </div>
+            <section class="sc-section sc-section-compact">
+                <div class="sc-section-header">
+                    <div>
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-gauge-high"></span>
+                            Overview
+                        </h4>
+                    </div>
+                </div>
 
-            <!-- ═══ Pause ═══ -->
-            <div class="sc-row">
-                <label class="checkbox_label" for="sc_pause_summarization">
-                    <input type="checkbox" id="sc_pause_summarization" />
-                    <span>Pause Summarization</span>
-                    <small class="sc-hint">Stop processing new turns while keeping existing summaries injected. Preserves prompt cache hits. Unpause or use Force Summarize to catch up.</small>
-                </label>
-            </div>
+                <div class="sc-status-grid" aria-label="Summaryception status">
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Mode</span>
+                        <strong id="sc_status_enabled">Disabled</strong>
+                    </div>
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Worker</span>
+                        <strong id="sc_status_worker">Idle</strong>
+                    </div>
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Snippets</span>
+                        <strong id="sc_status_snippets">0</strong>
+                    </div>
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Depth</span>
+                        <strong id="sc_status_depth">0</strong>
+                    </div>
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Ghosted</span>
+                        <strong id="sc_status_ghosted">0</strong>
+                    </div>
+                    <div class="sc-status-item">
+                        <span class="sc-status-label">Index</span>
+                        <strong id="sc_status_index">-1</strong>
+                    </div>
+                </div>
 
-            <!-- ═══ Stop hiding verbatim turns ═══ -->
-            <label class="checkbox_label" for="sc_disable_ghosting">
-                <input type="checkbox" id="sc_disable_ghosting" />
-                <span>Disable Message Hiding</span>
-                <small class="sc-hint">Messages will still be summarized and excluded from LLM context, but won't be visually hidden. Useful for compatibility with other extensions (QVink, MemoryBooks, etc.).</small>
-            </label>
+                <div class="sc-toggle-grid">
+                    <label class="checkbox_label sc-toggle-card" for="sc_enabled">
+                        <input type="checkbox" id="sc_enabled" />
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Enable Summaryception</span>
+                            <small class="sc-hint">Inject committed summary memory into the active chat.</small>
+                        </span>
+                    </label>
 
-            <!-- ═══ Actions ═══ -->
-            <div class="sc-button-row">
-                <button id="sc_force_summarize" class="menu_button">
-                    <i class="fa-solid fa-bolt"></i> Force Summarize Now
-                </button>
-                <button id="sc_stop_summarize" class="menu_button menu_button_danger">
-                    <i class="fa-solid fa-stop"></i> Stop
-                </button>
-                <button id="sc_repair" class="menu_button">
-                    <i class="fa-solid fa-wrench"></i> Repair Orphans
-                </button>
-            </div>
+                    <label class="checkbox_label sc-toggle-card" for="sc_pause_summarization">
+                        <input type="checkbox" id="sc_pause_summarization" />
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Pause Summarization</span>
+                            <small class="sc-hint">Keep existing summaries injected without processing new turns.</small>
+                        </span>
+                    </label>
 
-            <hr class="sc-divider" />
+                    <label class="checkbox_label sc-toggle-card" for="sc_disable_ghosting">
+                        <input type="checkbox" id="sc_disable_ghosting" />
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Disable Message Hiding</span>
+                            <small class="sc-hint">Summaries still exclude old turns from LLM context.</small>
+                        </span>
+                    </label>
+                </div>
+            </section>
 
-            <!-- ═══ Snippet Browser ═══ -->
-            <h4 class="sc-section-title">🗂️ Snippet Browser</h4>
-            <div id="sc_snippet_browser" class="sc-snippet-browser"></div>
+            <section class="sc-section">
+                <div class="sc-section-header">
+                    <h4 class="sc-section-title">
+                        <span class="fa-solid fa-bolt"></span>
+                        Operations
+                    </h4>
+                </div>
+                <div class="sc-button-row sc-action-row">
+                    <button id="sc_force_summarize" class="menu_button">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>Force Summarize</span>
+                    </button>
+                    <button id="sc_stop_summarize" class="menu_button menu_button_danger">
+                        <i class="fa-solid fa-stop"></i>
+                        <span>Stop</span>
+                    </button>
+                    <button id="sc_repair" class="menu_button">
+                        <i class="fa-solid fa-wrench"></i>
+                        <span>Repair Orphans</span>
+                    </button>
+                </div>
+            </section>
 
-            <hr class="sc-divider" />
+            <section class="sc-section">
+                <div class="sc-section-header">
+                    <h4 class="sc-section-title">
+                        <span class="fa-solid fa-chart-simple"></span>
+                        Memory
+                    </h4>
+                </div>
 
-            <!-- ═══ Preview ═══ -->
-            <h4 class="sc-section-title">👁️ Injection Preview</h4>
-            <textarea id="sc_preview" class="text_pole sc-textarea sc-preview" rows="6" readonly></textarea>
-            <div class="sc-button-row">
-                <button id="sc_refresh_preview" class="menu_button">
-                    <i class="fa-solid fa-rotate"></i> Refresh
-                </button>
-            </div>
+                <div class="sc-memory-grid">
+                    <div>
+                        <div id="sc_layer_stats" class="sc-stats-box"></div>
+                    </div>
+                    <div>
+                        <div class="sc-field-header">
+                            <label for="sc_preview">Injection Preview</label>
+                            <button id="sc_refresh_preview" class="menu_button sc-icon-button" title="Refresh preview">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                        </div>
+                        <textarea id="sc_preview" class="text_pole sc-textarea sc-preview" rows="6" readonly></textarea>
+                    </div>
+                </div>
 
-            <div class="sc-button-row">
-                <button id="sc_import" class="menu_button">
-                   <i class="fa-solid fa-download"></i> Import Memory
-                </button>
-                <button id="sc_export" class="menu_button">
-                    <i class="fa-solid fa-upload"></i> Export Memory
-                </button>
-                <button id="sc_clear_memory" class="menu_button menu_button_danger">
-                    <i class="fa-solid fa-trash"></i> Clear Memory
-                </button>
-            </div>
+                <div class="sc-button-row">
+                    <button id="sc_import" class="menu_button">
+                       <i class="fa-solid fa-download"></i>
+                       <span>Import Memory</span>
+                    </button>
+                    <button id="sc_export" class="menu_button">
+                        <i class="fa-solid fa-upload"></i>
+                        <span>Export Memory</span>
+                    </button>
+                </div>
+            </section>
 
-            <hr class="sc-divider" />
+            <section class="sc-section">
+                <div class="sc-section-header">
+                    <h4 class="sc-section-title">
+                        <span class="fa-solid fa-layer-group"></span>
+                        Snippets
+                    </h4>
+                </div>
+                <div id="sc_snippet_browser" class="sc-snippet-browser"></div>
+            </section>
 
-            <!-- ═══ Layer Stats ═══ -->
-            <h4 class="sc-section-title">📊 Layer Stats</h4>
-            <div id="sc_layer_stats" class="sc-stats-box"></div>
-
-            <hr class="sc-divider" />
-
-            <!-- ═══ Advanced Settings ═══ -->
-            <div class="inline-drawer">
-                <div class="inline-drawer-toggle inline-drawer-header">
-                    <b>⚙️ Advanced Settings</b>
+            <div class="inline-drawer sc-advanced-drawer">
+                <div class="inline-drawer-toggle inline-drawer-header sc-drawer-header">
+                    <div class="sc-title">
+                        <span class="fa-solid fa-sliders"></span>
+                        <b>Advanced Settings</b>
+                    </div>
                     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                 </div>
                 <div class="inline-drawer-content">
 
-                    <!-- ═══════════════════════════════════════════════════════════════════
-                         Summarizer Connection Settings
-                         Insert this inside the Advanced Settings inline-drawer-content
-                         ═══════════════════════════════════════════════════════════════════ -->
-                    <div id="summaryception_connection_settings" class="summaryception-connection-section">
-                        <hr class="sysHR">
-                        <div class="summaryception-section-header">
-                            <span class="fa-solid fa-bolt"></span>
-                            <span>Summarizer Connection</span>
+                    <section id="summaryception_connection_settings" class="sc-section sc-connection-section">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-plug"></span>
+                                Summarizer Connection
+                            </h4>
                         </div>
-                        <small class="summaryception-help-text">
-                            Choose which LLM connection to use for summarization. Use a cheaper/faster model
-                            to save costs while keeping your main API for RP.
-                        </small>
+                        <small class="sc-help-text">Choose a dedicated LLM connection for summary calls.</small>
 
-                        <div class="summaryception-setting-row">
+                        <div class="sc-setting-row">
                             <label for="sc_summarizer_response_length">
                                 <span>Summarizer Response Length</span>
-                                <small>Override max response tokens for summarizer calls (Default/Profile modes). 0 = use your preset's value. If you get "max_tokens > 4096 must have stream=true" errors, set to 4096. For reasoning models, ensure this is high enough for thinking + output.</small>
+                                <small>0 uses the preset or profile default. Use 4096 for providers that reject larger non-streaming limits.</small>
                             </label>
                             <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use preset default" />
                         </div>
 
-                        <!-- Connection Source Selector -->
-                        <div class="summaryception-setting-row">
+                        <div class="sc-setting-row">
                             <label for="summaryception_connection_source">
                                 <span>Connection Source</span>
                             </label>
@@ -124,9 +180,8 @@
                             </select>
                         </div>
 
-                        <!-- ── Connection Profile Sub-panel ── -->
-                        <div id="summaryception_profile_settings" class="summaryception-sub-panel" style="display: none;">
-                            <div class="summaryception-setting-row">
+                        <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_connection_profile">
                                     <span>Connection Profile</span>
                                 </label>
@@ -134,295 +189,306 @@
                                     <option value="">-- Select a Profile --</option>
                                 </select>
                             </div>
-                            <div class="summaryception-note">
-                                <span class="fa-solid fa-info-circle"></span>
-                                <small>
-                                    Uses a saved SillyTavern Connection Profile. Includes endpoint, API key, model, and presets.
-                                    Requires ST 1.12.4+. For full API key support, use staging (March 2026+).
-                                    ⚠️ Connection Profiles inject preset formatting into summary requests, which may degrade summary quality.
-                                    ⚠️ Consider using Default or OpenAI Compatible instead.
-                                </small>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Uses a saved SillyTavern Connection Profile. Profile formatting can affect summary quality.</small>
                             </div>
                         </div>
 
-                        <!-- ── Ollama Sub-panel ── -->
-                        <div id="summaryception_ollama_settings" class="summaryception-sub-panel" style="display: none;">
-                            <div class="summaryception-setting-row">
+                        <div id="summaryception_ollama_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_ollama_url">
                                     <span>Ollama URL</span>
                                 </label>
-                                <input id="summaryception_ollama_url" type="text" class="text_pole"
-                                       placeholder="http://localhost:11434" />
+                                <input id="summaryception_ollama_url" type="text" class="text_pole" placeholder="http://localhost:11434" />
                             </div>
-                            <div class="summaryception-setting-row">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_ollama_model">
                                     <span>Model</span>
                                 </label>
-                                <div class="summaryception-input-group">
+                                <div class="sc-input-group">
                                     <select id="summaryception_ollama_model" class="text_pole">
                                         <option value="">-- Select Model --</option>
                                     </select>
-                                    <div id="summaryception_ollama_refresh"
-                                         class="menu_button menu_button_icon"
-                                         title="Refresh model list from Ollama">
+                                    <button id="summaryception_ollama_refresh"
+                                            class="menu_button sc-icon-button"
+                                            title="Refresh model list from Ollama"
+                                            type="button">
                                         <span class="fa-solid fa-arrows-rotate"></span>
-                                    </div>
+                                    </button>
                                 </div>
                             </div>
-                            <div class="summaryception-note">
-                                <span class="fa-solid fa-info-circle"></span>
-                                <small>
-                                    Connects to a local Ollama instance. Requires <code>enableCorsProxy: true</code> in
-                                    your SillyTavern <code>config.yaml</code>, OR set the <code>OLLAMA_ORIGINS=*</code>
-                                    environment variable on your Ollama instance.
-                                </small>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Local Ollama may require <code>enableCorsProxy: true</code> or <code>OLLAMA_ORIGINS=*</code>.</small>
                             </div>
                         </div>
 
-                        <!-- ── OpenAI Compatible Sub-panel ── -->
-                        <div id="summaryception_openai_settings" class="summaryception-sub-panel" style="display: none;">
-                            <div class="summaryception-setting-row">
+                        <div id="summaryception_openai_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_openai_url">
                                     <span>Endpoint URL</span>
                                 </label>
-                                <input id="summaryception_openai_url" type="text" class="text_pole"
-                                       placeholder="http://localhost:1234/v1 or https://openrouter.ai/api/v1" />
+                                <input id="summaryception_openai_url" type="text" class="text_pole" placeholder="http://localhost:1234/v1 or https://openrouter.ai/api/v1" />
                             </div>
-                            <div class="summaryception-setting-row">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_openai_key">
                                     <span>API Key</span>
                                 </label>
-                                <input id="summaryception_openai_key" type="password" class="text_pole"
-                                       placeholder="(optional, for cloud services)" autocomplete="off" />
+                                <input id="summaryception_openai_key" type="password" class="text_pole" placeholder="Optional for local services" autocomplete="off" />
                             </div>
-                            <div class="summaryception-setting-row">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_openai_model">
                                     <span>Model Name</span>
                                 </label>
-                                <input id="summaryception_openai_model" type="text" class="text_pole"
-                                       placeholder="e.g. gpt-4o-mini, llama-3.1-8b" />
+                                <input id="summaryception_openai_model" type="text" class="text_pole" placeholder="gpt-4o-mini, llama-3.1-8b" />
                             </div>
-                            <div class="summaryception-setting-row">
+                            <div class="sc-setting-row">
                                 <label for="summaryception_openai_max_tokens">
                                     <span>Max Tokens</span>
                                 </label>
-                                <input id="summaryception_openai_max_tokens" type="number" class="text_pole"
-                                       min="0" step="100" placeholder="0 = no limit (provider default)" />
+                                <input id="summaryception_openai_max_tokens" type="number" class="text_pole" min="0" step="100" placeholder="0 = provider default" />
                             </div>
-                            <div class="summaryception-setting-row">
-                                <div id="summaryception_openai_test"
-                                     class="menu_button menu_button_icon"
-                                     title="Test the OpenAI-compatible connection">
+                            <div class="sc-setting-row">
+                                <button id="summaryception_openai_test"
+                                        class="menu_button"
+                                        title="Test the OpenAI-compatible connection"
+                                        type="button">
                                     <span class="fa-solid fa-plug-circle-check"></span>
                                     <span>Test Connection</span>
-                                </div>
+                                </button>
                             </div>
-                            <div class="summaryception-note">
-                                <span class="fa-solid fa-info-circle"></span>
-                                <small>
-                                    Works with LM Studio, KoboldCPP, vLLM, text-generation-webui, OpenRouter, or any
-                                    OpenAI-compatible endpoint. Enter the base URL up to <code>/v1</code>
-                                    (e.g. <code>http://localhost:1234/v1</code>).
-                                    Local endpoints require <code>enableCorsProxy: true</code> in <code>config.yaml</code>.
-                                    Cloud APIs (OpenRouter, etc.) work without the proxy.
-                                </small>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Enter the base URL up to <code>/v1</code>. Local endpoints may require the SillyTavern CORS proxy.</small>
                             </div>
                         </div>
 
-                        <!-- Connection Status Indicator -->
-                        <div id="summaryception_connection_status" class="summaryception-connection-status" style="display: none;">
+                        <div id="summaryception_connection_status" class="sc-connection-status" style="display: none;">
                             <span id="summaryception_connection_status_icon" class="fa-solid fa-circle"></span>
                             <span id="summaryception_connection_status_text"></span>
                         </div>
-                    </div>
+                    </section>
 
-                    <!-- Turn Settings -->
-                    <h4 class="sc-section-title">📖 Verbatim Turn Settings</h4>
-
-                    <div class="sc-row">
-                        <label for="sc_verbatim_turns">
-                            <span>Verbatim Assistant Turns to Keep</span>
-                            <small class="sc-hint">Recent assistant turns sent word-for-word. Older ones are summarized.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_verbatim_turns" min="1" max="50" step="1" />
-                            <span id="sc_verbatim_turns_val" class="sc-val">10</span>
+                    <section class="sc-section">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-clock-rotate-left"></span>
+                                Retention
+                            </h4>
                         </div>
-                    </div>
 
-                    <div class="sc-row">
-                        <label for="sc_turns_per_summary">
-                            <span>Turns per Summary Batch</span>
-                            <small class="sc-hint">When limit is exceeded, this many oldest turns are summarized together into one snippet.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_turns_per_summary" min="1" max="20" step="1" />
-                            <span id="sc_turns_per_summary_val" class="sc-val">3</span>
-                        </div>
-                    </div>
-
-                    <hr class="sc-divider" />
-
-                    <!-- Layer Settings -->
-                    <h4 class="sc-section-title">🔄 Layer Settings (the "ception")</h4>
-
-                    <div class="sc-row">
-                        <label for="sc_snippets_per_layer">
-                            <span>Max Snippets per Layer</span>
-                            <small class="sc-hint">When exceeded, oldest snippets are promoted (re-summarized) into a deeper layer.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_snippets_per_layer" min="3" max="100" step="1" />
-                            <span id="sc_snippets_per_layer_val" class="sc-val">20</span>
-                        </div>
-                    </div>
-
-                    <div class="sc-row">
-                        <label for="sc_snippets_per_promotion">
-                            <span>Snippets per Promotion</span>
-                            <small class="sc-hint">How many oldest snippets merge together when promoting to the next layer.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_snippets_per_promotion" min="2" max="20" step="1" />
-                            <span id="sc_snippets_per_promotion_val" class="sc-val">2</span>
-                        </div>
-                    </div>
-
-                    <div class="sc-row">
-                        <label for="sc_max_layers">
-                            <span>Maximum Layer Depth</span>
-                            <small class="sc-hint">How many recursive layers of summarization are allowed.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_max_layers" min="1" max="10" step="1" />
-                            <span id="sc_max_layers_val" class="sc-val">5</span>
-                        </div>
-                    </div>
-
-                    <hr class="sc-divider" />
-
-                    <!-- Prompts -->
-                    <h4 class="sc-section-title">✏️ Summarizer Prompts</h4>
-
-                    <div class="sc-row">
-                        <label for="sc_summarizer_system_prompt">
-                            <span>System Prompt</span>
-                        </label>
-                        <textarea id="sc_summarizer_system_prompt" class="text_pole sc-textarea" rows="3"></textarea>
-                    </div>
-
-                    <div class="sc-setting-item">
-                        <label for="sc_prompt_preset">
-                            <small>Prompt Preset</small>
-                        </label>
-                        <select id="sc_prompt_preset" class="text_pole">
-                            <option value="narrative">Narrative State (Default)</option>
-                            <option value="gamestate">Game State</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                    </div>
-
-                    <!-- Custom Prompt Management -->
-                    <div id="sc_custom_prompt_manager" class="sc-custom-prompt-manager" style="display: none;">
-                        <div class="sc-custom-prompt-row">
-                            <div class="sc-custom-prompt-slots">
-                                <label for="sc_custom_prompt_slot">
-                                    <small>Saved Custom Prompts</small>
-                                </label>
-                                <div class="sc-custom-prompt-slot-row">
-                                    <select id="sc_custom_prompt_slot" class="text_pole">
-                                        <option value="">-- Load a saved prompt --</option>
-                                    </select>
-                                    <button id="sc_custom_prompt_load" class="menu_button" title="Load selected prompt">
-                                        <i class="fa-solid fa-folder-open"></i>
-                                    </button>
-                                    <button id="sc_custom_prompt_delete_slot" class="menu_button menu_button_danger" title="Delete selected prompt">
-                                        <i class="fa-solid fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="sc-custom-prompt-actions">
-                                <div class="sc-custom-prompt-save-row">
-                                    <input id="sc_custom_prompt_name" type="text" class="text_pole" placeholder="Prompt name..." />
-                                    <button id="sc_custom_prompt_save" class="menu_button" title="Save current prompt">
-                                        <i class="fa-solid fa-floppy-disk"></i> Save
-                                    </button>
-                                </div>
-                                <div class="sc-custom-prompt-io-row">
-                                    <button id="sc_custom_prompt_export" class="menu_button" title="Export current prompt as .txt">
-                                        <i class="fa-solid fa-file-export"></i> Export
-                                    </button>
-                                    <button id="sc_custom_prompt_import" class="menu_button" title="Import prompt from .txt">
-                                        <i class="fa-solid fa-file-import"></i> Import
-                                    </button>
-                                </div>
+                        <div class="sc-row">
+                            <label for="sc_verbatim_turns">
+                                <span>Verbatim Assistant Turns to Keep</span>
+                                <small class="sc-hint">Recent assistant turns sent word-for-word.</small>
+                            </label>
+                            <div class="sc-slider-row">
+                                <input type="range" id="sc_verbatim_turns" min="1" max="50" step="1" />
+                                <span id="sc_verbatim_turns_val" class="sc-val">10</span>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="sc-row">
-                        <label for="sc_summarizer_user_prompt">
-                            <span>User Prompt (Turn → Snippet & Layer Promotion)</span>
-                            <small class="sc-hint">
-                                Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> (that layer's existing snippets) <code>{{story_txt}}</code> (passage to summarize)
-                            </small>
-                        </label>
-                        <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
-                    </div>
+                        <div class="sc-row">
+                            <label for="sc_turns_per_summary">
+                                <span>Turns per Summary Batch</span>
+                                <small class="sc-hint">Oldest overflow turns summarized into one snippet.</small>
+                            </label>
+                            <div class="sc-slider-row">
+                                <input type="range" id="sc_turns_per_summary" min="1" max="20" step="1" />
+                                <span id="sc_turns_per_summary_val" class="sc-val">3</span>
+                            </div>
+                        </div>
+                    </section>
 
-                    <div class="sc-row">
-                        <label for="sc_injection_template">
-                            <span>Injection Wrapper Template</span>
-                            <small class="sc-hint">Wraps the assembled block. Use <code>{{summary}}</code> for the combined text.</small>
-                        </label>
-                        <textarea id="sc_injection_template" class="text_pole sc-textarea" rows="3"></textarea>
-                    </div>
+                    <section class="sc-section">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-timeline"></span>
+                                Layering
+                            </h4>
+                        </div>
 
-                    <hr class="sc-divider" />
+                        <div class="sc-row">
+                            <label for="sc_snippets_per_layer">
+                                <span>Max Snippets per Layer</span>
+                                <small class="sc-hint">Overflow promotes older snippets into deeper layers.</small>
+                            </label>
+                            <div class="sc-slider-row">
+                                <input type="range" id="sc_snippets_per_layer" min="3" max="100" step="1" />
+                                <span id="sc_snippets_per_layer_val" class="sc-val">20</span>
+                            </div>
+                        </div>
 
-                    <!-- Strip Patterns -->
-                    <div class="sc-row">
-                        <label for="sc_strip_patterns">
-                            <span>Strip Patterns (one per line)</span>
-                            <small class="sc-hint">Tags and prefixes to remove from summarizer output. Handles reasoning model artifacts.</small>
-                        </label>
-                        <textarea id="sc_strip_patterns" class="text_pole sc-textarea" rows="4"></textarea>
-                    </div>
+                        <div class="sc-row">
+                            <label for="sc_snippets_per_promotion">
+                                <span>Snippets per Promotion</span>
+                                <small class="sc-hint">Oldest snippets merged when promoting.</small>
+                            </label>
+                            <div class="sc-slider-row">
+                                <input type="range" id="sc_snippets_per_promotion" min="2" max="20" step="1" />
+                                <span id="sc_snippets_per_promotion_val" class="sc-val">2</span>
+                            </div>
+                        </div>
 
-                    <hr class="sc-divider" />
+                        <div class="sc-row">
+                            <label for="sc_max_layers">
+                                <span>Maximum Layer Depth</span>
+                                <small class="sc-hint">Recursive summarization depth limit.</small>
+                            </label>
+                            <div class="sc-slider-row">
+                                <input type="range" id="sc_max_layers" min="1" max="10" step="1" />
+                                <span id="sc_max_layers_val" class="sc-val">5</span>
+                            </div>
+                        </div>
+                    </section>
 
-                    <!-- Debug -->
-                    <div class="sc-row">
-                        <label class="checkbox_label" for="sc_debug_mode">
-                            <input type="checkbox" id="sc_debug_mode" />
-                            <span>Debug Mode (verbose console logs)</span>
-                        </label>
-                    </div>
+                    <section class="sc-section">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-pen-to-square"></span>
+                                Prompts
+                            </h4>
+                        </div>
 
-                    <div class="sc-row">
-                        <label class="checkbox_label" for="sc_trace_mode">
-                            <input type="checkbox" id="sc_trace_mode" />
-                            <span>Trace Mode (detailed flow logs)</span>
-                        </label>
-                        <small class="sc-hint">Requires Debug Mode to be enabled.</small>
-                    </div>
+                        <div class="sc-row">
+                            <label for="sc_summarizer_system_prompt">
+                                <span>System Prompt</span>
+                            </label>
+                            <textarea id="sc_summarizer_system_prompt" class="text_pole sc-textarea" rows="3"></textarea>
+                        </div>
 
-                    <div class="sc-row">
-                        <label class="checkbox_label" for="sc_apply_regex_scripts">
-                            <input type="checkbox" id="sc_apply_regex_scripts" />
-                            <span>Apply Regex Scripts</span>
-                        </label>
-                        <small class="sc-hint">Apply SillyTavern's regex scripts (global, character-scoped, and preset) to passage text before sending to the summarizer. Ensures the summarizer sees the same text your RP model sees.</small>
-                    </div>
+                        <div class="sc-setting-row">
+                            <label for="sc_prompt_preset">
+                                <span>Prompt Preset</span>
+                            </label>
+                            <select id="sc_prompt_preset" class="text_pole">
+                                <option value="narrative">Narrative State (Default)</option>
+                                <option value="gamestate">Game State</option>
+                                <option value="custom">Custom</option>
+                            </select>
+                        </div>
 
-                    <hr class="sc-divider" />
+                        <div id="sc_custom_prompt_manager" class="sc-custom-prompt-manager" style="display: none;">
+                            <div class="sc-custom-prompt-row">
+                                <div class="sc-custom-prompt-slots">
+                                    <label for="sc_custom_prompt_slot">
+                                        <span>Saved Custom Prompts</span>
+                                    </label>
+                                    <div class="sc-custom-prompt-slot-row">
+                                        <select id="sc_custom_prompt_slot" class="text_pole">
+                                            <option value="">-- Load a saved prompt --</option>
+                                        </select>
+                                        <button id="sc_custom_prompt_load" class="menu_button sc-icon-button" title="Load selected prompt">
+                                            <i class="fa-solid fa-folder-open"></i>
+                                        </button>
+                                        <button id="sc_custom_prompt_delete_slot" class="menu_button menu_button_danger sc-icon-button" title="Delete selected prompt">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="sc-custom-prompt-actions">
+                                    <div class="sc-custom-prompt-save-row">
+                                        <input id="sc_custom_prompt_name" type="text" class="text_pole" placeholder="Prompt name" />
+                                        <button id="sc_custom_prompt_save" class="menu_button" title="Save current prompt">
+                                            <i class="fa-solid fa-floppy-disk"></i>
+                                            <span>Save</span>
+                                        </button>
+                                    </div>
+                                    <div class="sc-custom-prompt-io-row">
+                                        <button id="sc_custom_prompt_export" class="menu_button" title="Export current prompt as .txt">
+                                            <i class="fa-solid fa-file-export"></i>
+                                            <span>Export</span>
+                                        </button>
+                                        <button id="sc_custom_prompt_import" class="menu_button" title="Import prompt from .txt">
+                                            <i class="fa-solid fa-file-import"></i>
+                                            <span>Import</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-                    <!-- Reset defaults -->
-                    <div class="sc-button-row">
-                        <button id="sc_reset_defaults" class="menu_button">
-                            <i class="fa-solid fa-arrow-rotate-left"></i> Reset to Defaults
-                        </button>
-                    </div>
+                        <div class="sc-row">
+                            <label for="sc_summarizer_user_prompt">
+                                <span>User Prompt (Turn to Snippet and Layer Promotion)</span>
+                                <small class="sc-hint">
+                                    Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
+                                </small>
+                            </label>
+                            <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
+                        </div>
+
+                        <div class="sc-row">
+                            <label for="sc_injection_template">
+                                <span>Injection Wrapper Template</span>
+                                <small class="sc-hint">Use <code>{{summary}}</code> for the combined summary block.</small>
+                            </label>
+                            <textarea id="sc_injection_template" class="text_pole sc-textarea" rows="3"></textarea>
+                        </div>
+                    </section>
+
+                    <section class="sc-section">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-screwdriver-wrench"></span>
+                                Cleanup And Diagnostics
+                            </h4>
+                        </div>
+
+                        <div class="sc-row">
+                            <label for="sc_strip_patterns">
+                                <span>Strip Patterns</span>
+                                <small class="sc-hint">One pattern per line.</small>
+                            </label>
+                            <textarea id="sc_strip_patterns" class="text_pole sc-textarea" rows="4"></textarea>
+                        </div>
+
+                        <div class="sc-toggle-grid">
+                            <label class="checkbox_label sc-toggle-card" for="sc_debug_mode">
+                                <input type="checkbox" id="sc_debug_mode" />
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Debug Mode</span>
+                                    <small class="sc-hint">Verbose console logs.</small>
+                                </span>
+                            </label>
+
+                            <label class="checkbox_label sc-toggle-card" for="sc_trace_mode">
+                                <input type="checkbox" id="sc_trace_mode" />
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Trace Mode</span>
+                                    <small class="sc-hint">Detailed flow logs; requires Debug Mode.</small>
+                                </span>
+                            </label>
+
+                            <label class="checkbox_label sc-toggle-card" for="sc_apply_regex_scripts">
+                                <input type="checkbox" id="sc_apply_regex_scripts" />
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Apply Regex Scripts</span>
+                                    <small class="sc-hint">Match the text seen by the RP model.</small>
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="sc-section sc-danger-zone">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-triangle-exclamation"></span>
+                                Maintenance
+                            </h4>
+                        </div>
+                        <div class="sc-button-row">
+                            <button id="sc_reset_defaults" class="menu_button">
+                                <i class="fa-solid fa-arrow-rotate-left"></i>
+                                <span>Reset Defaults</span>
+                            </button>
+                            <button id="sc_clear_memory" class="menu_button menu_button_danger">
+                                <i class="fa-solid fa-trash"></i>
+                                <span>Clear Memory</span>
+                            </button>
+                        </div>
+                    </section>
 
                 </div>
             </div>

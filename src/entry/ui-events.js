@@ -15,7 +15,7 @@ import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
 import { updateUI, updateCustomPromptSlots } from './ui.js';
 
-// ─── Event Bindings ──────────────────────────────────────────────────
+// Event bindings
 
 /**
  * Bind document event handlers for the Summaryception UI.
@@ -177,7 +177,7 @@ async function onRepairOrphans() {
 
     const progressToast = toastr.info(
         'Scanning for orphaned messages...',
-        'Summaryception — Repair',
+        'Summaryception - Repair',
         { timeOut: 0, extendedTimeOut: 0, tapToDismiss: false },
     );
 
@@ -252,7 +252,9 @@ async function onForceSummarize() {
     if (s.pauseSummarization) {
         log('Force Summarize overrides pause mode.');
     }
-    $(this).prop('disabled', true).text(' Working…');
+    $(this)
+        .prop('disabled', true)
+        .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
         resetCatchupDismissed();
 
@@ -262,7 +264,7 @@ async function onForceSummarize() {
 
         if (visibleTurns.length <= s.verbatimTurns) {
             toastr.info(
-                'Nothing to summarize — visible turns are within the verbatim limit.',
+                'Nothing to summarize - visible turns are within the verbatim limit.',
                 'Summaryception',
             );
             return;
@@ -278,7 +280,7 @@ async function onForceSummarize() {
     } finally {
         $(this)
             .prop('disabled', false)
-            .html('<i class="fa-solid fa-bolt"></i> Force Summarize Now');
+            .html('<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>');
         updateUI();
     }
 }
@@ -325,7 +327,7 @@ function triggerImport() {
             );
         } catch (err) {
             console.error(LOG_PREFIX, err);
-            toastr.error('Import failed — check console.');
+            toastr.error('Import failed - check console.');
         }
     };
     input.click();
@@ -435,7 +437,7 @@ function bindClickHandlers() {
  * @returns {void}
  */
 function bindPromptPresetHandlers() {
-    // ── Prompt Preset dropdown ──
+    // Prompt Preset dropdown
     $(document).on('change', '#sc_prompt_preset', function () {
         const selected = $(this).val();
         const s = getSettings();
@@ -509,7 +511,7 @@ function bindCustomPromptHandlers() {
 
         const promptText = $('#sc_summarizer_user_prompt').val();
         if (!promptText.trim()) {
-            toastr.warning('Prompt is empty — nothing to save.', 'Summaryception');
+            toastr.warning('Prompt is empty - nothing to save.', 'Summaryception');
             return;
         }
 
@@ -573,7 +575,7 @@ function bindCustomPromptHandlers() {
     $(document).on('click', '#sc_custom_prompt_export', function () {
         const promptText = $('#sc_summarizer_user_prompt').val();
         if (!promptText.trim()) {
-            toastr.warning('Prompt is empty — nothing to export.', 'Summaryception');
+            toastr.warning('Prompt is empty - nothing to export.', 'Summaryception');
             return;
         }
 
@@ -626,7 +628,7 @@ function triggerCustomPromptImport() {
             });
         } catch (err) {
             console.error(LOG_PREFIX, err);
-            toastr.error('Import failed — check console.', 'Summaryception');
+            toastr.error('Import failed - check console.', 'Summaryception');
         }
     };
     input.click();

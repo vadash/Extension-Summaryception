@@ -5,7 +5,7 @@ import {
 } from '../core/connectionutil.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
 
-// ─── Connection Settings UI ──────────────────────────────────────────
+// Connection settings UI
 
 /**
  * Initialize connection settings panel: bind inputs/selects and set initial visibility.
@@ -279,7 +279,7 @@ export function showConnectionStatus(type, message) {
     }
 
     container.style.display = 'flex';
-    container.className = 'summaryception-connection-status ' + type;
+    container.className = 'sc-connection-status ' + type;
 
     const icons = {
         success: 'fa-solid fa-circle-check',

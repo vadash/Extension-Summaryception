@@ -12,8 +12,6 @@ import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
-// ─── Settings UI ─────────────────────────────────────────────────────
-
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
  * @returns {void}
@@ -33,6 +31,7 @@ export function updateUI() {
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
 
+        renderOverview(s, store);
         renderLayerStats(s, store);
         renderPreview();
         updateSnippetBrowser();
@@ -88,6 +87,50 @@ function ensurePromptPresetMigrated(s) {
     }
 }
 
+function renderOverview(s, store) {
+    const metrics = getLayerMetrics(store);
+    const ghostedCount = getGhostedCount();
+
+    $('#sc_status_enabled').text(getModeLabel(s));
+    $('#sc_status_worker').text(getWorkerLabel(s));
+    $('#sc_status_snippets').text(String(metrics.totalSnippets));
+    $('#sc_status_depth').text(String(metrics.deepestLayer));
+    $('#sc_status_ghosted').text(String(ghostedCount));
+    $('#sc_status_index').text(String(store.summarizedUpTo ?? -1));
+}
+
+function getModeLabel(s) {
+    return s.enabled ? (s.pauseSummarization ? 'Paused' : 'Enabled') : 'Disabled';
+}
+
+function getWorkerLabel(s) {
+    return getIsSummarizing() ? 'Running' : s.pauseSummarization ? 'Paused' : 'Idle';
+}
+
+function getGhostedCount() {
+    try {
+        const { chat } = SillyTavern.getContext();
+        return chat.filter((m) => m.extra?.sc_ghosted).length;
+    } catch (_e) {
+        return 0;
+    }
+}
+
+function getLayerMetrics(store) {
+    const layers = Array.isArray(store.layers) ? store.layers : [];
+    let totalSnippets = 0;
+    let deepestLayer = 0;
+    for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        if (!Array.isArray(layer) || layer.length === 0) {
+            continue;
+        }
+        totalSnippets += layer.length;
+        deepestLayer = i;
+    }
+    return { totalSnippets, deepestLayer };
+}
+
 /**
  * Build and render the layer statistics panel.
  * @param {ReturnType<typeof getSettings>} s
@@ -95,19 +138,13 @@ function ensurePromptPresetMigrated(s) {
  * @returns {void}
  */
 function renderLayerStats(s, store) {
-    let ghostedCount = 0;
-    try {
-        const { chat } = SillyTavern.getContext();
-        ghostedCount = chat.filter((m) => m.extra?.sc_ghosted).length;
-    } catch (_e) {
-        /* no chat loaded */
-    }
+    const ghostedCount = getGhostedCount();
 
     let statsHtml = '';
     if (s.disableGhosting) {
-        statsHtml += `<div class="sc-layer-stat">👻 <strong>${ghostedCount}</strong> messages ghosted (metadata only — not visually hidden)</div>`;
+        statsHtml += `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (metadata only; not visually hidden)</div>`;
     } else {
-        statsHtml += `<div class="sc-layer-stat">👻 <strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
+        statsHtml += `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
     }
     if (store.layers) {
         for (let i = store.layers.length - 1; i >= 0; i--) {
@@ -135,7 +172,7 @@ function renderLayerStats(s, store) {
  */
 function renderPreview() {
     const preview = assembleSummaryBlock();
-    $('#sc_preview').val(preview || '(empty — no summaries yet)');
+    $('#sc_preview').val(preview || '(empty - no summaries yet)');
 }
 
 /**
@@ -197,11 +234,11 @@ function buildSnippetBrowserHtml(store) {
         for (let j = 0; j < layer.length; j++) {
             const sn = layer[j];
             const rangeStr = sn.turnRange
-                ? `turns ${sn.turnRange[0]}–${sn.turnRange[1]}`
+                ? `turns ${sn.turnRange[0]}-${sn.turnRange[1]}`
                 : sn.mergedCount
                   ? `merged ${sn.mergedCount} from L${sn.fromLayer}`
                   : '';
-            const seedStr = sn.promoted ? ' 🌱' : '';
+            const seedStr = sn.promoted ? ' promoted' : '';
             const canRedo = i === 0 && sn.turnRange;
             const redoBtn = canRedo
                 ? '<button class="sc-snippet-redo menu_button fa-solid fa-rotate-right" title="Regenerate this snippet"></button>'
@@ -347,21 +384,25 @@ async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
         const storyTxt = await buildPassageFromRange(chat, rangeStart, rangeEnd);
 
         if (!storyTxt.trim()) {
-            toastr.error('Source turns are empty — cannot regenerate.', 'Summaryception');
+            toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
             return;
         }
 
         const contextStr = buildSnippetContext(store, layerIdx, snippetIdx);
 
-        toastr.info(`Regenerating summary for turns ${rangeStart}–${rangeEnd}…`, 'Summaryception', {
-            timeOut: 3000,
-            progressBar: true,
-        });
+        toastr.info(
+            `Regenerating summary for turns ${rangeStart}-${rangeEnd}...`,
+            'Summaryception',
+            {
+                timeOut: 3000,
+                progressBar: true,
+            },
+        );
 
         const newSummary = await callSummarizer(storyTxt, contextStr);
 
         if (!newSummary) {
-            toastr.error('Regeneration failed — original snippet kept.', 'Summaryception');
+            toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
             return;
         }
 
