@@ -18,15 +18,13 @@ export async function repairMissingGhostingForSummaries() {
         return false;
     }
 
-    const ranges = getSummaryRepairRanges(store, chat);
-    const missing = ranges.filter((range) => hasGhostingWork(chat, range));
-    if (missing.length === 0) {
+    const range = getProcessedRepairRange(store, chat);
+    if (!range || !hasGhostingWork(chat, range)) {
         return false;
     }
 
-    for (const range of missing) {
-        await repairGhostingForRange(range[0], range[1]);
-    }
+    log(`Repairing summarized ghosting gaps in processed range 0-${range[1]}`);
+    await repairGhostingForRange(range[0], range[1]);
     return true;
 }
 
@@ -101,99 +99,18 @@ function hasSummaries(store) {
 }
 
 /**
- * Build summarized ranges that may need ghosting repair.
+ * Build the processed prefix that may need ghosting repair.
  * @param {object} store
  * @param {Array} chat
- * @returns {Array<[number, number]>}
- */
-function getSummaryRepairRanges(store, chat) {
-    const end = Math.min(store.summarizedUpTo, chat.length - 1);
-    if (end < 0) {
-        return [];
-    }
-
-    const ranges = [
-        ...getLayer0RepairRanges(store, end),
-        ...getOwnershipRepairRanges(store, chat, end),
-    ];
-
-    return ranges.length > 0 ? mergeRanges(ranges) : [/** @type {[number, number]} */ ([0, end])];
-}
-
-/**
- * Get valid Layer 0 summary source ranges.
- * @param {object} store
- * @param {number} summarizedEnd
- * @returns {Array<[number, number]>}
- */
-function getLayer0RepairRanges(store, summarizedEnd) {
-    /** @type {Array<[number, number]>} */
-    const ranges = [];
-    for (const snippet of store.layers[0] || []) {
-        const range = normalizeTurnRange(snippet.turnRange, summarizedEnd);
-        if (range) {
-            ranges.push(range);
-        }
-    }
-    return ranges;
-}
-
-/**
- * Get ownership markers that may represent an interrupted hide checkpoint.
- * @param {object} store
- * @param {Array} chat
- * @param {number} summarizedEnd
- * @returns {Array<[number, number]>}
- */
-function getOwnershipRepairRanges(store, chat, summarizedEnd) {
-    const indices = new Set(store.ghostedIndices || []);
-    for (let i = 0; i <= summarizedEnd; i++) {
-        if (chat[i]?.extra?.sc_ghosted) {
-            indices.add(i);
-        }
-    }
-    return [...indices]
-        .filter((idx) => Number.isInteger(idx) && idx >= 0 && idx <= summarizedEnd)
-        .map((idx) => /** @type {[number, number]} */ ([idx, idx]));
-}
-
-/**
- * Normalize a snippet turn range against the summarized cursor.
- * @param {unknown} range
- * @param {number} summarizedEnd
  * @returns {[number, number] | null}
  */
-function normalizeTurnRange(range, summarizedEnd) {
-    if (!Array.isArray(range) || range.length < 2) {
-        return null;
-    }
-    if (!Number.isInteger(range[0]) || !Number.isInteger(range[1])) {
+function getProcessedRepairRange(store, chat) {
+    const end = Math.min(store.summarizedUpTo, chat.length - 1);
+    if (end < 0) {
         return null;
     }
 
-    const start = Math.max(0, range[0]);
-    const end = Math.min(range[1], summarizedEnd);
-    return start <= end ? /** @type {[number, number]} */ ([start, end]) : null;
-}
-
-/**
- * Merge overlapping or adjacent ranges.
- * @param {Array<[number, number]>} ranges
- * @returns {Array<[number, number]>}
- */
-function mergeRanges(ranges) {
-    const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
-    /** @type {Array<[number, number]>} */
-    const merged = [];
-    for (const range of sorted) {
-        const last = merged[merged.length - 1];
-        if (last && range[0] <= last[1] + 1) {
-            last[1] = Math.max(last[1], range[1]);
-        } else {
-            merged.push(/** @type {[number, number]} */ ([...range]));
-        }
-    }
-    return merged;
+    return [0, end];
 }
 
 /**

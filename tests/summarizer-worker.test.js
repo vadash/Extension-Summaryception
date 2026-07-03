@@ -113,6 +113,32 @@ describe('requestSummarization', () => {
     });
 });
 
+describe('runCatchup', () => {
+    it('defers final promotion when the prompt guard activates during catch-up', async () => {
+        installSillyTavernStub({
+            chat: [makeMessage({ mes: 'first' }), makeMessage({ mes: 'second' })],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                verbatimTurns: 0,
+                turnsPerSummary: 1,
+            },
+        });
+
+        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async () => {
+            const { beginForegroundGeneration } = await import('../src/core/summarizer-commit.js');
+            beginForegroundGeneration();
+            return true;
+        });
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        await runCatchup([], 1);
+
+        expect(mocks.summarizeOneBatchFromTurns).toHaveBeenCalledTimes(1);
+        expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
+    });
+});
+
 describe('foreground commit guard', () => {
     it('queues completed background commits until foreground generation ends', async () => {
         const {

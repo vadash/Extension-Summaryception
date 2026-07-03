@@ -226,6 +226,37 @@ describe('ghosting persistence repair', () => {
         expect(ctx.chatMetadata.summaryception.ghostedIndices).toEqual([0, 1, 2]);
     });
 
+    it('repairs visible gaps across the full processed prefix after promotion', async () => {
+        const slash = vi.fn(async () => {});
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ ghosted: true, isHidden: true }),
+                makeMessage(),
+                makeMessage({ ghosted: true, isHidden: true }),
+                makeMessage(),
+                makeMessage({ ghosted: true, isHidden: true }),
+            ],
+            metadata: {
+                summaryception: {
+                    layers: [[], [{ text: 'promoted summary', fromLayer: 0, mergedCount: 3 }]],
+                    summarizedUpTo: 4,
+                    ghostedIndices: [0, 2, 4],
+                },
+            },
+            settings: { disableGhosting: false },
+            executeSlashCommandsWithOptions: slash,
+        });
+
+        const { repairMissingGhostingForSummaries } =
+            await import('../src/core/ghosting-reconcile.js');
+        await expect(repairMissingGhostingForSummaries()).resolves.toBe(true);
+
+        expect(slash).toHaveBeenNthCalledWith(1, '/hide 1', { showOutput: false });
+        expect(slash).toHaveBeenNthCalledWith(2, '/hide 3', { showOutput: false });
+        expect(slash).toHaveBeenCalledTimes(2);
+        expect(ctx.chatMetadata.summaryception.ghostedIndices).toEqual([0, 1, 2, 3, 4]);
+    });
+
     it('does nothing when summarized ghost flags are already consistent', async () => {
         const slash = vi.fn(async () => {});
         installSillyTavernStub({

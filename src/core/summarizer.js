@@ -435,15 +435,29 @@ export async function runCatchup(visibleTurns, overflow) {
             }
 
             toastr.clear(progressToast);
-            if (!cancelled) {
-                await maybePromoteLayer(0);
-            }
+            await maybePromoteAfterCatchup(cancelled);
             showCatchupOutcome({ cancelled, completed, failed, totalBatches });
             refreshUI();
         } finally {
             manualSummarizing = false;
         }
     });
+}
+
+/**
+ * Promote after catch-up only when prompt-affecting work is not already queued.
+ * @param {boolean} cancelled - Whether the catch-up was cancelled by the user
+ * @returns {Promise<void>}
+ */
+async function maybePromoteAfterCatchup(cancelled) {
+    if (cancelled) {
+        return;
+    }
+    if (shouldStopAutoWorker()) {
+        log('Catch-up promotion deferred; prompt mutation guard is active.');
+        return;
+    }
+    await maybePromoteLayer(0);
 }
 
 /**

@@ -47,8 +47,8 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 
 ## Testing and Commits
 
-- Never run manual verification checks (`npm test`, lint, format, typecheck, build) unless explicitly requested; if skipped, report that verification was not run.
-- When checks are explicitly requested, use `npm test` for behavior changes; tests are Vitest.
+- Never run manual verification checks (lint, format, typecheck, build).
+- Use `npm test` for behavior changes; tests are Vitest.
 - Manual-check SillyTavern integration with `debugMode` or `traceMode`.
 - Test each connection source independently when connection code changes.
 - Verify backlog detection, foreground-generation freeze, ghosting, and layer promotion with large chats.
