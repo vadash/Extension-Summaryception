@@ -15,6 +15,7 @@ import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
+import { initSettingsTabs } from './src/entry/ui-tabs.js';
 import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
 import {
     onChatChanged,
@@ -41,6 +42,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     $('#extensions_settings2').append(html);
 
     bindUIEvents();
+    initSettingsTabs();
     initConnectionUI();
 
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
