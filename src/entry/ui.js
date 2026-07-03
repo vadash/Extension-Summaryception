@@ -7,7 +7,7 @@ import {
     getChatStore,
     saveChatStore,
 } from '../foundation/state.js';
-import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
+import { buildPassageFromRangeWithStats, getAssistantTurns } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
@@ -105,7 +105,30 @@ function getModeLabel(s) {
 }
 
 function getWorkerLabel(s) {
-    return getIsSummarizing() ? 'Running' : s.pauseSummarization ? 'Paused' : 'Idle';
+    if (getIsSummarizing()) {
+        return 'Running';
+    }
+    if (!s.enabled) {
+        return 'Off';
+    }
+    if (s.pauseSummarization) {
+        return 'Paused';
+    }
+
+    const backlogCount = getVisibleBacklogCount(s);
+    return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
+}
+
+function getVisibleBacklogCount(s) {
+    try {
+        const { chat } = SillyTavern.getContext();
+        const visibleTurns = getAssistantTurns(chat).filter(
+            (t) => !chat[t.index].extra?.sc_ghosted,
+        );
+        return Math.max(0, visibleTurns.length - s.verbatimTurns);
+    } catch (_e) {
+        return 0;
+    }
 }
 
 function getGhostedCount() {

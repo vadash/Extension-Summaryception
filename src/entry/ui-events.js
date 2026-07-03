@@ -7,6 +7,7 @@ import {
     abortSummarization,
     getIsSummarizing,
     hasActiveAbortController,
+    maybeSummarizeTurns,
     resetCatchupDismissed,
     runCatchup,
 } from '../core/summarizer.js';
@@ -36,9 +37,15 @@ export function bindUIEvents() {
  */
 function bindToggleHandlers() {
     $(document).on('change', '#sc_enabled', function () {
-        getSettings().enabled = $(this).prop('checked');
+        const s = getSettings();
+        s.enabled = $(this).prop('checked');
         saveSettings();
         updateInjection();
+        updateUI();
+
+        if (s.enabled && !s.pauseSummarization) {
+            requestAutoSummaryRefresh('enabled');
+        }
     });
 
     $(document).on('change', '#sc_pause_summarization', function () {
@@ -58,7 +65,10 @@ function bindToggleHandlers() {
                 'Summaryception',
                 { timeOut: 3000 },
             );
+            requestAutoSummaryRefresh('resumed');
         }
+
+        updateUI();
     });
 
     $(document).on('change', '#sc_disable_ghosting', function () {
@@ -72,6 +82,7 @@ function bindToggleHandlers() {
                 { timeOut: 5000 },
             );
         }
+        updateUI();
     });
 
     $(document).on('change', '#sc_debug_mode', function () {
@@ -88,6 +99,14 @@ function bindToggleHandlers() {
         getSettings().applyRegexScripts = $(this).prop('checked');
         saveSettings();
     });
+}
+
+function requestAutoSummaryRefresh(reason) {
+    void maybeSummarizeTurns()
+        .catch((e) => {
+            log(`Auto summarization request after ${reason} failed:`, e);
+        })
+        .finally(updateUI);
 }
 
 /**
