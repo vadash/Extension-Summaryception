@@ -53,7 +53,7 @@ describe('ghosting prompt guard', () => {
         installSillyTavernStub({
             chat: [
                 makeMessage({ mes: 'first' }),
-                makeMessage({ isUser: true, mes: 'user hole' }),
+                makeMessage({ isSystem: true, mes: 'system hole' }),
                 makeMessage({ mes: 'third' }),
             ],
             settings: {
@@ -80,7 +80,7 @@ describe('ghosting prompt guard', () => {
         expect(getPendingPromptEffectCount()).toBe(0);
     });
 
-    it('splits hide ranges around user, system, empty, and hidden holes', async () => {
+    it('splits hide ranges around system, empty, and hidden holes', async () => {
         const slash = vi.fn(async () => {});
         const ctx = installSillyTavernStub({
             chat: [
@@ -104,10 +104,10 @@ describe('ghosting prompt guard', () => {
 
         await ghostMessagesUpTo(6);
 
-        expect(slash).toHaveBeenNthCalledWith(1, '/hide 0', { showOutput: false });
+        expect(slash).toHaveBeenNthCalledWith(1, '/hide 0-1', { showOutput: false });
         expect(slash).toHaveBeenNthCalledWith(2, '/hide 5', { showOutput: false });
         expect(slash).toHaveBeenCalledTimes(2);
-        expect(ctx.chat[1].extra.sc_ghosted).toBeUndefined();
+        expect(ctx.chat[1].extra.sc_ghosted).toBe(true);
         expect(ctx.chat[2].extra.sc_ghosted).toBeUndefined();
         expect(ctx.chat[3].extra.sc_ghosted).toBeUndefined();
         expect(ctx.chat[4].extra.sc_ghosted).toBeUndefined();
@@ -173,7 +173,7 @@ describe('ghosting persistence repair', () => {
     it('repairs missing ghost flags when summaries exist', async () => {
         const slash = vi.fn(async () => {});
         const ctx = installSillyTavernStub({
-            chat: [makeMessage(), makeMessage()],
+            chat: [makeMessage({ isUser: true }), makeMessage()],
             metadata: {
                 summaryception: {
                     layers: [[{ text: 'summary', turnRange: [0, 1] }]],

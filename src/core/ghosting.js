@@ -249,7 +249,7 @@ function messageNeedsGhosting(msg, disableGhosting) {
  * @returns {boolean}
  */
 function isGhostableMessage(msg) {
-    if (!msg || msg.is_user || !msg.mes?.trim()) {
+    if (!msg || !msg.mes?.trim()) {
         return false;
     }
     return !isUserHidden(msg);

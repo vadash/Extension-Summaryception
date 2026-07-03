@@ -136,7 +136,7 @@ function hasGhostingWork(chat, range) {
  * @returns {boolean}
  */
 function shouldRepairLoadedMessage(msg, disableGhosting) {
-    if (!msg || msg.is_user || !msg.mes?.trim() || isUserHidden(msg)) {
+    if (!msg || !msg.mes?.trim() || isUserHidden(msg)) {
         return false;
     }
 
