@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installSillyTavernStub, makeMessage } from './test-helpers.js';
 
 beforeEach(() => {
@@ -12,6 +12,10 @@ beforeEach(() => {
         clear: vi.fn(),
     };
     globalThis.$ = () => ({ find: () => ({ text: vi.fn() }) });
+});
+
+afterEach(() => {
+    vi.useRealTimers();
 });
 
 describe('loaded chat reconciliation', () => {
@@ -44,11 +48,50 @@ describe('loaded chat reconciliation', () => {
         await onAppReady();
 
         expect(order[0]).toBe('injection');
-        expect(slash).toHaveBeenNthCalledWith(1, '/hide 0', { showOutput: false });
-        expect(slash).toHaveBeenNthCalledWith(2, '/hide 1', { showOutput: false });
+        expect(slash).toHaveBeenCalledTimes(1);
+        expect(slash).toHaveBeenCalledWith('/hide 0-1', { showOutput: false });
         expect(ctx.chat[0].extra.sc_ghosted).toBe(true);
         expect(ctx.chat[1].extra.sc_ghosted).toBe(true);
         expect(ctx.chatMetadata.summaryception.layers).toEqual(metadata.summaryception.layers);
         expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(1);
+    });
+
+    it('coalesces repeated chat changes into one reconciliation pass', async () => {
+        vi.useFakeTimers();
+        const repairIfBranched = vi.fn(async () => {});
+        const repairMissingGhostingForSummaries = vi.fn(async () => false);
+        installSillyTavernStub({
+            chat: [],
+            metadata: {
+                summaryception: {
+                    layers: [],
+                    summarizedUpTo: -1,
+                    ghostedIndices: [],
+                },
+            },
+        });
+
+        vi.doMock('../src/core/ghosting-reconcile.js', () => ({
+            repairIfBranched,
+            repairMissingGhostingForSummaries,
+        }));
+        vi.doMock('../src/features/injection.js', () => ({
+            updateInjection: vi.fn(),
+        }));
+        vi.doMock('../src/entry/ui.js', () => ({
+            updateUI: vi.fn(),
+        }));
+
+        const { onChatChanged } = await import('../src/entry/events.js');
+        onChatChanged();
+        onChatChanged();
+        onChatChanged();
+
+        await vi.advanceTimersByTimeAsync(100);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(repairIfBranched).toHaveBeenCalledTimes(1);
+        expect(repairMissingGhostingForSummaries).toHaveBeenCalledTimes(1);
     });
 });

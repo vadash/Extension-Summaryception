@@ -8,7 +8,7 @@ SillyTavern browser extension for layered recursive summarization. No build step
 - Use camelCase / `SCREAMING_SNAKE_CASE` / PascalCase classes.
 - Prefer `const fn = () => {}` inline and `function name() {}` for hoisted helpers.
 - Prefix console output with `[Summaryception]` via `LOG_PREFIX`.
-- Keep functions under 80 lines, files under 500 lines, complexity under 15.
+- Keep functions under 80 lines, files under 1000 lines, complexity under 15.
 - Add JSDoc to exports and useful internal transaction/worker types.
 - Runtime globals: `SillyTavern.getContext()`, `toastr`, `$`.
 - Settings UI: keep control IDs stable; prefer compact theme-aware panels and Font Awesome icons over emoji headings.

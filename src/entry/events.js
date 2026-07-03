@@ -14,6 +14,10 @@ import { updateUI } from './ui.js';
 
 // ─── Event Handlers ──────────────────────────────────────────────────
 
+let reconcileTimer = null;
+let reconcilePromise = null;
+let reconcileQueued = false;
+
 /**
  *
  */
@@ -39,10 +43,7 @@ export function onMessageReceived(messageIndex) {
 export function onChatChanged() {
     log('Chat changed.');
     resetCatchupDismissed();
-    setTimeout(async () => {
-        await reconcileLoadedChatState();
-        updateUI();
-    }, 100);
+    scheduleLoadedChatReconciliation();
 }
 
 /**
@@ -50,8 +51,7 @@ export function onChatChanged() {
  * @returns {Promise<void>}
  */
 export async function onAppReady() {
-    await reconcileLoadedChatState();
-    updateUI();
+    await runSerializedReconciliation();
 }
 
 /**
@@ -98,4 +98,48 @@ async function reconcileLoadedChatState() {
     await repairIfBranched();
     updateInjection();
     await repairMissingGhostingForSummaries();
+}
+
+/**
+ * Debounce loaded-chat reconciliation after chat save/load bursts.
+ * @returns {void}
+ */
+function scheduleLoadedChatReconciliation() {
+    if (reconcileTimer) {
+        clearTimeout(reconcileTimer);
+    }
+    reconcileTimer = setTimeout(() => {
+        reconcileTimer = null;
+        void runSerializedReconciliation();
+    }, 100);
+}
+
+/**
+ * Run loaded-chat reconciliation serially, coalescing queued requests.
+ * @returns {Promise<void>}
+ */
+async function runSerializedReconciliation() {
+    if (reconcilePromise) {
+        reconcileQueued = true;
+        return await reconcilePromise;
+    }
+
+    reconcilePromise = drainReconciliationQueue();
+    try {
+        await reconcilePromise;
+    } finally {
+        reconcilePromise = null;
+    }
+}
+
+/**
+ * Drain one or more coalesced reconciliation requests.
+ * @returns {Promise<void>}
+ */
+async function drainReconciliationQueue() {
+    do {
+        reconcileQueued = false;
+        await reconcileLoadedChatState();
+        updateUI();
+    } while (reconcileQueued);
 }

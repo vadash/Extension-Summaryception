@@ -316,7 +316,7 @@ function triggerImport() {
             store.ghostedIndices = data.ghostedIndices || [];
 
             if (store.summarizedUpTo >= 0) {
-                await ghostMessagesUpTo(store.summarizedUpTo);
+                await ghostMessagesUpTo(store.summarizedUpTo, { showProgress: true });
             }
 
             await persistAndRefresh({ ui: true });

@@ -1,5 +1,5 @@
 /**
- * Summaryception v6.0.0 - Layered Recursive Summarization for SillyTavern
+ * Summaryception - Layered Recursive Summarization for SillyTavern
  *
  * NON-DESTRUCTIVE: Uses SillyTavern's native /hide and /unhide commands
  * to exclude summarized messages from LLM context while keeping them
@@ -59,6 +59,6 @@ import { registerSlashCommands } from './src/entry/commands.js';
 
     eventSource.on(event_types.APP_READY, async () => {
         await onAppReady();
-        console.log(LOG_PREFIX, 'v6.0.0 loaded. Connection Settings available');
+        console.log(LOG_PREFIX, 'loaded. Connection Settings available');
     });
 })();

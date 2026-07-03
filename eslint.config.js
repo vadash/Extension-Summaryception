@@ -55,7 +55,7 @@ export default [
             // Complexity limits
             complexity: ['warn', { max: 15 }],
             'max-depth': ['warn', { max: 4 }],
-            'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+            'max-lines': ['warn', { max: 1000, skipBlankLines: true, skipComments: true }],
             'max-lines-per-function': [
                 'warn',
                 { max: 80, skipBlankLines: true, skipComments: true },

@@ -1,7 +1,7 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
-import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
+import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
@@ -70,8 +70,10 @@ async function repairGhosting(visibleTurns, summarizedUpTo) {
     const turnsToGhost = visibleTurns.filter(
         (t) => /** @type {number} */ (t.index) <= summarizedUpTo,
     );
-    for (const t of turnsToGhost) {
-        await ghostMessage(/** @type {number} */ (t.index));
+    if (turnsToGhost.length > 0) {
+        const first = /** @type {number} */ (turnsToGhost[0].index);
+        const last = /** @type {number} */ (turnsToGhost[turnsToGhost.length - 1].index);
+        await repairGhostingForRange(first, last);
     }
     await persistChatState();
     trace('<<< EXITING summarizeBatchFromTurns - REPAIRED GHOSTING');
@@ -240,7 +242,7 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
 
     await saveChatStore();
     await updateCommittedInjection();
-    await ghostMessagesUpTo(endIdx);
+    await ghostMessagesInRange(passageStart, endIdx);
     await persistChatState();
 
     log(`Layer 0 now has ${store.layers[0].length} snippets`);

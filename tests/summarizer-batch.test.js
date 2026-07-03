@@ -3,8 +3,8 @@ import { installSillyTavernStub, makeMessage } from './test-helpers.js';
 
 const mocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
-    ghostMessage: vi.fn(),
-    ghostMessagesUpTo: vi.fn(),
+    ghostMessagesInRange: vi.fn(),
+    repairGhostingForRange: vi.fn(),
     persistChatState: vi.fn(),
 }));
 
@@ -13,8 +13,8 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 }));
 
 vi.mock('../src/core/ghosting.js', () => ({
-    ghostMessage: mocks.ghostMessage,
-    ghostMessagesUpTo: mocks.ghostMessagesUpTo,
+    ghostMessagesInRange: mocks.ghostMessagesInRange,
+    repairGhostingForRange: mocks.repairGhostingForRange,
 }));
 
 vi.mock('../src/core/persist-state.js', () => ({
@@ -59,7 +59,7 @@ async function runStaleCase(mutator) {
 
     expect(success).toBe(false);
     expect(store.layers[0].some((snippet) => snippet.text === 'new summary')).toBe(false);
-    expect(mocks.ghostMessagesUpTo).not.toHaveBeenCalled();
+    expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
 }
 
 describe('summarizeBatchFromTurns stale result rejection', () => {
@@ -118,12 +118,12 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         expect(success).toBe(true);
         expect(getPendingCommitCount()).toBe(1);
         expect(updateInjection).not.toHaveBeenCalled();
-        expect(mocks.ghostMessagesUpTo).not.toHaveBeenCalled();
+        expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
 
         await endForegroundGeneration();
 
         expect(updateInjection).toHaveBeenCalledTimes(1);
-        expect(mocks.ghostMessagesUpTo).toHaveBeenCalledWith(0);
+        expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 0);
     });
 
     it('discards a deferred result when summary layers change before unfreeze', async () => {
@@ -152,6 +152,6 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
 
         const store = ctx.chatMetadata.summaryception;
         expect(store.layers[0].some((snippet) => snippet.text === 'new summary')).toBe(false);
-        expect(mocks.ghostMessagesUpTo).not.toHaveBeenCalled();
+        expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
     });
 });
