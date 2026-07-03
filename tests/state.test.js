@@ -50,6 +50,94 @@ describe('state.js', () => {
         expect(store.ghostedIndices).toEqual([]);
     });
 
+    it('normalizes a missing chat store', async () => {
+        const ctx = installSillyTavernStub({ metadata: {} });
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const store = getChatStore();
+        expect(ctx.chatMetadata.summaryception).toBe(store);
+        expect(store).toMatchObject({
+            layers: [],
+            summarizedUpTo: -1,
+            ghostedIndices: [],
+        });
+    });
+
+    it('normalizes non-array layers and drops malformed snippets', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: {
+                    layers: [
+                        [{ text: 'kept', turnRange: [0, 2] }, { text: 42 }, null, ['bad']],
+                        'bad-layer',
+                    ],
+                    summarizedUpTo: 2,
+                    ghostedIndices: [],
+                },
+            },
+        });
+        const { getChatStore } = await import('../src/foundation/state.js');
+        expect(getChatStore().layers).toEqual([[{ text: 'kept', turnRange: [0, 2] }], []]);
+    });
+
+    it('normalizes non-array layers to an empty layer list', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: {
+                    layers: { 0: [{ text: 'bad' }] },
+                    summarizedUpTo: 0,
+                    ghostedIndices: [],
+                },
+            },
+        });
+        const { getChatStore } = await import('../src/foundation/state.js');
+        expect(getChatStore().layers).toEqual([]);
+    });
+
+    it('normalizes bad summarizedUpTo values to the sentinel', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: {
+                    layers: [],
+                    summarizedUpTo: Number.POSITIVE_INFINITY,
+                    ghostedIndices: [],
+                },
+            },
+        });
+        const { getChatStore } = await import('../src/foundation/state.js');
+        expect(getChatStore().summarizedUpTo).toBe(-1);
+    });
+
+    it('normalizes duplicate and string ghost indices', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: {
+                    layers: [],
+                    summarizedUpTo: -1,
+                    ghostedIndices: [0, '1', 1, -1, 'bad', 2.5, 3],
+                },
+            },
+        });
+        const { getChatStore } = await import('../src/foundation/state.js');
+        expect(getChatStore().ghostedIndices).toEqual([0, 1, 3]);
+    });
+
+    it('calculates summarized coverage only through contiguous Layer 0 ranges', async () => {
+        const { calculateContiguousSummarizedUpTo } = await import('../src/foundation/state.js');
+        const store = {
+            layers: [
+                [
+                    { text: 'later', turnRange: [6, 8] },
+                    { text: 'first', turnRange: [0, 2] },
+                    { text: 'second', turnRange: [3, 5] },
+                    { text: 'gap', turnRange: [10, 11] },
+                ],
+            ],
+            summarizedUpTo: 11,
+            ghostedIndices: [],
+        };
+        expect(calculateContiguousSummarizedUpTo(store)).toBe(8);
+    });
+
     it('returns the configured player name', async () => {
         installSillyTavernStub();
         // Override name1 via a context that returns the right shape.

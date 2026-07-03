@@ -1,6 +1,7 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
-import { getChatStore, getSettings, saveChatStore } from '../foundation/state.js';
+import { getChatStore, getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
+import { persistChatState } from './persist-state.js';
 import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
@@ -61,7 +62,7 @@ async function repairGhostingForRangeEffect(startIdx, endIdx, epoch) {
     for (let i = startIdx; i <= endIdx; i++) {
         if (!canStartPromptMutation(epoch)) {
             queueGhostRepair(startIdx, endIdx, i);
-            await saveChatStore();
+            await persistChatState();
             return false;
         }
 
@@ -99,7 +100,7 @@ async function repairGhostingForRangeEffect(startIdx, endIdx, epoch) {
     }
 
     trace(' Repaired:', repaired, 'Skipped:', skipped);
-    await saveChatStore();
+    await persistChatState();
     trace('<<< EXITING repairGhostingForRange');
     return true;
 }
@@ -165,6 +166,7 @@ async function ghostMessageEffect(messageIndex, epoch) {
     }
 
     log(`Ghosted message at index ${messageIndex}${s.disableGhosting ? ' (hiding disabled)' : ''}`);
+    await persistChatState();
     return true;
 }
 
@@ -175,16 +177,13 @@ async function ghostMessageEffect(messageIndex, epoch) {
  * @returns {number[]} Indices to unhide
  */
 function collectGhostedIndices(chat, store) {
-    if (store.ghostedIndices && store.ghostedIndices.length > 0) {
-        return [...store.ghostedIndices];
-    }
-    const result = [];
+    const result = new Set(store.ghostedIndices || []);
     for (let i = 0; i < chat.length; i++) {
         if (chat[i]?.extra?.sc_ghosted) {
-            result.push(i);
+            result.add(i);
         }
     }
-    return result;
+    return [...result].sort((a, b) => a - b);
 }
 
 /**
@@ -243,8 +242,37 @@ export async function unghostAllMessages() {
     }
 
     store.ghostedIndices = [];
+    await persistChatState();
     toastr.clear(progressToast);
     log(`Unghosted ${toUnhide.length} messages (only Summaryception-hidden ones)`);
+}
+
+/**
+ * Unghost Summaryception-owned messages in a specific chat range.
+ * @param {number} startIdx
+ * @param {number} endIdx
+ * @returns {Promise<void>}
+ */
+export async function unghostMessagesInRange(startIdx, endIdx) {
+    const { chat } = SillyTavern.getContext();
+    const store = getChatStore();
+
+    for (let i = startIdx; i <= endIdx; i++) {
+        const msg = chat[i];
+        if (msg?.extra?.sc_ghosted) {
+            delete msg.extra.sc_ghosted;
+            try {
+                await SillyTavern.getContext().executeSlashCommandsWithOptions(`/unhide ${i}`, {
+                    showOutput: false,
+                });
+            } catch (e) {
+                log(`Failed to unhide message ${i}:`, e);
+            }
+        }
+    }
+
+    store.ghostedIndices = store.ghostedIndices.filter((idx) => idx < startIdx || idx > endIdx);
+    await persistChatState();
 }
 
 /**
@@ -366,11 +394,13 @@ async function ghostMessagesUpToEffect(endIndex, startIndex, epoch) {
         if (!applied) {
             clearGhostProgress(progressToast);
             queueGhostMessagesUpTo(endIndex, i);
+            await persistChatState();
             return false;
         }
         if (!canStartPromptMutation(epoch)) {
             clearGhostProgress(progressToast);
             queueGhostMessagesUpTo(endIndex, i + 1);
+            await persistChatState();
             return false;
         }
 
@@ -383,7 +413,7 @@ async function ghostMessagesUpToEffect(endIndex, startIndex, epoch) {
     if (progressToast) {
         toastr.clear(progressToast);
     }
-    await saveChatStore();
+    await persistChatState();
     log(
         `Ghosted messages from index 0 to ${endIndex}${s.disableGhosting ? ' (hiding disabled — metadata only)' : ''}`,
     );
@@ -460,83 +490,4 @@ function queueGhostRepair(originalStart, endIndex, nextIndex) {
         kind: `ghost-repair-${nextIndex}-${endIndex}`,
         apply: async ({ epoch }) => await repairGhostingForRangeEffect(nextIndex, endIndex, epoch),
     });
-}
-
-// ─── Branch Detection & Repair ───────────────────────────────────────
-
-/**
- * Detect if the current chat was branched before the summarized point.
- * When ST creates a branch at message N, it copies messages 0..N into a new chat file.
- * But chatMetadata (including our store) is copied as-is, so summarizedUpTo might
- * point beyond the end of the new chat, and snippets may reference turns that
- * no longer exist in this branch.
- *
- * This function detects that condition and trims our store to match reality.
- */
-export async function repairIfBranched() {
-    const { chat } = SillyTavern.getContext();
-    const store = getChatStore();
-
-    if (!chat || chat.length === 0) {
-        return;
-    }
-    if (store.summarizedUpTo < 0) {
-        return;
-    }
-
-    const chatLength = chat.length;
-
-    // If summarizedUpTo is beyond (or at) the end of the chat, we branched
-    if (store.summarizedUpTo >= chatLength) {
-        const oldSummarizedUpTo = store.summarizedUpTo;
-        log(
-            `Branch detected! summarizedUpTo (${oldSummarizedUpTo}) >= chat length (${chatLength}). Repairing...`,
-        );
-
-        // Remove Layer 0 snippets whose turnRange extends beyond the branch point
-        if (store.layers[0]) {
-            const before = store.layers[0].length;
-            store.layers[0] = store.layers[0].filter((sn) => {
-                if (!sn.turnRange) {
-                    return true;
-                } // promoted snippets without turnRange are kept
-                return sn.turnRange[1] < chatLength;
-            });
-            const removed = before - store.layers[0].length;
-            if (removed > 0) {
-                log(
-                    `Removed ${removed} Layer 0 snippets that referenced turns beyond branch point`,
-                );
-            }
-        }
-
-        // Recalculate summarizedUpTo based on remaining snippets
-        if (store.layers[0] && store.layers[0].length > 0) {
-            const maxEnd = Math.max(
-                ...store.layers[0]
-                    .filter((sn) => sn.turnRange)
-                    .map((sn) => /** @type {Array<number>} */ (sn.turnRange)[1]),
-            );
-            store.summarizedUpTo = maxEnd;
-        } else {
-            store.summarizedUpTo = -1;
-        }
-
-        // Trim ghostedIndices to only include valid indices
-        if (store.ghostedIndices) {
-            store.ghostedIndices = store.ghostedIndices.filter((idx) => idx < chatLength);
-        }
-
-        await saveChatStore();
-
-        log(
-            `Branch repair complete. summarizedUpTo: ${oldSummarizedUpTo} → ${store.summarizedUpTo}`,
-        );
-
-        toastr.info(
-            `Branch detected — trimmed ${oldSummarizedUpTo - store.summarizedUpTo} turns of stale summary data that referenced messages beyond the branch point.`,
-            'Summaryception — Branch Repair',
-            { timeOut: 6000 },
-        );
-    }
 }

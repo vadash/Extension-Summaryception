@@ -1,7 +1,14 @@
 import { PROMPT_PRESETS } from '../foundation/constants.js';
 import { log } from '../foundation/logger.js';
-import { getSettings, saveSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import {
+    calculateContiguousSummarizedUpTo,
+    getSettings,
+    saveSettings,
+    getChatStore,
+    saveChatStore,
+} from '../foundation/state.js';
 import { buildPassageFromRange } from '../core/chatutils.js';
+import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
@@ -407,17 +414,15 @@ function bindSnippetDeleteHandlers(store) {
             const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
             const layer = store.layers[layerIdx];
             if (layer) {
+                const removed = layer[snippetIdx];
                 layer.splice(snippetIdx, 1);
 
-                if (store.layers[0] && store.layers[0].length > 0) {
-                    const maxEnd = Math.max(
-                        ...store.layers[0]
-                            .filter((sn) => sn.turnRange)
-                            .map((sn) => /** @type {Array<number>} */ (sn.turnRange)[1]),
-                    );
-                    store.summarizedUpTo = maxEnd;
-                } else {
-                    store.summarizedUpTo = -1;
+                if (layerIdx === 0) {
+                    store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
+                    const range = getSnippetTurnRange(removed);
+                    if (range) {
+                        await unghostMessagesInRange(range[0], range[1]);
+                    }
                 }
 
                 await saveChatStore();
@@ -426,6 +431,22 @@ function bindSnippetDeleteHandlers(store) {
                 toastr.info(`Snippet removed from Layer ${layerIdx}`, 'Summaryception');
             }
         });
+}
+
+/**
+ * Get a valid turn range from a snippet.
+ * @param {object} snippet
+ * @returns {[number, number] | null}
+ */
+function getSnippetTurnRange(snippet) {
+    const range = snippet?.turnRange;
+    if (!Array.isArray(range) || range.length < 2) {
+        return null;
+    }
+    if (!Number.isInteger(range[0]) || !Number.isInteger(range[1])) {
+        return null;
+    }
+    return range[0] >= 0 && range[1] >= range[0] ? /** @type {[number, number]} */ (range) : null;
 }
 
 /**

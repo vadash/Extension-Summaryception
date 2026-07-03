@@ -38,6 +38,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Recent assistant turns stay verbatim according to `verbatimTurns`.
 - Ghosted messages are hidden from the LLM with `/hide` but remain visible in UI.
 - Injection uses `setExtensionPrompt()` from the last committed summary snapshot.
+- `getChatStore()` normalizes saved chat metadata; app/chat load reconciles branch drift and missing ghosting.
 - Background summarization is coalesced through one self-draining worker.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.

@@ -40,6 +40,7 @@ export function makeMessage({
  * @param {Object} [opts.metadata]
  * @param {Object} [opts.settings]
  * @param {Function} [opts.executeSlashCommandsWithOptions]
+ * @param {Function} [opts.saveChat]
  * @param {Function} [opts.setExtensionPrompt]
  * @returns {Record<string, unknown>}
  */
@@ -48,9 +49,10 @@ export function makeContext({
     metadata = {},
     settings = {},
     executeSlashCommandsWithOptions = async () => {},
+    saveChat,
     setExtensionPrompt = () => {},
 } = {}) {
-    return {
+    const ctx = {
         chat,
         chatMetadata: metadata,
         extensionSettings: { summaryception: settings },
@@ -60,6 +62,10 @@ export function makeContext({
         executeSlashCommandsWithOptions,
         setExtensionPrompt,
     };
+    if (saveChat) {
+        ctx.saveChat = saveChat;
+    }
+    return ctx;
 }
 
 /**

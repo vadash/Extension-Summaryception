@@ -1,5 +1,6 @@
 import { log } from '../foundation/logger.js';
-import { repairIfBranched } from '../core/ghosting.js';
+import { getChatStore } from '../foundation/state.js';
+import { repairIfBranched, repairMissingGhostingForSummaries } from '../core/ghosting-reconcile.js';
 import {
     beginForegroundGeneration,
     endForegroundGeneration,
@@ -37,10 +38,18 @@ export function onChatChanged() {
     log('Chat changed.');
     resetCatchupDismissed();
     setTimeout(async () => {
-        await repairIfBranched();
-        updateInjection();
+        await reconcileLoadedChatState();
         updateUI();
     }, 100);
+}
+
+/**
+ * Reconcile persisted Summaryception state after app load.
+ * @returns {Promise<void>}
+ */
+export async function onAppReady() {
+    await reconcileLoadedChatState();
+    updateUI();
 }
 
 /**
@@ -58,4 +67,15 @@ export function onGenerationEnded() {
         updateInjection();
         updateUI();
     });
+}
+
+/**
+ * Normalize metadata, repair branch drift, refresh injection, then restore missing ghost flags.
+ * @returns {Promise<void>}
+ */
+async function reconcileLoadedChatState() {
+    getChatStore();
+    await repairIfBranched();
+    updateInjection();
+    await repairMissingGhostingForSummaries();
 }

@@ -18,6 +18,7 @@ import { initConnectionUI } from './src/entry/ui-connection.js';
 import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
 import {
     onChatChanged,
+    onAppReady,
     onGenerationEnded,
     onGenerationStarted,
     onMessageReceived,
@@ -54,9 +55,8 @@ import { registerSlashCommands } from './src/entry/commands.js';
 
     registerSlashCommands();
 
-    eventSource.on(event_types.APP_READY, () => {
-        updateInjection();
-        updateUI();
+    eventSource.on(event_types.APP_READY, async () => {
+        await onAppReady();
         console.log(LOG_PREFIX, 'v6.0.0 loaded. Connection Settings available');
     });
 })();
