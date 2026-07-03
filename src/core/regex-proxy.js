@@ -3,8 +3,6 @@
  * Uses dynamic import so the extension still loads if ST reorganizes the module.
  */
 
-import { trace } from '../foundation/logger.js';
-
 /**
  * @typedef {object} RegexModule
  * @property {(rawString: string, placement: number, options?: object) => string} getRegexedString - ST's regex transformation function
@@ -65,16 +63,10 @@ export async function applyRegexToMessage(mes, isUser, depth) {
         const placement = isUser
             ? _regexModule.regex_placement.USER_INPUT
             : _regexModule.regex_placement.AI_OUTPUT;
-        const result = _regexModule.getRegexedString(mes, placement, {
+        return _regexModule.getRegexedString(mes, placement, {
             isPrompt: true,
             depth,
         });
-        const speaker = isUser ? 'Player' : 'Assistant';
-        trace(
-            `  regex ${speaker}: ${mes.length} chars → ${result.length} chars ` +
-                `(delta: ${result.length - mes.length >= 0 ? '+' : ''}${result.length - mes.length})`,
-        );
-        return result;
     } catch (e) {
         console.warn(
             '[Summaryception] Regex transformation failed, using raw text.',

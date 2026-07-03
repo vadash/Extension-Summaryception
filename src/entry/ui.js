@@ -7,9 +7,10 @@ import {
     getChatStore,
     saveChatStore,
 } from '../foundation/state.js';
-import { buildPassageFromRange } from '../core/chatutils.js';
+import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
+import { withUsageRun } from '../core/summarizer-usage.js';
 import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
 /**
@@ -381,46 +382,53 @@ async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
     btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
 
     try {
-        const storyTxt = await buildPassageFromRange(chat, rangeStart, rangeEnd);
+        await withUsageRun('snippet regeneration', async () => {
+            const passage = await buildPassageFromRangeWithStats(chat, rangeStart, rangeEnd);
+            const storyTxt = passage.text;
 
-        if (!storyTxt.trim()) {
-            toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
-            return;
-        }
+            if (!storyTxt.trim()) {
+                toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
+                return;
+            }
 
-        const contextStr = buildSnippetContext(store, layerIdx, snippetIdx);
+            const contextStr = buildSnippetContext(store, layerIdx, snippetIdx);
 
-        toastr.info(
-            `Regenerating summary for turns ${rangeStart}-${rangeEnd}...`,
-            'Summaryception',
-            {
-                timeOut: 3000,
-                progressBar: true,
-            },
-        );
+            toastr.info(
+                `Regenerating summary for turns ${rangeStart}-${rangeEnd}...`,
+                'Summaryception',
+                {
+                    timeOut: 3000,
+                    progressBar: true,
+                },
+            );
 
-        const newSummary = await callSummarizer(storyTxt, contextStr);
+            const newSummary = await callSummarizer(storyTxt, contextStr, {
+                kind: 'regenerate',
+                sourceRange: [rangeStart, rangeEnd],
+                regexStats: passage.stats,
+            });
 
-        if (!newSummary) {
-            toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
-            return;
-        }
+            if (!newSummary) {
+                toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
+                return;
+            }
 
-        sn.text = newSummary;
-        sn.timestamp = Date.now();
-        sn.regenerated = true;
+            sn.text = newSummary;
+            sn.timestamp = Date.now();
+            sn.regenerated = true;
 
-        await saveChatStore();
-        updateInjection();
-        updateUI();
+            await saveChatStore();
+            updateInjection();
+            updateUI();
 
-        toastr.success(
-            `Snippet regenerated for turns ${rangeStart}–${rangeEnd}`,
-            'Summaryception',
-            {
-                timeOut: 3000,
-            },
-        );
+            toastr.success(
+                `Snippet regenerated for turns ${rangeStart}–${rangeEnd}`,
+                'Summaryception',
+                {
+                    timeOut: 3000,
+                },
+            );
+        });
     } finally {
         setSummarizing(false);
         btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');

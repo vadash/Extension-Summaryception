@@ -100,6 +100,7 @@ interface SillyTavernContext {
         messages: string[] | Record<string, unknown>,
         systemPrompt?: string,
     ): Promise<string>;
+    getTokenCountAsync?: (text: string) => Promise<number>;
     promptManager?: {
         addPrompt(name: string, content: string): boolean;
         getPrompt(name: string): string | null;

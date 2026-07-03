@@ -6,14 +6,23 @@ vi.mock('../src/foundation/state.js', () => ({
     getSettings: vi.fn(() => ({ applyRegexScripts: false })),
 }));
 
+vi.mock('../src/core/regex-proxy.js', () => ({
+    applyRegexToMessage: vi.fn(async (text) => text),
+}));
+
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: false });
+    vi.mocked(applyRegexToMessage).mockImplementation(async (text) => text);
 });
 
+import { getSettings } from '../src/foundation/state.js';
+import { applyRegexToMessage } from '../src/core/regex-proxy.js';
 import {
     getAssistantTurns,
     getVisibleAssistantTurns,
     buildPassageFromRange,
+    buildPassageFromRangeWithStats,
     buildFullContext,
 } from '../src/core/chatutils.js';
 
@@ -94,6 +103,58 @@ describe('buildPassageFromRange', () => {
     it('handles a missing or empty message inside the range', async () => {
         const chat = [msg({ mes: 'good' }), msg({ mes: '' })];
         await expect(buildPassageFromRange(chat, 0, 1)).resolves.toBe('Assistant: good');
+    });
+});
+
+describe('buildPassageFromRangeWithStats', () => {
+    it('reports matching raw and final chars when regex is off', async () => {
+        const chat = [msg({ isUser: true, mes: 'go north' }), msg({ mes: 'You enter.' })];
+        const result = await buildPassageFromRangeWithStats(chat, 0, 1);
+
+        expect(result.text).toBe(['Player: go north', 'Assistant: You enter.'].join('\n'));
+        expect(result.stats).toEqual({
+            rawChars: result.text.length,
+            finalChars: result.text.length,
+            savedChars: 0,
+            savedPercent: 0,
+            changedMessageCount: 0,
+        });
+        expect(applyRegexToMessage).not.toHaveBeenCalled();
+    });
+
+    it('reports saved chars when regex shrinks rendered text', async () => {
+        vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
+        vi.mocked(applyRegexToMessage).mockResolvedValue('visible');
+
+        const chat = [msg({ mes: 'visible hidden' })];
+        const result = await buildPassageFromRangeWithStats(chat, 0, 0);
+
+        expect(result.text).toBe('Assistant: visible');
+        expect(result.stats.rawChars).toBe('Assistant: visible hidden'.length);
+        expect(result.stats.finalChars).toBe('Assistant: visible'.length);
+        expect(result.stats.savedChars).toBe(' hidden'.length);
+        expect(result.stats.savedPercent).toBeCloseTo(
+            (' hidden'.length / 'Assistant: visible hidden'.length) * 100,
+        );
+        expect(result.stats.changedMessageCount).toBe(1);
+    });
+
+    it('reports negative saved chars when regex expands rendered text', async () => {
+        vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
+        vi.mocked(applyRegexToMessage).mockResolvedValue('short expanded');
+        const expandedChars = ' expanded'.length;
+
+        const chat = [msg({ mes: 'short' })];
+        const result = await buildPassageFromRangeWithStats(chat, 0, 0);
+
+        expect(result.text).toBe('Assistant: short expanded');
+        expect(result.stats.rawChars).toBe('Assistant: short'.length);
+        expect(result.stats.finalChars).toBe('Assistant: short expanded'.length);
+        expect(result.stats.savedChars).toBe(-expandedChars);
+        expect(result.stats.savedPercent).toBeCloseTo(
+            (-expandedChars / 'Assistant: short'.length) * 100,
+        );
+        expect(result.stats.changedMessageCount).toBe(1);
     });
 });
 

@@ -2,7 +2,7 @@ import { LOG_PREFIX } from '../foundation/constants.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
-import { buildPassageFromRange, buildFullContext } from './chatutils.js';
+import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
@@ -140,14 +140,11 @@ async function summarizeBatchSafely(p) {
  * @returns {Promise<boolean>}
  */
 async function performBatchSummary({ batch, chat, store, passageStart, endIdx, opts }) {
-    const rawLen = getRawPassageLength(chat, passageStart, endIdx);
-    trace('  raw passage chars: ~' + rawLen);
-
     const snapshot = await captureLayer0Snapshot({ chat, store, passageStart, endIdx });
     trace(
         '  storyTxt length:',
         snapshot.passageText?.length ?? 'UNDEFINED',
-        'after regex (was ~' + rawLen + ' raw)',
+        'after regex (was ' + snapshot.passageStats.rawChars + ' raw)',
     );
     if (!snapshot.passageText.trim()) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
@@ -159,7 +156,12 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
     showBatchToast(batch.length, opts.showToasts);
 
     trace('  About to call callSummarizer...');
-    const summary = await callSummarizer(snapshot.passageText, snapshot.contextText);
+    const summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
+        kind: 'layer0',
+        sourceRange: snapshot.sourceRange,
+        assistantTurnCount: batch.length,
+        regexStats: snapshot.passageStats,
+    });
     trace('  summary length:', summary?.length ?? 'UNDEFINED');
 
     if (!summary) {
@@ -194,7 +196,7 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
  */
 async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
     const ctx = SillyTavern.getContext();
-    const passageText = await buildPassageFromRange(chat, passageStart, endIdx);
+    const passage = await buildPassageFromRangeWithStats(chat, passageStart, endIdx);
     const contextText = buildFullContext(0);
 
     return {
@@ -204,7 +206,8 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
         sourceRange: [passageStart, endIdx],
         sourceFingerprint: fingerprintSourceRange(chat, passageStart, endIdx),
         summaryStoreFingerprint: fingerprintSummaryStore(store),
-        passageText,
+        passageText: passage.text,
+        passageStats: passage.stats,
         contextText,
     };
 }
@@ -312,29 +315,6 @@ function isPassageRangeValid(passageStart, endIdx) {
     log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
     trace('<<< EXITING summarizeBatchFromTurns - PASSAGE START GREATER THAN END');
     return false;
-}
-
-/**
- * Calculate raw passage length before regex transformation (for trace logging).
- * @param {Array} chat
- * @param {number} startIdx
- * @param {number} endIdx
- * @returns {number}
- */
-function getRawPassageLength(chat, startIdx, endIdx) {
-    let len = 0;
-    for (let i = startIdx; i <= endIdx; i++) {
-        const m = chat[i];
-        if (!m?.mes?.trim()) {
-            continue;
-        }
-        const isUserHidden = (m.is_system || m.is_hidden) && !m.extra?.sc_ghosted;
-        if (isUserHidden) {
-            continue;
-        }
-        len += m.mes.trim().length + 10;
-    }
-    return len;
 }
 
 /**

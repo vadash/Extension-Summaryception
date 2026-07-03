@@ -93,7 +93,11 @@ async function mergeLayerSnippets({ layerIndex, s }) {
         { timeOut: 3000, progressBar: true },
     );
 
-    const metaSummary = await callSummarizer(storyTxt, contextStr);
+    const metaSummary = await callSummarizer(storyTxt, contextStr, {
+        kind: 'promotion',
+        layerIndex,
+        mergedSnippetCount: toMerge.length,
+    });
     if (!metaSummary) {
         return false;
     }

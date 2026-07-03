@@ -4,6 +4,7 @@ import { getAssistantTurns } from './chatutils.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
 import { maybePromoteLayer } from './summarizer-promotion.js';
+import { withUsageRun } from './summarizer-usage.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
@@ -176,12 +177,14 @@ export async function maybeSummarizeTurns() {
  * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatch(visibleTurns) {
-    manualSummarizing = true;
-    try {
-        return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
-    } finally {
-        manualSummarizing = false;
-    }
+    return await withUsageRun('manual batch', async () => {
+        manualSummarizing = true;
+        try {
+            return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
+        } finally {
+            manualSummarizing = false;
+        }
+    });
 }
 
 /**
@@ -189,19 +192,21 @@ export async function summarizeOneBatch(visibleTurns) {
  * @returns {Promise<void>}
  */
 async function drainSummarizationWorker() {
-    workerStatus.running = true;
-    refreshUI();
-
-    try {
-        do {
-            workerStatus.pending = false;
-            workerStatus.dirty = false;
-            await drainAutoWork();
-        } while (workerStatus.pending || workerStatus.dirty);
-    } finally {
-        workerStatus.running = false;
+    await withUsageRun('auto worker drain', async () => {
+        workerStatus.running = true;
         refreshUI();
-    }
+
+        try {
+            do {
+                workerStatus.pending = false;
+                workerStatus.dirty = false;
+                await drainAutoWork();
+            } while (workerStatus.pending || workerStatus.dirty);
+        } finally {
+            workerStatus.running = false;
+            refreshUI();
+        }
+    });
 }
 
 /**
@@ -352,91 +357,93 @@ function showAutoBacklogNotice(overflow) {
  *
  */
 export async function runCatchup(visibleTurns, overflow) {
-    trace('>>> ENTERING runCatchup');
-    trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
-    trace('  overflow:', overflow);
+    await withUsageRun('force summarize catch-up', async () => {
+        trace('>>> ENTERING runCatchup');
+        trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
+        trace('  overflow:', overflow);
 
-    if (!(await prepareCatchupRun())) {
-        return;
-    }
+        if (!(await prepareCatchupRun())) {
+            return;
+        }
 
-    const s = getSettings();
-    const totalBatches = Math.ceil(overflow / s.turnsPerSummary);
-    let completed = 0;
-    let failed = 0;
-    let cancelled = false;
+        const s = getSettings();
+        const totalBatches = Math.ceil(overflow / s.turnsPerSummary);
+        let completed = 0;
+        let failed = 0;
+        let cancelled = false;
 
-    trace('  totalBatches calculated:', totalBatches);
+        trace('  totalBatches calculated:', totalBatches);
 
-    const progressToast = toastr.info(
-        `Processing backlog: 0 / ${totalBatches} batches (0%)`,
-        'Summaryception Catch-Up',
-        {
-            timeOut: 0,
-            extendedTimeOut: 0,
-            tapToDismiss: false,
-            closeButton: true,
-            onCloseClick: () => {
-                cancelled = true;
-                abortSummarization();
+        const progressToast = toastr.info(
+            `Processing backlog: 0 / ${totalBatches} batches (0%)`,
+            'Summaryception Catch-Up',
+            {
+                timeOut: 0,
+                extendedTimeOut: 0,
+                tapToDismiss: false,
+                closeButton: true,
+                onCloseClick: () => {
+                    cancelled = true;
+                    abortSummarization();
+                },
             },
-        },
-    );
+        );
 
-    manualSummarizing = true;
+        manualSummarizing = true;
 
-    try {
-        let consecutiveFailures = 0;
+        try {
+            let consecutiveFailures = 0;
 
-        while (!cancelled) {
-            trace(`  Loop iteration - completed: ${completed}, failed: ${failed}`);
+            while (!cancelled) {
+                trace(`  Loop iteration - completed: ${completed}, failed: ${failed}`);
 
-            const currentVisible = getCatchupVisibleTurns(s);
-            if (!currentVisible) {
-                break;
-            }
-
-            trace('  About to call summarizeOneBatchFromTurns...');
-            const success = await summarizeOneBatchFromTurns(currentVisible);
-
-            if (success) {
-                trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
-                completed++;
-                consecutiveFailures = 0;
-                if (shouldStopAutoWorker()) {
-                    trace('  Prompt mutation queued; pausing catch-up until it flushes');
+                const currentVisible = getCatchupVisibleTurns(s);
+                if (!currentVisible) {
                     break;
                 }
-            } else {
-                trace('  >>> summarizeOneBatchFromTurns returned FAILURE');
-                failed++;
-                consecutiveFailures++;
 
-                if (consecutiveFailures >= 3) {
-                    toastr.error(
-                        '3 consecutive failures — API may be down. Pausing catch-up. Progress saved; will resume on next message.',
-                        'Summaryception',
-                        { timeOut: 8000 },
-                    );
-                    trace('  3 consecutive failures, breaking');
-                    break;
+                trace('  About to call summarizeOneBatchFromTurns...');
+                const success = await summarizeOneBatchFromTurns(currentVisible);
+
+                if (success) {
+                    trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
+                    completed++;
+                    consecutiveFailures = 0;
+                    if (shouldStopAutoWorker()) {
+                        trace('  Prompt mutation queued; pausing catch-up until it flushes');
+                        break;
+                    }
+                } else {
+                    trace('  >>> summarizeOneBatchFromTurns returned FAILURE');
+                    failed++;
+                    consecutiveFailures++;
+
+                    if (consecutiveFailures >= 3) {
+                        toastr.error(
+                            '3 consecutive failures — API may be down. Pausing catch-up. Progress saved; will resume on next message.',
+                            'Summaryception',
+                            { timeOut: 8000 },
+                        );
+                        trace('  3 consecutive failures, breaking');
+                        break;
+                    }
                 }
+
+                updateProgressToast({ progressToast, completed, failed, totalBatches });
+
+                await new Promise((r) => setTimeout(r, 200));
             }
 
-            updateProgressToast({ progressToast, completed, failed, totalBatches });
-
-            await new Promise((r) => setTimeout(r, 200));
+            toastr.clear(progressToast);
+            if (!cancelled) {
+                await maybePromoteLayer(0);
+            }
+            showCatchupOutcome({ cancelled, completed, failed, totalBatches });
+            refreshUI();
+        } finally {
+            manualSummarizing = false;
         }
-
-        toastr.clear(progressToast);
-        if (!cancelled) {
-            await maybePromoteLayer(0);
-        }
-        showCatchupOutcome({ cancelled, completed, failed, totalBatches });
-        refreshUI();
-    } finally {
-        manualSummarizing = false;
-    }
+    });
 }
 
 /**

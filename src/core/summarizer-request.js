@@ -4,6 +4,7 @@ import { getSettings, getPlayerName } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
 import { cleanSummarizerOutput } from './prompts.js';
+import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 
 let currentAbortController = null;
 
@@ -30,9 +31,10 @@ export function abortCurrentSummarizerRequest() {
  * Call the configured summarizer backend with retry logic.
  * @param {string} storyTxt - The story text to summarize
  * @param {string} contextStr - The accumulated context string
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata for debug usage logs
  * @returns {Promise<string>} The generated summary, or '' on failure/abort
  */
-export async function callSummarizer(storyTxt, contextStr) {
+export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     trace('>>> ENTERING callSummarizer');
     trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
     trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
@@ -45,10 +47,6 @@ export async function callSummarizer(storyTxt, contextStr) {
 
     const prompt = buildSummarizerPrompt(s, storyTxt, contextStr);
 
-    log('── Summarizer Call ──');
-    log('Context str length:', contextStr.length, 'chars');
-    log('Story txt length:', storyTxt.length, 'chars');
-
     currentAbortController = new AbortController();
 
     try {
@@ -56,6 +54,7 @@ export async function callSummarizer(storyTxt, contextStr) {
             s,
             prompt,
             signal: currentAbortController.signal,
+            metadata,
         });
     } finally {
         currentAbortController = null;
@@ -82,9 +81,10 @@ function buildSummarizerPrompt(s, storyTxt, contextStr) {
  * @param {object} p.s - Settings
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {AbortSignal} p.signal - Abort signal
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<string>} Summary text, or '' on failure
  */
-async function runSummarizerAttempts({ s, prompt, signal }) {
+async function runSummarizerAttempts({ s, prompt, signal, metadata }) {
     /** @type {Error & { status?: number, response?: { status?: number } }} */
     let lastError = new Error('no error');
 
@@ -93,7 +93,13 @@ async function runSummarizerAttempts({ s, prompt, signal }) {
             return abortWithToast();
         }
 
-        const attemptResult = await executeSummarizerAttempt({ s, prompt, signal, attempt });
+        const attemptResult = await executeSummarizerAttempt({
+            s,
+            prompt,
+            signal,
+            attempt,
+            metadata,
+        });
 
         if (attemptResult.success) {
             return attemptResult.result;
@@ -122,9 +128,10 @@ async function runSummarizerAttempts({ s, prompt, signal }) {
  * @param {string} p.prompt - The fully substituted prompt
  * @param {AbortSignal} p.signal
  * @param {number} p.attempt - Zero-based attempt index
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
  */
-async function executeSummarizerAttempt({ s, prompt, signal, attempt }) {
+async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }) {
     trace(`  Attempt ${attempt} starting...`);
 
     try {
@@ -153,7 +160,7 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt }) {
             return buildAttemptFailure(new Error('Empty response from summarizer'), true);
         }
 
-        log('Result:', trimmed);
+        await logSuccessfulUsage({ s, prompt, summary: trimmed, metadata });
         trace('<<< EXITING callSummarizer WITH SUCCESS');
         return {
             success: true,
@@ -165,6 +172,23 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt }) {
     } catch (err) {
         return classifyAttemptError(err, signal);
     }
+}
+
+/**
+ * Estimate and record usage for a successful summarizer response.
+ * @param {object} p
+ * @param {object} p.s - Settings
+ * @param {string} p.prompt - Fully substituted user prompt
+ * @param {string} p.summary - Cleaned summarizer response
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @returns {Promise<void>}
+ */
+async function logSuccessfulUsage({ s, prompt, summary, metadata }) {
+    const usage = await estimateSummarizerUsage(s.summarizerSystemPrompt, prompt, summary);
+    recordSummarizerUsage({
+        metadata,
+        ...usage,
+    });
 }
 
 /**

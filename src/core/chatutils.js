@@ -61,19 +61,35 @@ function getPromptDepthsByChatIndex(chat) {
 }
 
 /**
- * Build passage text from a range of chat messages.
+ * @typedef {object} PassageRegexStats
+ * @property {number} rawChars - Rendered passage chars before regex scripts
+ * @property {number} finalChars - Rendered passage chars after regex scripts
+ * @property {number} savedChars - Raw chars minus final chars
+ * @property {number} savedPercent - Percent of raw chars removed by regex scripts
+ * @property {number} changedMessageCount - Number of messages changed by regex scripts
+ */
+
+/**
+ * @typedef {object} PassageWithStats
+ * @property {string} text - Rendered passage text after regex scripts
+ * @property {PassageRegexStats} stats - Exact passage character stats
+ */
+
+/**
+ * Build passage text and exact regex stats from a range of chat messages.
  * Skips messages that are hidden (by user or system) UNLESS they were
  * hidden by Summaryception (sc_ghosted). Also skips empty messages.
- * If enabled in settings, applies SillyTavern's regex scripts to each
- * message so the summarizer sees the same text the RP model sees.
  * @param {Array} chat
  * @param {number} startIdx
  * @param {number} endIdx
- * @returns {Promise<string>}
+ * @returns {Promise<PassageWithStats>}
  */
-export async function buildPassageFromRange(chat, startIdx, endIdx) {
-    const lines = [];
+export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
+    const rawLines = [];
+    const finalLines = [];
+    let changedMessageCount = 0;
     const promptDepths = getPromptDepthsByChatIndex(chat);
+    const applyRegexScripts = getSettings().applyRegexScripts;
 
     for (let i = startIdx; i <= endIdx; i++) {
         const m = chat[i];
@@ -92,15 +108,46 @@ export async function buildPassageFromRange(chat, startIdx, endIdx) {
             continue;
         }
 
-        let text = m.mes.trim();
-        if (getSettings().applyRegexScripts) {
-            text = await applyRegexToMessage(text, m.is_user, promptDepths.get(i));
+        const rawText = m.mes.trim();
+        let finalText = rawText;
+        if (applyRegexScripts) {
+            finalText = await applyRegexToMessage(rawText, m.is_user, promptDepths.get(i));
+            if (finalText !== rawText) {
+                changedMessageCount++;
+            }
         }
 
         const speaker = m.is_user ? 'Player' : 'Assistant';
-        lines.push(`${speaker}: ${text}`);
+        rawLines.push(`${speaker}: ${rawText}`);
+        finalLines.push(`${speaker}: ${finalText}`);
     }
-    return lines.join('\n');
+
+    const rawText = rawLines.join('\n');
+    const finalText = finalLines.join('\n');
+    const savedChars = rawText.length - finalText.length;
+
+    return {
+        text: finalText,
+        stats: {
+            rawChars: rawText.length,
+            finalChars: finalText.length,
+            savedChars,
+            savedPercent: rawText.length > 0 ? (savedChars / rawText.length) * 100 : 0,
+            changedMessageCount,
+        },
+    };
+}
+
+/**
+ * Build passage text from a range of chat messages.
+ * @param {Array} chat
+ * @param {number} startIdx
+ * @param {number} endIdx
+ * @returns {Promise<string>}
+ */
+export async function buildPassageFromRange(chat, startIdx, endIdx) {
+    const passage = await buildPassageFromRangeWithStats(chat, startIdx, endIdx);
+    return passage.text;
 }
 
 /**

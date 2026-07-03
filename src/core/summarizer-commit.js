@@ -12,6 +12,7 @@ import { log, trace } from '../foundation/logger.js';
  * @property {string} sourceFingerprint - Fingerprint of source messages.
  * @property {string} summaryStoreFingerprint - Fingerprint of summary layers.
  * @property {string} passageText - Request passage text.
+ * @property {import('./chatutils.js').PassageRegexStats} passageStats - Passage regex stats.
  * @property {string} contextText - Request context text.
  */
 
