@@ -8,23 +8,14 @@
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
-            <div class="sc-console-header">
-                <div class="sc-console-metric">
-                    <span>Mode</span>
-                    <strong id="sc_status_enabled">Disabled</strong>
-                </div>
-                <div class="sc-console-metric">
-                    <span>Worker</span>
-                    <strong id="sc_status_worker">Idle</strong>
-                </div>
-                <div class="sc-console-metric">
-                    <span>Snippets</span>
-                    <strong id="sc_status_snippets">0</strong>
-                </div>
-                <div class="sc-console-metric">
-                    <span>Ghosted</span>
-                    <strong id="sc_status_ghosted">0</strong>
-                </div>
+            <div class="sc-console-header" aria-label="Summaryception status">
+                <span id="sc_status_enabled" class="sc-console-value">Disabled</span>
+                <span class="sc-status-separator" aria-hidden="true">·</span>
+                <span id="sc_status_worker" class="sc-console-value">Idle</span>
+                <span class="sc-status-separator" aria-hidden="true">·</span>
+                <span class="sc-console-value"><strong id="sc_status_snippets">0</strong> snippets</span>
+                <span class="sc-status-separator" aria-hidden="true">·</span>
+                <span class="sc-console-value"><strong id="sc_status_ghosted">0</strong> ghosted</span>
             </div>
             <div class="sc-tab-list" role="tablist" aria-label="Summaryception settings">
                 <button class="sc-tab-button active" type="button" role="tab" aria-selected="true" data-sc-tab="status">
@@ -111,7 +102,7 @@
                     <div class="sc-button-row sc-action-row">
                         <button id="sc_force_summarize" class="menu_button">
                             <i class="fa-solid fa-bolt"></i>
-                            <span>Force Summarize</span>
+                            <span>Summarize</span>
                         </button>
                         <button id="sc_stop_summarize" class="menu_button menu_button_danger">
                             <i class="fa-solid fa-stop"></i>
@@ -119,7 +110,7 @@
                         </button>
                         <button id="sc_repair" class="menu_button">
                             <i class="fa-solid fa-wrench"></i>
-                            <span>Repair Orphans</span>
+                            <span>Repair</span>
                         </button>
                     </div>
                 </section>
@@ -144,14 +135,14 @@
                             <textarea id="sc_preview" class="text_pole sc-textarea sc-preview" rows="6" readonly></textarea>
                         </div>
                     </div>
-                    <div class="sc-button-row">
+                    <div class="sc-button-row sc-memory-actions">
                         <button id="sc_import" class="menu_button">
                            <i class="fa-solid fa-download"></i>
-                           <span>Import Memory</span>
+                           <span>Import</span>
                         </button>
                         <button id="sc_export" class="menu_button">
                             <i class="fa-solid fa-upload"></i>
-                            <span>Export Memory</span>
+                            <span>Export</span>
                         </button>
                     </div>
                 </section>
@@ -340,14 +331,14 @@
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">
-                <section class="sc-section">
+                <section class="sc-section sc-prompt-section">
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-pen-to-square"></span>
                             Prompts
                         </h4>
                     </div>
-                    <div class="sc-row">
+                    <div class="sc-row sc-prompt-secondary">
                         <label for="sc_summarizer_system_prompt">
                             <span>System Prompt</span>
                         </label>
@@ -402,7 +393,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="sc-row">
+                    <div class="sc-row sc-prompt-primary">
                         <label for="sc_summarizer_user_prompt">
                             <span>User Prompt (Turn to Snippet and Layer Promotion)</span>
                             <small class="sc-hint">
@@ -411,7 +402,7 @@
                         </label>
                         <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
                     </div>
-                    <div class="sc-row">
+                    <div class="sc-row sc-prompt-secondary">
                         <label for="sc_injection_template">
                             <span>Injection Wrapper Template</span>
                             <small class="sc-hint">Use <code>{{summary}}</code> for the combined summary block.</small>
@@ -472,11 +463,11 @@
                     <div class="sc-button-row">
                         <button id="sc_reset_defaults" class="menu_button">
                             <i class="fa-solid fa-arrow-rotate-left"></i>
-                            <span>Reset Defaults</span>
+                            <span>Reset</span>
                         </button>
                         <button id="sc_clear_memory" class="menu_button menu_button_danger">
                             <i class="fa-solid fa-trash"></i>
-                            <span>Clear Memory</span>
+                            <span>Clear</span>
                         </button>
                     </div>
                 </section>
