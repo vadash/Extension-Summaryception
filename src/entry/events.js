@@ -1,6 +1,11 @@
 import { log } from '../foundation/logger.js';
 import { repairIfBranched } from '../core/ghosting.js';
-import { maybeSummarizeTurns, resetCatchupDismissed } from '../core/summarizer.js';
+import {
+    beginForegroundGeneration,
+    endForegroundGeneration,
+    maybeSummarizeTurns,
+    resetCatchupDismissed,
+} from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
 import { updateUI } from './ui.js';
 
@@ -17,7 +22,6 @@ export function onMessageReceived(messageIndex) {
             log('New assistant message at index', messageIndex);
             setTimeout(async () => {
                 await maybeSummarizeTurns();
-                updateInjection();
                 updateUI();
             }, 500);
         }
@@ -43,5 +47,15 @@ export function onChatChanged() {
  *
  */
 export function onGenerationStarted() {
-    updateInjection();
+    beginForegroundGeneration();
+}
+
+/**
+ *
+ */
+export function onGenerationEnded() {
+    void endForegroundGeneration().then(() => {
+        updateInjection();
+        updateUI();
+    });
 }

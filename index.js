@@ -10,13 +10,18 @@
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
 import { getSettings } from './src/foundation/state.js';
-import { setUiUpdater } from './src/core/summarizer.js';
+import { setInjectionUpdater, setUiUpdater } from './src/core/summarizer.js';
 import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
-import { updateInjection } from './src/features/injection.js';
-import { onChatChanged, onGenerationStarted, onMessageReceived } from './src/entry/events.js';
+import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
+import {
+    onChatChanged,
+    onGenerationEnded,
+    onGenerationStarted,
+    onMessageReceived,
+} from './src/entry/events.js';
 import { registerSlashCommands } from './src/entry/commands.js';
 
 (async function init() {
@@ -24,6 +29,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
 
     getSettings();
     setUiUpdater(updateUI);
+    setInjectionUpdater(updateInjection, reassertInjectionSnapshot);
     setUiRefresher(updateUI);
 
     const html = await renderExtensionTemplateAsync(
@@ -39,6 +45,12 @@ import { registerSlashCommands } from './src/entry/commands.js';
     eventSource.on(event_types.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
     eventSource.on(event_types.GENERATION_STARTED, onGenerationStarted);
+    if (event_types.GENERATION_ENDED) {
+        eventSource.on(event_types.GENERATION_ENDED, onGenerationEnded);
+    }
+    if (event_types.GENERATION_STOPPED) {
+        eventSource.on(event_types.GENERATION_STOPPED, onGenerationEnded);
+    }
 
     registerSlashCommands();
 

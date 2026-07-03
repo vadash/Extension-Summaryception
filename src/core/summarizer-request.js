@@ -3,12 +3,7 @@ import { sendSummarizerRequest } from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
-import {
-    snapshotPromptToggles,
-    disableAllPromptToggles,
-    restorePromptToggles,
-    cleanSummarizerOutput,
-} from './prompts.js';
+import { cleanSummarizerOutput } from './prompts.js';
 
 let currentAbortController = null;
 
@@ -54,7 +49,6 @@ export async function callSummarizer(storyTxt, contextStr) {
     log('Context str length:', contextStr.length, 'chars');
     log('Story txt length:', storyTxt.length, 'chars');
 
-    const promptState = preparePromptToggles(s);
     currentAbortController = new AbortController();
 
     try {
@@ -65,7 +59,6 @@ export async function callSummarizer(storyTxt, contextStr) {
         });
     } finally {
         currentAbortController = null;
-        restorePromptState(promptState);
     }
 }
 
@@ -81,31 +74,6 @@ function buildSummarizerPrompt(s, storyTxt, contextStr) {
         .replace('{{player_name}}', getPlayerName())
         .replace('{{context_str}}', contextStr || '(none yet)')
         .replace('{{story_txt}}', storyTxt);
-}
-
-/**
- * Disable default prompt toggles while using the active SillyTavern connection.
- * @param {object} s - Settings
- * @returns {{ isDefaultMode: boolean, snapshot: unknown }}
- */
-function preparePromptToggles(s) {
-    const isDefaultMode = !s.connectionSource || s.connectionSource === 'default';
-    const snapshot = isDefaultMode ? snapshotPromptToggles() : null;
-    if (isDefaultMode) {
-        disableAllPromptToggles();
-    }
-    return { isDefaultMode, snapshot };
-}
-
-/**
- * Restore prompt toggles after a summarizer call.
- * @param {{ isDefaultMode: boolean, snapshot: unknown }} promptState
- * @returns {void}
- */
-function restorePromptState(promptState) {
-    if (promptState.isDefaultMode && promptState.snapshot) {
-        restorePromptToggles(promptState.snapshot);
-    }
 }
 
 /**

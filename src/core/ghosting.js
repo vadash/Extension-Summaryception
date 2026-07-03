@@ -1,6 +1,7 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { getChatStore, getSettings, saveChatStore } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
+import { isPromptMutationFrozen } from './summarizer-commit.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
 /**
@@ -37,6 +38,11 @@ function skipRepairGhost(m, isGhosted) {
 export async function repairGhostingForRange(startIdx, endIdx) {
     trace('>>> ENTERING repairGhostingForRange');
     trace(' startIdx:', startIdx, 'endIdx:', endIdx);
+
+    if (isPromptMutationFrozen()) {
+        log('Ghost repair deferred while foreground generation is active.');
+        return 0;
+    }
 
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
@@ -90,6 +96,11 @@ export async function repairGhostingForRange(startIdx, endIdx) {
  * @returns {Promise<void>}
  */
 export async function ghostMessage(messageIndex) {
+    if (isPromptMutationFrozen()) {
+        log(`Ghosting deferred for message ${messageIndex}; foreground generation is active.`);
+        return;
+    }
+
     const { chat } = SillyTavern.getContext();
     const msg = chat[messageIndex];
     if (!msg) {
@@ -279,6 +290,11 @@ async function applyGhostToMessage(msg, i) {
  * @returns {Promise<void>}
  */
 export async function ghostMessagesUpTo(endIndex) {
+    if (isPromptMutationFrozen()) {
+        log(`Ghosting up to ${endIndex} deferred; foreground generation is active.`);
+        return;
+    }
+
     const { chat } = SillyTavern.getContext();
     const s = getSettings();
 

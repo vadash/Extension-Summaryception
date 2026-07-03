@@ -1,47 +1,51 @@
 ## Summaryception
 
-SillyTavern browser extension for layered recursive summarization. No build step, no bundler, no test suite. ES modules run directly in the browser.
+SillyTavern browser extension for layered recursive summarization. No build step or bundler; ES modules run directly in the browser.
 
 ## Code Style
 
-- Vanilla JS (ES2022+, ES modules), camelCase / `SCREAMING_SNAKE_CASE` / PascalCase classes
-- 4-space indent, single quotes, `const fn = () => {}` inline / `function name() {}` hoisted
-- Prefix console output with `[Summaryception]` (`LOG_PREFIX`)
-- Max complexity 15, max 80 lines/function, max 500 lines/file, JSDoc on exports
-- Globals: `SillyTavern.getContext()`, `toastr`, `$`
+- Vanilla JS (ES2022+ modules), 4-space indent, single quotes.
+- Use camelCase / `SCREAMING_SNAKE_CASE` / PascalCase classes.
+- Prefer `const fn = () => {}` inline and `function name() {}` for hoisted helpers.
+- Prefix console output with `[Summaryception]` via `LOG_PREFIX`.
+- Keep functions under 80 lines, files under 500 lines, complexity under 15.
+- Add JSDoc to exports and useful internal transaction/worker types.
+- Runtime globals: `SillyTavern.getContext()`, `toastr`, `$`.
 
-## Linting and Committing
+## Boundaries
 
-ESLint + Prettier + `tsc --noEmit` run on pre-commit via husky/lint-staged. Don't invoke manually -- they auto-fix and re-stage on commit.
+`eslint-plugin-boundaries` enforces one-way imports:
 
-### Import Zone Boundaries
-
-Enforced by `eslint-plugin-boundaries`. Lower layers **must not** import from higher layers. Allowed direction:
-
-```
-constants ← logger, retry ← state ← core ← feature ← entry
+```text
+constants <- logger, retry <- state <- core <- feature <- entry
 ```
 
-| Zone | Files |
-|------|-------|
-| constants | `src/foundation/constants.js` |
-| logger | `src/foundation/logger.js` |
-| retry | `src/foundation/retry.js` |
-| state | `src/foundation/state.js` |
-| core | `src/core/*.js` |
-| feature | `src/features/*.js` |
-| entry | `src/entry/*.js` |
+- `src/foundation/constants.js`
+- `src/foundation/logger.js`, `src/foundation/retry.js`
+- `src/foundation/state.js`
+- `src/core/*.js`
+- `src/features/*.js`
+- `src/entry/*.js`
+
+Lower layers must not import from higher layers.
 
 ## Architecture
 
-Layer system stored in `chatMetadata[MODULE_NAME]`:
-- **Layer 0**: turn summaries (3 turns per snippet default)
-- **Layers 1+**: meta-summaries promoted from below
-- **Verbatim turns**: most recent N assistant messages kept word-for-word
-- **Ghosted messages**: hidden from LLM via `/hide`, visible in UI
-- **Injection**: `setExtensionPrompt()` prepends summary block to LLM context
-- **API calls**: exponential backoff (5 retries, 2s-60s), prompt toggles disabled during summarization
+Layer data lives in `chatMetadata[MODULE_NAME]`.
 
-## Testing
+- Layer 0: turn summaries, 3 turns per snippet by default.
+- Layers 1+: meta-summaries promoted from lower layers.
+- Recent assistant turns stay verbatim according to `verbatimTurns`.
+- Ghosted messages are hidden from the LLM with `/hide` but remain visible in UI.
+- Injection uses `setExtensionPrompt()` from the last committed summary snapshot.
+- Background summarization is coalesced through one worker; prompt-affecting commits are frozen during foreground generation.
+- Summarizer calls use exponential backoff, 5 retries, 2s-60s.
+- Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
 
-No test framework. Manual only: enable `debugMode` (logs) or `traceMode` (detailed entry/exit). Test each connection source independently. Verify backlog detection and layer promotion with 50+ message chats.
+## Testing and Commits
+
+- Use `npm test` for behavior changes; tests are Vitest.
+- Manual-check SillyTavern integration with `debugMode` or `traceMode`.
+- Test each connection source independently when connection code changes.
+- Verify backlog detection, foreground-generation freeze, ghosting, and layer promotion with large chats.
+- Pre-commit runs ESLint, Prettier, and `tsc --noEmit` through husky/lint-staged; let it auto-fix and re-stage.

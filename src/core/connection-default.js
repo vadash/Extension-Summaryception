@@ -21,8 +21,9 @@ export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
 
     if (generateRaw.length <= 1) {
         const options = {
-            systemPrompt: systemPrompt,
-            prompt: userPrompt,
+            prompt: [{ role: 'user', content: userPrompt }],
+            systemPrompt,
+            trimNames: false,
         };
 
         if (responseLength && responseLength > 0) {

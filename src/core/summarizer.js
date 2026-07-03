@@ -1,8 +1,15 @@
-import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import { getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { getAssistantTurns } from './chatutils.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
+import { maybePromoteLayer } from './summarizer-promotion.js';
+import {
+    beginForegroundGeneration as beginCommitFreeze,
+    endForegroundGeneration as endCommitFreeze,
+    getPendingCommitCount,
+    setCommitCallbacks,
+} from './summarizer-commit.js';
 
 export { callSummarizer, hasActiveAbortController } from './summarizer-request.js';
 export { summarizeOneBatchFromTurns } from './summarizer-batch.js';
@@ -23,8 +30,35 @@ function refreshUI() {
     }
 }
 
-let isSummarizing = false;
+/** @typedef {'auto'} SummarizationMode */
+
+/**
+ * @typedef {object} WorkerStatus
+ * @property {boolean} running - A worker drain is active.
+ * @property {boolean} pending - At least one summarization request is waiting.
+ * @property {boolean} dirty - Chat changed while the worker was active.
+ * @property {SummarizationMode} mode - Current worker mode.
+ * @property {string} reason - Last request reason.
+ */
+
+/** @type {WorkerStatus} */
+const workerStatus = {
+    running: false,
+    pending: false,
+    dirty: false,
+    mode: 'auto',
+    reason: '',
+};
+
+let workerPromise = null;
+let manualSummarizing = false;
 let catchupDismissed = false;
+
+setCommitCallbacks({
+    requeue: (reason) => {
+        void requestSummarization({ reason, mode: 'auto' });
+    },
+});
 
 /**
  * Reset the catch-up dismissed flag so the dialog shows again.
@@ -39,7 +73,7 @@ export function resetCatchupDismissed() {
  * @returns {boolean}
  */
 export function getIsSummarizing() {
-    return isSummarizing;
+    return workerStatus.running || manualSummarizing;
 }
 
 /**
@@ -48,7 +82,7 @@ export function getIsSummarizing() {
  * @returns {void}
  */
 export function setSummarizing(value) {
-    isSummarizing = value;
+    manualSummarizing = value;
 }
 
 /**
@@ -57,7 +91,65 @@ export function setSummarizing(value) {
  */
 export function abortSummarization() {
     abortCurrentSummarizerRequest();
-    isSummarizing = false;
+    workerStatus.pending = false;
+    workerStatus.dirty = false;
+    manualSummarizing = false;
+}
+
+/**
+ * Register injection callbacks used by safe summary commits.
+ * @param {() => void} updateInjection
+ * @param {() => void} reassertInjection
+ * @returns {void}
+ */
+export function setInjectionUpdater(updateInjection, reassertInjection) {
+    setCommitCallbacks({
+        updateInjection,
+        reassertInjection,
+        requeue: (reason) => {
+            void requestSummarization({ reason, mode: 'auto' });
+        },
+    });
+}
+
+/**
+ * Freeze summary commits while SillyTavern assembles a foreground prompt.
+ * @returns {void}
+ */
+export function beginForegroundGeneration() {
+    beginCommitFreeze();
+    refreshUI();
+}
+
+/**
+ * Flush deferred commits and resume work after foreground generation ends.
+ * @returns {Promise<void>}
+ */
+export async function endForegroundGeneration() {
+    await endCommitFreeze();
+    await requestSummarization({ reason: 'generation-ended', mode: 'auto' });
+    refreshUI();
+}
+
+/**
+ * Queue or coalesce an automatic summarization request.
+ * @param {{ reason?: string, mode?: SummarizationMode }} [opts]
+ * @returns {Promise<void>}
+ */
+export function requestSummarization({ reason = 'auto', mode = 'auto' } = {}) {
+    workerStatus.pending = true;
+    workerStatus.reason = reason;
+    workerStatus.mode = mode;
+
+    if (workerStatus.running) {
+        workerStatus.dirty = true;
+        return workerPromise || Promise.resolve();
+    }
+
+    workerPromise = drainSummarizationWorker().finally(() => {
+        workerPromise = null;
+    });
+    return workerPromise;
 }
 
 /**
@@ -65,45 +157,7 @@ export function abortSummarization() {
  * @returns {Promise<void>}
  */
 export async function maybeSummarizeTurns() {
-    const s = getSettings();
-    if (!s.enabled) {
-        return;
-    }
-    if (s.pauseSummarization) {
-        return;
-    }
-    if (isSummarizing) {
-        return;
-    }
-
-    const { chat } = SillyTavern.getContext();
-    const store = getChatStore();
-
-    const allAssistantTurns = getAssistantTurns(chat);
-    const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
-
-    log(`Visible assistant turns: ${visibleTurns.length}, limit: ${s.verbatimTurns}`);
-
-    if (visibleTurns.length <= s.verbatimTurns) {
-        return;
-    }
-
-    const overflow = visibleTurns.length - s.verbatimTurns;
-    const backlogThreshold = s.turnsPerSummary * 2;
-
-    if (overflow > backlogThreshold && !catchupDismissed) {
-        await handleBacklog({ visibleTurns, overflow, s, store });
-        return;
-    }
-
-    const success = await summarizeOneBatch(visibleTurns);
-
-    if (!success) {
-        log('Batch failed, stopping summarization cycle to avoid retry loop.');
-        return;
-    }
-
-    await summarizeRemainingIfNeeded({ chat, s, backlogThreshold });
+    await requestSummarization({ reason: 'maybe-summarize', mode: 'auto' });
 }
 
 /**
@@ -112,72 +166,103 @@ export async function maybeSummarizeTurns() {
  * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatch(visibleTurns) {
-    isSummarizing = true;
+    manualSummarizing = true;
     try {
         return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
     } finally {
-        isSummarizing = false;
+        manualSummarizing = false;
     }
 }
 
 /**
- * Process the large-backlog user choice.
- * @param {object} p
- * @param {Array<Record<string, unknown>>} p.visibleTurns
- * @param {number} p.overflow
- * @param {object} p.s
- * @param {object} p.store
+ * Drain coalesced auto work until no new requests arrived during the active job.
  * @returns {Promise<void>}
  */
-async function handleBacklog({ visibleTurns, overflow, s, store }) {
-    log(`Large backlog detected: ${overflow} turns over limit`);
+async function drainSummarizationWorker() {
+    workerStatus.running = true;
+    refreshUI();
 
-    const batchesNeeded = Math.ceil(overflow / s.turnsPerSummary);
-    const choice = await showCatchupDialog(overflow, batchesNeeded);
-
-    if (choice === 'skip') {
-        await skipBacklog({ visibleTurns, s, store });
-    } else if (choice === 'catchup') {
-        await runCatchup(visibleTurns, overflow);
-    } else if (choice === 'partial') {
-        await summarizeOneBatch(visibleTurns);
+    try {
+        do {
+            workerStatus.pending = false;
+            workerStatus.dirty = false;
+            await runAutoWorkerCycle();
+        } while (workerStatus.pending || workerStatus.dirty);
+    } finally {
+        workerStatus.running = false;
+        refreshUI();
     }
 }
 
 /**
- * Mark the old backlog as summarized without generating summaries.
+ * Run one automatic worker action against fresh chat state.
+ * @returns {Promise<void>}
+ */
+async function runAutoWorkerCycle() {
+    const s = getSettings();
+    if (!s.enabled || s.pauseSummarization) {
+        return;
+    }
+
+    const { chat } = SillyTavern.getContext();
+    const allAssistantTurns = getAssistantTurns(chat);
+    const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
+
+    log(`Visible assistant turns: ${visibleTurns.length}, limit: ${s.verbatimTurns}`);
+
+    if (getPendingCommitCount() > 0) {
+        return;
+    }
+
+    if (visibleTurns.length > s.verbatimTurns) {
+        await processLayer0Overflow({ visibleTurns, s });
+        return;
+    }
+
+    await maybePromoteLayer(0);
+}
+
+/**
+ * Process a single layer-0 overflow batch in automatic mode.
  * @param {object} p
  * @param {Array<Record<string, unknown>>} p.visibleTurns
  * @param {object} p.s
- * @param {object} p.store
  * @returns {Promise<void>}
  */
-async function skipBacklog({ visibleTurns, s, store }) {
-    const cutoff = visibleTurns[visibleTurns.length - s.verbatimTurns - 1];
-    if (cutoff) {
-        store.summarizedUpTo = cutoff.index;
-        log(`Skipped backlog. summarizedUpTo set to ${store.summarizedUpTo}`);
+async function processLayer0Overflow({ visibleTurns, s }) {
+    const overflow = visibleTurns.length - s.verbatimTurns;
+    const backlogThreshold = s.turnsPerSummary * 2;
+
+    if (overflow > backlogThreshold) {
+        showAutoBacklogNotice(overflow);
     }
+
+    const success = await summarizeBatchFromTurns(visibleTurns, {
+        showToasts: false,
+        catchExceptions: true,
+    });
+
+    if (!success) {
+        log('Batch failed, stopping summarization cycle to avoid retry loop.');
+    }
+}
+
+/**
+ * Show a non-blocking notice for large automatic backlog catch-up.
+ * @param {number} overflow
+ * @returns {void}
+ */
+function showAutoBacklogNotice(overflow) {
+    if (catchupDismissed) {
+        return;
+    }
+
     catchupDismissed = true;
-    await saveChatStore();
-}
-
-/**
- * Continue normal summarization while a small overflow remains.
- * @param {object} p
- * @param {Array} p.chat
- * @param {object} p.s
- * @param {number} p.backlogThreshold
- * @returns {Promise<void>}
- */
-async function summarizeRemainingIfNeeded({ chat, s, backlogThreshold }) {
-    const remaining = getAssistantTurns(chat).filter((t) => !chat[t.index].extra?.sc_ghosted);
-    if (
-        remaining.length > s.verbatimTurns &&
-        remaining.length - s.verbatimTurns <= backlogThreshold
-    ) {
-        await maybeSummarizeTurns();
-    }
+    toastr.info(
+        `${overflow} turns exceed the verbatim limit. Summaryception will process one background batch per new-message cycle; use Force Summarize for full catch-up.`,
+        'Summaryception',
+        { timeOut: 6000 },
+    );
 }
 
 /**
@@ -211,7 +296,7 @@ export async function runCatchup(visibleTurns, overflow) {
         },
     );
 
-    isSummarizing = true;
+    manualSummarizing = true;
 
     try {
         let consecutiveFailures = 0;
@@ -263,10 +348,13 @@ export async function runCatchup(visibleTurns, overflow) {
         }
 
         toastr.clear(progressToast);
+        if (!cancelled) {
+            await maybePromoteLayer(0);
+        }
         showCatchupOutcome({ cancelled, completed, failed, totalBatches });
         refreshUI();
     } finally {
-        isSummarizing = false;
+        manualSummarizing = false;
     }
 }
 

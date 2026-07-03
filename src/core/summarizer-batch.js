@@ -5,7 +5,17 @@ import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
 import { buildPassageFromRange, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
-import { maybePromoteLayer } from './summarizer-promotion.js';
+import {
+    commitWhenSafe,
+    isPromptMutationFrozen,
+    updateCommittedInjection,
+} from './summarizer-commit.js';
+import {
+    fingerprintSourceRange,
+    fingerprintSummaryStore,
+    getChatIdentity,
+    isSameChatSnapshot,
+} from './summarizer-snapshot.js';
 
 /**
  * Shared batch summarization logic used by normal and catch-up paths.
@@ -102,14 +112,7 @@ async function summarizeBatchCore({ s, chat, store, eligibleTurns, opts }) {
         return false;
     }
 
-    return await summarizeBatchSafely({
-        batch,
-        chat,
-        store,
-        passageStart,
-        endIdx,
-        opts,
-    });
+    return await summarizeBatchSafely({ batch, chat, store, passageStart, endIdx, opts });
 }
 
 /**
@@ -144,24 +147,23 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
     const rawLen = getRawPassageLength(chat, passageStart, endIdx);
     trace('  raw passage chars: ~' + rawLen);
 
-    const storyTxt = await buildPassageFromRange(chat, passageStart, endIdx);
+    const snapshot = await captureLayer0Snapshot({ chat, store, passageStart, endIdx });
     trace(
         '  storyTxt length:',
-        storyTxt?.length ?? 'UNDEFINED',
+        snapshot.passageText?.length ?? 'UNDEFINED',
         'after regex (was ~' + rawLen + ' raw)',
     );
-    if (!storyTxt.trim()) {
+    if (!snapshot.passageText.trim()) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
         return false;
     }
 
-    const contextStr = buildFullContext(0);
-    trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
+    trace('  contextStr length:', snapshot.contextText?.length ?? 'UNDEFINED');
 
     showBatchToast(batch.length, opts.showToasts);
 
     trace('  About to call callSummarizer...');
-    const summary = await callSummarizer(storyTxt, contextStr);
+    const summary = await callSummarizer(snapshot.passageText, snapshot.contextText);
     trace('  summary length:', summary?.length ?? 'UNDEFINED');
 
     if (!summary) {
@@ -170,29 +172,64 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
         return false;
     }
 
-    await commitLayer0Snippet({
-        store,
-        summary,
-        passageStart,
-        endIdx,
-        showToasts: opts.showToasts,
+    const result = await commitWhenSafe({
+        kind: 'layer0',
+        snapshot,
+        apply: async () =>
+            await commitLayer0Snippet({
+                snapshot,
+                summary,
+                showToasts: opts.showToasts,
+            }),
     });
 
-    trace('<<< EXITING summarizeBatchFromTurns - SUCCESS');
-    return true;
+    trace(`<<< EXITING summarizeBatchFromTurns - ${result.toUpperCase()}`);
+    return result !== 'stale';
+}
+
+/**
+ * Capture all state required to safely commit a layer-0 summary later.
+ * @param {object} p
+ * @param {Array} p.chat
+ * @param {object} p.store
+ * @param {number} p.passageStart
+ * @param {number} p.endIdx
+ * @returns {Promise<import('./summarizer-commit.js').SummarizationJobSnapshot>}
+ */
+async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
+    const ctx = SillyTavern.getContext();
+    const passageText = await buildPassageFromRange(chat, passageStart, endIdx);
+    const contextText = buildFullContext(0);
+
+    return {
+        chatId: getChatIdentity(ctx),
+        chatRef: chat,
+        summarizedUpTo: store.summarizedUpTo,
+        sourceRange: [passageStart, endIdx],
+        sourceFingerprint: fingerprintSourceRange(chat, passageStart, endIdx),
+        summaryStoreFingerprint: fingerprintSummaryStore(store),
+        passageText,
+        contextText,
+    };
 }
 
 /**
  * Record a successful summary into Layer 0 and trigger downstream bookkeeping.
  * @param {object} p
- * @param {object} p.store - The chat store
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} p.snapshot
  * @param {string} p.summary - The LLM-generated summary text
- * @param {number} p.passageStart - First chat index covered
- * @param {number} p.endIdx - Last chat index covered
  * @param {boolean} p.showToasts - Whether to show success toast
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
-async function commitLayer0Snippet({ store, summary, passageStart, endIdx, showToasts }) {
+async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
+    if (!isLayer0SnapshotValid(snapshot)) {
+        return false;
+    }
+
+    const store = getChatStore();
+    const [passageStart, endIdx] = snapshot.sourceRange;
+    ensureLayer0(store);
+
     store.layers[0].push({
         text: summary,
         turnRange: [passageStart, endIdx],
@@ -203,8 +240,10 @@ async function commitLayer0Snippet({ store, summary, passageStart, endIdx, showT
     trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
     await saveChatStore();
-    await ghostMessagesUpTo(endIdx);
-    await maybePromoteLayer(0);
+    updateCommittedInjection();
+    if (!isPromptMutationFrozen()) {
+        await ghostMessagesUpTo(endIdx);
+    }
     await persistChatState();
 
     log(`Layer 0 now has ${store.layers[0].length} snippets`);
@@ -216,6 +255,30 @@ async function commitLayer0Snippet({ store, summary, passageStart, endIdx, showT
             { timeOut: 2000 },
         );
     }
+
+    return true;
+}
+
+/**
+ * Revalidate the active chat and store before committing an LLM result.
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
+ * @returns {boolean}
+ */
+function isLayer0SnapshotValid(snapshot) {
+    const ctx = SillyTavern.getContext();
+    const store = getChatStore();
+    const [startIdx, endIdx] = snapshot.sourceRange;
+
+    if (!isSameChatSnapshot(snapshot, ctx)) {
+        return false;
+    }
+    if (store.summarizedUpTo !== snapshot.summarizedUpTo) {
+        return false;
+    }
+    if (fingerprintSourceRange(ctx.chat, startIdx, endIdx) !== snapshot.sourceFingerprint) {
+        return false;
+    }
+    return fingerprintSummaryStore(store) === snapshot.summaryStoreFingerprint;
 }
 
 /**

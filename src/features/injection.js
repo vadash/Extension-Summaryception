@@ -1,6 +1,7 @@
 import { MODULE_NAME } from '../foundation/constants.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
+import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 
@@ -44,6 +45,7 @@ export function assembleSummaryBlock() {
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
 let _lastInjected = '';
+let _activeInjectionSnapshot = null;
 
 /**
  *
@@ -51,26 +53,55 @@ let _lastInjected = '';
 export function updateInjection() {
     try {
         const { setExtensionPrompt } = SillyTavern.getContext();
-        const s = getSettings();
 
-        if (!s.enabled) {
-            if (_lastInjected !== '') {
-                setExtensionPrompt(MODULE_NAME, '', 0, 0, false, 0);
-                _lastInjected = '';
-            }
+        if (isPromptMutationFrozen()) {
+            reassertInjectionSnapshot();
             return;
         }
 
-        const summaryBlock = assembleSummaryBlock();
-        if (summaryBlock === _lastInjected) {
+        const nextInjection = buildEnabledInjectionText();
+        _activeInjectionSnapshot = nextInjection;
+
+        if (nextInjection === _lastInjected) {
             return;
         }
 
-        setExtensionPrompt(MODULE_NAME, summaryBlock || '', 0, 0, false, 0);
-        _lastInjected = summaryBlock || '';
+        setExtensionPrompt(MODULE_NAME, nextInjection, 0, 0, false, 0);
+        _lastInjected = nextInjection;
 
-        log(`Injection updated: ${(summaryBlock || '').length} chars`);
+        log(`Injection updated: ${nextInjection.length} chars`);
     } catch (e) {
         log('updateInjection error:', e);
     }
+}
+
+/**
+ * Reapply the last committed injection snapshot without reading pending changes.
+ * @returns {void}
+ */
+export function reassertInjectionSnapshot() {
+    try {
+        const { setExtensionPrompt } = SillyTavern.getContext();
+        if (_activeInjectionSnapshot === null) {
+            _activeInjectionSnapshot = buildEnabledInjectionText();
+        }
+
+        setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot, 0, 0, false, 0);
+        _lastInjected = _activeInjectionSnapshot;
+        log(`Injection snapshot reasserted: ${_activeInjectionSnapshot.length} chars`);
+    } catch (e) {
+        log('reassertInjectionSnapshot error:', e);
+    }
+}
+
+/**
+ * Build the prompt text that should be committed for the current store/settings.
+ * @returns {string}
+ */
+function buildEnabledInjectionText() {
+    const s = getSettings();
+    if (!s.enabled) {
+        return '';
+    }
+    return assembleSummaryBlock() || '';
 }
