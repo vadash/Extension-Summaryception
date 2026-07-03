@@ -300,6 +300,20 @@ If this saves your 500-turn adventure from amnesia, consider starring the repo. 
 
 ---
 
+## Versions
+
+You can switch branch in ST if you dont like future patches
+
+v6.03 - same as original. Split it into moduled structure, added tests, typecheck, linter, auto bump. Can enable global regex support
+
+v6.08 - make it more reliable when you type while ext summarize in background
+
+v6.10 - UI rework
+
+For more info check commits and docs folder
+
+---
+
 ## 📄 License
 
 AGPL-3.0
