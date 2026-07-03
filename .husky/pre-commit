@@ -1,3 +1,32 @@
-npx tsc --noEmit --pretty false
-npx lint-staged --verbose
-npm test
+#!/usr/bin/env sh
+
+TAIL_LINES="${PRECOMMIT_ERROR_LINES:-60}"
+tmp_dir="$(mktemp -d 2>/dev/null || mktemp -d -t summaryception-precommit)"
+passed=''
+
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT INT TERM
+
+run_check() {
+    label="$1"
+    shift
+    log="$tmp_dir/$label.log"
+
+    if "$@" >"$log" 2>&1; then
+        passed="${passed}${passed:+ | }$label"
+        return 0
+    fi
+
+    printf 'FAIL %s\n' "$label"
+    tail -n "$TAIL_LINES" "$log"
+    return 1
+}
+
+run_check tsc npx tsc --noEmit --pretty false || exit 1
+run_check repomix npm run repomix || exit 1
+run_check lint-staged npx lint-staged --verbose || exit 1
+run_check tests npm test || exit 1
+
+printf 'PASS %s\n' "$passed"
