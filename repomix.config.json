@@ -1,0 +1,67 @@
+{
+    "$schema": "https://repomix.com/schemas/latest/schema.json",
+    "input": {
+        "maxFileSize": 500000
+    },
+    "output": {
+        "filePath": "repomix-output.md",
+        "style": "markdown",
+        "filePathStyle": "cwd-relative",
+        "headerText": "Summaryception implementation context for AI review. Includes extension runtime files, source modules, tests, type globals, and project automation. Excludes docs, lockfiles, generated reports, and Repomix output.",
+        "fileSummary": true,
+        "directoryStructure": true,
+        "files": true,
+        "compress": false,
+        "removeComments": false,
+        "removeEmptyLines": false,
+        "showLineNumbers": false,
+        "topFilesLength": 10,
+        "tokenCountTree": true,
+        "git": {
+            "sortByChanges": true,
+            "includeDiffs": false,
+            "includeLogs": false
+        }
+    },
+    "include": [
+        "index.js",
+        "manifest.json",
+        "settings.html",
+        "style.css",
+        "src/**/*.js",
+        "tests/**/*.js",
+        "types/**/*.d.ts",
+        "scripts/**/*.js",
+        "eslint.config.js",
+        "vitest.config.js",
+        "tsconfig.json",
+        "knip.json",
+        "jscpd.json",
+        "repomix.config.json",
+        "package.json",
+        ".prettierrc.json",
+        ".prettierignore",
+        ".github/workflows/**/*.yml",
+        ".husky/*"
+    ],
+    "ignore": {
+        "useGitignore": true,
+        "useDefaultPatterns": true,
+        "customPatterns": [
+            "docs/**",
+            "README.md",
+            "LICENSE",
+            ".gitignore",
+            "package-lock.json",
+            "coverage/**",
+            "report/**",
+            "repomix-output*"
+        ]
+    },
+    "security": {
+        "enableSecurityCheck": true
+    },
+    "tokenCount": {
+        "encoding": "o200k_base"
+    }
+}

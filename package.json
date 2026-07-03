@@ -16,6 +16,7 @@
         "format:check": "prettier --check .",
         "knip": "knip",
         "jscpd": "jscpd --config jscpd.json src",
+        "repomix": "repomix",
         "prepare": "husky"
     },
     "lint-staged": {
@@ -52,6 +53,7 @@
         "knip": "^6.24.0",
         "lint-staged": "^17.0.8",
         "prettier": "^3.9.4",
+        "repomix": "^1.16.0",
         "typescript": "^6.0.3",
         "vitest": "^3.2.6"
     }
