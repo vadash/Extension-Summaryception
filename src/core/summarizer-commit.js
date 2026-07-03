@@ -107,7 +107,11 @@ export async function endForegroundGeneration() {
     }
 
     foregroundFrozen = false;
-    log('Foreground generation ended; flushing pending Summaryception commits.');
+    log(
+        'Foreground generation ended; flushing pending Summaryception commits.',
+        `commits=${pendingCommits.length}`,
+        `effects=${pendingPromptEffects.length}`,
+    );
     await flushPendingCommits();
     await flushPendingPromptEffects();
 }
@@ -120,7 +124,7 @@ export async function endForegroundGeneration() {
 export async function commitWhenSafe(commit) {
     if (foregroundFrozen) {
         pendingCommits.push(commit);
-        trace(`Queued ${commit.kind} commit while foreground generation is active.`);
+        log(`Queued ${commit.kind} commit while foreground generation is active.`);
         return 'queued';
     }
 

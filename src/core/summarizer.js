@@ -17,6 +17,14 @@ export { callSummarizer, hasActiveAbortController } from './summarizer-request.j
 export { summarizeOneBatchFromTurns } from './summarizer-batch.js';
 export { maybePromoteLayer } from './summarizer-promotion.js';
 
+/**
+ * Check whether Summaryception is currently deferring prompt mutations.
+ * @returns {boolean}
+ */
+export function hasFrozenPromptMutations() {
+    return isPromptMutationFrozen();
+}
+
 let uiUpdater = null;
 
 /**

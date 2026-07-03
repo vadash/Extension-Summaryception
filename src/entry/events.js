@@ -5,6 +5,7 @@ import {
     beginForegroundGeneration,
     endForegroundGeneration,
     hasActiveAbortController,
+    hasFrozenPromptMutations,
     maybeSummarizeTurns,
     resetCatchupDismissed,
 } from '../core/summarizer.js';
@@ -58,8 +59,10 @@ export async function onAppReady() {
  */
 export function onGenerationStarted() {
     if (hasActiveAbortController()) {
+        log('Ignoring generation start from active Summaryception request.');
         return;
     }
+    log('Foreground generation start detected; freezing Summaryception prompt mutations.');
     beginForegroundGeneration();
 }
 
@@ -67,9 +70,19 @@ export function onGenerationStarted() {
  *
  */
 export function onGenerationEnded() {
-    if (hasActiveAbortController()) {
+    const hasActiveSummaryRequest = hasActiveAbortController();
+    const hasFrozenMutations = hasFrozenPromptMutations();
+
+    if (hasActiveSummaryRequest && !hasFrozenMutations) {
+        log('Ignoring generation end from active Summaryception request.');
         return;
     }
+
+    log(
+        'Generation end detected; flushing Summaryception prompt mutations.',
+        `activeSummaryRequest=${hasActiveSummaryRequest}`,
+        `frozen=${hasFrozenMutations}`,
+    );
     void endForegroundGeneration().then(() => {
         updateInjection();
         updateUI();
