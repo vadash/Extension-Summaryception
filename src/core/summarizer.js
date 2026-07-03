@@ -223,6 +223,8 @@ async function drainAutoWork() {
  * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
  */
 async function runAutoWorkerCycle() {
+    await recoverStalePromptFreeze('auto worker');
+
     if (shouldStopAutoWorker()) {
         return 'blocked';
     }
@@ -353,6 +355,17 @@ export async function runCatchup(visibleTurns, overflow) {
     trace('>>> ENTERING runCatchup');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
     trace('  overflow:', overflow);
+
+    await recoverStalePromptFreeze('manual catch-up');
+
+    if (shouldStopAutoWorker()) {
+        toastr.warning(
+            'Foreground generation is active. Try Force Summarize again after the response finishes.',
+            'Summaryception',
+            { timeOut: 5000 },
+        );
+        return;
+    }
 
     const s = getSettings();
     const totalBatches = Math.ceil(overflow / s.turnsPerSummary);
@@ -556,4 +569,40 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
             resolve(/** @type {string} */ ('partial'));
         });
     });
+}
+
+/**
+ * Clear a stale foreground freeze when SillyTavern is no longer generating.
+ * @param {string} reason - Context for debug logging
+ * @returns {Promise<boolean>} True when stale guard state was cleared
+ */
+async function recoverStalePromptFreeze(reason) {
+    if (!isPromptMutationFrozen() || isForegroundGenerationActive()) {
+        return false;
+    }
+
+    log(`Recovering stale foreground generation freeze before ${reason}.`);
+    await endCommitFreeze();
+    refreshUI();
+    return true;
+}
+
+/**
+ * Best-effort check for an active SillyTavern foreground generation.
+ * @returns {boolean}
+ */
+function isForegroundGenerationActive() {
+    const ctx = /** @type {{ streamingProcessor?: { isFinished?: boolean } }} */ (
+        SillyTavern.getContext()
+    );
+    if (ctx.streamingProcessor && ctx.streamingProcessor.isFinished === false) {
+        return true;
+    }
+
+    try {
+        const stopButton = $('#mes_stop');
+        return stopButton.length > 0 && stopButton.css('display') !== 'none';
+    } catch (_e) {
+        return false;
+    }
 }
