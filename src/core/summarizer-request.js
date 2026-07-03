@@ -1,10 +1,11 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { sendSummarizerRequest } from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
-import { log, trace } from '../foundation/logger.js';
+import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
 import { cleanSummarizerOutput } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
+import { countTextTokens, formatTokenCount } from './token-count.js';
 
 let currentAbortController = null;
 
@@ -36,8 +37,7 @@ export function abortCurrentSummarizerRequest() {
  */
 export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     trace('>>> ENTERING callSummarizer');
-    trace('  storyTxt length:', storyTxt?.length ?? 'UNDEFINED');
-    trace('  contextStr length:', contextStr?.length ?? 'UNDEFINED');
+    await traceSummarizerInputTokens(storyTxt, contextStr);
 
     const s = getSettings();
     trace('  settings loaded:', {
@@ -139,11 +139,7 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
             log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
         }
 
-        trace('  About to call sendSummarizerRequest with:', {
-            connectionSource: s.connectionSource,
-            summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
-            promptLength: prompt.length,
-        });
+        await traceSummarizerRequest({ s, prompt });
 
         const result = await Promise.race([
             sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt),
@@ -172,6 +168,46 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
     } catch (err) {
         return classifyAttemptError(err, signal);
     }
+}
+
+/**
+ * Trace token counts for summarizer input text.
+ * @param {string} storyTxt - Story text
+ * @param {string} contextStr - Context text
+ * @returns {Promise<void>}
+ */
+async function traceSummarizerInputTokens(storyTxt, contextStr) {
+    if (!isTraceEnabled()) {
+        return;
+    }
+
+    const [storyTokens, contextTokens] = await Promise.all([
+        countTextTokens(storyTxt || ''),
+        countTextTokens(contextStr || ''),
+    ]);
+
+    trace('  storyTxt tokens:', formatTokenCount(storyTokens));
+    trace('  contextStr tokens:', formatTokenCount(contextTokens));
+}
+
+/**
+ * Trace the summarizer request metadata.
+ * @param {object} p
+ * @param {object} p.s - Settings
+ * @param {string} p.prompt - Fully substituted user prompt
+ * @returns {Promise<void>}
+ */
+async function traceSummarizerRequest({ s, prompt }) {
+    if (!isTraceEnabled()) {
+        return;
+    }
+
+    const promptTokens = await countTextTokens(prompt);
+    trace('  About to call sendSummarizerRequest with:', {
+        connectionSource: s.connectionSource,
+        summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
+        promptTokens: formatTokenCount(promptTokens),
+    });
 }
 
 /**

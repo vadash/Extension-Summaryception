@@ -10,10 +10,27 @@ function getDebugSettings() {
 }
 
 /**
+ * Check whether debug logging is enabled.
+ * @returns {boolean}
+ */
+export function isDebugEnabled() {
+    return Boolean(getDebugSettings().debugMode);
+}
+
+/**
+ * Check whether trace logging is enabled.
+ * @returns {boolean}
+ */
+export function isTraceEnabled() {
+    const s = getDebugSettings();
+    return Boolean(s.debugMode && s.traceMode);
+}
+
+/**
  *
  */
 export function log(...args) {
-    if (getDebugSettings().debugMode) {
+    if (isDebugEnabled()) {
         console.log(LOG_PREFIX, ...args);
     }
 }
@@ -22,8 +39,7 @@ export function log(...args) {
  *
  */
 export function trace(...args) {
-    const s = getDebugSettings();
-    if (s.debugMode && s.traceMode) {
+    if (isTraceEnabled()) {
         const normalized = args.map((arg, idx) =>
             idx === 0 && typeof arg === 'string' ? arg.toUpperCase() : arg,
         );

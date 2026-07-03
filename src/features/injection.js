@@ -1,7 +1,8 @@
 import { MODULE_NAME } from '../foundation/constants.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
-import { log } from '../foundation/logger.js';
+import { isDebugEnabled, log } from '../foundation/logger.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
+import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 
@@ -68,7 +69,7 @@ export function updateInjection() {
         setExtensionPrompt(MODULE_NAME, nextInjection, 0, 0, false, 0);
         _lastInjected = nextInjection;
 
-        log(`Injection updated: ${nextInjection.length} chars`);
+        queueInjectionTokenLog('Injection updated', nextInjection);
     } catch (e) {
         log('updateInjection error:', e);
     }
@@ -87,7 +88,7 @@ export function reassertInjectionSnapshot() {
 
         setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot, 0, 0, false, 0);
         _lastInjected = _activeInjectionSnapshot;
-        log(`Injection snapshot reasserted: ${_activeInjectionSnapshot.length} chars`);
+        queueInjectionTokenLog('Injection snapshot reasserted', _activeInjectionSnapshot);
     } catch (e) {
         log('reassertInjectionSnapshot error:', e);
     }
@@ -103,4 +104,32 @@ function buildEnabledInjectionText() {
         return '';
     }
     return assembleSummaryBlock() || '';
+}
+
+/**
+ * Queue a best-effort token diagnostic without delaying prompt updates.
+ * @param {string} label - Log message prefix
+ * @param {string} text - Injection text
+ * @returns {void}
+ */
+function queueInjectionTokenLog(label, text) {
+    if (!isDebugEnabled()) {
+        return;
+    }
+    void logInjectionTokenCount(label, text);
+}
+
+/**
+ * Count and log injection tokens.
+ * @param {string} label - Log message prefix
+ * @param {string} text - Injection text
+ * @returns {Promise<void>}
+ */
+async function logInjectionTokenCount(label, text) {
+    try {
+        const tokenCount = await countTextTokens(text);
+        log(`${label}: ${formatTokenCount(tokenCount)} tokens`);
+    } catch (e) {
+        log(`${label}: ? tokens`, e);
+    }
 }

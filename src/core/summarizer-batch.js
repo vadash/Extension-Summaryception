@@ -1,11 +1,12 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
-import { log, trace } from '../foundation/logger.js';
+import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
+import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
     fingerprintSourceRange,
     fingerprintSummaryStore,
@@ -143,17 +144,13 @@ async function summarizeBatchSafely(p) {
  */
 async function performBatchSummary({ batch, chat, store, passageStart, endIdx, opts }) {
     const snapshot = await captureLayer0Snapshot({ chat, store, passageStart, endIdx });
-    trace(
-        '  storyTxt length:',
-        snapshot.passageText?.length ?? 'UNDEFINED',
-        'after regex (was ' + snapshot.passageStats.rawChars + ' raw)',
-    );
+    tracePassageTokens(snapshot);
     if (!snapshot.passageText.trim()) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
         return false;
     }
 
-    trace('  contextStr length:', snapshot.contextText?.length ?? 'UNDEFINED');
+    await traceTextTokens('  contextStr tokens:', snapshot.contextText);
 
     showBatchToast(batch.length, opts.showToasts);
 
@@ -164,7 +161,7 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
         assistantTurnCount: batch.length,
         regexStats: snapshot.passageStats,
     });
-    trace('  summary length:', summary?.length ?? 'UNDEFINED');
+    await traceTextTokens('  summary tokens:', summary || '');
 
     if (!summary) {
         log('Summarization failed for batch, leaving turns intact for next attempt.');
@@ -185,6 +182,42 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
 
     trace(`<<< EXITING summarizeBatchFromTurns - ${result.toUpperCase()}`);
     return result !== 'stale';
+}
+
+/**
+ * Trace token stats for the passage sent to the summarizer.
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot - Job snapshot
+ * @returns {void}
+ */
+function tracePassageTokens(snapshot) {
+    if (!isTraceEnabled()) {
+        return;
+    }
+
+    const stats = snapshot.passageStats;
+    trace(
+        '  storyTxt tokens:',
+        formatTokenValue(stats.finalTokens, stats.finalTokensEstimated),
+        `after regex (was ${formatTokenValue(
+            stats.rawTokens,
+            stats.rawTokensEstimated,
+        )} raw tokens)`,
+    );
+}
+
+/**
+ * Trace token count for one text value.
+ * @param {string} label - Trace label
+ * @param {string} text - Text to count
+ * @returns {Promise<void>}
+ */
+async function traceTextTokens(label, text) {
+    if (!isTraceEnabled()) {
+        return;
+    }
+
+    const tokenCount = await countTextTokens(text || '');
+    trace(label, formatTokenCount(tokenCount));
 }
 
 /**

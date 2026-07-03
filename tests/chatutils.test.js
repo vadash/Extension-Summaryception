@@ -14,6 +14,11 @@ beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: false });
     vi.mocked(applyRegexToMessage).mockImplementation(async (text) => text);
+    globalThis.SillyTavern = {
+        getContext: () => ({
+            getTokenCountAsync: vi.fn(async (text) => countTokens(text)),
+        }),
+    };
 });
 
 import { getSettings } from '../src/foundation/state.js';
@@ -42,6 +47,11 @@ function msg({
         name,
         extra: ghosted ? { sc_ghosted: true } : {},
     };
+}
+
+function countTokens(text) {
+    const trimmed = String(text || '').trim();
+    return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
 describe('getAssistantTurns', () => {
@@ -107,53 +117,63 @@ describe('buildPassageFromRange', () => {
 });
 
 describe('buildPassageFromRangeWithStats', () => {
-    it('reports matching raw and final chars when regex is off', async () => {
+    it('reports matching raw and final tokens when regex is off', async () => {
         const chat = [msg({ isUser: true, mes: 'go north' }), msg({ mes: 'You enter.' })];
         const result = await buildPassageFromRangeWithStats(chat, 0, 1);
 
         expect(result.text).toBe(['Player: go north', 'Assistant: You enter.'].join('\n'));
         expect(result.stats).toEqual({
-            rawChars: result.text.length,
-            finalChars: result.text.length,
-            savedChars: 0,
+            rawTokens: countTokens(result.text),
+            finalTokens: countTokens(result.text),
+            savedTokens: 0,
             savedPercent: 0,
+            rawTokensEstimated: false,
+            finalTokensEstimated: false,
+            savedTokensEstimated: false,
             changedMessageCount: 0,
         });
         expect(applyRegexToMessage).not.toHaveBeenCalled();
     });
 
-    it('reports saved chars when regex shrinks rendered text', async () => {
+    it('reports saved tokens when regex shrinks rendered text', async () => {
         vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('visible');
 
         const chat = [msg({ mes: 'visible hidden' })];
         const result = await buildPassageFromRangeWithStats(chat, 0, 0);
+        const rawTokens = countTokens('Assistant: visible hidden');
+        const finalTokens = countTokens('Assistant: visible');
+        const savedTokens = rawTokens - finalTokens;
 
         expect(result.text).toBe('Assistant: visible');
-        expect(result.stats.rawChars).toBe('Assistant: visible hidden'.length);
-        expect(result.stats.finalChars).toBe('Assistant: visible'.length);
-        expect(result.stats.savedChars).toBe(' hidden'.length);
-        expect(result.stats.savedPercent).toBeCloseTo(
-            (' hidden'.length / 'Assistant: visible hidden'.length) * 100,
-        );
+        expect(result.stats.rawTokens).toBe(rawTokens);
+        expect(result.stats.finalTokens).toBe(finalTokens);
+        expect(result.stats.savedTokens).toBe(savedTokens);
+        expect(result.stats.savedPercent).toBeCloseTo((savedTokens / rawTokens) * 100);
+        expect(result.stats.rawTokensEstimated).toBe(false);
+        expect(result.stats.finalTokensEstimated).toBe(false);
+        expect(result.stats.savedTokensEstimated).toBe(false);
         expect(result.stats.changedMessageCount).toBe(1);
     });
 
-    it('reports negative saved chars when regex expands rendered text', async () => {
+    it('reports negative saved tokens when regex expands rendered text', async () => {
         vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('short expanded');
-        const expandedChars = ' expanded'.length;
 
         const chat = [msg({ mes: 'short' })];
         const result = await buildPassageFromRangeWithStats(chat, 0, 0);
+        const rawTokens = countTokens('Assistant: short');
+        const finalTokens = countTokens('Assistant: short expanded');
+        const savedTokens = rawTokens - finalTokens;
 
         expect(result.text).toBe('Assistant: short expanded');
-        expect(result.stats.rawChars).toBe('Assistant: short'.length);
-        expect(result.stats.finalChars).toBe('Assistant: short expanded'.length);
-        expect(result.stats.savedChars).toBe(-expandedChars);
-        expect(result.stats.savedPercent).toBeCloseTo(
-            (-expandedChars / 'Assistant: short'.length) * 100,
-        );
+        expect(result.stats.rawTokens).toBe(rawTokens);
+        expect(result.stats.finalTokens).toBe(finalTokens);
+        expect(result.stats.savedTokens).toBe(savedTokens);
+        expect(result.stats.savedPercent).toBeCloseTo((savedTokens / rawTokens) * 100);
+        expect(result.stats.rawTokensEstimated).toBe(false);
+        expect(result.stats.finalTokensEstimated).toBe(false);
+        expect(result.stats.savedTokensEstimated).toBe(false);
         expect(result.stats.changedMessageCount).toBe(1);
     });
 });

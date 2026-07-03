@@ -53,10 +53,13 @@ describe('summarizer usage logging', () => {
             sourceRange: [0, 2],
             assistantTurnCount: 2,
             regexStats: {
-                rawChars: 30,
-                finalChars: 20,
-                savedChars: 10,
+                rawTokens: 30,
+                finalTokens: 20,
+                savedTokens: 10,
                 savedPercent: 33.333,
+                rawTokensEstimated: false,
+                finalTokensEstimated: false,
+                savedTokensEstimated: false,
                 changedMessageCount: 1,
             },
         });
@@ -71,8 +74,37 @@ describe('summarizer usage logging', () => {
         const usageLog = consoleLogSpy.mock.calls.find((call) =>
             call[1]?.includes('LLM call layer0 turns 0-2'),
         );
-        expect(usageLog?.[1]).toContain('regex chars 30->20');
+        expect(usageLog?.[1]).toContain('regex tokens 30->20');
         expect(usageLog?.[1]).toContain('tokens prompt=12 completion=4 total=16');
+    });
+
+    it('marks fallback token estimates when the tokenizer is unavailable', async () => {
+        installSillyTavernStub({
+            settings: {
+                debugMode: true,
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('fallback summary');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+        const summary = await callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceRange: [0, 2],
+            assistantTurnCount: 2,
+        });
+
+        expect(summary).toBe('fallback summary');
+
+        const usageLog = consoleLogSpy.mock.calls.find((call) =>
+            call[1]?.includes('LLM call layer0 turns 0-2'),
+        );
+        expect(usageLog?.[1]).toContain('tokens prompt=~');
+        expect(usageLog?.[1]).toContain('completion=~');
+        expect(usageLog?.[1]).toContain('total=~');
+        expect(usageLog?.[1]).not.toContain('chars');
     });
 
     it('logs the max-token call once when a usage run ends', async () => {

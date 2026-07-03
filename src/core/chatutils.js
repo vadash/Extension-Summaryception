@@ -1,5 +1,6 @@
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
+import { countTextTokens } from './token-count.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
@@ -62,21 +63,24 @@ function getPromptDepthsByChatIndex(chat) {
 
 /**
  * @typedef {object} PassageRegexStats
- * @property {number} rawChars - Rendered passage chars before regex scripts
- * @property {number} finalChars - Rendered passage chars after regex scripts
- * @property {number} savedChars - Raw chars minus final chars
- * @property {number} savedPercent - Percent of raw chars removed by regex scripts
+ * @property {number} rawTokens - Rendered passage tokens before regex scripts
+ * @property {number} finalTokens - Rendered passage tokens after regex scripts
+ * @property {number} savedTokens - Raw tokens minus final tokens
+ * @property {number} savedPercent - Percent of raw tokens removed by regex scripts
+ * @property {boolean} rawTokensEstimated - Whether rawTokens came from fallback estimation
+ * @property {boolean} finalTokensEstimated - Whether finalTokens came from fallback estimation
+ * @property {boolean} savedTokensEstimated - Whether savedTokens includes fallback estimation
  * @property {number} changedMessageCount - Number of messages changed by regex scripts
  */
 
 /**
  * @typedef {object} PassageWithStats
  * @property {string} text - Rendered passage text after regex scripts
- * @property {PassageRegexStats} stats - Exact passage character stats
+ * @property {PassageRegexStats} stats - Passage token stats
  */
 
 /**
- * Build passage text and exact regex stats from a range of chat messages.
+ * Build passage text and regex token stats from a range of chat messages.
  * Skips messages that are hidden (by user or system) UNLESS they were
  * hidden by Summaryception (sc_ghosted). Also skips empty messages.
  * @param {Array} chat
@@ -124,15 +128,22 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
 
     const rawText = rawLines.join('\n');
     const finalText = finalLines.join('\n');
-    const savedChars = rawText.length - finalText.length;
+    const [rawTokenCount, finalTokenCount] = await Promise.all([
+        countTextTokens(rawText),
+        countTextTokens(finalText),
+    ]);
+    const savedTokens = rawTokenCount.count - finalTokenCount.count;
 
     return {
         text: finalText,
         stats: {
-            rawChars: rawText.length,
-            finalChars: finalText.length,
-            savedChars,
-            savedPercent: rawText.length > 0 ? (savedChars / rawText.length) * 100 : 0,
+            rawTokens: rawTokenCount.count,
+            finalTokens: finalTokenCount.count,
+            savedTokens,
+            savedPercent: rawTokenCount.count > 0 ? (savedTokens / rawTokenCount.count) * 100 : 0,
+            rawTokensEstimated: rawTokenCount.estimated,
+            finalTokensEstimated: finalTokenCount.estimated,
+            savedTokensEstimated: rawTokenCount.estimated || finalTokenCount.estimated,
             changedMessageCount,
         },
     };

@@ -1,4 +1,5 @@
 import { log } from '../foundation/logger.js';
+import { countTextTokens, formatTokenValue } from './token-count.js';
 
 /**
  * @typedef {import('./chatutils.js').PassageRegexStats} PassageRegexStats
@@ -19,6 +20,9 @@ import { log } from '../foundation/logger.js';
  * @property {number | null} promptTokens - Estimated prompt tokens
  * @property {number | null} completionTokens - Estimated completion tokens
  * @property {number | null} totalTokens - Estimated total tokens
+ * @property {boolean} promptTokensEstimated - Whether promptTokens came from fallback estimation
+ * @property {boolean} completionTokensEstimated - Whether completionTokens came from fallback estimation
+ * @property {boolean} totalTokensEstimated - Whether totalTokens includes fallback estimation
  */
 
 /**
@@ -27,6 +31,9 @@ import { log } from '../foundation/logger.js';
  * @property {number | null} promptTokens - Estimated prompt tokens
  * @property {number | null} completionTokens - Estimated completion tokens
  * @property {number | null} totalTokens - Estimated total tokens
+ * @property {boolean} [promptTokensEstimated] - Whether promptTokens came from fallback estimation
+ * @property {boolean} [completionTokensEstimated] - Whether completionTokens came from fallback estimation
+ * @property {boolean} [totalTokensEstimated] - Whether totalTokens includes fallback estimation
  */
 
 /**
@@ -105,18 +112,20 @@ export async function withUsageRun(label, callback) {
  * @returns {Promise<SummarizerTokenUsage>}
  */
 export async function estimateSummarizerUsage(systemPrompt, userPrompt, completionText) {
-    const [promptTokens, completionTokens] = await Promise.all([
-        estimateTextTokens(`${systemPrompt || ''}\n${userPrompt || ''}`),
-        estimateTextTokens(completionText || ''),
+    const [promptTokenCount, completionTokenCount] = await Promise.all([
+        countTextTokens(`${systemPrompt || ''}\n${userPrompt || ''}`),
+        countTextTokens(completionText || ''),
     ]);
+    const totalTokens = promptTokenCount.count + completionTokenCount.count;
+    const totalTokensEstimated = promptTokenCount.estimated || completionTokenCount.estimated;
 
     return {
-        promptTokens,
-        completionTokens,
-        totalTokens:
-            promptTokens === null || completionTokens === null
-                ? null
-                : promptTokens + completionTokens,
+        promptTokens: promptTokenCount.count,
+        completionTokens: completionTokenCount.count,
+        totalTokens,
+        promptTokensEstimated: promptTokenCount.estimated,
+        completionTokensEstimated: completionTokenCount.estimated,
+        totalTokensEstimated,
     };
 }
 
@@ -136,35 +145,6 @@ export function recordSummarizerUsage(usage) {
 
     logEntry ||= { ...usage, callNumber: 0 };
     log(formatCallUsageLine(logEntry));
-}
-
-/**
- * Count tokens for one text string using the active SillyTavern tokenizer.
- * @param {string} text - Text to estimate
- * @returns {Promise<number | null>}
- */
-async function estimateTextTokens(text) {
-    try {
-        const tokenCounter = SillyTavern.getContext().getTokenCountAsync;
-        if (typeof tokenCounter !== 'function') {
-            return null;
-        }
-        return normalizeTokenCount(await tokenCounter(text));
-    } catch (_e) {
-        return null;
-    }
-}
-
-/**
- * Normalize tokenizer output to a non-negative integer.
- * @param {unknown} count - Token count returned by SillyTavern
- * @returns {number | null}
- */
-function normalizeTokenCount(count) {
-    if (typeof count !== 'number' || !Number.isFinite(count)) {
-        return null;
-    }
-    return Math.max(0, Math.ceil(count));
 }
 
 /**
@@ -207,9 +187,18 @@ function logRunMax(run) {
 
     log(
         `LLM run ${run.label} max call: #${maxCall.callNumber} ` +
-            `${describeCall(maxCall.metadata)} total=${formatTokenCount(maxCall.totalTokens)} ` +
-            `tokens (prompt=${formatTokenCount(maxCall.promptTokens)}, ` +
-            `completion=${formatTokenCount(maxCall.completionTokens)})`,
+            `${describeCall(maxCall.metadata)} total=${formatUsageTokenCount(
+                maxCall.totalTokens,
+                isTotalEstimated(maxCall),
+            )} ` +
+            `tokens (prompt=${formatUsageTokenCount(
+                maxCall.promptTokens,
+                maxCall.promptTokensEstimated,
+            )}, ` +
+            `completion=${formatUsageTokenCount(
+                maxCall.completionTokens,
+                maxCall.completionTokensEstimated,
+            )})`,
     );
 }
 
@@ -238,9 +227,15 @@ function formatCallUsageLine(entry) {
     const statsPart = stats ? `${stats}; ` : '';
     return (
         `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
-        `${statsPart}tokens prompt=${formatTokenCount(entry.promptTokens)} ` +
-        `completion=${formatTokenCount(entry.completionTokens)} ` +
-        `total=${formatTokenCount(entry.totalTokens)}`
+        `${statsPart}tokens prompt=${formatUsageTokenCount(
+            entry.promptTokens,
+            entry.promptTokensEstimated,
+        )} ` +
+        `completion=${formatUsageTokenCount(
+            entry.completionTokens,
+            entry.completionTokensEstimated,
+        )} ` +
+        `total=${formatUsageTokenCount(entry.totalTokens, isTotalEstimated(entry))}`
     );
 }
 
@@ -274,8 +269,9 @@ function formatRegexStats(stats) {
         return '';
     }
     return (
-        `regex chars ${stats.rawChars}->${stats.finalChars}, ` +
-        `saved=${formatNumber(stats.savedChars)} ` +
+        `regex tokens ${formatTokenValue(stats.rawTokens, stats.rawTokensEstimated)}->` +
+        `${formatTokenValue(stats.finalTokens, stats.finalTokensEstimated)}, ` +
+        `saved=${formatTokenValue(stats.savedTokens, stats.savedTokensEstimated)} ` +
         `(${formatNumber(stats.savedPercent, 1)}%), ` +
         `changed=${stats.changedMessageCount}`
     );
@@ -284,10 +280,24 @@ function formatRegexStats(stats) {
 /**
  * Format an optional token count.
  * @param {number | null | undefined} count - Token count
+ * @param {boolean} [estimated] - Whether the count came from fallback estimation
  * @returns {string}
  */
-function formatTokenCount(count) {
-    return typeof count === 'number' && Number.isFinite(count) ? String(count) : '?';
+function formatUsageTokenCount(count, estimated = false) {
+    return formatTokenValue(count, estimated);
+}
+
+/**
+ * Check whether a total token count includes estimated values.
+ * @param {SummarizerUsageInput} entry - Usage entry
+ * @returns {boolean}
+ */
+function isTotalEstimated(entry) {
+    return Boolean(
+        entry.totalTokensEstimated ||
+        entry.promptTokensEstimated ||
+        entry.completionTokensEstimated,
+    );
 }
 
 /**
