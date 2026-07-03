@@ -391,18 +391,8 @@ export async function runCatchup(visibleTurns, overflow) {
         while (!cancelled) {
             trace(`  Loop iteration - completed: ${completed}, failed: ${failed}`);
 
-            const { chat } = SillyTavern.getContext();
-            const allAssistantTurns = getAssistantTurns(chat);
-            const currentVisible = allAssistantTurns.filter(
-                (t) => !chat[t.index].extra?.sc_ghosted,
-            );
-
-            trace(
-                `  currentVisible turns: ${currentVisible.length}, verbatimTurns limit: ${s.verbatimTurns}`,
-            );
-
-            if (currentVisible.length <= s.verbatimTurns) {
-                trace('  Visible turns now within limit, breaking');
+            const currentVisible = getCatchupVisibleTurns(s);
+            if (!currentVisible) {
                 break;
             }
 
@@ -447,6 +437,28 @@ export async function runCatchup(visibleTurns, overflow) {
     } finally {
         manualSummarizing = false;
     }
+}
+
+/**
+ * Get the latest visible assistant turns for catch-up, or null when complete.
+ * @param {object} s - Settings
+ * @returns {Array<Record<string, unknown>> | null}
+ */
+function getCatchupVisibleTurns(s) {
+    const { chat } = SillyTavern.getContext();
+    const allAssistantTurns = getAssistantTurns(chat);
+    const currentVisible = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
+
+    trace(
+        `  currentVisible turns: ${currentVisible.length}, verbatimTurns limit: ${s.verbatimTurns}`,
+    );
+
+    if (currentVisible.length <= s.verbatimTurns) {
+        trace('  Visible turns now within limit, breaking');
+        return null;
+    }
+
+    return currentVisible;
 }
 
 /**
