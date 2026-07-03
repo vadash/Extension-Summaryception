@@ -4,6 +4,7 @@ import { repairIfBranched, repairMissingGhostingForSummaries } from '../core/gho
 import {
     beginForegroundGeneration,
     endForegroundGeneration,
+    hasActiveAbortController,
     maybeSummarizeTurns,
     resetCatchupDismissed,
 } from '../core/summarizer.js';
@@ -56,6 +57,9 @@ export async function onAppReady() {
  *
  */
 export function onGenerationStarted() {
+    if (hasActiveAbortController()) {
+        return;
+    }
     beginForegroundGeneration();
 }
 
@@ -63,6 +67,9 @@ export function onGenerationStarted() {
  *
  */
 export function onGenerationEnded() {
+    if (hasActiveAbortController()) {
+        return;
+    }
     void endForegroundGeneration().then(() => {
         updateInjection();
         updateUI();

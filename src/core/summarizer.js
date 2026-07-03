@@ -399,6 +399,10 @@ export async function runCatchup(visibleTurns, overflow) {
                 trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
                 completed++;
                 consecutiveFailures = 0;
+                if (shouldStopAutoWorker()) {
+                    trace('  Prompt mutation queued; pausing catch-up until it flushes');
+                    break;
+                }
             } else {
                 trace('  >>> summarizeOneBatchFromTurns returned FAILURE');
                 failed++;
