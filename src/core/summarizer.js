@@ -356,14 +356,7 @@ export async function runCatchup(visibleTurns, overflow) {
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
     trace('  overflow:', overflow);
 
-    await recoverStalePromptFreeze('manual catch-up');
-
-    if (shouldStopAutoWorker()) {
-        toastr.warning(
-            'Foreground generation is active. Try Force Summarize again after the response finishes.',
-            'Summaryception',
-            { timeOut: 5000 },
-        );
+    if (!(await prepareCatchupRun())) {
         return;
     }
 
@@ -585,6 +578,25 @@ async function recoverStalePromptFreeze(reason) {
     await endCommitFreeze();
     refreshUI();
     return true;
+}
+
+/**
+ * Recover stale guard state and block catch-up during a real foreground generation.
+ * @returns {Promise<boolean>} True when catch-up may proceed
+ */
+async function prepareCatchupRun() {
+    await recoverStalePromptFreeze('manual catch-up');
+
+    if (!shouldStopAutoWorker()) {
+        return true;
+    }
+
+    toastr.warning(
+        'Foreground generation is active. Try Force Summarize again after the response finishes.',
+        'Summaryception',
+        { timeOut: 5000 },
+    );
+    return false;
 }
 
 /**
