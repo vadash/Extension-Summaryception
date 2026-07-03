@@ -310,6 +310,8 @@ v6.08 - make it more reliable when you type while ext summarize in background
 
 v6.10 - UI rework
 
+v6.21 - faster hide
+
 For more info check commits and docs folder
 
 ---
