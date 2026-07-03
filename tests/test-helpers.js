@@ -38,10 +38,18 @@ export function makeMessage({
  * @param {Object} [opts]
  * @param {Array<Record<string, unknown>>} [opts.chat]
  * @param {Object} [opts.metadata]
- * * @param {Object} [opts.settings]
+ * @param {Object} [opts.settings]
+ * @param {Function} [opts.executeSlashCommandsWithOptions]
+ * @param {Function} [opts.setExtensionPrompt]
  * @returns {Record<string, unknown>}
  */
-export function makeContext({ chat = [], metadata = {}, settings = {} } = {}) {
+export function makeContext({
+    chat = [],
+    metadata = {},
+    settings = {},
+    executeSlashCommandsWithOptions = async () => {},
+    setExtensionPrompt = () => {},
+} = {}) {
     return {
         chat,
         chatMetadata: metadata,
@@ -49,6 +57,8 @@ export function makeContext({ chat = [], metadata = {}, settings = {} } = {}) {
         name1: 'Player1',
         saveSettingsDebounced: () => {},
         saveMetadata: async () => {},
+        executeSlashCommandsWithOptions,
+        setExtensionPrompt,
     };
 }
 

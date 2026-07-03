@@ -5,11 +5,7 @@ import { ghostMessage, ghostMessagesUpTo } from './ghosting.js';
 import { buildPassageFromRange, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
-import {
-    commitWhenSafe,
-    isPromptMutationFrozen,
-    updateCommittedInjection,
-} from './summarizer-commit.js';
+import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
 import {
     fingerprintSourceRange,
     fingerprintSummaryStore,
@@ -240,10 +236,8 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
     await saveChatStore();
-    updateCommittedInjection();
-    if (!isPromptMutationFrozen()) {
-        await ghostMessagesUpTo(endIdx);
-    }
+    await updateCommittedInjection();
+    await ghostMessagesUpTo(endIdx);
     await persistChatState();
 
     log(`Layer 0 now has ${store.layers[0].length} snippets`);

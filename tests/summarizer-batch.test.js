@@ -86,4 +86,72 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
             ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
         });
     });
+
+    it('defers prompt effects for a completed summary while foreground generation is frozen', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
+            settings: {
+                enabled: true,
+                applyRegexScripts: false,
+                turnsPerSummary: 1,
+                verbatimTurns: 0,
+            },
+        });
+        ctx.chatId = 'chat-a';
+        mocks.callSummarizer.mockResolvedValue('new summary');
+
+        const {
+            beginForegroundGeneration,
+            endForegroundGeneration,
+            getPendingCommitCount,
+            resetCommitStateForTests,
+            setCommitCallbacks,
+        } = await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+        const updateInjection = vi.fn();
+        setCommitCallbacks({ updateInjection });
+
+        const { summarizeBatchFromTurns } = await import('../src/core/summarizer-batch.js');
+        beginForegroundGeneration();
+        const success = await summarizeBatchFromTurns([{ index: 0, mes: 'source turn' }]);
+
+        expect(success).toBe(true);
+        expect(getPendingCommitCount()).toBe(1);
+        expect(updateInjection).not.toHaveBeenCalled();
+        expect(mocks.ghostMessagesUpTo).not.toHaveBeenCalled();
+
+        await endForegroundGeneration();
+
+        expect(updateInjection).toHaveBeenCalledTimes(1);
+        expect(mocks.ghostMessagesUpTo).toHaveBeenCalledWith(0);
+    });
+
+    it('discards a deferred result when summary layers change before unfreeze', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
+            settings: {
+                enabled: true,
+                applyRegexScripts: false,
+                turnsPerSummary: 1,
+                verbatimTurns: 0,
+            },
+        });
+        ctx.chatId = 'chat-a';
+        mocks.callSummarizer.mockResolvedValue('new summary');
+
+        const { beginForegroundGeneration, endForegroundGeneration, resetCommitStateForTests } =
+            await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+
+        const { summarizeBatchFromTurns } = await import('../src/core/summarizer-batch.js');
+        beginForegroundGeneration();
+        await summarizeBatchFromTurns([{ index: 0, mes: 'source turn' }]);
+
+        ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
+        await endForegroundGeneration();
+
+        const store = ctx.chatMetadata.summaryception;
+        expect(store.layers[0].some((snippet) => snippet.text === 'new summary')).toBe(false);
+        expect(mocks.ghostMessagesUpTo).not.toHaveBeenCalled();
+    });
 });

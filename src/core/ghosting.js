@@ -1,7 +1,7 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { getChatStore, getSettings, saveChatStore } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
-import { isPromptMutationFrozen } from './summarizer-commit.js';
+import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
 
 // ─── Message Hiding (Ghosting via native /hide /unhide) ──────────────
 /**
@@ -33,17 +33,25 @@ function skipRepairGhost(m, isGhosted) {
  * Ensure all messages in a range are ghosted (hidden from LLM).
  * @param {number} startIdx - Start index in chat
  * @param {number} endIdx - End index in chat
- * @returns {Promise<number>} Number of messages newly ghosted
+ * @returns {Promise<void>}
  */
 export async function repairGhostingForRange(startIdx, endIdx) {
+    await runPromptEffect({
+        kind: `ghost-repair-${startIdx}-${endIdx}`,
+        apply: async ({ epoch }) => await repairGhostingForRangeEffect(startIdx, endIdx, epoch),
+    });
+}
+
+/**
+ * Apply deferred ghost repair while the prompt guard remains open.
+ * @param {number} startIdx
+ * @param {number} endIdx
+ * @param {number} epoch
+ * @returns {Promise<boolean>}
+ */
+async function repairGhostingForRangeEffect(startIdx, endIdx, epoch) {
     trace('>>> ENTERING repairGhostingForRange');
     trace(' startIdx:', startIdx, 'endIdx:', endIdx);
-
-    if (isPromptMutationFrozen()) {
-        log('Ghost repair deferred while foreground generation is active.');
-        return 0;
-    }
-
     const { chat } = SillyTavern.getContext();
     const store = getChatStore();
     const s = getSettings();
@@ -51,6 +59,12 @@ export async function repairGhostingForRange(startIdx, endIdx) {
     let skipped = 0;
 
     for (let i = startIdx; i <= endIdx; i++) {
+        if (!canStartPromptMutation(epoch)) {
+            queueGhostRepair(startIdx, endIdx, i);
+            await saveChatStore();
+            return false;
+        }
+
         const m = chat[i];
         const isGhosted = m?.extra?.sc_ghosted === true;
 
@@ -87,7 +101,7 @@ export async function repairGhostingForRange(startIdx, endIdx) {
     trace(' Repaired:', repaired, 'Skipped:', skipped);
     await saveChatStore();
     trace('<<< EXITING repairGhostingForRange');
-    return repaired;
+    return true;
 }
 
 /**
@@ -96,21 +110,33 @@ export async function repairGhostingForRange(startIdx, endIdx) {
  * @returns {Promise<void>}
  */
 export async function ghostMessage(messageIndex) {
-    if (isPromptMutationFrozen()) {
-        log(`Ghosting deferred for message ${messageIndex}; foreground generation is active.`);
-        return;
-    }
+    await runPromptEffect({
+        kind: `ghost-message-${messageIndex}`,
+        apply: async ({ epoch }) => await ghostMessageEffect(messageIndex, epoch),
+    });
+}
 
+/**
+ * Apply deferred single-message ghosting.
+ * @param {number} messageIndex
+ * @param {number} epoch
+ * @returns {Promise<boolean>}
+ */
+async function ghostMessageEffect(messageIndex, epoch) {
+    if (!canStartPromptMutation(epoch)) {
+        queueGhostMessage(messageIndex);
+        return false;
+    }
     const { chat } = SillyTavern.getContext();
     const msg = chat[messageIndex];
     if (!msg) {
-        return;
+        return true;
     }
     if (!msg.extra) {
         msg.extra = {};
     }
     if (msg.extra.sc_ghosted) {
-        return;
+        return true;
     }
 
     msg.extra.sc_ghosted = true;
@@ -125,6 +151,10 @@ export async function ghostMessage(messageIndex) {
     const s = getSettings();
     if (!s.disableGhosting) {
         try {
+            if (!canStartPromptMutation(epoch)) {
+                queueGhostMessage(messageIndex);
+                return false;
+            }
             await SillyTavern.getContext().executeSlashCommandsWithOptions(
                 `/hide ${messageIndex}`,
                 { showOutput: false },
@@ -135,6 +165,7 @@ export async function ghostMessage(messageIndex) {
     }
 
     log(`Ghosted message at index ${messageIndex}${s.disableGhosting ? ' (hiding disabled)' : ''}`);
+    return true;
 }
 
 /**
@@ -268,13 +299,17 @@ function markGhosted(msg, i) {
  * Ghost a single message by index, respecting the disableGhosting setting.
  * @param {object} msg - The chat message
  * @param {number} i - The message index
- * @returns {Promise<void>}
+ * @param {number} epoch - Prompt mutation epoch captured for the effect
+ * @returns {Promise<boolean>} True when the hide command was applied or not needed
  */
-async function applyGhostToMessage(msg, i) {
+async function applyGhostToMessage(msg, i, epoch) {
     markGhosted(msg, i);
     const s = getSettings();
     if (!s.disableGhosting) {
         try {
+            if (!canStartPromptMutation(epoch)) {
+                return false;
+            }
             await SillyTavern.getContext().executeSlashCommandsWithOptions(`/hide ${i}`, {
                 showOutput: false,
             });
@@ -282,6 +317,7 @@ async function applyGhostToMessage(msg, i) {
             log(`Failed to hide message ${i}:`, e);
         }
     }
+    return true;
 }
 
 /**
@@ -290,24 +326,32 @@ async function applyGhostToMessage(msg, i) {
  * @returns {Promise<void>}
  */
 export async function ghostMessagesUpTo(endIndex) {
-    if (isPromptMutationFrozen()) {
-        log(`Ghosting up to ${endIndex} deferred; foreground generation is active.`);
-        return;
-    }
+    await runPromptEffect({
+        kind: `ghost-up-to-${endIndex}`,
+        apply: async ({ epoch }) => await ghostMessagesUpToEffect(endIndex, 0, epoch),
+    });
+}
 
+/**
+ * Apply deferred range ghosting while the prompt guard remains open.
+ * @param {number} endIndex
+ * @param {number} startIndex
+ * @param {number} epoch
+ * @returns {Promise<boolean>}
+ */
+async function ghostMessagesUpToEffect(endIndex, startIndex, epoch) {
     const { chat } = SillyTavern.getContext();
     const s = getSettings();
-
-    const progressToast = !s.disableGhosting
-        ? toastr.info(`Hiding messages: 0 / ${endIndex + 1}`, 'Summaryception — Ghosting', {
-              timeOut: 0,
-              extendedTimeOut: 0,
-              tapToDismiss: false,
-          })
-        : null;
+    const progressToast = createHideProgressToast(s, endIndex);
 
     let processed = 0;
-    for (let i = 0; i <= endIndex; i++) {
+    for (let i = startIndex; i <= endIndex; i++) {
+        if (!canStartPromptMutation(epoch)) {
+            clearGhostProgress(progressToast);
+            queueGhostMessagesUpTo(endIndex, i);
+            return false;
+        }
+
         const msg = chat[i];
         const ghosted = msg?.extra?.sc_ghosted === true;
 
@@ -318,7 +362,17 @@ export async function ghostMessagesUpTo(endIndex) {
             continue;
         }
 
-        await applyGhostToMessage(msg, i);
+        const applied = await applyGhostToMessage(msg, i, epoch);
+        if (!applied) {
+            clearGhostProgress(progressToast);
+            queueGhostMessagesUpTo(endIndex, i);
+            return false;
+        }
+        if (!canStartPromptMutation(epoch)) {
+            clearGhostProgress(progressToast);
+            queueGhostMessagesUpTo(endIndex, i + 1);
+            return false;
+        }
 
         processed++;
         if (progressToast && processed % 10 === 0) {
@@ -329,9 +383,83 @@ export async function ghostMessagesUpTo(endIndex) {
     if (progressToast) {
         toastr.clear(progressToast);
     }
+    await saveChatStore();
     log(
         `Ghosted messages from index 0 to ${endIndex}${s.disableGhosting ? ' (hiding disabled — metadata only)' : ''}`,
     );
+    return true;
+}
+
+/**
+ * Create a progress toast for hide commands when visual ghosting is enabled.
+ * @param {object} s
+ * @param {number} endIndex
+ * @returns {unknown}
+ */
+function createHideProgressToast(s, endIndex) {
+    if (s.disableGhosting) {
+        return null;
+    }
+    return toastr.info(`Hiding messages: 0 / ${endIndex + 1}`, 'Summaryception — Ghosting', {
+        timeOut: 0,
+        extendedTimeOut: 0,
+        tapToDismiss: false,
+    });
+}
+
+/**
+ * Clear an active ghosting progress toast.
+ * @param {unknown} progressToast
+ * @returns {void}
+ */
+function clearGhostProgress(progressToast) {
+    if (progressToast) {
+        toastr.clear(progressToast);
+    }
+}
+
+/**
+ * Queue a single-message ghosting effect.
+ * @param {number} messageIndex
+ * @returns {void}
+ */
+function queueGhostMessage(messageIndex) {
+    log(`Ghosting deferred for message ${messageIndex}; foreground generation is active.`);
+    queuePromptEffect({
+        kind: `ghost-message-${messageIndex}`,
+        apply: async ({ epoch }) => await ghostMessageEffect(messageIndex, epoch),
+    });
+}
+
+/**
+ * Queue remaining range ghosting work.
+ * @param {number} endIndex
+ * @param {number} startIndex
+ * @returns {void}
+ */
+function queueGhostMessagesUpTo(endIndex, startIndex) {
+    log(`Ghosting up to ${endIndex} deferred at ${startIndex}; foreground generation is active.`);
+    queuePromptEffect({
+        kind: `ghost-up-to-${startIndex}-${endIndex}`,
+        apply: async ({ epoch }) => await ghostMessagesUpToEffect(endIndex, startIndex, epoch),
+    });
+}
+
+/**
+ * Queue remaining repair ghosting work.
+ * @param {number} originalStart
+ * @param {number} endIndex
+ * @param {number} nextIndex
+ * @returns {void}
+ */
+function queueGhostRepair(originalStart, endIndex, nextIndex) {
+    log(
+        `Ghost repair ${originalStart}-${endIndex} deferred at ${nextIndex}; foreground generation is active.`,
+    );
+    queuePromptEffect({
+        kind: `ghost-repair-${nextIndex}-${endIndex}`,
+        apply: async ({ epoch }) => await repairGhostingForRangeEffect(nextIndex, endIndex, epoch),
+    });
 }
 
 // ─── Branch Detection & Repair ───────────────────────────────────────

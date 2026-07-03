@@ -55,7 +55,6 @@ export function updateInjection() {
         const { setExtensionPrompt } = SillyTavern.getContext();
 
         if (isPromptMutationFrozen()) {
-            reassertInjectionSnapshot();
             return;
         }
 

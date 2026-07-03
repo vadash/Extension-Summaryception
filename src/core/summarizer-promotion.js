@@ -16,7 +16,7 @@ import {
 /**
  * Promote a layer's snippets to the next layer if over the limit.
  * @param {number} layerIndex - The layer to evaluate
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} True when promotion work applied or queued.
  */
 export async function maybePromoteLayer(layerIndex) {
     const s = getSettings();
@@ -24,12 +24,12 @@ export async function maybePromoteLayer(layerIndex) {
 
     if (layerIndex >= s.maxLayers - 1) {
         log(`Max layer depth (${s.maxLayers}) reached.`);
-        return;
+        return false;
     }
 
     const layer = store.layers[layerIndex];
     if (!layer || layer.length <= s.snippetsPerLayer) {
-        return;
+        return false;
     }
 
     log(`Layer ${layerIndex}: ${layer.length} snippets > limit ${s.snippetsPerLayer} → promoting`);
@@ -40,11 +40,10 @@ export async function maybePromoteLayer(layerIndex) {
     const destLayer = store.layers[layerIndex + 1];
 
     if (destLayer.length === 0) {
-        await seedNextLayer({ layerIndex, s });
-        return;
+        return await seedNextLayer({ layerIndex, s });
     }
 
-    await mergeLayerSnippets({ layerIndex, s });
+    return await mergeLayerSnippets({ layerIndex, s });
 }
 
 /**
@@ -52,7 +51,7 @@ export async function maybePromoteLayer(layerIndex) {
  * @param {object} p
  * @param {number} p.layerIndex
  * @param {object} p.s
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
 async function seedNextLayer({ layerIndex, s }) {
     const snapshot = capturePromotionSnapshot(layerIndex);
@@ -65,6 +64,7 @@ async function seedNextLayer({ layerIndex, s }) {
     if (result === 'applied') {
         await promoteOverflowLayers({ layerIndex, s });
     }
+    return result !== 'stale';
 }
 
 /**
@@ -72,7 +72,7 @@ async function seedNextLayer({ layerIndex, s }) {
  * @param {object} p
  * @param {number} p.layerIndex
  * @param {object} p.s
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
 async function mergeLayerSnippets({ layerIndex, s }) {
     const store = getChatStore();
@@ -95,7 +95,7 @@ async function mergeLayerSnippets({ layerIndex, s }) {
 
     const metaSummary = await callSummarizer(storyTxt, contextStr);
     if (!metaSummary) {
-        return;
+        return false;
     }
 
     const result = await commitWhenSafe({
@@ -112,6 +112,7 @@ async function mergeLayerSnippets({ layerIndex, s }) {
     if (result === 'applied') {
         await promoteOverflowLayers({ layerIndex, s });
     }
+    return result !== 'stale';
 }
 
 /**
@@ -229,9 +230,7 @@ function isPromotionSnapshotValid(snapshot) {
  */
 async function savePromotionCommit() {
     await saveChatStore();
-    if (!isPromptMutationFrozen()) {
-        updateCommittedInjection();
-    }
+    await updateCommittedInjection();
 }
 
 /**

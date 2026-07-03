@@ -1,6 +1,7 @@
 import { log, trace } from '../foundation/logger.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
+/** @typedef {'applied' | 'queued'} PromptEffectResult */
 
 /**
  * @typedef {object} SummarizationJobSnapshot
@@ -21,11 +22,24 @@ import { log, trace } from '../foundation/logger.js';
  * @property {() => Promise<boolean>} apply - Applies the commit, returning false when stale.
  */
 
+/**
+ * @typedef {object} PromptEffectContext
+ * @property {number} epoch - Generation epoch captured before the effect started.
+ */
+
+/**
+ * @typedef {object} PendingPromptEffect
+ * @property {string} kind - Human-readable effect type.
+ * @property {(ctx: PromptEffectContext) => Promise<boolean> | boolean} apply - Applies the effect.
+ */
+
 let foregroundFrozen = false;
 let pendingCommits = [];
+let pendingPromptEffects = [];
 let updateInjectionCallback = null;
 let reassertInjectionCallback = null;
 let requeueCallback = null;
+let generationEpoch = 0;
 
 /**
  * Register callbacks used by transaction commits.
@@ -56,12 +70,30 @@ export function isPromptMutationFrozen() {
 }
 
 /**
- * Freeze prompt-affecting mutations and reassert the committed injection.
+ * Get the current foreground generation epoch.
+ * @returns {number}
+ */
+export function getPromptMutationEpoch() {
+    return generationEpoch;
+}
+
+/**
+ * Check whether a prompt mutation may start for the captured epoch.
+ * @param {number} epoch
+ * @returns {boolean}
+ */
+export function canStartPromptMutation(epoch) {
+    return !foregroundFrozen && epoch === generationEpoch;
+}
+
+/**
+ * Freeze prompt-affecting mutations after reasserting the committed injection.
  * @returns {void}
  */
 export function beginForegroundGeneration() {
-    foregroundFrozen = true;
     reassertCommittedInjection();
+    foregroundFrozen = true;
+    generationEpoch++;
     log('Foreground generation started; prompt-affecting mutations frozen.');
 }
 
@@ -70,13 +102,14 @@ export function beginForegroundGeneration() {
  * @returns {Promise<void>}
  */
 export async function endForegroundGeneration() {
-    if (!foregroundFrozen && pendingCommits.length === 0) {
+    if (!foregroundFrozen && pendingCommits.length === 0 && pendingPromptEffects.length === 0) {
         return;
     }
 
     foregroundFrozen = false;
     log('Foreground generation ended; flushing pending Summaryception commits.');
     await flushPendingCommits();
+    await flushPendingPromptEffects();
 }
 
 /**
@@ -96,16 +129,18 @@ export async function commitWhenSafe(commit) {
 
 /**
  * Update the committed injection snapshot after a metadata commit.
- * @returns {void}
+ * @returns {Promise<PromptEffectResult>}
  */
-export function updateCommittedInjection() {
-    if (foregroundFrozen) {
-        reassertCommittedInjection();
-        return;
-    }
-    if (updateInjectionCallback) {
-        updateInjectionCallback();
-    }
+export async function updateCommittedInjection() {
+    return await runPromptEffect({
+        kind: 'injection-update',
+        apply: () => {
+            if (updateInjectionCallback) {
+                updateInjectionCallback();
+            }
+            return true;
+        },
+    });
 }
 
 /**
@@ -113,9 +148,43 @@ export function updateCommittedInjection() {
  * @returns {void}
  */
 export function reassertCommittedInjection() {
+    if (foregroundFrozen) {
+        return;
+    }
     if (reassertInjectionCallback) {
         reassertInjectionCallback();
     }
+}
+
+/**
+ * Queue a prompt-affecting effect until foreground generation finishes.
+ * @param {PendingPromptEffect} effect
+ * @returns {void}
+ */
+export function queuePromptEffect(effect) {
+    pendingPromptEffects.push(effect);
+    trace(`Queued ${effect.kind} prompt effect while foreground generation is active.`);
+}
+
+/**
+ * Run a prompt effect when safe, otherwise queue it.
+ * @param {PendingPromptEffect} effect
+ * @returns {Promise<PromptEffectResult>}
+ */
+export async function runPromptEffect(effect) {
+    if (foregroundFrozen) {
+        queuePromptEffect(effect);
+        return 'queued';
+    }
+
+    const epoch = generationEpoch;
+    if (!canStartPromptMutation(epoch)) {
+        queuePromptEffect(effect);
+        return 'queued';
+    }
+
+    const completed = await effect.apply({ epoch });
+    return completed ? 'applied' : 'queued';
 }
 
 /**
@@ -127,15 +196,25 @@ export function getPendingCommitCount() {
 }
 
 /**
+ * Get the number of prompt effects waiting for the foreground guard to open.
+ * @returns {number}
+ */
+export function getPendingPromptEffectCount() {
+    return pendingPromptEffects.length;
+}
+
+/**
  * Reset transient guard state. Intended for tests.
  * @returns {void}
  */
 export function resetCommitStateForTests() {
     foregroundFrozen = false;
     pendingCommits = [];
+    pendingPromptEffects = [];
     updateInjectionCallback = null;
     reassertInjectionCallback = null;
     requeueCallback = null;
+    generationEpoch = 0;
 }
 
 /**
@@ -165,6 +244,19 @@ async function flushPendingCommits() {
         const commit = pendingCommits.shift();
         if (commit) {
             await applyCommit(commit);
+        }
+    }
+}
+
+/**
+ * Flush all queued prompt effects in FIFO order.
+ * @returns {Promise<void>}
+ */
+async function flushPendingPromptEffects() {
+    while (!foregroundFrozen && pendingPromptEffects.length > 0) {
+        const effect = pendingPromptEffects.shift();
+        if (effect) {
+            await runPromptEffect(effect);
         }
     }
 }

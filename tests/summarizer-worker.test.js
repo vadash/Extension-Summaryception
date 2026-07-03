@@ -41,14 +41,7 @@ beforeEach(async () => {
 describe('requestSummarization', () => {
     it('coalesces message events that arrive while a batch request is in flight', async () => {
         const firstBatch = deferred();
-        mocks.summarizeBatchFromTurns
-            .mockImplementationOnce(async () => {
-                await firstBatch.promise;
-                return true;
-            })
-            .mockResolvedValueOnce(true);
-
-        installSillyTavernStub({
+        const ctx = installSillyTavernStub({
             chat: [
                 makeMessage({ mes: 'first' }),
                 makeMessage({ mes: 'second' }),
@@ -61,6 +54,17 @@ describe('requestSummarization', () => {
                 turnsPerSummary: 1,
             },
         });
+
+        mocks.summarizeBatchFromTurns
+            .mockImplementationOnce(async () => {
+                await firstBatch.promise;
+                ctx.chat[0].extra.sc_ghosted = true;
+                return true;
+            })
+            .mockImplementationOnce(async () => {
+                ctx.chat[1].extra.sc_ghosted = true;
+                return true;
+            });
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         const firstRun = requestSummarization({ reason: 'first-message', mode: 'auto' });
@@ -76,6 +80,36 @@ describe('requestSummarization', () => {
         await secondRun;
 
         expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
+    });
+
+    it('continues automatic layer-0 batches until visible turns reach the limit', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'first' }),
+                makeMessage({ mes: 'second' }),
+                makeMessage({ mes: 'third' }),
+                makeMessage({ mes: 'fourth' }),
+                makeMessage({ mes: 'fifth' }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                verbatimTurns: 1,
+                turnsPerSummary: 1,
+            },
+        });
+
+        mocks.summarizeBatchFromTurns.mockImplementation(async (visibleTurns) => {
+            const [turn] = visibleTurns;
+            ctx.chat[turn.index].extra.sc_ghosted = true;
+            return true;
+        });
+
+        const { requestSummarization } = await import('../src/core/summarizer.js');
+        await requestSummarization({ reason: 'new-message', mode: 'auto' });
+
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(4);
+        expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
     });
 });
 

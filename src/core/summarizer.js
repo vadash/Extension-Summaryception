@@ -1,4 +1,4 @@
-import { getSettings } from '../foundation/state.js';
+import { getChatStore, getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { getAssistantTurns } from './chatutils.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
@@ -8,6 +8,8 @@ import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
     getPendingCommitCount,
+    getPendingPromptEffectCount,
+    isPromptMutationFrozen,
     setCommitCallbacks,
 } from './summarizer-commit.js';
 
@@ -175,7 +177,7 @@ export async function summarizeOneBatch(visibleTurns) {
 }
 
 /**
- * Drain coalesced auto work until no new requests arrived during the active job.
+ * Drain coalesced auto work until the backlog is stable or guarded.
  * @returns {Promise<void>}
  */
 async function drainSummarizationWorker() {
@@ -186,7 +188,7 @@ async function drainSummarizationWorker() {
         do {
             workerStatus.pending = false;
             workerStatus.dirty = false;
-            await runAutoWorkerCycle();
+            await drainAutoWork();
         } while (workerStatus.pending || workerStatus.dirty);
     } finally {
         workerStatus.running = false;
@@ -195,13 +197,31 @@ async function drainSummarizationWorker() {
 }
 
 /**
- * Run one automatic worker action against fresh chat state.
+ * Drain ready automatic work against fresh chat state.
  * @returns {Promise<void>}
  */
+async function drainAutoWork() {
+    while (true) {
+        const result = await runAutoWorkerCycle();
+        if (result !== 'processed') {
+            return;
+        }
+        await yieldWorkerCycle();
+    }
+}
+
+/**
+ * Run one automatic worker action against fresh chat state.
+ * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
+ */
 async function runAutoWorkerCycle() {
+    if (shouldStopAutoWorker()) {
+        return 'blocked';
+    }
+
     const s = getSettings();
     if (!s.enabled || s.pauseSummarization) {
-        return;
+        return 'idle';
     }
 
     const { chat } = SillyTavern.getContext();
@@ -210,16 +230,21 @@ async function runAutoWorkerCycle() {
 
     log(`Visible assistant turns: ${visibleTurns.length}, limit: ${s.verbatimTurns}`);
 
-    if (getPendingCommitCount() > 0) {
-        return;
-    }
-
     if (visibleTurns.length > s.verbatimTurns) {
-        await processLayer0Overflow({ visibleTurns, s });
-        return;
+        return await processLayer0Overflow({ visibleTurns, s });
     }
 
-    await maybePromoteLayer(0);
+    return await processPromotions(s);
+}
+
+/**
+ * Stop when foreground generation or queued prompt effects need priority.
+ * @returns {boolean}
+ */
+function shouldStopAutoWorker() {
+    return (
+        isPromptMutationFrozen() || getPendingCommitCount() > 0 || getPendingPromptEffectCount() > 0
+    );
 }
 
 /**
@@ -227,7 +252,7 @@ async function runAutoWorkerCycle() {
  * @param {object} p
  * @param {Array<Record<string, unknown>>} p.visibleTurns
  * @param {object} p.s
- * @returns {Promise<void>}
+ * @returns {Promise<'processed' | 'blocked' | 'failed'>}
  */
 async function processLayer0Overflow({ visibleTurns, s }) {
     const overflow = visibleTurns.length - s.verbatimTurns;
@@ -244,7 +269,55 @@ async function processLayer0Overflow({ visibleTurns, s }) {
 
     if (!success) {
         log('Batch failed, stopping summarization cycle to avoid retry loop.');
+        return 'failed';
     }
+    if (shouldStopAutoWorker()) {
+        return 'blocked';
+    }
+    return 'processed';
+}
+
+/**
+ * Process one promotion step when summary layers are over their limits.
+ * @param {object} s
+ * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
+ */
+async function processPromotions(s) {
+    const hadOverflow = hasPromotionOverflow(0, s);
+    const promoted = await maybePromoteLayer(0);
+    if (shouldStopAutoWorker()) {
+        return 'blocked';
+    }
+    if (promoted) {
+        return 'processed';
+    }
+    return hadOverflow ? 'failed' : 'idle';
+}
+
+/**
+ * Check whether any promotable layer currently exceeds its limit.
+ * @param {number} startLayer
+ * @param {object} s
+ * @returns {boolean}
+ */
+function hasPromotionOverflow(startLayer, s) {
+    const store = getChatStore();
+    const layers = Array.isArray(store?.layers) ? store.layers : [];
+    const maxLayer = Math.min(layers.length, s.maxLayers - 1);
+    for (let i = startLayer; i < maxLayer; i++) {
+        if ((layers[i]?.length || 0) > s.snippetsPerLayer) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Yield briefly between automatic work units.
+ * @returns {Promise<void>}
+ */
+async function yieldWorkerCycle() {
+    await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 /**
@@ -259,7 +332,7 @@ function showAutoBacklogNotice(overflow) {
 
     catchupDismissed = true;
     toastr.info(
-        `${overflow} turns exceed the verbatim limit. Summaryception will process one background batch per new-message cycle; use Force Summarize for full catch-up.`,
+        `${overflow} turns exceed the verbatim limit. Summaryception will keep processing background batches while the chat is idle; use Force Summarize for a cancelable catch-up.`,
         'Summaryception',
         { timeOut: 6000 },
     );
