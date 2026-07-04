@@ -11,7 +11,6 @@ import {
     resetCatchupDismissed,
     runCatchup,
     runSlopBreaker,
-    showSlopBreakerNoop,
 } from '../core/summarizer.js';
 import { getSlopBreakerPlan } from '../core/slop-breaker.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
@@ -20,6 +19,15 @@ import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
 import { repairOrphanedMessages } from '../features/maintenance.js';
 import { updateUI, updateCustomPromptSlots } from './ui.js';
+import {
+    clearManualProgressToast,
+    confirmSlopBreaker,
+    createManualProgressToast,
+    showCatchupOutcome,
+    showSlopBreakerNoop,
+    showSlopBreakerOutcome,
+    updateManualProgressToast,
+} from './ui-dialogs.js';
 
 // Event bindings
 
@@ -282,6 +290,16 @@ function updateRepairProgress(progressToast, repaired) {
 }
 
 /**
+ * Abort a manual summarization run from its progress toast.
+ * @param {AbortController} controller
+ * @returns {void}
+ */
+function cancelManualRun(controller) {
+    controller.abort();
+    abortSummarization();
+}
+
+/**
  * Force the catch-up pass to summarize turns beyond the dynamic verbatim window.
  * @returns {Promise<void>}
  */
@@ -319,7 +337,23 @@ async function onForceSummarize() {
             timeOut: 2000,
         });
 
-        const outcome = await runCatchup(plan.visibleTurns, overflow);
+        const controller = new AbortController();
+        let progressToast = null;
+        const outcome = await runManualWithProgress(
+            () =>
+                runCatchup(plan.visibleTurns, overflow, {
+                    signal: controller.signal,
+                    onStart: (progress) => {
+                        progressToast = createManualProgressToast({
+                            ...progress,
+                            onCancel: () => cancelManualRun(controller),
+                        });
+                    },
+                    onProgress: (progress) => updateManualProgressToast(progressToast, progress),
+                }),
+            () => clearManualProgressToast(progressToast),
+        );
+        showCatchupOutcome(outcome);
         updateInjection();
         reloadAfterManualRun(outcome);
     } finally {
@@ -358,7 +392,23 @@ async function onSlopBreaker() {
         .prop('disabled', true)
         .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
-        const outcome = await runSlopBreaker();
+        const controller = new AbortController();
+        let progressToast = null;
+        const outcome = await runManualWithProgress(
+            () =>
+                runSlopBreaker({
+                    signal: controller.signal,
+                    onStart: (progress) => {
+                        progressToast = createManualProgressToast({
+                            ...progress,
+                            onCancel: () => cancelManualRun(controller),
+                        });
+                    },
+                    onProgress: (progress) => updateManualProgressToast(progressToast, progress),
+                }),
+            () => clearManualProgressToast(progressToast),
+        );
+        showSlopBreakerOutcome(outcome);
         updateInjection();
         reloadAfterManualRun(outcome);
     } finally {
@@ -370,48 +420,17 @@ async function onSlopBreaker() {
 }
 
 /**
- * Show the Slop Breaker confirmation modal.
- * @returns {Promise<boolean>}
+ * Clear progress UI even if a manual run throws.
+ * @param {() => Promise<object>} run
+ * @param {() => void} cleanup
+ * @returns {Promise<object>}
  */
-function confirmSlopBreaker() {
-    return new Promise((resolve) => {
-        const $overlay = $('<div class="sc-catchup-overlay">')
-            .html(
-                `
-        <div class="sc-catchup-modal">
-        <h3>Run Slop Breaker?</h3>
-        <div class="sc-catchup-dialog">
-        <p>This summarizes the current live conversation context, including messages normally kept verbatim. Use it when the AI is stuck repeating phrases, formats, or corrections. If the latest message is an AI reply, it will be committed into memory and may no longer be safe to swipe or regenerate.</p>
-        <hr>
-        <div class="sc-catchup-options">
-        <button id="sc_slop_breaker_confirm" class="menu_button">
-        <i class="fa-solid fa-broom"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Break Slop</span>
-        </div>
-        </button>
-        <button id="sc_slop_breaker_cancel" class="menu_button">
-        <i class="fa-solid fa-xmark"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Cancel</span>
-        </div>
-        </button>
-        </div>
-        </div>
-        </div>
-        `,
-            )
-            .appendTo('body');
-
-        $overlay.find('#sc_slop_breaker_confirm').on('click', () => {
-            $overlay.remove();
-            resolve(true);
-        });
-        $overlay.find('#sc_slop_breaker_cancel').on('click', () => {
-            $overlay.remove();
-            resolve(false);
-        });
-    });
+async function runManualWithProgress(run, cleanup) {
+    try {
+        return await run();
+    } finally {
+        cleanup();
+    }
 }
 
 /**

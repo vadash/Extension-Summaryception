@@ -47,6 +47,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - `persistChatState()` saves metadata immediately; deferred chat-file saves must be flushed at worker/manual boundaries, not unload.
 - Background summarization is coalesced through one self-draining worker.
 - `SummarizerQueue` owns background worker state; `summarizer.js` remains the runtime facade.
+- `summarizer-auto.js` and `summarizer-manual.js` own orchestration; entry UI owns manual progress/outcome toasts.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
 - Pass summarizer AbortSignals to direct fetch adapters and Connection Manager profiles; default `generateRaw()` still uses the local race fallback unless ST exposes a signal.

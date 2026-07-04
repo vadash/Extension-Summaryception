@@ -11,12 +11,17 @@
 import { LOG_PREFIX } from './src/foundation/constants.js';
 import { getContext } from './src/foundation/context.js';
 import { getSettings } from './src/foundation/state.js';
-import { setInjectionUpdater, setUiUpdater } from './src/core/summarizer.js';
+import {
+    setInjectionUpdater,
+    setSummarizerNotifiers,
+    setUiUpdater,
+} from './src/core/summarizer.js';
 import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
 import { initSettingsTabs } from './src/entry/ui-tabs.js';
+import { showAutoBacklogNotice } from './src/entry/ui-dialogs.js';
 import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
 import {
     onChatChanged,
@@ -34,6 +39,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     getSettings();
     setUiUpdater(updateUI);
     setInjectionUpdater(updateInjection, reassertInjectionSnapshot);
+    setSummarizerNotifiers({ showAutoBacklogNotice });
     setUiRefresher(updateUI);
 
     const html = await renderExtensionTemplateAsync(

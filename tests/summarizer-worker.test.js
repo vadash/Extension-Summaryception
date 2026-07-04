@@ -173,6 +173,73 @@ describe('runCatchup', () => {
         expect(outcome.completed).toBe(1);
     });
 
+    it('reports manual catch-up progress through callbacks', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
+            },
+            getTokenCountAsync: async (text) => text.length,
+        });
+        const onStart = vi.fn();
+        const onProgress = vi.fn();
+
+        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async (turns) => {
+            ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
+            return true;
+        });
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        await runCatchup([], 1, { onStart, onProgress });
+
+        expect(onStart).toHaveBeenCalledWith(
+            expect.objectContaining({ completed: 0, totalBatches: 1 }),
+        );
+        expect(onProgress).toHaveBeenCalledWith(
+            expect.objectContaining({ completed: 1, totalBatches: 1 }),
+        );
+    });
+
+    it('honors an aborted manual catch-up signal before the first batch', async () => {
+        installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
+            },
+            getTokenCountAsync: async (text) => text.length,
+        });
+        const controller = new AbortController();
+        controller.abort();
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        const outcome = await runCatchup([], 1, { signal: controller.signal });
+
+        expect(outcome.cancelled).toBe(true);
+        expect(mocks.summarizeOneBatchFromTurns).not.toHaveBeenCalled();
+    });
+
     it('does not request a reload when catch-up totally fails', async () => {
         installSillyTavernStub({
             chat: [

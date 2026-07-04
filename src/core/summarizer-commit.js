@@ -1,4 +1,5 @@
 import { log, trace } from '../foundation/logger.js';
+import { getContext } from '../foundation/context.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
 /** @typedef {'applied' | 'queued'} PromptEffectResult */
@@ -209,6 +210,33 @@ export function getPendingPromptEffectCount() {
 }
 
 /**
+ * Stop prompt-affecting work while foreground generation or queued effects need priority.
+ * @returns {boolean}
+ */
+export function shouldStopPromptWork() {
+    return foregroundFrozen || pendingCommits.length > 0 || pendingPromptEffects.length > 0;
+}
+
+/**
+ * Clear a stale foreground freeze when SillyTavern is no longer generating.
+ * @param {string} reason - Context for debug logging
+ * @param {{ refreshUi?: () => void }} [opts]
+ * @returns {Promise<boolean>} True when stale guard state was cleared
+ */
+export async function recoverStalePromptFreeze(reason, { refreshUi } = {}) {
+    if (!foregroundFrozen || isForegroundGenerationActive()) {
+        return false;
+    }
+
+    log(`Recovering stale foreground generation freeze before ${reason}.`);
+    await endForegroundGeneration();
+    if (refreshUi) {
+        refreshUi();
+    }
+    return true;
+}
+
+/**
  * Reset transient guard state. Intended for tests.
  * @returns {void}
  */
@@ -220,6 +248,24 @@ export function resetCommitStateForTests() {
     reassertInjectionCallback = null;
     requeueCallback = null;
     generationEpoch = 0;
+}
+
+/**
+ * Best-effort check for an active SillyTavern foreground generation.
+ * @returns {boolean}
+ */
+function isForegroundGenerationActive() {
+    const ctx = getContext();
+    if (ctx.streamingProcessor && ctx.streamingProcessor.isFinished === false) {
+        return true;
+    }
+
+    try {
+        const stopButton = $('#mes_stop');
+        return stopButton.length > 0 && stopButton.css('display') !== 'none';
+    } catch (_e) {
+        return false;
+    }
 }
 
 /**

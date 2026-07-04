@@ -1,64 +1,37 @@
-import { getChat, getContext } from '../foundation/context.js';
-import { getChatStore, getSettings } from '../foundation/state.js';
-import { log, trace } from '../foundation/logger.js';
-import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
+import { summarizeBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
-import { maybePromoteLayer } from './summarizer-promotion.js';
 import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
-import { getLayer0OverflowPlan } from './verbatim-window.js';
 import { flushPendingChatSave } from './persist-state.js';
-import { getSlopBreakerPlan } from './slop-breaker.js';
+import {
+    resetCatchupDismissed as resetAutoCatchupDismissed,
+    runAutoWorkerCycle,
+    setAutoWorkerNotifiers,
+    yieldWorkerCycle,
+} from './summarizer-auto.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
-    getPendingCommitCount,
-    getPendingPromptEffectCount,
     isPromptMutationFrozen,
     setCommitCallbacks,
 } from './summarizer-commit.js';
+import {
+    runCatchup as runManualCatchup,
+    runSlopBreaker as runManualSlopBreaker,
+} from './summarizer-manual.js';
 
 export { callSummarizer, hasActiveAbortController } from './summarizer-request.js';
 export { summarizeOneBatchFromTurns } from './summarizer-batch.js';
 export { maybePromoteLayer } from './summarizer-promotion.js';
 
-/**
- * Check whether Summaryception is currently deferring prompt mutations.
- * @returns {boolean}
- */
-export function hasFrozenPromptMutations() {
-    return isPromptMutationFrozen();
-}
+/** @typedef {'auto'} SummarizationMode */
+/** @typedef {import('./summarizer-manual.js').ManualRunOptions} ManualRunOptions */
+/** @typedef {import('./summarizer-manual.js').ManualRunOutcome} ManualRunOutcome */
 
 let uiUpdater = null;
 
-/**
- *
- */
-export function setUiUpdater(callback) {
-    uiUpdater = callback;
-}
-
-function refreshUI() {
-    if (typeof uiUpdater === 'function') {
-        uiUpdater();
-    }
-}
-
-/** @typedef {'auto'} SummarizationMode */
-/**
- * @typedef {object} ManualRunOutcome
- * @property {boolean} cancelled - Whether the user aborted the run
- * @property {number} completed - Number of committed batches
- * @property {number} failed - Number of failed batches
- * @property {number} totalBatches - Estimated batch count
- * @property {boolean} fullyCommitted - Whether the intended manual cut completed
- * @property {boolean} shouldReload - Whether the browser should reload
- */
-let catchupDismissed = false;
-
 const summarizerQueue = new SummarizerQueue({
-    drainOneCycle: runAutoWorkerCycle,
+    drainOneCycle: (queue) => runAutoWorkerCycle(queue, { refreshUi: refreshUI }),
     abort: abortCurrentSummarizerRequest,
     refreshUi: refreshUI,
     withUsageRun,
@@ -73,11 +46,37 @@ setCommitCallbacks({
 });
 
 /**
+ * Check whether Summaryception is currently deferring prompt mutations.
+ * @returns {boolean}
+ */
+export function hasFrozenPromptMutations() {
+    return isPromptMutationFrozen();
+}
+
+/**
+ * Register the settings UI refresh callback.
+ * @param {() => void} callback
+ * @returns {void}
+ */
+export function setUiUpdater(callback) {
+    uiUpdater = callback;
+}
+
+/**
+ * Register UI callbacks used by summarizer orchestration.
+ * @param {{ showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [notifiers]
+ * @returns {void}
+ */
+export function setSummarizerNotifiers(notifiers = {}) {
+    setAutoWorkerNotifiers(notifiers);
+}
+
+/**
  * Reset the catch-up dismissed flag so the dialog shows again.
  * @returns {void}
  */
 export function resetCatchupDismissed() {
-    catchupDismissed = false;
+    resetAutoCatchupDismissed();
 }
 
 /**
@@ -89,7 +88,7 @@ export function getIsSummarizing() {
 }
 
 /**
- * Set the summarizing flag.
+ * Set the manual summarizing flag.
  * @param {boolean} value
  * @returns {void}
  */
@@ -176,688 +175,43 @@ export async function summarizeOneBatch(visibleTurns) {
 }
 
 /**
- * Run one automatic worker action against fresh chat state.
- * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
- * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
+ * Force the catch-up pass to summarize turns beyond the dynamic verbatim window.
+ * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
+ * @param {number} overflow
+ * @param {ManualRunOptions} [options]
+ * @returns {Promise<ManualRunOutcome>}
  */
-async function runAutoWorkerCycle(queue) {
-    await recoverStalePromptFreeze('auto worker');
-
-    if (shouldStopAutoWorker()) {
-        queue.setPhase('paused');
-        return 'blocked';
-    }
-
-    const s = getSettings();
-    if (!s.enabled || s.pauseSummarization) {
-        queue.setPhase('paused');
-        return 'idle';
-    }
-
-    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
-
-    log(
-        `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
-            `verbatim budget: ${plan.budgetStats.finalTokens}/${s.verbatimTokenBudget} tokens, ` +
-            `summary budget: ${plan.summaryStats.finalTokens}/${s.minSummaryBudget} tokens`,
-    );
-
-    if (plan.reason !== 'none') {
-        queue.setPhase('layer0');
-        return await processLayer0Overflow({ plan, s });
-    }
-
-    queue.setPhase('promoting');
-    return await processPromotions(s);
-}
-
-/**
- * Stop when foreground generation or queued prompt effects need priority.
- * @returns {boolean}
- */
-function shouldStopAutoWorker() {
-    return (
-        isPromptMutationFrozen() || getPendingCommitCount() > 0 || getPendingPromptEffectCount() > 0
-    );
-}
-
-/**
- * Process a single layer-0 overflow batch in automatic mode.
- * @param {object} p
- * @param {import('./verbatim-window.js').Layer0OverflowPlan} p.plan
- * @param {object} p.s
- * @returns {Promise<'processed' | 'blocked' | 'failed'>}
- */
-async function processLayer0Overflow({ plan, s }) {
-    const backlogThreshold = s.maxSummaryTurns * 2;
-
-    if (plan.eligibleTurns.length > backlogThreshold) {
-        showAutoBacklogNotice(plan);
-    }
-
-    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
-    const success = await summarizeBatchFromTurns(turns, {
-        showToasts: false,
-        catchExceptions: true,
-    });
-
-    if (!success) {
-        log('Batch failed, stopping summarization cycle to avoid retry loop.');
-        return 'failed';
-    }
-    if (shouldStopAutoWorker()) {
-        return 'blocked';
-    }
-    return 'processed';
-}
-
-/**
- * Process one promotion step when summary layers are over their limits.
- * @param {object} s
- * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
- */
-async function processPromotions(s) {
-    const hadOverflow = hasPromotionOverflow(0, s);
-    const promoted = await maybePromoteLayer(0);
-    if (shouldStopAutoWorker()) {
-        return 'blocked';
-    }
-    if (promoted) {
-        return 'processed';
-    }
-    return hadOverflow ? 'failed' : 'idle';
-}
-
-/**
- * Check whether any promotable layer currently exceeds its limit.
- * @param {number} startLayer
- * @param {object} s
- * @returns {boolean}
- */
-function hasPromotionOverflow(startLayer, s) {
-    const store = getChatStore();
-    const layers = Array.isArray(store?.layers) ? store.layers : [];
-    const maxLayer = Math.min(layers.length, s.maxLayers - 1);
-    for (let i = startLayer; i < maxLayer; i++) {
-        if ((layers[i]?.length || 0) > s.snippetsPerLayer) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Yield briefly between automatic work units.
- * @returns {Promise<void>}
- */
-async function yieldWorkerCycle() {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-/**
- * Show a non-blocking notice for large automatic backlog catch-up.
- * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
- * @returns {void}
- */
-function showAutoBacklogNotice(plan) {
-    if (catchupDismissed) {
-        return;
-    }
-
-    catchupDismissed = true;
-    toastr.info(
-        `${plan.eligibleTurns.length} old turns are ready for summary. ` +
-            'Summaryception will keep processing background batches while the chat is idle; ' +
-            'use Force Summarize for a cancelable catch-up.',
-        'Summaryception',
-        { timeOut: 6000 },
-    );
-}
-
-/**
- *
- */
-export async function runCatchup(visibleTurns, overflow) {
-    return await withUsageRun('force summarize catch-up', async () => {
-        trace('>>> ENTERING runCatchup');
-        trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
-        trace('  overflow:', overflow);
-
-        const outcome = createManualRunOutcome();
-        if (!(await prepareCatchupRun())) {
-            return outcome;
-        }
-
-        const initialPlan = await getCatchupPlan();
-        if (!initialPlan) {
-            toastr.info(
-                'Nothing to summarize - current chat is within the verbatim window.',
-                'Summaryception',
-            );
-            return outcome;
-        }
-
-        const totalBatches = estimateCatchupBatches(initialPlan);
-        let completed = 0;
-        let failed = 0;
-        let cancelled = false;
-        let blocked = false;
-
-        trace('  totalBatches calculated:', totalBatches);
-        outcome.totalBatches = totalBatches;
-
-        const progressToast = toastr.info(
-            `Processing backlog: 0 / ${totalBatches} batches (0%)`,
-            'Summaryception Catch-Up',
-            {
-                timeOut: 0,
-                extendedTimeOut: 0,
-                tapToDismiss: false,
-                closeButton: true,
-                onCloseClick: () => {
-                    cancelled = true;
-                    abortSummarization();
-                },
-            },
-        );
-
-        summarizerQueue.setSummarizing(true);
-
-        try {
-            let consecutiveFailures = 0;
-
-            while (!cancelled) {
-                trace(`  Loop iteration - completed: ${completed}, failed: ${failed}`);
-
-                const currentPlan = await getCatchupPlan();
-                if (!currentPlan) {
-                    break;
-                }
-
-                trace('  About to call summarizeOneBatchFromTurns...');
-                const turns =
-                    currentPlan.reason === 'repair'
-                        ? currentPlan.visibleTurns
-                        : currentPlan.batchTurns;
-                const beforeIndex = getChatStore().summarizedUpTo;
-                const success = await summarizeOneBatchFromTurns(turns);
-                const committed = getChatStore().summarizedUpTo > beforeIndex;
-
-                if (success && committed) {
-                    trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
-                    completed++;
-                    consecutiveFailures = 0;
-                    if (shouldStopAutoWorker()) {
-                        trace('  Prompt mutation queued; pausing catch-up until it flushes');
-                        blocked = true;
-                        break;
-                    }
-                } else if (success) {
-                    blocked = true;
-                    trace('  Batch result queued or did not advance the summary cursor');
-                    break;
-                } else {
-                    trace('  >>> summarizeOneBatchFromTurns returned FAILURE');
-                    if (cancelled || !summarizerQueue.getIsSummarizing()) {
-                        cancelled = true;
-                        break;
-                    }
-                    failed++;
-                    consecutiveFailures++;
-
-                    if (consecutiveFailures >= 3) {
-                        toastr.error(
-                            '3 consecutive failures — API may be down. Pausing catch-up. Progress saved; will resume on next message.',
-                            'Summaryception',
-                            { timeOut: 8000 },
-                        );
-                        trace('  3 consecutive failures, breaking');
-                        break;
-                    }
-                }
-
-                updateProgressToast({ progressToast, completed, failed, totalBatches });
-
-                await new Promise((r) => setTimeout(r, 200));
-            }
-
-            toastr.clear(progressToast);
-            await maybePromoteAfterCatchup(cancelled);
-            showCatchupOutcome({ cancelled, blocked, completed, failed, totalBatches });
-            refreshUI();
-            return {
-                cancelled,
-                completed,
-                failed,
-                totalBatches,
-                fullyCommitted: !cancelled && !blocked && failed === 0 && completed > 0,
-                shouldReload: !cancelled && !blocked && completed > 0,
-            };
-        } finally {
-            summarizerQueue.setSummarizing(false);
-            await flushPendingChatSave();
-        }
-    });
+export async function runCatchup(visibleTurns, overflow, options = {}) {
+    return await runManualCatchup(getManualRunnerDeps(), visibleTurns, overflow, options);
 }
 
 /**
  * Run Slop Breaker up to a fixed live-context cut.
+ * @param {ManualRunOptions} [options]
  * @returns {Promise<ManualRunOutcome>}
  */
-export async function runSlopBreaker() {
-    return await withUsageRun('slop breaker', async () => {
-        if (!(await prepareManualRun('manual slop breaker', 'Slop Breaker'))) {
-            return createManualRunOutcome();
-        }
-
-        const initialPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
-        if (initialPlan.reason !== 'ready') {
-            showSlopBreakerNoop();
-            return createManualRunOutcome();
-        }
-
-        return await runSlopBreakerPlan(initialPlan);
-    });
+export async function runSlopBreaker(options = {}) {
+    return await runManualSlopBreaker(getManualRunnerDeps(), options);
 }
 
 /**
- * Drain Layer 0 batches for a Slop Breaker plan.
- * @param {import('./slop-breaker.js').SlopBreakerPlan} initialPlan
- * @returns {Promise<ManualRunOutcome>}
+ * Refresh the settings UI if an updater is registered.
+ * @returns {void}
  */
-async function runSlopBreakerPlan(initialPlan) {
-    const targetIndex = initialPlan.targetIndex;
-    const totalBatches = initialPlan.totalBatches;
-    let completed = 0;
-    let failed = 0;
-    let cancelled = false;
-    let blocked = false;
-
-    const progressToast = toastr.info(
-        `Breaking slop: 0 / ${totalBatches} batches (0%)`,
-        'Summaryception Slop Breaker',
-        {
-            timeOut: 0,
-            extendedTimeOut: 0,
-            tapToDismiss: false,
-            closeButton: true,
-            onCloseClick: () => {
-                cancelled = true;
-                abortSummarization();
-            },
-        },
-    );
-
-    summarizerQueue.setSummarizing(true);
-
-    try {
-        let consecutiveFailures = 0;
-
-        while (!cancelled) {
-            const currentPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), {
-                targetIndex,
-            });
-            if (currentPlan.reason !== 'ready') {
-                break;
-            }
-
-            const success = await summarizeBatchFromTurns(currentPlan.batchTurns, {
-                catchExceptions: true,
-                sourceEndIdx: currentPlan.sourceEndIdx,
-            });
-            const afterIndex = getChatStore().summarizedUpTo;
-
-            if (success && afterIndex >= currentPlan.sourceEndIdx) {
-                completed++;
-                consecutiveFailures = 0;
-                if (afterIndex >= targetIndex) {
-                    break;
-                }
-                if (shouldStopAutoWorker()) {
-                    blocked = true;
-                    break;
-                }
-            } else if (success) {
-                blocked = true;
-                break;
-            } else {
-                if (cancelled || !summarizerQueue.getIsSummarizing()) {
-                    cancelled = true;
-                    break;
-                }
-                failed++;
-                consecutiveFailures++;
-                if (consecutiveFailures >= 3) {
-                    break;
-                }
-            }
-
-            updateProgressToast({
-                progressToast,
-                completed,
-                failed,
-                totalBatches,
-                label: 'Breaking slop',
-            });
-
-            await new Promise((r) => setTimeout(r, 200));
-        }
-
-        toastr.clear(progressToast);
-        const fullyCommitted =
-            !cancelled && !blocked && getChatStore().summarizedUpTo >= targetIndex;
-        showSlopBreakerOutcome({ cancelled, blocked, completed, failed, fullyCommitted });
-        refreshUI();
-        return {
-            cancelled,
-            completed,
-            failed,
-            totalBatches,
-            fullyCommitted,
-            shouldReload: fullyCommitted,
-        };
-    } finally {
-        summarizerQueue.setSummarizing(false);
-        await flushPendingChatSave();
+function refreshUI() {
+    if (typeof uiUpdater === 'function') {
+        uiUpdater();
     }
 }
 
 /**
- * Promote after catch-up only when prompt-affecting work is not already queued.
- * @param {boolean} cancelled - Whether the catch-up was cancelled by the user
- * @returns {Promise<void>}
+ * Build dependencies for manual runner calls.
+ * @returns {import('./summarizer-manual.js').ManualRunnerDeps}
  */
-async function maybePromoteAfterCatchup(cancelled) {
-    if (cancelled) {
-        return;
-    }
-    if (shouldStopAutoWorker()) {
-        log('Catch-up promotion deferred; prompt mutation guard is active.');
-        return;
-    }
-    await maybePromoteLayer(0);
-}
-
-/**
- * Get the latest overflow plan for catch-up, or null when complete.
- * @returns {Promise<import('./verbatim-window.js').Layer0OverflowPlan | null>}
- */
-async function getCatchupPlan() {
-    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getSettings());
-
-    trace(`  currentVisible turns: ${plan.visibleTurnCount}, plan reason: ${plan.reason}`);
-
-    if (plan.reason === 'none') {
-        trace('  Visible turns now within the dynamic window, breaking');
-        return null;
-    }
-
-    return plan;
-}
-
-/**
- * Estimate catch-up progress from the first overflow snapshot.
- * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
- * @returns {number}
- */
-function estimateCatchupBatches(plan) {
-    const batchLimit = Math.max(1, getSettings().maxSummaryTurns);
-    const readyTurns = plan.batchTurns.length + plan.softOverflowCount;
-    return Math.max(1, Math.ceil(readyTurns / batchLimit));
-}
-
-/**
- * Create an empty manual run outcome.
- * @returns {ManualRunOutcome}
- */
-function createManualRunOutcome() {
+function getManualRunnerDeps() {
     return {
-        cancelled: false,
-        completed: 0,
-        failed: 0,
-        totalBatches: 0,
-        fullyCommitted: false,
-        shouldReload: false,
+        queue: summarizerQueue,
+        refreshUi: refreshUI,
+        withUsageRun,
     };
-}
-
-/**
- * Update the catch-up progress toast text.
- * @param {object} p
- * @param {unknown} p.progressToast
- * @param {number} p.completed
- * @param {number} p.failed
- * @param {number} p.totalBatches
- * @param {string} [p.label]
- * @returns {void}
- */
-function updateProgressToast({
-    progressToast,
-    completed,
-    failed,
-    totalBatches,
-    label = 'Processing',
-}) {
-    const pct = Math.round((completed / totalBatches) * 100);
-    const failStr = failed > 0 ? ` | ${failed} failed` : '';
-    $(progressToast)
-        .find('.toast-message')
-        .text(
-            `${label}: ${completed} / ${totalBatches} batches (${pct}%)${failStr}\nClick x to pause`,
-        );
-}
-
-/**
- * Show the appropriate toast after a catch-up run finishes.
- * @param {object} p
- * @param {boolean} p.cancelled
- * @param {boolean} p.blocked
- * @param {number} p.completed
- * @param {number} p.failed
- * @param {number} p.totalBatches
- * @returns {void}
- */
-function showCatchupOutcome({ cancelled, blocked, completed, failed, totalBatches }) {
-    if (cancelled) {
-        toastr.warning(
-            `Catch-up paused at ${completed}/${totalBatches}. Progress saved - will continue on next message.`,
-            'Summaryception',
-            { timeOut: 5000 },
-        );
-    } else if (blocked) {
-        toastr.warning(
-            `Catch-up paused at ${completed}/${totalBatches}. Try again after generation finishes.`,
-            'Summaryception',
-            { timeOut: 5000 },
-        );
-    } else if (failed === 0) {
-        toastr.success(`Catch-up complete! ${completed} batches processed.`, 'Summaryception', {
-            timeOut: 4000,
-        });
-    } else {
-        toastr.warning(
-            `Catch-up finished. ${completed} succeeded, ${failed} failed (will retry on next trigger).`,
-            'Summaryception',
-            { timeOut: 6000 },
-        );
-    }
-}
-
-/**
- * Show the Slop Breaker no-op toast.
- * @returns {void}
- */
-export function showSlopBreakerNoop() {
-    toastr.info('Nothing to reset yet. Wait for an AI reply first.', 'Summaryception');
-}
-
-/**
- * Show the Slop Breaker completion, abort, or failure toast.
- * @param {object} p
- * @param {boolean} p.cancelled
- * @param {boolean} p.blocked
- * @param {number} p.completed
- * @param {number} p.failed
- * @param {boolean} p.fullyCommitted
- * @returns {void}
- */
-function showSlopBreakerOutcome({ cancelled, blocked, completed, failed, fullyCommitted }) {
-    if (fullyCommitted) {
-        toastr.success('Slop Breaker complete. Reloading chat context.', 'Summaryception', {
-            timeOut: 3000,
-        });
-    } else if (cancelled && completed === 0) {
-        toastr.warning('Slop Breaker stopped. No new cut was completed.', 'Summaryception', {
-            timeOut: 5000,
-        });
-    } else if (cancelled || blocked) {
-        toastr.warning(
-            'Slop Breaker stopped. Partial progress was saved, but the intended cut was not completed.',
-            'Summaryception',
-            { timeOut: 6000 },
-        );
-    } else if (completed === 0) {
-        toastr.error('Slop Breaker failed. No new cut was completed.', 'Summaryception', {
-            timeOut: 6000,
-        });
-    } else {
-        toastr.warning(
-            `Slop Breaker paused after ${completed} batch${completed === 1 ? '' : 'es'}. ` +
-                `${failed} failed; the intended cut was not completed.`,
-            'Summaryception',
-            { timeOut: 6000 },
-        );
-    }
-}
-
-/**
- * Show the backlog catch-up dialog with process/skip/partial options.
- * @param {number} overflowCount - Number of unsummarized turns beyond the dynamic window
- * @param {number} estimatedCalls - Estimated number of summarizer calls required
- * @returns {Promise<string>} 'catchup' | 'skip' | 'partial'
- */
-export async function showCatchupDialog(overflowCount, estimatedCalls) {
-    return new Promise((resolve) => {
-        const s = getSettings();
-        const partialBatchSize = s.maxSummaryTurns;
-
-        const $overlay = $('<div class="sc-catchup-overlay">')
-            .html(
-                `
-        <div class="sc-catchup-modal">
-        <h3>🧠 Summaryception — Backlog Detected</h3>
-        <div class="sc-catchup-dialog">
-        <p>Summaryception detected <strong>${overflowCount} unsummarized turns</strong>
-        in this chat (beyond your dynamic verbatim window).</p>
-        <p>This will require approximately <strong>${estimatedCalls} summarizer calls</strong> to process.</p>
-        <hr>
-        <div class="sc-catchup-options">
-        <button id="sc_catchup_full" class="menu_button">
-        <i class="fa-solid fa-forward-fast"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Process Entire Backlog</span>
-        <span class="sc-btn-desc">Summarize all ${overflowCount} turns — cancelable at any time</span>
-        </div>
-        </button>
-        <button id="sc_catchup_skip" class="menu_button">
-        <i class="fa-solid fa-forward-step"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Skip Backlog</span>
-        <span class="sc-btn-desc">Ignore old turns, only summarize new ones going forward</span>
-        </div>
-        </button>
-        <button id="sc_catchup_partial" class="menu_button">
-        <i class="fa-solid fa-play"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Just One Batch</span>
-        <span class="sc-btn-desc">Summarize up to ${partialBatchSize} turns now, deal with the rest later</span>
-        </div>
-        </button>
-        </div>
-        </div>
-        </div>
-        `,
-            )
-            .appendTo('body');
-
-        const fullBtn = $overlay.find('#sc_catchup_full');
-        const skipBtn = $overlay.find('#sc_catchup_skip');
-        const partialBtn = $overlay.find('#sc_catchup_partial');
-
-        fullBtn.on('click', () => {
-            $overlay.remove();
-            resolve(/** @type {string} */ ('catchup'));
-        });
-        skipBtn.on('click', () => {
-            $overlay.remove();
-            resolve(/** @type {string} */ ('skip'));
-        });
-        partialBtn.on('click', () => {
-            $overlay.remove();
-            resolve(/** @type {string} */ ('partial'));
-        });
-    });
-}
-
-/**
- * Clear a stale foreground freeze when SillyTavern is no longer generating.
- * @param {string} reason - Context for debug logging
- * @returns {Promise<boolean>} True when stale guard state was cleared
- */
-async function recoverStalePromptFreeze(reason) {
-    if (!isPromptMutationFrozen() || isForegroundGenerationActive()) {
-        return false;
-    }
-
-    log(`Recovering stale foreground generation freeze before ${reason}.`);
-    await endCommitFreeze();
-    refreshUI();
-    return true;
-}
-
-/**
- * Recover stale guard state and block catch-up during a real foreground generation.
- * @returns {Promise<boolean>} True when catch-up may proceed
- */
-async function prepareCatchupRun() {
-    return await prepareManualRun('manual catch-up', 'Force Summarize');
-}
-
-/**
- * Recover stale guard state and block manual work during foreground generation.
- * @param {string} recoverReason - Context for stale guard recovery logs
- * @param {string} actionLabel - User-facing manual action name
- * @returns {Promise<boolean>} True when manual work may proceed
- */
-async function prepareManualRun(recoverReason, actionLabel) {
-    await recoverStalePromptFreeze(recoverReason);
-
-    if (!shouldStopAutoWorker()) {
-        return true;
-    }
-
-    toastr.warning(
-        `Foreground generation is active. Try ${actionLabel} again after the response finishes.`,
-        'Summaryception',
-        { timeOut: 5000 },
-    );
-    return false;
-}
-
-/**
- * Best-effort check for an active SillyTavern foreground generation.
- * @returns {boolean}
- */
-function isForegroundGenerationActive() {
-    const ctx = getContext();
-    if (ctx.streamingProcessor && ctx.streamingProcessor.isFinished === false) {
-        return true;
-    }
-
-    try {
-        const stopButton = $('#mes_stop');
-        return stopButton.length > 0 && stopButton.css('display') !== 'none';
-    } catch (_e) {
-        return false;
-    }
 }
