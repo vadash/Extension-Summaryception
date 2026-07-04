@@ -19,8 +19,8 @@ import { countTextTokens } from './token-count.js';
  * @property {Array<{index: number, mes: string, name: string}>} eligibleTurns
  * @property {Array<{index: number, mes: string, name: string}>} batchTurns
  * @property {'budget' | 'max' | 'repair' | 'none'} reason
- * @property {number} overflowCount
- * @property {number} softOverflowCount
+ * @property {number} overflowCount - Total eligible assistant turns outside the verbatim window.
+ * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
  * @property {number} visibleTurnCount
  * @property {number} tokenBoundaryIndex
  * @property {VerbatimBudgetStats} budgetStats
@@ -48,13 +48,21 @@ export async function getLayer0OverflowPlan(chat, store, settings) {
     const visibleTurns = getVisibleAssistantTurns(chat);
     const eligibleTurns = visibleTurns.filter((turn) => turn.index > store.summarizedUpTo);
     const budget = await getTokenBudgetBoundary(chat, settings);
-    const softTurns = eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex);
+    const overflowTurns = eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex);
     const batchLimit = Math.max(1, settings.maxSummaryTurns);
-    const candidateTurns = softTurns.slice(0, batchLimit);
+    const candidateTurns = overflowTurns.slice(0, batchLimit);
     const summaryStats = await getSummaryStats(chat, store, candidateTurns, settings);
 
     if (candidateTurns.length >= settings.maxSummaryTurns) {
-        return buildPlan('max', visibleTurns, eligibleTurns, candidateTurns, budget, summaryStats);
+        return buildPlan(
+            'max',
+            visibleTurns,
+            eligibleTurns,
+            overflowTurns,
+            candidateTurns,
+            budget,
+            summaryStats,
+        );
     }
 
     if (
@@ -65,6 +73,7 @@ export async function getLayer0OverflowPlan(chat, store, settings) {
             'budget',
             visibleTurns,
             eligibleTurns,
+            overflowTurns,
             candidateTurns,
             budget,
             summaryStats,
@@ -72,25 +81,40 @@ export async function getLayer0OverflowPlan(chat, store, settings) {
     }
 
     if (budget.exceeded && eligibleTurns.length === 0) {
-        return buildPlan('repair', visibleTurns, eligibleTurns, [], budget, summaryStats);
+        return buildPlan(
+            'repair',
+            visibleTurns,
+            eligibleTurns,
+            overflowTurns,
+            [],
+            budget,
+            summaryStats,
+        );
     }
 
-    return buildPlan('none', visibleTurns, eligibleTurns, [], budget, summaryStats);
+    return buildPlan('none', visibleTurns, eligibleTurns, overflowTurns, [], budget, summaryStats);
 }
 
 function getVisibleAssistantTurns(chat) {
     return getAssistantTurns(chat).filter((turn) => !chat[turn.index]?.extra?.sc_ghosted);
 }
 
-function buildPlan(reason, visibleTurns, eligibleTurns, batchTurns, budget, summaryStats) {
+function buildPlan(
+    reason,
+    visibleTurns,
+    eligibleTurns,
+    overflowTurns,
+    batchTurns,
+    budget,
+    summaryStats,
+) {
     return {
         visibleTurns,
         eligibleTurns,
         batchTurns,
         reason,
-        overflowCount: eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex).length,
-        softOverflowCount: eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex)
-            .length,
+        overflowCount: overflowTurns.length,
+        softOverflowCount: Math.max(0, overflowTurns.length - batchTurns.length),
         visibleTurnCount: visibleTurns.length,
         tokenBoundaryIndex: budget.boundaryIndex,
         budgetStats: budget.stats,

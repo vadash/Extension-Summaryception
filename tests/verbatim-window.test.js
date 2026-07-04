@@ -88,6 +88,8 @@ describe('getLayer0OverflowPlan', () => {
         expect(plan.reason).toBe('max');
         expect(plan.batchTurns).toHaveLength(5);
         expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1, 2, 3, 4]);
+        expect(plan.overflowCount).toBe(6);
+        expect(plan.softOverflowCount).toBe(1);
     });
 
     it('uses regex-adjusted token counts for the budget decision', async () => {

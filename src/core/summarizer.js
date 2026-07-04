@@ -501,11 +501,7 @@ async function getCatchupPlan() {
  */
 function estimateCatchupBatches(plan) {
     const batchLimit = Math.max(1, getSettings().maxSummaryTurns);
-    const readyTurns = Math.max(
-        plan.eligibleTurns.length,
-        plan.softOverflowCount,
-        plan.overflowCount,
-    );
+    const readyTurns = plan.batchTurns.length + plan.softOverflowCount;
     return Math.max(1, Math.ceil(readyTurns / batchLimit));
 }
 
