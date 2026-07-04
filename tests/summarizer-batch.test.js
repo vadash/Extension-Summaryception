@@ -127,7 +127,9 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         await endForegroundGeneration();
 
         expect(updateInjection).toHaveBeenCalledTimes(1);
-        expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 0);
+        expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 0, {
+            chatSave: 'deferred',
+        });
     });
 
     it('discards a deferred result when summary layers change before unfreeze', async () => {

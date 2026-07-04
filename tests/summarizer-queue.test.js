@@ -147,4 +147,13 @@ describe('SummarizerQueue', () => {
         expect(phases).toContain('yielding');
         expect(phases.at(-1)).toBe('idle');
     });
+
+    it('runs the afterDrain callback when the worker finishes', async () => {
+        const afterDrain = vi.fn(async () => {});
+        const { queue } = makeQueue({ afterDrain });
+
+        await queue.request();
+
+        expect(afterDrain).toHaveBeenCalledTimes(1);
+    });
 });

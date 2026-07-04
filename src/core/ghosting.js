@@ -11,16 +11,18 @@ import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './su
  * @typedef {object} GhostRangeOptions
  * @property {boolean} [showProgress] - Show a progress toast for manual work.
  * @property {string} [kind] - Prompt-effect queue label.
+ * @property {'immediate' | 'deferred'} [chatSave] - Chat-file persistence mode.
  */
 
 /**
  * Ensure all Summaryception-eligible messages in a range are ghosted.
  * @param {number} startIdx - Start index in chat
  * @param {number} endIdx - End index in chat
+ * @param {GhostRangeOptions} [options]
  * @returns {Promise<void>}
  */
-export async function repairGhostingForRange(startIdx, endIdx) {
-    await ghostMessagesInRange(startIdx, endIdx, { kind: 'ghost-repair' });
+export async function repairGhostingForRange(startIdx, endIdx, options = {}) {
+    await ghostMessagesInRange(startIdx, endIdx, { kind: 'ghost-repair', ...options });
 }
 
 /**
@@ -131,6 +133,7 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
             range: hideRange,
             epoch,
             disableGhosting: settings.disableGhosting,
+            chatSave: options.chatSave || 'immediate',
         });
 
         if (!applied) {
@@ -153,11 +156,12 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
  * @param {[number, number]} p.range
  * @param {number} p.epoch
  * @param {boolean} p.disableGhosting
+ * @param {'immediate' | 'deferred'} p.chatSave
  * @returns {Promise<boolean>}
  */
-async function applyHideRange({ chat, store, range, epoch, disableGhosting }) {
+async function applyHideRange({ chat, store, range, epoch, disableGhosting, chatSave }) {
     markGhostedRange(chat, store, range);
-    await persistChatState();
+    await persistChatState({ chatSave });
 
     if (disableGhosting) {
         return true;
@@ -174,7 +178,7 @@ async function applyHideRange({ chat, store, range, epoch, disableGhosting }) {
         console.error(LOG_PREFIX, `Failed to hide messages ${formatSlashRange(range)}:`, e);
     }
 
-    await persistChatState();
+    await persistChatState({ chatSave });
     return true;
 }
 

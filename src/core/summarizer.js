@@ -7,6 +7,7 @@ import { maybePromoteLayer } from './summarizer-promotion.js';
 import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
+import { flushPendingChatSave } from './persist-state.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
@@ -52,6 +53,7 @@ const summarizerQueue = new SummarizerQueue({
     refreshUi: refreshUI,
     withUsageRun,
     yieldCycle: yieldWorkerCycle,
+    afterDrain: flushPendingChatSave,
 });
 
 setCommitCallbacks({
@@ -157,6 +159,7 @@ export async function summarizeOneBatch(visibleTurns) {
             return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
         } finally {
             summarizerQueue.setSummarizing(false);
+            await flushPendingChatSave();
         }
     });
 }
@@ -399,6 +402,7 @@ export async function runCatchup(visibleTurns, overflow) {
             refreshUI();
         } finally {
             summarizerQueue.setSummarizing(false);
+            await flushPendingChatSave();
         }
     });
 }

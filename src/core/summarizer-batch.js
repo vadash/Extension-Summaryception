@@ -73,9 +73,9 @@ async function repairGhosting(visibleTurns, summarizedUpTo) {
     if (turnsToGhost.length > 0) {
         const first = /** @type {number} */ (turnsToGhost[0].index);
         const last = /** @type {number} */ (turnsToGhost[turnsToGhost.length - 1].index);
-        await repairGhostingForRange(first, last);
+        await repairGhostingForRange(first, last, { chatSave: 'deferred' });
     }
-    await persistChatState();
+    await persistChatState({ chatSave: 'deferred' });
     trace('<<< EXITING summarizeBatchFromTurns - REPAIRED GHOSTING');
 }
 
@@ -272,8 +272,8 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
 
     await saveChatStore();
     await updateCommittedInjection();
-    await ghostMessagesInRange(passageStart, endIdx);
-    await persistChatState();
+    await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
+    await persistChatState({ chatSave: 'deferred' });
 
     log(`Layer 0 now has ${store.layers[0].length} snippets`);
 

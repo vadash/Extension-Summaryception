@@ -15,6 +15,7 @@
  * @property {<T>(label: string, callback: () => Promise<T>) => Promise<T>} withUsageRun
  * @property {{ log?: (...args: unknown[]) => void } | ((...args: unknown[]) => void)} [logger]
  * @property {() => Promise<void>} [yieldCycle]
+ * @property {() => Promise<void>} [afterDrain]
  */
 
 /**
@@ -24,12 +25,13 @@ export class SummarizerQueue {
     /**
      * @param {SummarizerQueueDependencies} deps
      */
-    constructor({ drainOneCycle, abort, refreshUi, withUsageRun, logger, yieldCycle }) {
+    constructor({ drainOneCycle, abort, refreshUi, withUsageRun, logger, yieldCycle, afterDrain }) {
         this.drainOneCycle = drainOneCycle;
         this.abortRequest = abort;
         this.refreshUi = refreshUi;
         this.withUsageRun = withUsageRun;
         this.yieldCycle = yieldCycle || defaultYieldCycle;
+        this.afterDrain = afterDrain || defaultAfterDrain;
         this.log = typeof logger === 'function' ? logger : logger?.log;
 
         this.running = false;
@@ -116,8 +118,12 @@ export class SummarizerQueue {
             try {
                 await this.#drainRequestedWork();
             } finally {
-                this.running = false;
-                this.#setPhase('idle', { force: true });
+                try {
+                    await this.afterDrain();
+                } finally {
+                    this.running = false;
+                    this.#setPhase('idle', { force: true });
+                }
             }
         });
     }
@@ -188,6 +194,8 @@ export class SummarizerQueue {
 async function defaultYieldCycle() {
     await new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+async function defaultAfterDrain() {}
 
 /**
  * Check whether a value is a supported queue phase.
