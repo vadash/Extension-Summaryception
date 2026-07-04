@@ -12,6 +12,7 @@ SillyTavern browser extension for layered recursive summarization. No build step
 - Add JSDoc to exports and useful internal transaction/worker types.
 - Runtime globals: `SillyTavern` (accessed only via `src/foundation/context.js` facade), `toastr`, `$`.
 - Settings UI: keep control IDs stable; prefer compact theme-aware panels and Font Awesome icons over emoji headings.
+- DOM access: always use jQuery `$()` for the live DOM (querying nodes, binding events, setting state). Vanilla `document.createElement` is only for ephemeral helper nodes that never enter the live DOM and for XSS-safe text escaping via the `textContent`/`innerHTML` idiom.
 
 ## Boundaries
 

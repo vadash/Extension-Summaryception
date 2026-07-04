@@ -524,6 +524,10 @@ function getSnippetTurnRange(snippet) {
 
 /**
  * Escape a string for safe HTML rendering.
+ *
+ * Uses vanilla DOM instead of jQuery: this is the canonical XSS-safe idiom
+ * (textContent + innerHTML) with zero wrapper overhead.
+ *
  * @param {string} text
  * @returns {string}
  */

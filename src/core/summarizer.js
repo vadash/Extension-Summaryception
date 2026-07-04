@@ -541,9 +541,9 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
     return new Promise((resolve) => {
         const s = getSettings();
 
-        const overlay = document.createElement('div');
-        overlay.className = 'sc-catchup-overlay';
-        overlay.innerHTML = `
+        const $overlay = $('<div class="sc-catchup-overlay">')
+            .html(
+                `
         <div class="sc-catchup-modal">
         <h3>🧠 Summaryception — Backlog Detected</h3>
         <div class="sc-catchup-dialog">
@@ -576,23 +576,24 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
         </div>
         </div>
         </div>
-        `;
-        document.body.appendChild(overlay);
-        const fullBtn = /** @type {HTMLElement} */ (overlay.querySelector('#sc_catchup_full'));
-        const skipBtn = /** @type {HTMLElement} */ (overlay.querySelector('#sc_catchup_skip'));
-        const partialBtn = /** @type {HTMLElement} */ (
-            overlay.querySelector('#sc_catchup_partial')
-        );
-        fullBtn.addEventListener('click', () => {
-            overlay.remove();
+        `,
+            )
+            .appendTo('body');
+
+        const fullBtn = $overlay.find('#sc_catchup_full');
+        const skipBtn = $overlay.find('#sc_catchup_skip');
+        const partialBtn = $overlay.find('#sc_catchup_partial');
+
+        fullBtn.on('click', () => {
+            $overlay.remove();
             resolve(/** @type {string} */ ('catchup'));
         });
-        skipBtn.addEventListener('click', () => {
-            overlay.remove();
+        skipBtn.on('click', () => {
+            $overlay.remove();
             resolve(/** @type {string} */ ('skip'));
         });
-        partialBtn.addEventListener('click', () => {
-            overlay.remove();
+        partialBtn.on('click', () => {
+            $overlay.remove();
             resolve(/** @type {string} */ ('partial'));
         });
     });

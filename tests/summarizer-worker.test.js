@@ -35,7 +35,7 @@ beforeEach(async () => {
         error: vi.fn(),
         clear: vi.fn(),
     };
-    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }) });
+    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }), length: 1 });
 });
 
 describe('requestSummarization', () => {

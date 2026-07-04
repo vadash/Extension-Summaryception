@@ -6,7 +6,7 @@ import {
 } from '../core/connectionutil.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
 
-// Connection settings UI
+// Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
 
 /**
  * Initialize connection settings panel: bind inputs/selects and set initial visibility.
@@ -35,17 +35,15 @@ export function initConnectionUI() {
  * @returns {void}
  */
 function bindConnectionSource(settings) {
-    const sourceSelect = /** @type {HTMLSelectElement} */ (
-        document.getElementById('summaryception_connection_source')
-    );
-    if (!sourceSelect) {
+    const $sourceSelect = $('#summaryception_connection_source');
+    if (!$sourceSelect.length) {
         return;
     }
-    sourceSelect.value = settings.connectionSource || 'default';
-    sourceSelect.addEventListener('change', () => {
-        settings.connectionSource = sourceSelect.value;
+    $sourceSelect.val(settings.connectionSource || 'default');
+    $sourceSelect.on('change', () => {
+        settings.connectionSource = $sourceSelect.val();
         saveSettings();
-        updateConnectionSubPanels(sourceSelect.value);
+        updateConnectionSubPanels($sourceSelect.val());
     });
 }
 
@@ -55,18 +53,16 @@ function bindConnectionSource(settings) {
  * @returns {void}
  */
 function bindConnectionProfile(settings) {
-    const profileSelect = /** @type {HTMLSelectElement} */ (
-        document.getElementById('summaryception_connection_profile')
-    );
-    if (!profileSelect) {
+    const $profileSelect = $('#summaryception_connection_profile');
+    if (!$profileSelect.length) {
         return;
     }
-    const populated = populateProfileDropdown(profileSelect, settings.connectionProfileId);
+    const populated = populateProfileDropdown($profileSelect[0], settings.connectionProfileId);
     if (!populated) {
-        fetchProfilesFallback(profileSelect, settings.connectionProfileId);
+        fetchProfilesFallback($profileSelect, settings.connectionProfileId);
     }
-    profileSelect.addEventListener('change', () => {
-        settings.connectionProfileId = profileSelect.value;
+    $profileSelect.on('change', () => {
+        settings.connectionProfileId = $profileSelect.val();
         saveSettings();
     });
 }
@@ -79,14 +75,14 @@ function bindConnectionProfile(settings) {
  * @returns {void}
  */
 function bindConnectionStringInput(elementId, key, fallback) {
-    const el = /** @type {HTMLInputElement} */ (document.getElementById(elementId));
-    if (!el) {
+    const $el = $('#' + elementId);
+    if (!$el.length) {
         return;
     }
     const settings = getSettings();
-    el.value = settings[key] || fallback;
-    el.addEventListener('input', () => {
-        settings[key] = el.value.trim();
+    $el.val(settings[key] || fallback);
+    $el.on('input', () => {
+        settings[key] = ($el.val() || '').trim();
         saveSettings();
     });
 }
@@ -99,14 +95,14 @@ function bindConnectionStringInput(elementId, key, fallback) {
  * @returns {void}
  */
 function bindConnectionParsedInput(elementId, key, fallback) {
-    const el = /** @type {HTMLInputElement} */ (document.getElementById(elementId));
-    if (!el) {
+    const $el = $('#' + elementId);
+    if (!$el.length) {
         return;
     }
     const settings = getSettings();
-    el.value = String(settings[key] || fallback);
-    el.addEventListener('input', () => {
-        settings[key] = parseInt(el.value, 10) || 0;
+    $el.val(String(settings[key] || fallback));
+    $el.on('input', () => {
+        settings[key] = parseInt($el.val(), 10) || 0;
         saveSettings();
     });
 }
@@ -117,19 +113,17 @@ function bindConnectionParsedInput(elementId, key, fallback) {
  * @returns {void}
  */
 function bindOllamaModelDropdown(settings) {
-    const ollamaModel = /** @type {HTMLSelectElement} */ (
-        document.getElementById('summaryception_ollama_model')
-    );
-    if (!ollamaModel) {
+    const $ollamaModel = $('#summaryception_ollama_model');
+    if (!$ollamaModel.length) {
         return;
     }
     populateOllamaModelDropdown(
-        ollamaModel,
+        $ollamaModel,
         settings.ollamaModelsCache || [],
         settings.ollamaModel,
     );
-    ollamaModel.addEventListener('change', () => {
-        settings.ollamaModel = ollamaModel.value;
+    $ollamaModel.on('change', () => {
+        settings.ollamaModel = $ollamaModel.val();
         saveSettings();
     });
 }
@@ -141,11 +135,11 @@ function bindOllamaModelDropdown(settings) {
  * @returns {void}
  */
 function bindConnectionButton(elementId, handler) {
-    const el = /** @type {HTMLButtonElement} */ (document.getElementById(elementId));
-    if (!el) {
+    const $el = $('#' + elementId);
+    if (!$el.length) {
         return;
     }
-    el.addEventListener('click', async () => {
+    $el.on('click', async () => {
         await handler();
     });
 }
@@ -156,51 +150,39 @@ function bindConnectionButton(elementId, handler) {
  * @returns {void}
  */
 export function updateConnectionSubPanels(source) {
-    const panels = {
-        profile: /** @type {HTMLElement} */ (
-            document.getElementById('summaryception_profile_settings')
-        ),
-        ollama: /** @type {HTMLElement} */ (
-            document.getElementById('summaryception_ollama_settings')
-        ),
-        openai: /** @type {HTMLElement} */ (
-            document.getElementById('summaryception_openai_settings')
-        ),
-    };
+    const $profile = $('#summaryception_profile_settings');
+    const $ollama = $('#summaryception_ollama_settings');
+    const $openai = $('#summaryception_openai_settings');
 
-    Object.values(panels).forEach((panel) => {
-        if (panel) {
-            panel.style.display = 'none';
-        }
-    });
-
-    if (panels[source]) {
-        panels[source].style.display = 'block';
+    $profile.add($ollama).add($openai).hide();
+    if (source === 'profile') {
+        $profile.show();
+    } else if (source === 'ollama') {
+        $ollama.show();
+    } else if (source === 'openai') {
+        $openai.show();
     }
 }
 
 /**
  * Populate an Ollama model dropdown.
- * @param {HTMLSelectElement} selectElement
+ * @param {object} $select jQuery-wrapped <select> element
  * @param {Array<({ name: string } | string)>} models
  * @param {string} currentValue
  * @returns {void}
  */
-export function populateOllamaModelDropdown(selectElement, models, currentValue) {
-    selectElement.innerHTML = '<option value="">-- Select Model --</option>';
+export function populateOllamaModelDropdown($select, models, currentValue) {
+    $select.html('<option value="">-- Select Model --</option>');
 
     if (models && models.length > 0) {
         for (const model of models) {
-            const opt = document.createElement('option');
             const name = typeof model === 'string' ? model : model.name;
-            opt.value = name;
-            opt.textContent = name;
-            selectElement.appendChild(opt);
+            $select.append($('<option></option>').val(name).text(name));
         }
     }
 
     if (currentValue) {
-        selectElement.value = currentValue;
+        $select.val(currentValue);
     }
 }
 
@@ -211,9 +193,7 @@ export function populateOllamaModelDropdown(selectElement, models, currentValue)
 export async function refreshOllamaModels() {
     const s = getSettings();
     const ollamaUrl = s.ollamaUrl || 'http://localhost:11434';
-    const modelSelect = /** @type {HTMLSelectElement} */ (
-        document.getElementById('summaryception_ollama_model')
-    );
+    const $modelSelect = $('#summaryception_ollama_model');
 
     showConnectionStatus('loading', 'Fetching Ollama models...');
 
@@ -222,8 +202,8 @@ export async function refreshOllamaModels() {
         s.ollamaModelsCache = models.map((m) => ({ name: m.name }));
         saveSettings();
 
-        if (modelSelect) {
-            populateOllamaModelDropdown(modelSelect, models, s.ollamaModel);
+        if ($modelSelect.length) {
+            populateOllamaModelDropdown($modelSelect, models, s.ollamaModel);
         }
 
         showConnectionStatus('success', `Found ${models.length} model(s)`);
@@ -271,16 +251,15 @@ export async function testOpenAIConnectionHandler() {
  * @returns {void}
  */
 export function showConnectionStatus(type, message) {
-    const container = document.getElementById('summaryception_connection_status');
-    const icon = document.getElementById('summaryception_connection_status_icon');
-    const text = document.getElementById('summaryception_connection_status_text');
+    const $container = $('#summaryception_connection_status');
+    const $icon = $('#summaryception_connection_status_icon');
+    const $text = $('#summaryception_connection_status_text');
 
-    if (!container || !icon || !text) {
+    if (!$container.length || !$icon.length || !$text.length) {
         return;
     }
 
-    container.style.display = 'flex';
-    container.className = 'sc-connection-status ' + type;
+    $container.css('display', 'flex').attr('class', 'sc-connection-status ' + type);
 
     const icons = {
         success: 'fa-solid fa-circle-check',
@@ -288,13 +267,13 @@ export function showConnectionStatus(type, message) {
         loading: 'fa-solid fa-spinner fa-spin',
     };
 
-    icon.className = icons[type] || 'fa-solid fa-circle';
-    text.textContent = message;
+    $icon.attr('class', icons[type] || 'fa-solid fa-circle');
+    $text.text(message);
 
     if (type !== 'loading') {
         setTimeout(() => {
-            if (container) {
-                container.style.display = 'none';
+            if ($container.length) {
+                $container.hide();
             }
         }, 8000);
     }
@@ -302,11 +281,11 @@ export function showConnectionStatus(type, message) {
 
 /**
  * Fallback fetch for connection profiles from ST connection-manager API.
- * @param {HTMLSelectElement} selectElement
+ * @param {object} $select jQuery-wrapped <select> element to populate
  * @param {string} currentValue
  * @returns {Promise<void>}
  */
-export async function fetchProfilesFallback(selectElement, currentValue) {
+export async function fetchProfilesFallback($select, currentValue) {
     try {
         const response = await fetch('/api/connection-manager/profiles', {
             method: 'GET',
@@ -320,26 +299,28 @@ export async function fetchProfilesFallback(selectElement, currentValue) {
 
         const profiles = await response.json();
 
-        selectElement.innerHTML = '<option value="">-- Select a Profile --</option>';
+        $select.html('<option value="">-- Select a Profile --</option>');
 
         if (Array.isArray(profiles)) {
             for (const profile of profiles) {
-                const opt = document.createElement('option');
-                opt.value = profile.id || profile.name;
-                opt.textContent = profile.name || profile.id;
-                selectElement.appendChild(opt);
+                $select.append(
+                    $('<option></option>')
+                        .val(profile.id || profile.name)
+                        .text(profile.name || profile.id),
+                );
             }
         } else if (typeof profiles === 'object') {
             for (const [id, profile] of Object.entries(profiles)) {
-                const opt = document.createElement('option');
-                opt.value = id;
-                opt.textContent = profile.name || id;
-                selectElement.appendChild(opt);
+                $select.append(
+                    $('<option></option>')
+                        .val(id)
+                        .text(profile.name || id),
+                );
             }
         }
 
         if (currentValue) {
-            selectElement.value = currentValue;
+            $select.val(currentValue);
         }
     } catch (error) {
         console.warn('[Summaryception] Could not fetch connection profiles:', error);

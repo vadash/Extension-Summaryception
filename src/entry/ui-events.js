@@ -302,6 +302,9 @@ async function onForceSummarize() {
 
 /**
  * Import summary memory from a JSON file.
+ *
+ * Vanilla document.createElement is used for the ephemeral <input type="file">
+ * because it never enters the live DOM - we read its files and discard it.
  * @returns {void}
  */
 function triggerImport() {
@@ -609,6 +612,9 @@ function bindCustomPromptHandlers() {
 
 /**
  * Import a custom prompt from a user-selected text file.
+ *
+ * Vanilla document.createElement is used for the ephemeral <input type="file">
+ * because it never enters the live DOM - we read its files and discard it.
  * @returns {void}
  */
 function triggerCustomPromptImport() {
