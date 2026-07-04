@@ -304,15 +304,20 @@ If this saves your 500-turn adventure from amnesia, consider starring the repo. 
 
 You can switch branch in ST if you dont like future patches
 
-v6.03 - same as original. Split it into moduled structure, added tests, typecheck, linter, auto bump. Can enable global regex support
+### v7
 
-v6.08 - make it more reliable when you type while ext summarize in background
+*   **Consistent Roleplay Style:** A new "Verbatim Token Budget" slider lets you decide exactly how much of your recent conversation stays word-for-word in the AI's memory, which helps it maintain its formatting and writing style.
+*   **Smoother Memory Browser:** When you view, edit, or delete individual memory snippets, the list will no longer jump around, scroll away, or lose your text cursor when the extension updates in the background.
 
-v6.10 - UI rework
+### v6
 
 v6.21 - faster hide
 
-For more info check commits and docs folder
+v6.10 - UI rework
+
+v6.08 - make it more reliable when you type while ext summarize in background
+
+v6.03 - same as original. Split it into moduled structure, added tests, typecheck, linter, auto bump. Can enable global regex support
 
 ---
 
