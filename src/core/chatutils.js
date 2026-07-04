@@ -44,7 +44,12 @@ export function getVisibleAssistantTurns(chat) {
     return turns;
 }
 
-function getPromptDepthsByChatIndex(chat) {
+/**
+ * Map chat indices to SillyTavern prompt depth for regex min/max depth filters.
+ * @param {Array} chat - The SillyTavern chat array
+ * @returns {Map<number, number>} Prompt depth by chat index
+ */
+export function getPromptDepthsByChatIndex(chat) {
     const promptIndexes = [];
     const depths = new Map();
 

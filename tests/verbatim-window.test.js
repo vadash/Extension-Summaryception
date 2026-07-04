@@ -113,6 +113,24 @@ describe('getLayer0OverflowPlan', () => {
         expect(plan.tokenBudgetExceeded).toBe(false);
     });
 
+    it('uses the shared prompt-depth calculation for regex scripts', async () => {
+        const chat = [
+            makeMessage({ mes: 'old' }),
+            makeMessage({ mes: 'hidden', isHidden: true }),
+            makeMessage({ mes: 'new' }),
+        ];
+
+        await getPlan(chat, {
+            applyRegexScripts: true,
+            minSummaryTurns: 2,
+            minSummaryBudget: 1,
+            verbatimTokenBudget: 1,
+        });
+
+        expect(mocks.applyRegexToMessage).toHaveBeenCalledWith('new', false, 0);
+        expect(mocks.applyRegexToMessage).toHaveBeenCalledWith('old', false, 2);
+    });
+
     it('selects assistant endpoints cleanly through irregular user and assistant ordering', async () => {
         const chat = [
             makeMessage({ isUser: true, mes: 'u0', name: 'Player' }),

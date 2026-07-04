@@ -1,4 +1,4 @@
-import { getAssistantTurns } from './chatutils.js';
+import { getAssistantTurns, getPromptDepthsByChatIndex } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { countTextTokens } from './token-count.js';
 
@@ -254,21 +254,4 @@ function isPassageCountableMessage(message) {
         return false;
     }
     return !(message.is_system || message.is_hidden) || message.extra?.sc_ghosted;
-}
-
-function getPromptDepthsByChatIndex(chat) {
-    const promptIndexes = [];
-    const depths = new Map();
-
-    for (let i = 0; i < chat.length; i++) {
-        if (isPromptVisibleMessage(chat[i])) {
-            promptIndexes.push(i);
-        }
-    }
-
-    for (let i = 0; i < promptIndexes.length; i++) {
-        depths.set(promptIndexes[i], promptIndexes.length - i - 1);
-    }
-
-    return depths;
 }
