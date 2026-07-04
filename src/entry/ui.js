@@ -227,120 +227,385 @@ export function updateCustomPromptSlots() {
 }
 
 /**
- * Render the snippet browser and bind its per-snippet action handlers.
+ * @typedef {object} SnippetBrowserItem
+ * @property {string} key - Stable row key for this render pass
+ * @property {number} layerIndex - Source layer index
+ * @property {number} snippetIndex - Source snippet index within the layer
+ * @property {string} text - Snippet text
+ * @property {string} meta - Compact source metadata label
+ * @property {boolean} canRedo - Whether the row can be regenerated
+ */
+
+/**
+ * @typedef {object} SnippetBrowserLayer
+ * @property {string} key - Stable layer key for this render pass
+ * @property {number} index - Source layer index
+ * @property {string} label - Layer heading
+ * @property {SnippetBrowserItem[]} snippets - Snippets in display order
+ */
+
+/**
+ * @typedef {object} SnippetBrowserView
+ * @property {boolean} empty - Whether there are no snippets to display
+ * @property {SnippetBrowserLayer[]} layers - Non-empty layers, deepest first
+ */
+
+const SNIPPET_BROWSER_EVENT_NS = '.summaryceptionSnippetBrowser';
+
+/**
+ * Render the snippet browser with fine-grained DOM updates.
  * @returns {void}
  */
 export function updateSnippetBrowser() {
     const store = getChatStore();
-    const html = buildSnippetBrowserHtml(store);
-    $('#sc_snippet_browser').html(html);
+    const browser = $('#sc_snippet_browser');
+    if (!browser.length) {
+        return;
+    }
 
-    bindSnippetEditHandlers(store);
-    bindSnippetRedoHandlers(store);
-    bindSnippetDeleteHandlers(store);
+    bindSnippetBrowserHandlers(browser);
+    renderSnippetBrowser(browser, buildSnippetBrowserViewModel(store));
 }
 
 /**
- * Build the snippet browser HTML string.
+ * Build a DOM-neutral view model for the snippet browser.
  * @param {ReturnType<typeof getChatStore>} store
- * @returns {string}
+ * @returns {SnippetBrowserView}
  */
-function buildSnippetBrowserHtml(store) {
-    if (!store.layers || store.layers.every((l) => !l || l.length === 0)) {
-        return '<div class="sc-muted">No snippets to display.</div>';
-    }
-
-    let html = '';
-    for (let i = store.layers.length - 1; i >= 0; i--) {
-        const layer = store.layers[i];
+export function buildSnippetBrowserViewModel(store) {
+    const layers = [];
+    const sourceLayers = Array.isArray(store.layers) ? store.layers : [];
+    for (let i = sourceLayers.length - 1; i >= 0; i--) {
+        const layer = sourceLayers[i];
         if (!layer || layer.length === 0) {
             continue;
         }
         const label = i === 0 ? 'Layer 0 (Turn Summaries)' : `Layer ${i} (Meta-Summary)`;
-        html += `<div class="sc-browser-layer"><div class="sc-browser-layer-title">${label}</div>`;
-        for (let j = 0; j < layer.length; j++) {
-            const sn = layer[j];
-            const rangeStr = sn.turnRange
-                ? `turns ${sn.turnRange[0]}-${sn.turnRange[1]}`
-                : sn.mergedCount
-                  ? `merged ${sn.mergedCount} from L${sn.fromLayer}`
-                  : '';
-            const seedStr = sn.promoted ? ' promoted' : '';
-            const canRedo = i === 0 && sn.turnRange;
-            const redoBtn = canRedo
-                ? '<button class="sc-snippet-redo menu_button fa-solid fa-rotate-right" title="Regenerate this snippet"></button>'
-                : '';
-
-            html += `<div class="sc-snippet" data-layer="${i}" data-idx="${j}">
-            <span class="sc-snippet-text" data-layer="${i}" data-idx="${j}" title="Click to edit">${escapeHtml(sn.text)}</span>
-            <span class="sc-snippet-meta">${rangeStr}${seedStr}</span>
-            ${redoBtn}
-            <button class="sc-snippet-delete menu_button fa-solid fa-xmark" title="Delete this snippet"></button>
-            </div>`;
-        }
-        html += '</div>';
+        layers.push({
+            key: getSnippetLayerKey(i),
+            index: i,
+            label,
+            snippets: layer.map((snippet, j) => buildSnippetBrowserItem(snippet, i, j)),
+        });
     }
-    return html;
+    return { empty: layers.length === 0, layers };
 }
 
 /**
- * Bind click-to-edit handlers for snippet text.
- * @param {ReturnType<typeof getChatStore>} store
- * @returns {void}
+ * Build the stable row key used by the snippet browser renderer.
+ * @param {number} layerIndex
+ * @param {number} snippetIndex
+ * @returns {string}
  */
-function bindSnippetEditHandlers(store) {
-    $('.sc-snippet-text')
-        .off('click')
-        .on('click', function () {
-            const layerIdx = parseInt($(this).data('layer'));
-            const snippetIdx = parseInt($(this).data('idx'));
-            const layer = store.layers[layerIdx];
-            if (!layer || !layer[snippetIdx]) {
-                return;
+export function getSnippetBrowserRowKey(layerIndex, snippetIndex) {
+    return `snippet:${layerIndex}:${snippetIndex}`;
+}
+
+function getSnippetLayerKey(layerIndex) {
+    return `layer:${layerIndex}`;
+}
+
+function buildSnippetBrowserItem(snippet, layerIndex, snippetIndex) {
+    return {
+        key: getSnippetBrowserRowKey(layerIndex, snippetIndex),
+        layerIndex,
+        snippetIndex,
+        text: snippet.text,
+        meta: getSnippetMeta(snippet),
+        canRedo: Boolean(layerIndex === 0 && snippet.turnRange),
+    };
+}
+
+function getSnippetMeta(snippet) {
+    const rangeStr = snippet.turnRange
+        ? `turns ${snippet.turnRange[0]}-${snippet.turnRange[1]}`
+        : snippet.mergedCount
+          ? `merged ${snippet.mergedCount} from L${snippet.fromLayer}`
+          : '';
+    const seedStr = snippet.promoted ? ' promoted' : '';
+    return `${rangeStr}${seedStr}`;
+}
+
+function bindSnippetBrowserHandlers(browser) {
+    if (browser.data('scSnippetBrowserHandlersBound')) {
+        return;
+    }
+
+    browser.data('scSnippetBrowserHandlersBound', true);
+    browser
+        .on(`click${SNIPPET_BROWSER_EVENT_NS}`, '.sc-snippet-text', onSnippetTextClick)
+        .on(`click${SNIPPET_BROWSER_EVENT_NS}`, '.sc-snippet-redo', onSnippetRedoClick)
+        .on(`click${SNIPPET_BROWSER_EVENT_NS}`, '.sc-snippet-delete', onSnippetDeleteClick);
+}
+
+function renderSnippetBrowser(browser, view) {
+    const previousScrollTop = browser.scrollTop();
+
+    if (view.empty) {
+        renderEmptySnippetBrowser(browser);
+        browser.scrollTop(previousScrollTop);
+        return;
+    }
+
+    browser.children('.sc-muted').remove();
+    removeMissingLayers(browser, new Set(view.layers.map((layer) => layer.key)));
+
+    for (const layer of view.layers) {
+        const layerEl = getOrCreateLayerElement(browser, layer);
+        updateLayerElement(layerEl, layer);
+        renderLayerSnippets(layerEl, layer);
+        if (!hasFocusedSnippetEdit(layerEl)) {
+            browser.append(layerEl);
+        }
+    }
+
+    browser.scrollTop(previousScrollTop);
+}
+
+function renderEmptySnippetBrowser(browser) {
+    if (hasFocusedSnippetEdit(browser)) {
+        return;
+    }
+
+    browser.children().remove();
+    $('<div class="sc-muted"></div>').text('No snippets to display.').appendTo(browser);
+}
+
+function removeMissingLayers(browser, layerKeys) {
+    browser.children('.sc-browser-layer').each(function () {
+        const layerEl = $(this);
+        if (!layerKeys.has(layerEl.attr('data-key')) && !hasFocusedSnippetEdit(layerEl)) {
+            layerEl.remove();
+        }
+    });
+}
+
+function getOrCreateLayerElement(browser, layer) {
+    const existing = browser
+        .children('.sc-browser-layer')
+        .filter(function () {
+            return $(this).attr('data-key') === layer.key;
+        })
+        .first();
+
+    if (existing.length) {
+        return existing;
+    }
+
+    return $('<div class="sc-browser-layer"></div>');
+}
+
+function updateLayerElement(layerEl, layer) {
+    layerEl.attr({ 'data-key': layer.key, 'data-layer': String(layer.index) });
+
+    let title = layerEl.children('.sc-browser-layer-title').first();
+    if (!title.length) {
+        title = $('<div class="sc-browser-layer-title"></div>').prependTo(layerEl);
+    }
+    title.text(layer.label);
+}
+
+function renderLayerSnippets(layerEl, layer) {
+    const rowKeys = new Set(layer.snippets.map((snippet) => snippet.key));
+    removeMissingSnippetRows(layerEl, rowKeys);
+
+    for (const snippet of layer.snippets) {
+        const row = getOrCreateSnippetRow(layerEl, snippet);
+        updateSnippetRow(row, snippet);
+        if (!hasFocusedSnippetEdit(row)) {
+            layerEl.append(row);
+        }
+    }
+}
+
+function removeMissingSnippetRows(layerEl, rowKeys) {
+    layerEl.children('.sc-snippet').each(function () {
+        const row = $(this);
+        if (!rowKeys.has(row.attr('data-key')) && !hasFocusedSnippetEdit(row)) {
+            row.remove();
+        }
+    });
+}
+
+function getOrCreateSnippetRow(layerEl, snippet) {
+    const existing = layerEl
+        .children('.sc-snippet')
+        .filter(function () {
+            return $(this).attr('data-key') === snippet.key;
+        })
+        .first();
+
+    if (existing.length) {
+        return existing;
+    }
+
+    return $('<div class="sc-snippet"></div>');
+}
+
+function updateSnippetRow(row, snippet) {
+    row.attr({
+        'data-key': snippet.key,
+        'data-layer': String(snippet.layerIndex),
+        'data-idx': String(snippet.snippetIndex),
+    });
+
+    if (hasFocusedSnippetEdit(row)) {
+        return;
+    }
+
+    row.children('.sc-snippet-edit').remove();
+    const text = ensureSnippetText(row, snippet);
+    const meta = ensureSnippetMeta(row, snippet);
+    const redo = ensureSnippetRedo(row, snippet);
+    const remove = ensureSnippetDelete(row);
+
+    row.append(text, meta);
+    if (redo) {
+        row.append(redo);
+    }
+    row.append(remove);
+}
+
+function ensureSnippetText(row, snippet) {
+    let text = row.children('.sc-snippet-text').first();
+    if (!text.length) {
+        text = $('<span class="sc-snippet-text"></span>');
+    }
+    text.attr({
+        'data-layer': String(snippet.layerIndex),
+        'data-idx': String(snippet.snippetIndex),
+        title: 'Click to edit',
+    });
+    text.text(snippet.text);
+    return text;
+}
+
+function ensureSnippetMeta(row, snippet) {
+    let meta = row.children('.sc-snippet-meta').first();
+    if (!meta.length) {
+        meta = $('<span class="sc-snippet-meta"></span>');
+    }
+    meta.text(snippet.meta);
+    return meta;
+}
+
+function ensureSnippetRedo(row, snippet) {
+    let redo = row.children('.sc-snippet-redo').first();
+    if (!snippet.canRedo) {
+        redo.remove();
+        return null;
+    }
+    if (!redo.length) {
+        redo = $('<button class="sc-snippet-redo menu_button fa-solid fa-rotate-right"></button>');
+    }
+    redo.attr({
+        type: 'button',
+        title: 'Regenerate this snippet',
+        'aria-label': 'Regenerate this snippet',
+    });
+    return redo;
+}
+
+function ensureSnippetDelete(row) {
+    let remove = row.children('.sc-snippet-delete').first();
+    if (!remove.length) {
+        remove = $('<button class="sc-snippet-delete menu_button fa-solid fa-xmark"></button>');
+    }
+    remove.attr({
+        type: 'button',
+        title: 'Delete this snippet',
+        'aria-label': 'Delete this snippet',
+    });
+    return remove;
+}
+
+function hasFocusedSnippetEdit(scope) {
+    return scope.find('.sc-snippet-edit:focus').length > 0;
+}
+
+function onSnippetTextClick() {
+    const position = getSnippetPosition($(this));
+    if (!position) {
+        return;
+    }
+
+    const store = getChatStore();
+    const snippet = store.layers[position.layerIdx]?.[position.snippetIdx];
+    if (!snippet) {
+        return;
+    }
+
+    startSnippetEdit($(this), snippet);
+}
+
+function getSnippetPosition(element) {
+    const row = element.closest('.sc-snippet');
+    const layerIdx = Number.parseInt(String(row.attr('data-layer')), 10);
+    const snippetIdx = Number.parseInt(String(row.attr('data-idx')), 10);
+
+    if (!Number.isInteger(layerIdx) || !Number.isInteger(snippetIdx)) {
+        return null;
+    }
+    return { layerIdx, snippetIdx };
+}
+
+function startSnippetEdit(textEl, snippet) {
+    let finished = false;
+    const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(snippet.text);
+    const finish = async (shouldSave) => {
+        if (finished) {
+            return;
+        }
+        finished = true;
+        try {
+            if (shouldSave) {
+                await commitSnippetEdit(textarea, snippet);
             }
+        } finally {
+            updateSnippetBrowser();
+        }
+    };
 
-            const sn = layer[snippetIdx];
-            const textEl = $(this);
-
-            const textarea = $('<textarea class="sc-snippet-edit"></textarea>')
-                .val(sn.text)
-                .on('keydown', async function (e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        const newText = $(this).val().trim();
-                        if (newText) {
-                            sn.text = newText;
-                            await saveChatStore();
-                            updateInjection();
-                            toastr.success('Snippet updated', 'Summaryception', {
-                                timeOut: 1500,
-                            });
-                        }
-                        updateSnippetBrowser();
-                    } else if (e.key === 'Escape') {
-                        updateSnippetBrowser();
-                    }
-                })
-                .on('blur', async function () {
-                    const newText = $(this).val().trim();
-                    if (newText && newText !== sn.text) {
-                        sn.text = newText;
-                        await saveChatStore();
-                        updateInjection();
-                        toastr.success('Snippet updated', 'Summaryception', {
-                            timeOut: 1500,
-                        });
-                    }
-                    updateSnippetBrowser();
-                });
-
-            textEl.replaceWith(textarea);
-
-            textarea[0].style.height = 'auto';
-            textarea[0].style.height = textarea[0].scrollHeight + 'px';
-
-            textarea.focus().select();
+    textarea
+        .on('keydown', async function (e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                await finish(true);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                await finish(false);
+            }
+        })
+        .on('blur', async () => {
+            await finish(true);
         });
+
+    textEl.replaceWith(textarea);
+    resizeSnippetEdit(textarea);
+    textarea.focus().select();
+}
+
+async function commitSnippetEdit(textarea, snippet) {
+    const newText = String(textarea.val()).trim();
+    if (!newText || newText === snippet.text) {
+        return;
+    }
+
+    snippet.text = newText;
+    await saveChatStore();
+    updateInjection();
+    toastr.success('Snippet updated', 'Summaryception', {
+        timeOut: 1500,
+    });
+}
+
+function resizeSnippetEdit(textarea) {
+    const element = textarea[0];
+    if (!element) {
+        return;
+    }
+    element.style.height = 'auto';
+    element.style.height = element.scrollHeight + 'px';
 }
 
 /**
@@ -461,51 +726,42 @@ async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
     }
 }
 
-/**
- * Bind regenerate (redo) handlers for layer 0 snippet action.
- * @param {ReturnType<typeof getChatStore>} store
- * @returns {void}
- */
-function bindSnippetRedoHandlers(store) {
-    $('.sc-snippet-redo')
-        .off('click')
-        .on('click', async function () {
-            const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
-            const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
-            await regenerateSnippet(store, $(this), layerIdx, snippetIdx);
-        });
+async function onSnippetRedoClick() {
+    const position = getSnippetPosition($(this));
+    if (!position) {
+        return;
+    }
+
+    await regenerateSnippet(getChatStore(), $(this), position.layerIdx, position.snippetIdx);
 }
 
-/**
- * Bind delete handlers for snippet browser entries.
- * @param {ReturnType<typeof getChatStore>} store
- * @returns {void}
- */
-function bindSnippetDeleteHandlers(store) {
-    $('.sc-snippet-delete')
-        .off('click')
-        .on('click', async function () {
-            const layerIdx = parseInt($(this).closest('.sc-snippet').data('layer'));
-            const snippetIdx = parseInt($(this).closest('.sc-snippet').data('idx'));
-            const layer = store.layers[layerIdx];
-            if (layer) {
-                const removed = layer[snippetIdx];
-                layer.splice(snippetIdx, 1);
+async function onSnippetDeleteClick() {
+    const position = getSnippetPosition($(this));
+    if (!position) {
+        return;
+    }
 
-                if (layerIdx === 0) {
-                    store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
-                    const range = getSnippetTurnRange(removed);
-                    if (range) {
-                        await unghostMessagesInRange(range[0], range[1]);
-                    }
-                }
+    const store = getChatStore();
+    const layer = store.layers[position.layerIdx];
+    if (!layer || !layer[position.snippetIdx]) {
+        return;
+    }
 
-                await saveChatStore();
-                updateInjection();
-                updateUI();
-                toastr.info(`Snippet removed from Layer ${layerIdx}`, 'Summaryception');
-            }
-        });
+    const removed = layer[position.snippetIdx];
+    layer.splice(position.snippetIdx, 1);
+
+    if (position.layerIdx === 0) {
+        store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
+        const range = getSnippetTurnRange(removed);
+        if (range) {
+            await unghostMessagesInRange(range[0], range[1]);
+        }
+    }
+
+    await saveChatStore();
+    updateInjection();
+    updateUI();
+    toastr.info(`Snippet removed from Layer ${position.layerIdx}`, 'Summaryception');
 }
 
 /**
