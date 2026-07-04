@@ -304,13 +304,15 @@ If this saves your 500-turn adventure from amnesia, consider starring the repo. 
 
 You can switch branch in ST if you dont like future patches
 
+### v9
+
+*   **Cache Friendly mode:** Cache Friendly keeps the prompt shape as Prompt | frozen Summaryception memory | growing live chat, so provider prefix caching can reuse the stable prefix across many turns. It changes memory less often by flushing a large live-chat window into memory in one all-or-nothing commit.
+
 ### v8
 
 *   **Slop breaker:** Use when the AI is stuck repeating patterns or you switch preset.
 
 ### v7
-
-Code quality pass
 
 *   **Consistent Roleplay Style:** A new "Verbatim Token Budget" slider lets you decide exactly how much of your recent conversation stays word-for-word in the AI's memory, which helps it maintain its formatting and writing style.
 *   **Smoother Memory Browser:** When you view, edit, or delete individual memory snippets, the list will no longer jump around, scroll away, or lose your text cursor when the extension updates in the background.
