@@ -194,20 +194,20 @@
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-plug"></span>
-                            Summarizer Connection
+                            Layer 0 Summarizer Connection
                         </h4>
                     </div>
-                    <small class="sc-help-text">Choose a dedicated LLM connection for summary calls.</small>
+                    <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
                     <div class="sc-setting-row">
                         <label for="sc_summarizer_response_length">
-                            <span>Summarizer Response Length</span>
+                            <span>Layer 0 Response Length</span>
                             <small>0 uses the preset or profile default. Use 4096 for providers that reject larger non-streaming limits.</small>
                         </label>
                         <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use preset default" />
                     </div>
                     <div class="sc-setting-row">
                         <label for="summaryception_connection_source">
-                            <span>Connection Source</span>
+                            <span>Layer 0 Source</span>
                         </label>
                         <select id="summaryception_connection_source" class="text_pole">
                             <option value="default">Default (Main API)</option>
@@ -294,6 +294,94 @@
                     <div id="summaryception_connection_status" class="sc-connection-status" style="display: none;">
                         <span id="summaryception_connection_status_icon" class="fa-solid fa-circle"></span>
                         <span id="summaryception_connection_status_text"></span>
+                    </div>
+                    <div class="sc-tier-divider"></div>
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-code-merge"></span>
+                            Layer 1+ Merge Connection
+                        </h4>
+                    </div>
+                    <small class="sc-help-text">Optional smarter connection for promotion merges. Inherit keeps existing behavior.</small>
+                    <div class="sc-setting-row">
+                        <label for="summaryception_merge_connection_source">
+                            <span>Merge Source</span>
+                        </label>
+                        <select id="summaryception_merge_connection_source" class="text_pole">
+                            <option value="inherit">Inherit Layer 0</option>
+                            <option value="default">Default (Main API)</option>
+                            <option value="profile">Connection Profile</option>
+                            <option value="ollama">Ollama (Local)</option>
+                            <option value="openai">OpenAI Compatible</option>
+                        </select>
+                    </div>
+                    <div id="summaryception_merge_response_length_row" class="sc-setting-row" style="display: none;">
+                        <label for="sc_merge_summarizer_response_length">
+                            <span>Merge Response Length</span>
+                            <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
+                        </label>
+                        <input id="sc_merge_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" />
+                    </div>
+                    <div id="summaryception_merge_profile_settings" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_connection_profile">
+                                <span>Merge Connection Profile</span>
+                            </label>
+                            <select id="summaryception_merge_connection_profile" class="text_pole">
+                                <option value="">-- Select a Profile --</option>
+                            </select>
+                        </div>
+                        <div class="sc-note">
+                            <span class="fa-solid fa-circle-info"></span>
+                            <small>Uses a saved SillyTavern Connection Profile only for Layer 1+ merge calls.</small>
+                        </div>
+                    </div>
+                    <div id="summaryception_merge_ollama_settings" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_ollama_url">
+                                <span>Shared Ollama URL</span>
+                            </label>
+                            <input id="summaryception_merge_ollama_url" type="text" class="text_pole" placeholder="http://localhost:11434" />
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_ollama_model">
+                                <span>Merge Model</span>
+                            </label>
+                            <div class="sc-input-group">
+                                <select id="summaryception_merge_ollama_model" class="text_pole">
+                                    <option value="">-- Select Model --</option>
+                                </select>
+                                <button id="summaryception_merge_ollama_refresh" class="menu_button sc-icon-button" title="Refresh model list from Ollama" type="button">
+                                    <span class="fa-solid fa-arrows-rotate"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="summaryception_merge_openai_settings" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_openai_url">
+                                <span>Shared Endpoint URL</span>
+                            </label>
+                            <input id="summaryception_merge_openai_url" type="text" class="text_pole" placeholder="http://localhost:1234/v1 or https://openrouter.ai/api/v1" />
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_openai_key">
+                                <span>Shared API Key</span>
+                            </label>
+                            <input id="summaryception_merge_openai_key" type="password" class="text_pole" placeholder="Optional for local services" autocomplete="off" />
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_openai_model">
+                                <span>Merge Model Name</span>
+                            </label>
+                            <input id="summaryception_merge_openai_model" type="text" class="text_pole" placeholder="gpt-4o, claude-sonnet, llama-3.1-70b" />
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="summaryception_merge_openai_max_tokens">
+                                <span>Merge Max Tokens</span>
+                            </label>
+                            <input id="summaryception_merge_openai_max_tokens" type="number" class="text_pole" min="0" step="100" placeholder="0 = provider default" />
+                        </div>
                     </div>
                 </section>
                 <section class="sc-section">

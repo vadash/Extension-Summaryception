@@ -460,6 +460,11 @@
     color: var(--sc-warning);
 }
 .sc-note small { line-height: 1.35; }
+.sc-tier-divider {
+    margin: 10px 0 8px;
+    border-top: 1px solid var(--sc-border);
+    opacity: 0.7;
+}
 .sc-connection-status {
     display: flex;
     align-items: center;

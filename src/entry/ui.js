@@ -33,6 +33,7 @@ export async function updateUI() {
         $('#sc_apply_regex_scripts').prop('checked', s.applyRegexScripts);
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
+        syncConnectionInputs(s);
 
         await renderOverview(s, store);
         await renderContextBudget(s, store);
@@ -75,6 +76,28 @@ function syncSettingsInputs(s) {
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
     syncMemoryModeControls(s);
+}
+
+/**
+ * Sync connection inputs that can change outside initConnectionUI.
+ * @param {ReturnType<typeof getSettings>} s
+ * @returns {void}
+ */
+function syncConnectionInputs(s) {
+    $('#summaryception_connection_source').val(s.connectionSource || 'default');
+    $('#summaryception_connection_profile').val(s.connectionProfileId);
+    $('#summaryception_ollama_url, #summaryception_merge_ollama_url').val(s.ollamaUrl);
+    $('#summaryception_ollama_model').val(s.ollamaModel);
+    $('#summaryception_openai_url, #summaryception_merge_openai_url').val(s.openaiUrl);
+    $('#summaryception_openai_key, #summaryception_merge_openai_key').val(s.openaiKey);
+    $('#summaryception_openai_model').val(s.openaiModel);
+    $('#summaryception_openai_max_tokens').val(s.openaiMaxTokens || 0);
+    $('#summaryception_merge_connection_source').val(s.mergeConnectionSource || 'inherit');
+    $('#summaryception_merge_connection_profile').val(s.mergeConnectionProfileId);
+    $('#summaryception_merge_ollama_model').val(s.mergeOllamaModel);
+    $('#summaryception_merge_openai_model').val(s.mergeOpenaiModel);
+    $('#summaryception_merge_openai_max_tokens').val(s.mergeOpenaiMaxTokens || 0);
+    $('#sc_merge_summarizer_response_length').val(s.mergeSummarizerResponseLength || 0);
 }
 
 async function renderOverview(s, store) {

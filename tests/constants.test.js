@@ -71,4 +71,13 @@ describe('constants', () => {
         expect(defaultSettings.stripPatterns).toContain('<|channel>thought');
         expect(defaultSettings.stripPatterns).toContain('<thinking>');
     });
+
+    it('keeps the Layer 1+ merge connection inherited by default', () => {
+        expect(defaultSettings.mergeConnectionSource).toBe('inherit');
+        expect(defaultSettings.mergeConnectionProfileId).toBe('');
+        expect(defaultSettings.mergeOllamaModel).toBe('');
+        expect(defaultSettings.mergeOpenaiModel).toBe('');
+        expect(defaultSettings.mergeOpenaiMaxTokens).toBe(0);
+        expect(defaultSettings.mergeSummarizerResponseLength).toBe(0);
+    });
 });

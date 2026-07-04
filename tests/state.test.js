@@ -34,6 +34,7 @@ describe('state.js', () => {
             maxSummaryTurns: 7,
             minSummaryBudget: 8000,
             verbatimTokenBudget: 32000,
+            mergeConnectionSource: 'inherit',
         });
     });
 

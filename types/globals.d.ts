@@ -79,6 +79,12 @@ interface ExtensionSettings {
     openaiKey: string;
     openaiModel: string;
     openaiMaxTokens: number;
+    mergeConnectionSource: string;
+    mergeSummarizerResponseLength: number;
+    mergeConnectionProfileId: string;
+    mergeOllamaModel: string;
+    mergeOpenaiModel: string;
+    mergeOpenaiMaxTokens: number;
 }
 
 interface GenerateRawMessage {

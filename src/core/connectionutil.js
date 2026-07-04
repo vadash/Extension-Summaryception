@@ -34,12 +34,19 @@ export const providers = Object.freeze({
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
  * @param {AbortSignal} [signal] - Optional request abort signal
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata
  * @returns {Promise<string>} The generated response text
  * @throws {ConnectionError|Error} If the request fails
  */
-export async function sendSummarizerRequest(settings, systemPrompt, userPrompt, signal) {
-    const provider = getConnectionProvider(settings.connectionSource);
-    return await provider.generate({ settings, systemPrompt, userPrompt, signal });
+export async function sendSummarizerRequest(settings, systemPrompt, userPrompt, signal, metadata) {
+    const effectiveSettings = resolveSummarizerConnectionSettings(settings, metadata);
+    const provider = getConnectionProvider(effectiveSettings.connectionSource);
+    return await provider.generate({
+        settings: effectiveSettings,
+        systemPrompt,
+        userPrompt,
+        signal,
+    });
 }
 
 /**
@@ -88,6 +95,37 @@ export function populateProfileDropdown(
  */
 export function getConnectionDisplayName(settings) {
     return getConnectionProvider(settings.connectionSource).displayName(settings);
+}
+
+/**
+ * Resolve the connection settings that should be used for one summarizer call.
+ * @param {ExtensionSettings} settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {ExtensionSettings}
+ */
+export function resolveSummarizerConnectionSettings(settings, metadata = {}) {
+    if (metadata.kind !== 'promotion' || !shouldUseMergeConnection(settings)) {
+        return settings;
+    }
+
+    return {
+        ...settings,
+        connectionSource: settings.mergeConnectionSource,
+        summarizerResponseLength: settings.mergeSummarizerResponseLength || 0,
+        connectionProfileId: settings.mergeConnectionProfileId || '',
+        ollamaModel: settings.mergeOllamaModel || '',
+        openaiModel: settings.mergeOpenaiModel || '',
+        openaiMaxTokens: settings.mergeOpenaiMaxTokens || 0,
+    };
+}
+
+/**
+ * Check whether the Layer 1+ override is configured.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean}
+ */
+function shouldUseMergeConnection(settings) {
+    return Boolean(settings.mergeConnectionSource && settings.mergeConnectionSource !== 'inherit');
 }
 
 /**

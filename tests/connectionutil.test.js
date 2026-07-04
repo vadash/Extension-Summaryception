@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     getConnectionDisplayName,
     providers,
+    resolveSummarizerConnectionSettings,
     sendSummarizerRequest,
     testSummarizerConnection,
 } from '../src/core/connectionutil.js';
@@ -49,6 +50,112 @@ describe('connection providers registry', () => {
             trimNames: false,
             responseLength: 64,
         });
+    });
+
+    it('keeps promotion calls on the Layer 0 connection when merge source inherits', async () => {
+        const generateRaw = installGenerateRaw();
+
+        await sendSummarizerRequest(
+            {
+                connectionSource: 'default',
+                summarizerResponseLength: 64,
+                mergeConnectionSource: 'inherit',
+                mergeSummarizerResponseLength: 128,
+            },
+            'system prompt',
+            'user prompt',
+            undefined,
+            { kind: 'promotion' },
+        );
+
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 64,
+        });
+    });
+
+    it('routes promotion calls through the Layer 1+ override when configured', async () => {
+        const generateRaw = installGenerateRaw();
+
+        await sendSummarizerRequest(
+            {
+                connectionSource: 'openai',
+                openaiModel: 'cheap-model',
+                mergeConnectionSource: 'default',
+                mergeSummarizerResponseLength: 32,
+            },
+            'system prompt',
+            'user prompt',
+            undefined,
+            { kind: 'promotion' },
+        );
+
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 32,
+        });
+    });
+
+    it('maps merge model fields onto provider settings for promotion calls', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'openai',
+                openaiUrl: 'https://example.test/v1',
+                openaiKey: 'shared-key',
+                openaiModel: 'cheap-model',
+                openaiMaxTokens: 100,
+                mergeConnectionSource: 'openai',
+                mergeOpenaiModel: 'smart-model',
+                mergeOpenaiMaxTokens: 300,
+            },
+            { kind: 'promotion' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            openaiUrl: 'https://example.test/v1',
+            openaiKey: 'shared-key',
+            openaiModel: 'smart-model',
+            openaiMaxTokens: 300,
+        });
+    });
+
+    it('falls back to the default provider for unknown merge sources', async () => {
+        const generateRaw = installGenerateRaw();
+
+        await sendSummarizerRequest(
+            {
+                connectionSource: 'openai',
+                mergeConnectionSource: 'future-provider',
+                mergeSummarizerResponseLength: 16,
+            },
+            'system prompt',
+            'user prompt',
+            undefined,
+            { kind: 'promotion' },
+        );
+
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 16,
+        });
+    });
+
+    it('leaves non-promotion calls on the Layer 0 connection', () => {
+        const settings = {
+            connectionSource: 'default',
+            summarizerResponseLength: 64,
+            mergeConnectionSource: 'profile',
+            mergeConnectionProfileId: 'smart-profile',
+        };
+
+        expect(resolveSummarizerConnectionSettings(settings, { kind: 'layer0' })).toBe(settings);
     });
 
     it('tests connections through the resolved provider', async () => {

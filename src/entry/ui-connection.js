@@ -8,6 +8,12 @@ import { getSettings, saveSettings } from '../foundation/state.js';
 
 // Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
 
+const STRING_INPUT_IDS_BY_KEY = Object.freeze({
+    ollamaUrl: ['summaryception_ollama_url', 'summaryception_merge_ollama_url'],
+    openaiUrl: ['summaryception_openai_url', 'summaryception_merge_openai_url'],
+    openaiKey: ['summaryception_openai_key', 'summaryception_merge_openai_key'],
+});
+
 /**
  * Initialize connection settings panel: bind inputs/selects and set initial visibility.
  * @returns {void}
@@ -18,15 +24,34 @@ export function initConnectionUI() {
     bindConnectionSource(settings);
     bindConnectionProfile(settings);
     bindConnectionStringInput('summaryception_ollama_url', 'ollamaUrl', 'http://localhost:11434');
-    bindOllamaModelDropdown(settings);
+    bindOllamaModelDropdown(settings, 'summaryception_ollama_model', 'ollamaModel');
     bindConnectionButton('summaryception_ollama_refresh', refreshOllamaModels);
     bindConnectionStringInput('summaryception_openai_url', 'openaiUrl', '');
     bindConnectionStringInput('summaryception_openai_key', 'openaiKey', '');
     bindConnectionStringInput('summaryception_openai_model', 'openaiModel', '');
     bindConnectionParsedInput('summaryception_openai_max_tokens', 'openaiMaxTokens', 0);
     bindConnectionButton('summaryception_openai_test', testOpenAIConnectionHandler);
+    bindMergeConnectionSource(settings);
+    bindMergeConnectionProfile(settings);
+    bindConnectionStringInput(
+        'summaryception_merge_ollama_url',
+        'ollamaUrl',
+        'http://localhost:11434',
+    );
+    bindOllamaModelDropdown(settings, 'summaryception_merge_ollama_model', 'mergeOllamaModel');
+    bindConnectionButton('summaryception_merge_ollama_refresh', refreshOllamaModels);
+    bindConnectionStringInput('summaryception_merge_openai_url', 'openaiUrl', '');
+    bindConnectionStringInput('summaryception_merge_openai_key', 'openaiKey', '');
+    bindConnectionStringInput('summaryception_merge_openai_model', 'mergeOpenaiModel', '');
+    bindConnectionParsedInput('summaryception_merge_openai_max_tokens', 'mergeOpenaiMaxTokens', 0);
+    bindConnectionParsedInput(
+        'sc_merge_summarizer_response_length',
+        'mergeSummarizerResponseLength',
+        0,
+    );
 
     updateConnectionSubPanels(settings.connectionSource || 'default');
+    updateMergeConnectionSubPanels(settings.mergeConnectionSource || 'inherit');
 }
 
 /**
@@ -68,9 +93,47 @@ function bindConnectionProfile(settings) {
 }
 
 /**
+ * Bind the Layer 1+ merge connection source dropdown.
+ * @param {ReturnType<typeof getSettings>} settings
+ * @returns {void}
+ */
+function bindMergeConnectionSource(settings) {
+    const $sourceSelect = $('#summaryception_merge_connection_source');
+    if (!$sourceSelect.length) {
+        return;
+    }
+    $sourceSelect.val(settings.mergeConnectionSource || 'inherit');
+    $sourceSelect.on('change', () => {
+        settings.mergeConnectionSource = $sourceSelect.val();
+        saveSettings();
+        updateMergeConnectionSubPanels($sourceSelect.val());
+    });
+}
+
+/**
+ * Bind the Layer 1+ merge connection profile dropdown.
+ * @param {ReturnType<typeof getSettings>} settings
+ * @returns {void}
+ */
+function bindMergeConnectionProfile(settings) {
+    const $profileSelect = $('#summaryception_merge_connection_profile');
+    if (!$profileSelect.length) {
+        return;
+    }
+    const populated = populateProfileDropdown($profileSelect[0], settings.mergeConnectionProfileId);
+    if (!populated) {
+        fetchProfilesFallback($profileSelect, settings.mergeConnectionProfileId);
+    }
+    $profileSelect.on('change', () => {
+        settings.mergeConnectionProfileId = $profileSelect.val();
+        saveSettings();
+    });
+}
+
+/**
  * Bind an `<input>` element to a string settings key.
  * @param {string} elementId
- * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel'} key
+ * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel' | 'mergeOpenaiModel'} key
  * @param {string} [fallback]
  * @returns {void}
  */
@@ -83,6 +146,7 @@ function bindConnectionStringInput(elementId, key, fallback) {
     $el.val(settings[key] || fallback);
     $el.on('input', () => {
         settings[key] = ($el.val() || '').trim();
+        syncSharedStringInputs(key, settings[key], elementId);
         saveSettings();
     });
 }
@@ -90,7 +154,7 @@ function bindConnectionStringInput(elementId, key, fallback) {
 /**
  * Bind a numeric `<input>` element to a number settings key.
  * @param {string} elementId
- * @param {'openaiMaxTokens'} key
+ * @param {'openaiMaxTokens' | 'mergeOpenaiMaxTokens' | 'mergeSummarizerResponseLength'} key
  * @param {number} [fallback]
  * @returns {void}
  */
@@ -108,22 +172,37 @@ function bindConnectionParsedInput(elementId, key, fallback) {
 }
 
 /**
- * Populate the Ollama model dropdown and bind its change handler.
- * @param {ReturnType<typeof getSettings>} settings
+ * Keep duplicate shared endpoint controls visually in sync.
+ * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel' | 'mergeOpenaiModel'} key
+ * @param {string} value
+ * @param {string} sourceElementId
  * @returns {void}
  */
-function bindOllamaModelDropdown(settings) {
-    const $ollamaModel = $('#summaryception_ollama_model');
+function syncSharedStringInputs(key, value, sourceElementId) {
+    const ids =
+        /** @type {Partial<Record<string, string[]>>} */ (STRING_INPUT_IDS_BY_KEY)[key] || [];
+    for (const id of ids) {
+        if (id !== sourceElementId) {
+            $('#' + id).val(value);
+        }
+    }
+}
+
+/**
+ * Populate the Ollama model dropdown and bind its change handler.
+ * @param {ReturnType<typeof getSettings>} settings
+ * @param {string} elementId
+ * @param {'ollamaModel' | 'mergeOllamaModel'} key
+ * @returns {void}
+ */
+function bindOllamaModelDropdown(settings, elementId, key) {
+    const $ollamaModel = $('#' + elementId);
     if (!$ollamaModel.length) {
         return;
     }
-    populateOllamaModelDropdown(
-        $ollamaModel,
-        settings.ollamaModelsCache || [],
-        settings.ollamaModel,
-    );
+    populateOllamaModelDropdown($ollamaModel, settings.ollamaModelsCache || [], settings[key]);
     $ollamaModel.on('change', () => {
-        settings.ollamaModel = $ollamaModel.val();
+        settings[key] = $ollamaModel.val();
         saveSettings();
     });
 }
@@ -165,6 +244,29 @@ export function updateConnectionSubPanels(source) {
 }
 
 /**
+ * Show or hide Layer 1+ merge connection sub-panels based on source.
+ * @param {string} source
+ * @returns {void}
+ */
+export function updateMergeConnectionSubPanels(source) {
+    const $responseLength = $('#summaryception_merge_response_length_row');
+    const $profile = $('#summaryception_merge_profile_settings');
+    const $ollama = $('#summaryception_merge_ollama_settings');
+    const $openai = $('#summaryception_merge_openai_settings');
+
+    $profile.add($ollama).add($openai).hide();
+    $responseLength.toggle(source === 'default' || source === 'profile');
+
+    if (source === 'profile') {
+        $profile.show();
+    } else if (source === 'ollama') {
+        $ollama.show();
+    } else if (source === 'openai') {
+        $openai.show();
+    }
+}
+
+/**
  * Populate an Ollama model dropdown.
  * @param {object} $select jQuery-wrapped <select> element
  * @param {Array<({ name: string } | string)>} models
@@ -194,6 +296,7 @@ export async function refreshOllamaModels() {
     const s = getSettings();
     const ollamaUrl = s.ollamaUrl || 'http://localhost:11434';
     const $modelSelect = $('#summaryception_ollama_model');
+    const $mergeModelSelect = $('#summaryception_merge_ollama_model');
 
     showConnectionStatus('loading', 'Fetching Ollama models...');
 
@@ -204,6 +307,9 @@ export async function refreshOllamaModels() {
 
         if ($modelSelect.length) {
             populateOllamaModelDropdown($modelSelect, models, s.ollamaModel);
+        }
+        if ($mergeModelSelect.length) {
+            populateOllamaModelDropdown($mergeModelSelect, models, s.mergeOllamaModel);
         }
 
         showConnectionStatus('success', `Found ${models.length} model(s)`);

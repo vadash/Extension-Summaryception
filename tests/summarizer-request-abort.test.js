@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/core/connectionutil.js', () => ({
+    resolveSummarizerConnectionSettings: (settings) => settings,
     sendSummarizerRequest: mocks.sendSummarizerRequest,
 }));
 
@@ -45,6 +46,7 @@ describe('callSummarizer abort signal plumbing', () => {
             'SYS',
             'CTX prior context STORY source passage',
             receivedSignal,
+            expect.any(Object),
         );
     });
 });

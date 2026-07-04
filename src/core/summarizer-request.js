@@ -1,5 +1,5 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
-import { sendSummarizerRequest } from './connectionutil.js';
+import { resolveSummarizerConnectionSettings, sendSummarizerRequest } from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
 import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
@@ -222,14 +222,20 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
             log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
         }
 
-        await traceSummarizerRequest({ s, prompt });
+        await traceSummarizerRequest({ s, prompt, metadata });
 
         const abortContext = createAttemptAbortContext(signal, 120000);
 
         let result;
         try {
             result = await Promise.race([
-                sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt, abortContext.signal),
+                sendSummarizerRequest(
+                    s,
+                    s.summarizerSystemPrompt,
+                    prompt,
+                    abortContext.signal,
+                    metadata,
+                ),
                 abortContext.promise,
             ]);
         } finally {
@@ -285,16 +291,18 @@ async function traceSummarizerInputTokens(storyTxt, contextStr) {
  * @param {object} p
  * @param {object} p.s - Settings
  * @param {string} p.prompt - Fully substituted user prompt
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<void>}
  */
-async function traceSummarizerRequest({ s, prompt }) {
+async function traceSummarizerRequest({ s, prompt, metadata }) {
     if (!isTraceEnabled()) {
         return;
     }
 
     const promptTokens = await countTextTokens(prompt);
+    const effectiveSettings = resolveSummarizerConnectionSettings(s, metadata);
     trace('  About to call sendSummarizerRequest with:', {
-        connectionSource: s.connectionSource,
+        connectionSource: effectiveSettings.connectionSource,
         summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
         promptTokens: formatTokenCount(promptTokens),
     });

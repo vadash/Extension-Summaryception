@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/core/connectionutil.js', () => ({
+    resolveSummarizerConnectionSettings: (settings) => settings,
     sendSummarizerRequest: mocks.sendSummarizerRequest,
 }));
 

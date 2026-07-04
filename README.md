@@ -217,7 +217,7 @@ Plus fully customizable:
 
 ## 🔌 Connection Settings
 
-Summaryception can use different backends for summarization, independent of your main chat connection:
+Summaryception can use dedicated backends for summarization, independent of your main chat connection. Layer 0 uses the main Summaryception connection for raw chat summaries and regeneration. Layer 1+ merges can optionally inherit Layer 0 or use a smarter merge connection.
 
 | Source | Description |
 |---|---|
@@ -226,7 +226,7 @@ Summaryception can use different backends for summarization, independent of your
 | **Ollama** | Local Ollama instance with model browser |
 | **Connection Profile** | Uses an ST Connection Profile (⚠️ inherits preset formatting — may degrade summary quality) |
 
-> 💡 **Recommended:** Use **Default** or **OpenAI Compatible** for cleanest results. Connection Profiles inject preset formatting into summary requests, which can cause the model to roleplay instead of summarize.
+> 💡 **Recommended:** Use a cheaper large-context model for **Layer 0** and, if available, a smarter model for **Layer 1+ Merge Connection**. Leave merges on **Inherit Layer 0** for the simplest setup. Connection Profiles inject preset formatting into summary requests, which can cause the model to roleplay instead of summarize.
 
 ---
 

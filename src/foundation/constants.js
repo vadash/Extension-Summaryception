@@ -104,6 +104,14 @@ Write in short phrases, no more than 20; output must be a single line:`,
     openaiKey: '',
     openaiModel: '',
     openaiMaxTokens: 0, // 0 = no limit (provider default)
+
+    // Optional Layer 1+ promotion merge connection. 'inherit' uses the Layer 0 connection above.
+    mergeConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile' | 'ollama' | 'openai'
+    mergeSummarizerResponseLength: 0,
+    mergeConnectionProfileId: '',
+    mergeOllamaModel: '',
+    mergeOpenaiModel: '',
+    mergeOpenaiMaxTokens: 0,
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────
