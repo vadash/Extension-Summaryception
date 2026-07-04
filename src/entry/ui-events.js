@@ -77,6 +77,11 @@ function bindToggleHandlers() {
         saveSettings();
     });
 
+    $(document).on('change', '#sc_prompt_log_mode', function () {
+        getSettings().promptLogMode = $(this).prop('checked');
+        saveSettings();
+    });
+
     $(document).on('change', '#sc_apply_regex_scripts', function () {
         getSettings().applyRegexScripts = $(this).prop('checked');
         saveSettings();
@@ -568,6 +573,7 @@ function onResetDefaults() {
     // Reset debug
     s.debugMode = defaultSettings.debugMode;
     s.traceMode = defaultSettings.traceMode;
+    s.promptLogMode = defaultSettings.promptLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
 
     saveSettings();

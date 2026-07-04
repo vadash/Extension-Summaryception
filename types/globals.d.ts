@@ -68,6 +68,7 @@ interface ExtensionSettings {
     stripPatterns: string[];
     debugMode: boolean;
     traceMode: boolean;
+    promptLogMode: boolean;
     connectionSource: string;
     summarizerResponseLength: number;
     connectionProfileId: string;

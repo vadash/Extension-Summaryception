@@ -37,6 +37,7 @@ describe('constants', () => {
             defaultSettings.snippetsPerPromotion,
         );
         expect(defaultSettings.maxLayers).toBeGreaterThanOrEqual(1);
+        expect(defaultSettings.promptLogMode).toBe(false);
     });
 
     it('uses the Summaryception memory wrapper by default', () => {

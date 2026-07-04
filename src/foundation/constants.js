@@ -91,6 +91,7 @@ Write in short phrases, no more than 20; output must be a single line:`,
 
     debugMode: false,
     traceMode: false,
+    promptLogMode: false,
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile' | 'ollama' | 'openai'

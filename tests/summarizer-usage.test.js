@@ -36,6 +36,62 @@ function installDebugContext() {
 }
 
 describe('summarizer usage logging', () => {
+    it('logs a copyable full Layer 0 prompt block when prompt logging is enabled', async () => {
+        installSillyTavernStub({
+            settings: {
+                promptLogMode: true,
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+        await callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceRange: [1, 3],
+            assistantTurnCount: 2,
+        });
+
+        const promptLog = consoleLogSpy.mock.calls.find(
+            ([first]) =>
+                typeof first === 'string' && first.includes('SUMMARYCEPTION LLM PROMPT START'),
+        )?.[0];
+
+        expect(promptLog).toContain('[Summaryception] LLM prompt: layer0 turns 1-3');
+        expect(promptLog).toContain('[system]\nSYS');
+        expect(promptLog).toContain('[user]\nCTX prior context STORY source passage');
+        expect(promptLog).toContain('SUMMARYCEPTION LLM PROMPT END');
+    });
+
+    it('labels promotion prompt logs with source and destination layers', async () => {
+        installSillyTavernStub({
+            settings: {
+                promptLogMode: true,
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+        await callSummarizer('merged snippets', 'deep context', {
+            kind: 'promotion',
+            layerIndex: 1,
+            mergedSnippetCount: 2,
+        });
+
+        const promptLog = consoleLogSpy.mock.calls.find(
+            ([first]) =>
+                typeof first === 'string' && first.includes('SUMMARYCEPTION LLM PROMPT START'),
+        )?.[0];
+
+        expect(promptLog).toContain('LLM prompt: promotion L1->L2 (2 snippets)');
+        expect(promptLog).toContain('[user]\nCTX deep context STORY merged snippets');
+    });
+
     it('logs estimated prompt, completion, and total tokens after a successful call', async () => {
         const ctx = installDebugContext();
         ctx.getTokenCountAsync.mockResolvedValueOnce(12).mockResolvedValueOnce(4);

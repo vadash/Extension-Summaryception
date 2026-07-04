@@ -46,6 +46,7 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     });
 
     const prompt = buildSummarizerPrompt(s, storyTxt, contextStr);
+    logSummarizerPrompt({ s, prompt, metadata });
 
     currentAbortController = new AbortController();
 
@@ -73,6 +74,88 @@ function buildSummarizerPrompt(s, storyTxt, contextStr) {
         .replace('{{player_name}}', getPlayerName())
         .replace('{{context_str}}', contextStr || '(none yet)')
         .replace('{{story_txt}}', storyTxt);
+}
+
+/**
+ * Log a complete copyable prompt block for console debugging.
+ * @param {object} p
+ * @param {ExtensionSettings} p.s - Settings
+ * @param {string} p.prompt - Fully substituted user prompt
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @returns {void}
+ */
+function logSummarizerPrompt({ s, prompt, metadata }) {
+    if (!s.promptLogMode) {
+        return;
+    }
+
+    const label = describePromptLogCall(metadata);
+    console.log(buildPromptLogBlock({ label, systemPrompt: s.summarizerSystemPrompt, prompt }));
+}
+
+/**
+ * Build the console text for one summarizer request.
+ * @param {object} p
+ * @param {string} p.label - Human-readable call label
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
+ * @param {string} p.prompt - User prompt sent to the summarizer
+ * @returns {string}
+ */
+function buildPromptLogBlock({ label, systemPrompt, prompt }) {
+    return (
+        `${LOG_PREFIX} LLM prompt: ${label}\n` +
+        '--- SUMMARYCEPTION LLM PROMPT START ---\n' +
+        `[call]\n${label}\n\n` +
+        `[system]\n${systemPrompt || ''}\n\n` +
+        `[user]\n${prompt || ''}\n` +
+        '--- SUMMARYCEPTION LLM PROMPT END ---'
+    );
+}
+
+/**
+ * Describe a summarizer request for prompt logs.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @returns {string}
+ */
+function describePromptLogCall(metadata = {}) {
+    if (metadata.kind === 'layer0') {
+        return `layer0 turns ${formatPromptLogRange(metadata.sourceRange)}`;
+    }
+    if (metadata.kind === 'promotion') {
+        const sourceLayer = metadata.layerIndex ?? '?';
+        const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
+        const count = formatPromptLogCount(metadata.mergedSnippetCount, 'snippet');
+        return `promotion L${sourceLayer}->L${destLayer} (${count})`;
+    }
+    if (metadata.kind === 'regenerate') {
+        return `regenerate turns ${formatPromptLogRange(metadata.sourceRange)}`;
+    }
+    return metadata.kind || 'summarizer';
+}
+
+/**
+ * Format a source range for prompt logs.
+ * @param {[number, number] | undefined} range - Source range
+ * @returns {string}
+ */
+function formatPromptLogRange(range) {
+    if (!Array.isArray(range) || range.length < 2) {
+        return '?';
+    }
+    return `${range[0]}-${range[1]}`;
+}
+
+/**
+ * Format a singular/plural count for prompt logs.
+ * @param {number | undefined} count - Count value
+ * @param {string} singular - Singular label
+ * @returns {string}
+ */
+function formatPromptLogCount(count, singular) {
+    if (typeof count !== 'number' || !Number.isFinite(count)) {
+        return `? ${singular}s`;
+    }
+    return `${count} ${singular}${count === 1 ? '' : 's'}`;
 }
 
 /**
