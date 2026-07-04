@@ -10,6 +10,7 @@ import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
+import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
@@ -32,6 +33,7 @@ export async function updateUI() {
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
 
         await renderOverview(s, store);
+        await renderContextBudget(s, store);
         renderLayerStats(s, store);
         renderPreview();
         updateSnippetBrowser();
@@ -131,6 +133,189 @@ function getLayerMetrics(store) {
         deepestLayer = i;
     }
     return { totalSnippets, deepestLayer };
+}
+
+/**
+ * @typedef {object} ContextBudgetTokenPart
+ * @property {string} label
+ * @property {string} kind
+ * @property {number} count
+ * @property {boolean} estimated
+ */
+
+/**
+ * Build a DOM-neutral token budget view model.
+ * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null }} input
+ * @returns {{ budget: number, used: number, overage: number, denominator: number, totalLabel: string, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
+ */
+export function buildContextBudgetViewModel({ budget, verbatim, layers, wrapper = null }) {
+    const normalizedBudget = normalizeBudgetCount(budget);
+    const parts = [verbatim, ...layers, wrapper].filter(isVisibleBudgetPart);
+    const used = parts.reduce((sum, part) => sum + part.count, 0);
+    const overage = Math.max(0, used - normalizedBudget);
+    const freeCount = Math.max(0, normalizedBudget - used);
+    const anyEstimated = parts.some((part) => part.estimated);
+    const denominator = Math.max(normalizedBudget, used, 1);
+    const segments = parts.map((part) => buildBudgetSegment(part, denominator));
+
+    if (freeCount > 0) {
+        segments.push(
+            buildBudgetSegment(
+                { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
+                denominator,
+            ),
+        );
+    }
+
+    return {
+        budget: normalizedBudget,
+        used,
+        overage,
+        denominator,
+        totalLabel: `${formatBudgetTokenLabel(used, anyEstimated)} / ${formatBudgetTokenLabel(
+            normalizedBudget,
+            false,
+        )}`,
+        segments,
+    };
+}
+
+/**
+ * Format a budget token count.
+ * @param {number} count
+ * @param {boolean} estimated
+ * @returns {string}
+ */
+export function formatBudgetTokenLabel(count, estimated = false) {
+    return formatTokenCount({ count: normalizeBudgetCount(count), estimated });
+}
+
+async function renderContextBudget(s, store) {
+    try {
+        const layers = await getLayerBudgetParts(store);
+        const view = buildContextBudgetViewModel({
+            budget: s.verbatimTokenBudget,
+            verbatim: await getVerbatimBudgetPart(s, store),
+            layers,
+            wrapper: await getWrapperBudgetPart(store, layers),
+        });
+        renderContextBudgetView(view);
+    } catch (e) {
+        log('Context budget render error:', e);
+        $('#sc_context_budget_total').text('Unavailable');
+        $('#sc_context_budget_bar').empty();
+        $('#sc_context_budget_legend').empty();
+    }
+}
+
+async function getVerbatimBudgetPart(s, store) {
+    const plan = await getLayer0OverflowPlan(getChat(), store, s);
+    return {
+        label: 'Verbatim Window',
+        kind: 'verbatim',
+        count: plan.budgetStats.finalTokens,
+        estimated: plan.budgetStats.finalTokensEstimated,
+    };
+}
+
+async function getLayerBudgetParts(store) {
+    const layers = Array.isArray(store.layers) ? store.layers : [];
+    const parts = [];
+    for (let i = 0; i < layers.length; i++) {
+        const layer = layers[i];
+        if (!Array.isArray(layer) || layer.length === 0) {
+            continue;
+        }
+        const text = layer.map((snippet) => snippet.text).join(' ');
+        const tokens = await countTextTokens(text);
+        parts.push({
+            label: `Layer ${i}`,
+            kind: i === 0 ? 'layer0' : 'layer',
+            count: tokens.count,
+            estimated: tokens.estimated,
+        });
+    }
+    return parts;
+}
+
+async function getWrapperBudgetPart(store, layerParts) {
+    if (!store.layers?.some((layer) => Array.isArray(layer) && layer.length > 0)) {
+        return null;
+    }
+
+    const fullTokens = await countTextTokens(assembleSummaryBlock());
+    const layerTotal = layerParts.reduce((sum, part) => sum + part.count, 0);
+    const wrapperCount = Math.max(0, fullTokens.count - layerTotal);
+    return {
+        label: 'Memory Wrapper',
+        kind: 'wrapper',
+        count: wrapperCount,
+        estimated: fullTokens.estimated || layerParts.some((part) => part.estimated),
+    };
+}
+
+function renderContextBudgetView(view) {
+    $('#sc_context_budget_total').text(getContextBudgetTotalText(view));
+    const bar = $('#sc_context_budget_bar').empty();
+    const legend = $('#sc_context_budget_legend').empty();
+
+    for (const segment of view.segments) {
+        $('<div></div>')
+            .addClass(`sc-context-segment sc-context-${segment.kind}`)
+            .toggleClass('sc-context-segment-small', segment.small)
+            .css('flex', `${Math.max(segment.count, 1)} 1 0`)
+            .attr('title', getBudgetSegmentTitle(segment))
+            .text(`${segment.label} (${formatBudgetTokenLabel(segment.count, segment.estimated)})`)
+            .appendTo(bar);
+        renderBudgetLegendItem(legend, segment);
+    }
+}
+
+function renderBudgetLegendItem(legend, segment) {
+    const item = $('<div class="sc-context-legend-item"></div>');
+    $('<span class="sc-context-swatch"></span>')
+        .addClass(`sc-context-${segment.kind}`)
+        .appendTo(item);
+    $('<span class="sc-context-legend-text"></span>')
+        .text(`${segment.label}: ${formatBudgetTokenLabel(segment.count, segment.estimated)}`)
+        .attr('title', getBudgetSegmentTitle(segment))
+        .appendTo(item);
+    item.appendTo(legend);
+}
+
+function getContextBudgetTotalText(view) {
+    if (view.overage > 0) {
+        return `${view.totalLabel} (+${formatBudgetTokenLabel(view.overage, false)})`;
+    }
+    return view.totalLabel;
+}
+
+function buildBudgetSegment(part, denominator) {
+    const percent = denominator > 0 ? (part.count / denominator) * 100 : 0;
+    return {
+        ...part,
+        percent,
+        small: percent < 8,
+    };
+}
+
+function getBudgetSegmentTitle(segment) {
+    return `${segment.label}: ${formatBudgetTokenLabel(segment.count, segment.estimated)} tokens`;
+}
+
+/**
+ * @param {ContextBudgetTokenPart | null | undefined} part
+ * @returns {part is ContextBudgetTokenPart}
+ */
+function isVisibleBudgetPart(part) {
+    return Boolean(part && normalizeBudgetCount(part.count) > 0);
+}
+
+function normalizeBudgetCount(count) {
+    if (typeof count !== 'number' || !Number.isFinite(count)) {
+        return 0;
+    }
+    return Math.max(0, Math.ceil(count));
 }
 
 /**

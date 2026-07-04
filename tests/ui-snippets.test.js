@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildSnippetBrowserViewModel, getSnippetBrowserRowKey } from '../src/entry/ui.js';
+import {
+    buildContextBudgetViewModel,
+    buildSnippetBrowserViewModel,
+    formatBudgetTokenLabel,
+    getSnippetBrowserRowKey,
+} from '../src/entry/ui.js';
 
 describe('snippet browser view model', () => {
     it('marks an empty store as empty', () => {
@@ -60,3 +65,91 @@ describe('snippet browser view model', () => {
         ]);
     });
 });
+
+describe('context budget view model', () => {
+    it('shows verbatim usage and free space when no memory layers exist', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 16000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 8000),
+            layers: [],
+        });
+
+        expect(view.used).toBe(8000);
+        expect(view.overage).toBe(0);
+        expect(view.totalLabel).toBe('8000 / 16000');
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 8000],
+            ['Free Space', 'free', 8000],
+        ]);
+    });
+
+    it('keeps layer segments in Layer 0 to deeper-layer order', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 16000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 8000),
+            layers: [budgetPart('Layer 0', 'layer0', 2000), budgetPart('Layer 1', 'layer', 1000)],
+        });
+
+        expect(view.used).toBe(11000);
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 8000],
+            ['Layer 0', 'layer0', 2000],
+            ['Layer 1', 'layer', 1000],
+            ['Free Space', 'free', 5000],
+        ]);
+    });
+
+    it('includes wrapper overhead when injection tokens exceed layer tokens', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 10000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 4000),
+            layers: [budgetPart('Layer 0', 'layer0', 2000), budgetPart('Layer 1', 'layer', 1000)],
+            wrapper: budgetPart('Memory Wrapper', 'wrapper', 200),
+        });
+
+        expect(view.used).toBe(7200);
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 4000],
+            ['Layer 0', 'layer0', 2000],
+            ['Layer 1', 'layer', 1000],
+            ['Memory Wrapper', 'wrapper', 200],
+            ['Free Space', 'free', 2800],
+        ]);
+    });
+
+    it('reports overage and omits free space when usage exceeds the budget', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 5000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 4000),
+            layers: [budgetPart('Layer 0', 'layer0', 2000)],
+        });
+
+        expect(view.used).toBe(6000);
+        expect(view.overage).toBe(1000);
+        expect(view.denominator).toBe(6000);
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 4000],
+            ['Layer 0', 'layer0', 2000],
+        ]);
+    });
+
+    it('preserves estimated token labels', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 10000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 1000, true),
+            layers: [],
+        });
+
+        expect(formatBudgetTokenLabel(1000, true)).toBe('~1000');
+        expect(view.totalLabel).toBe('~1000 / 10000');
+        expect(view.segments[0].estimated).toBe(true);
+    });
+});
+
+function budgetPart(label, kind, count, estimated = false) {
+    return { label, kind, count, estimated };
+}
+
+function segmentSummary(segment) {
+    return [segment.label, segment.kind, segment.count];
+}
