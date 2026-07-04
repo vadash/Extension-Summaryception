@@ -3,6 +3,6 @@
     "entry": ["settings.html", "src/**/*.js"],
     "project": ["src/**/*.js"],
     "ignore": [],
-    "ignoreDependencies": [],
+    "ignoreDependencies": ["lint-staged"],
     "ignoreBinaries": []
 }
