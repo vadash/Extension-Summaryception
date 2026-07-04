@@ -41,7 +41,10 @@ export function makeLongMessages(count, length = 3000) {
 export function makeSummarySettings(overrides = {}) {
     return {
         enabled: true,
-        pauseSummarization: false,
+        memoryMode: 'standard',
+        customMemoryPosition: 'in_prompt',
+        customMemoryRole: 'system',
+        customMemoryDepth: 0,
         applyRegexScripts: false,
         minSummaryTurns: 2,
         maxSummaryTurns: 5,

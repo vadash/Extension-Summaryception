@@ -1,4 +1,11 @@
-import { MODULE_NAME } from '../foundation/constants.js';
+import {
+    EXTENSION_PROMPT_POSITIONS,
+    EXTENSION_PROMPT_ROLES,
+    MEMORY_MODES,
+    MEMORY_POSITIONS,
+    MEMORY_ROLES,
+    MODULE_NAME,
+} from '../foundation/constants.js';
 import { setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { isDebugEnabled, log } from '../foundation/logger.js';
@@ -46,8 +53,9 @@ export function assembleSummaryBlock() {
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
-let _lastInjected = '';
+let _lastInjectionKey = '';
 let _activeInjectionSnapshot = null;
+let _activeInjectionOptions = null;
 
 /**
  *
@@ -59,14 +67,17 @@ export function updateInjection() {
         }
 
         const nextInjection = buildEnabledInjectionText();
+        const nextOptions = getMemoryInjectionOptions();
         _activeInjectionSnapshot = nextInjection;
+        _activeInjectionOptions = nextOptions;
 
-        if (nextInjection === _lastInjected) {
+        const nextKey = getInjectionKey(nextInjection, nextOptions);
+        if (nextKey === _lastInjectionKey) {
             return;
         }
 
-        setExtensionPrompt(MODULE_NAME, nextInjection);
-        _lastInjected = nextInjection;
+        setExtensionPrompt(MODULE_NAME, nextInjection, nextOptions);
+        _lastInjectionKey = nextKey;
 
         queueInjectionTokenLog('Injection updated', nextInjection);
     } catch (e) {
@@ -83,13 +94,37 @@ export function reassertInjectionSnapshot() {
         if (_activeInjectionSnapshot === null) {
             _activeInjectionSnapshot = buildEnabledInjectionText();
         }
+        if (_activeInjectionOptions === null) {
+            _activeInjectionOptions = getMemoryInjectionOptions();
+        }
 
-        setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot);
-        _lastInjected = _activeInjectionSnapshot;
+        setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot, _activeInjectionOptions);
+        _lastInjectionKey = getInjectionKey(_activeInjectionSnapshot, _activeInjectionOptions);
         queueInjectionTokenLog('Injection snapshot reasserted', _activeInjectionSnapshot);
     } catch (e) {
         log('reassertInjectionSnapshot error:', e);
     }
+}
+
+/**
+ * Resolve SillyTavern extension prompt options from the configured memory mode.
+ * @param {ExtensionSettings} [settings]
+ * @returns {{ position: number, depth: number, scan: boolean, role: number }}
+ */
+export function getMemoryInjectionOptions(settings = getSettings()) {
+    if (settings.memoryMode !== MEMORY_MODES.CUSTOM) {
+        return getStandardInjectionOptions();
+    }
+
+    return {
+        position: mapMemoryPosition(settings.customMemoryPosition),
+        depth:
+            settings.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT
+                ? settings.customMemoryDepth
+                : 0,
+        scan: false,
+        role: mapMemoryRole(settings.customMemoryRole),
+    };
 }
 
 /**
@@ -102,6 +137,39 @@ function buildEnabledInjectionText() {
         return '';
     }
     return assembleSummaryBlock() || '';
+}
+
+function getStandardInjectionOptions() {
+    return {
+        position: EXTENSION_PROMPT_POSITIONS.IN_PROMPT,
+        depth: 0,
+        scan: false,
+        role: EXTENSION_PROMPT_ROLES.SYSTEM,
+    };
+}
+
+function mapMemoryPosition(position) {
+    if (position === MEMORY_POSITIONS.BEFORE_PROMPT) {
+        return EXTENSION_PROMPT_POSITIONS.BEFORE_PROMPT;
+    }
+    if (position === MEMORY_POSITIONS.IN_CHAT) {
+        return EXTENSION_PROMPT_POSITIONS.IN_CHAT;
+    }
+    return EXTENSION_PROMPT_POSITIONS.IN_PROMPT;
+}
+
+function mapMemoryRole(role) {
+    if (role === MEMORY_ROLES.USER) {
+        return EXTENSION_PROMPT_ROLES.USER;
+    }
+    if (role === MEMORY_ROLES.ASSISTANT) {
+        return EXTENSION_PROMPT_ROLES.ASSISTANT;
+    }
+    return EXTENSION_PROMPT_ROLES.SYSTEM;
+}
+
+function getInjectionKey(text, options) {
+    return JSON.stringify({ text, options });
 }
 
 /**

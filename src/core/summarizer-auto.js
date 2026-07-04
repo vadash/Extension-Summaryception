@@ -1,6 +1,9 @@
+import { MEMORY_MODES } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
+import { getCacheFriendlyPlan } from './cache-planner.js';
+import { summarizeCacheFlush } from './summarizer-cache.js';
 import { summarizeBatchFromTurns } from './summarizer-batch.js';
 import { maybePromoteLayer } from './summarizer-promotion.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
@@ -41,9 +44,13 @@ export async function runAutoWorkerCycle(queue, { refreshUi } = {}) {
     }
 
     const s = getSettings();
-    if (!s.enabled || s.pauseSummarization) {
+    if (!s.enabled) {
         queue.setPhase('paused');
         return 'idle';
+    }
+
+    if (s.memoryMode === MEMORY_MODES.CACHE) {
+        return await runCacheFriendlyWorkerCycle(queue, s);
     }
 
     const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
@@ -97,6 +104,31 @@ async function processLayer0Overflow({ plan, s }) {
 }
 
 /**
+ * Process cache-friendly auto summarization.
+ * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
+ * @param {ExtensionSettings} s
+ * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
+ */
+async function runCacheFriendlyWorkerCycle(queue, s) {
+    const plan = await getCacheFriendlyPlan(getChat(), getChatStore(), s);
+    logCachePlan(plan);
+
+    if (plan.reason !== 'ready') {
+        return 'idle';
+    }
+
+    queue.setPhase('layer0');
+    const result = await summarizeCacheFlush(plan);
+    if (shouldStopPromptWork()) {
+        return 'blocked';
+    }
+    if (result === 'failed' || result === 'stale') {
+        return 'failed';
+    }
+    return 'processed';
+}
+
+/**
  * Process one promotion step when summary layers are over their limits.
  * @param {object} s
  * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
@@ -142,6 +174,19 @@ function logOverflowPlan(plan, s) {
         `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
             `verbatim budget: ${plan.budgetStats.finalTokens}/${s.verbatimTokenBudget} tokens, ` +
             `summary budget: ${plan.summaryStats.finalTokens}/${s.minSummaryBudget} tokens`,
+    );
+}
+
+/**
+ * Log cache-friendly planning details.
+ * @param {import('./cache-planner.js').CacheFriendlyPlan} plan
+ * @returns {void}
+ */
+function logCachePlan(plan) {
+    log(
+        `Cache mode live tokens: ${plan.liveTokens}/${plan.cacheBudget}, ` +
+            `protected tail: ${plan.protectedTailTokens}, ` +
+            `flush: ${plan.estimatedFlushTokens}, chunks: ${plan.chunks.length}`,
     );
 }
 

@@ -1,10 +1,44 @@
 export const MODULE_NAME = 'summaryception';
 export const LOG_PREFIX = '[Summaryception]';
 
+export const MEMORY_MODES = Object.freeze({
+    STANDARD: 'standard',
+    CACHE: 'cache',
+    CUSTOM: 'custom',
+});
+
+export const MEMORY_POSITIONS = Object.freeze({
+    BEFORE_PROMPT: 'before_prompt',
+    IN_PROMPT: 'in_prompt',
+    IN_CHAT: 'in_chat',
+});
+
+export const MEMORY_ROLES = Object.freeze({
+    SYSTEM: 'system',
+    USER: 'user',
+    ASSISTANT: 'assistant',
+});
+
+export const EXTENSION_PROMPT_POSITIONS = Object.freeze({
+    IN_PROMPT: 0,
+    IN_CHAT: 1,
+    BEFORE_PROMPT: 2,
+});
+
+export const EXTENSION_PROMPT_ROLES = Object.freeze({
+    SYSTEM: 0,
+    USER: 1,
+    ASSISTANT: 2,
+});
+
 // ─── Default Settings ────────────────────────────────────────────────
 
 export const defaultSettings = Object.freeze({
     enabled: true,
+    memoryMode: MEMORY_MODES.STANDARD,
+    customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
+    customMemoryRole: MEMORY_ROLES.SYSTEM,
+    customMemoryDepth: 0,
     minSummaryTurns: 3,
     maxSummaryTurns: 5,
     minSummaryBudget: 6000,
@@ -12,7 +46,11 @@ export const defaultSettings = Object.freeze({
     snippetsPerLayer: 30,
     snippetsPerPromotion: 3,
     maxLayers: 5,
-    injectionTemplate: '\n\n<summary>\n{{summary}}\n</summary>\n\n',
+    injectionTemplate:
+        '<summaryception_memory>\n' +
+        'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
+        '{{summary}}\n' +
+        '</summaryception_memory>',
 
     summarizerSystemPrompt:
         'Role: precise narrative-state tracker. Output only the summary line — no preamble, no commentary, no markdown.',
@@ -40,8 +78,6 @@ Write in short phrases, no more than 20; output must be a single line:`,
     promptPreset: 'narrative', // 'narrative' | 'gamestate' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
     lastCustomPrompt: '', // Auto-saved when switching away from custom
-    pauseSummarization: false, // true = stop processing, keep injecting
-    disableGhosting: false, // true = mark as summarized but don't hide messages
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
 
     stripPatterns: [

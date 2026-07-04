@@ -47,6 +47,10 @@ interface SummaryceptionStore {
 
 interface ExtensionSettings {
     enabled: boolean;
+    memoryMode: string;
+    customMemoryPosition: string;
+    customMemoryRole: string;
+    customMemoryDepth: number;
     minSummaryTurns: number;
     maxSummaryTurns: number;
     minSummaryBudget: number;
@@ -60,8 +64,6 @@ interface ExtensionSettings {
     promptPreset: string;
     savedCustomPrompts: Record<string, string>;
     lastCustomPrompt: string;
-    pauseSummarization: boolean;
-    disableGhosting: boolean;
     applyRegexScripts: boolean;
     stripPatterns: string[];
     debugMode: boolean;

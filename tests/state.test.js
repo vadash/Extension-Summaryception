@@ -54,6 +54,10 @@ describe('state.js', () => {
     it('normalizes dynamic verbatim window settings to valid slider values', () => {
         installSillyTavernStub({
             settings: {
+                memoryMode: 'invalid',
+                customMemoryPosition: 'elsewhere',
+                customMemoryRole: 'narrator',
+                customMemoryDepth: 10001,
                 minSummaryTurns: 9,
                 maxSummaryTurns: 4,
                 minSummaryBudget: 6500,
@@ -62,6 +66,10 @@ describe('state.js', () => {
         });
 
         expect(getSettings()).toMatchObject({
+            memoryMode: 'standard',
+            customMemoryPosition: 'in_prompt',
+            customMemoryRole: 'system',
+            customMemoryDepth: 10000,
             minSummaryTurns: 9,
             maxSummaryTurns: 9,
             minSummaryBudget: 7000,

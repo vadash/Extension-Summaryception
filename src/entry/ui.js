@@ -1,8 +1,10 @@
+import { MEMORY_MODES, MEMORY_POSITIONS } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
+import { getCacheFriendlyPlan } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import {
@@ -33,6 +35,7 @@ export async function updateUI() {
 
         await renderOverview(s, store);
         await renderContextBudget(s, store);
+        await renderCacheStatus(s, store);
         renderLayerStats(s, store);
         renderPreview();
         updateSnippetBrowser();
@@ -49,8 +52,10 @@ export async function updateUI() {
  */
 function syncSettingsInputs(s) {
     $('#sc_enabled').prop('checked', s.enabled);
-    $('#sc_pause_summarization').prop('checked', s.pauseSummarization);
-    $('#sc_disable_ghosting').prop('checked', s.disableGhosting);
+    $(`input[name="sc_memory_mode"][value="${s.memoryMode}"]`).prop('checked', true);
+    $('#sc_custom_memory_position').val(s.customMemoryPosition);
+    $('#sc_custom_memory_role').val(s.customMemoryRole);
+    $('#sc_custom_memory_depth').val(s.customMemoryDepth);
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
     $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
@@ -68,6 +73,7 @@ function syncSettingsInputs(s) {
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
+    syncMemoryModeControls(s);
 }
 
 async function renderOverview(s, store) {
@@ -83,7 +89,7 @@ async function renderOverview(s, store) {
 }
 
 function getModeLabel(s) {
-    return s.enabled ? (s.pauseSummarization ? 'Paused' : 'Enabled') : 'Disabled';
+    return s.enabled ? 'Enabled' : 'Disabled';
 }
 
 async function getWorkerLabel(s, store) {
@@ -93,9 +99,6 @@ async function getWorkerLabel(s, store) {
     if (!s.enabled) {
         return 'Off';
     }
-    if (s.pauseSummarization) {
-        return 'Paused';
-    }
 
     const backlogCount = await getVisibleBacklogCount(s, store);
     return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
@@ -103,11 +106,39 @@ async function getWorkerLabel(s, store) {
 
 async function getVisibleBacklogCount(s, store) {
     try {
+        if (s.memoryMode === MEMORY_MODES.CACHE) {
+            const plan = await getCacheFriendlyPlan(getChat(), store, s);
+            return plan.reason === 'ready' ? plan.chunks.length : 0;
+        }
         const plan = await getLayer0OverflowPlan(getChat(), store, s);
         return plan.reason === 'none' ? 0 : Math.max(plan.batchTurns.length, plan.overflowCount);
     } catch (_e) {
         return 0;
     }
+}
+
+function syncMemoryModeControls(s) {
+    const isCache = s.memoryMode === MEMORY_MODES.CACHE;
+    const isCustom = s.memoryMode === MEMORY_MODES.CUSTOM;
+
+    $('#sc_custom_memory_controls').toggle(isCustom);
+    $('#sc_custom_memory_depth_row').toggle(
+        isCustom && s.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT,
+    );
+    $('#sc_memory_help_standard').toggle(s.memoryMode === MEMORY_MODES.STANDARD);
+    $('#sc_memory_help_cache').toggle(isCache);
+    $('#sc_memory_help_custom').toggle(isCustom);
+    $('#sc_manual_cache_warning').toggle(isCache);
+    $('#sc_cache_status_section').toggle(isCache);
+    $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', isCache);
+    $('#sc_min_summary_turns, #sc_max_summary_turns')
+        .closest('.sc-row')
+        .toggleClass('sc-disabled', isCache);
+    $('#sc_min_summary_budget_hint').text(
+        isCache
+            ? 'Target token size for each cache flush chunk.'
+            : 'Overflow passage tokens to collect before summarizing short batches.',
+    );
 }
 
 function getGhostedCount() {
@@ -205,6 +236,34 @@ async function renderContextBudget(s, store) {
         $('#sc_context_budget_bar').empty();
         $('#sc_context_budget_legend').empty();
     }
+}
+
+async function renderCacheStatus(s, store) {
+    if (s.memoryMode !== MEMORY_MODES.CACHE) {
+        return;
+    }
+
+    try {
+        const plan = await getCacheFriendlyPlan(getChat(), store, s);
+        $('#sc_cache_live_tokens').text(formatBudgetTokenLabel(plan.liveTokens));
+        $('#sc_cache_budget').text(formatBudgetTokenLabel(plan.cacheBudget));
+        $('#sc_cache_tail_tokens').text(formatBudgetTokenLabel(plan.protectedTailTokens));
+        $('#sc_cache_flush_tokens').text(formatBudgetTokenLabel(plan.estimatedFlushTokens));
+        $('#sc_cache_ready_state').text(getCacheReadyStateText(plan));
+    } catch (e) {
+        log('Cache status render error:', e);
+        $('#sc_cache_ready_state').text('Unavailable');
+    }
+}
+
+function getCacheReadyStateText(plan) {
+    if (plan.reason === 'ready') {
+        return `Ready: ${plan.chunks.length} chunk${plan.chunks.length === 1 ? '' : 's'}`;
+    }
+    if (plan.tokenBudgetExceeded) {
+        return 'Waiting for a flushable assistant turn';
+    }
+    return 'Within cache budget';
 }
 
 async function getVerbatimBudgetPart(s, store) {
@@ -326,12 +385,7 @@ function normalizeBudgetCount(count) {
 function renderLayerStats(s, store) {
     const ghostedCount = getGhostedCount();
 
-    let statsHtml = '';
-    if (s.disableGhosting) {
-        statsHtml += `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (metadata only; not visually hidden)</div>`;
-    } else {
-        statsHtml += `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
-    }
+    let statsHtml = `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
     if (store.layers) {
         for (let i = store.layers.length - 1; i >= 0; i--) {
             const layer = store.layers[i];

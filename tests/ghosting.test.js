@@ -18,7 +18,6 @@ function summaryMetadata(store) {
 
 function installGhostingContext(options = {}) {
     return installSillyTavernStub({
-        settings: { disableGhosting: false },
         ...options,
     });
 }

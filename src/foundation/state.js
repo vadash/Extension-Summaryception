@@ -1,4 +1,11 @@
-import { MODULE_NAME, PROMPT_PRESETS, defaultSettings } from './constants.js';
+import {
+    MEMORY_MODES,
+    MEMORY_POSITIONS,
+    MEMORY_ROLES,
+    MODULE_NAME,
+    PROMPT_PRESETS,
+    defaultSettings,
+} from './constants.js';
 import {
     getChatMetadata,
     getExtensionSettings,
@@ -29,6 +36,7 @@ export function getSettings() {
             settingsRecord[key] = defaultsRecord[key];
         }
     }
+    normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill);
     return settings;
@@ -97,6 +105,34 @@ function normalizeChatStore(store) {
     store.summarizedUpTo = normalizeSummarizedUpTo(store.summarizedUpTo);
     store.ghostedIndices = normalizeGhostedIndices(store.ghostedIndices);
     return store;
+}
+
+/**
+ * Normalize memory placement settings in place.
+ * @param {ExtensionSettings} settings
+ * @returns {void}
+ */
+function normalizeMemorySettings(settings) {
+    if (!isSettingValue(Object.values(MEMORY_MODES), settings.memoryMode)) {
+        settings.memoryMode = defaultSettings.memoryMode;
+    }
+    if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
+        settings.customMemoryPosition = defaultSettings.customMemoryPosition;
+    }
+    if (!isSettingValue(Object.values(MEMORY_ROLES), settings.customMemoryRole)) {
+        settings.customMemoryRole = defaultSettings.customMemoryRole;
+    }
+    settings.customMemoryDepth = clampInteger(settings.customMemoryDepth, 0, 10000);
+}
+
+/**
+ * Check whether a persisted setting is one of the allowed string values.
+ * @param {readonly string[]} values
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isSettingValue(values, value) {
+    return values.includes(String(value));
 }
 
 /**

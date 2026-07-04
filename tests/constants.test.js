@@ -22,6 +22,10 @@ describe('constants', () => {
     });
 
     it('provides sane dynamic verbatim window defaults', () => {
+        expect(defaultSettings.memoryMode).toBe('standard');
+        expect(defaultSettings.customMemoryPosition).toBe('in_prompt');
+        expect(defaultSettings.customMemoryRole).toBe('system');
+        expect(defaultSettings.customMemoryDepth).toBe(0);
         expect(defaultSettings.minSummaryTurns).toBe(3);
         expect(defaultSettings.maxSummaryTurns).toBe(5);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
@@ -33,6 +37,11 @@ describe('constants', () => {
             defaultSettings.snippetsPerPromotion,
         );
         expect(defaultSettings.maxLayers).toBeGreaterThanOrEqual(1);
+    });
+
+    it('uses the Summaryception memory wrapper by default', () => {
+        expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
+        expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
     });
 
     it('configures exponential-backoff retry within 2s..60s bounds', () => {

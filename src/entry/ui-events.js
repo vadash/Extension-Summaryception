@@ -1,4 +1,9 @@
-import { LOG_PREFIX, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
+import {
+    LOG_PREFIX,
+    MEMORY_MODES,
+    PROMPT_PRESETS,
+    defaultSettings,
+} from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
@@ -37,6 +42,7 @@ import {
  */
 export function bindUIEvents() {
     bindToggleHandlers();
+    bindMemoryModeHandlers();
     bindSliderHandlers();
     bindTextareaHandlers();
     bindClickHandlers();
@@ -56,46 +62,9 @@ function bindToggleHandlers() {
         updateInjection();
         updateUI();
 
-        if (s.enabled && !s.pauseSummarization) {
+        if (s.enabled) {
             requestAutoSummaryRefresh('enabled');
         }
-    });
-
-    $(document).on('change', '#sc_pause_summarization', function () {
-        const s = getSettings();
-        s.pauseSummarization = $(this).prop('checked');
-        saveSettings();
-
-        if (s.pauseSummarization) {
-            toastr.info(
-                'Summarization paused. Existing summaries will continue to be injected. Use Force Summarize or unpause to catch up.',
-                'Summaryception',
-                { timeOut: 5000 },
-            );
-        } else {
-            toastr.info(
-                'Summarization resumed. Will process new turns automatically.',
-                'Summaryception',
-                { timeOut: 3000 },
-            );
-            requestAutoSummaryRefresh('resumed');
-        }
-
-        updateUI();
-    });
-
-    $(document).on('change', '#sc_disable_ghosting', function () {
-        getSettings().disableGhosting = $(this).prop('checked');
-        saveSettings();
-
-        if ($(this).prop('checked')) {
-            toastr.info(
-                'Message hiding disabled. Summarized messages will remain visible but still be excluded from LLM context via the sc_ghosted flag.',
-                'Summaryception',
-                { timeOut: 5000 },
-            );
-        }
-        updateUI();
     });
 
     $(document).on('change', '#sc_debug_mode', function () {
@@ -114,12 +83,61 @@ function bindToggleHandlers() {
     });
 }
 
+/**
+ * Bind handlers for memory mode and custom injection placement.
+ * @returns {void}
+ */
+function bindMemoryModeHandlers() {
+    $(document).on('change', 'input[name="sc_memory_mode"]', function () {
+        const mode = String($(this).val());
+        const s = getSettings();
+        if (s.memoryMode === mode) {
+            return;
+        }
+
+        s.memoryMode = mode;
+        s.verbatimTokenBudget = mode === MEMORY_MODES.CACHE ? 32000 : 16000;
+        saveSettings();
+        updateInjection();
+        updateUI();
+    });
+
+    $(document).on('change', '#sc_custom_memory_position', function () {
+        getSettings().customMemoryPosition = String($(this).val());
+        saveSettings();
+        updateInjection();
+        updateUI();
+    });
+
+    $(document).on('change', '#sc_custom_memory_role', function () {
+        getSettings().customMemoryRole = String($(this).val());
+        saveSettings();
+        updateInjection();
+        updateUI();
+    });
+
+    $(document).on('input change', '#sc_custom_memory_depth', function () {
+        getSettings().customMemoryDepth = clampNumberInput($(this).val(), 0, 10000);
+        saveSettings();
+        updateInjection();
+        updateUI();
+    });
+}
+
 function requestAutoSummaryRefresh(reason) {
     void maybeSummarizeTurns()
         .catch((e) => {
             log(`Auto summarization request after ${reason} failed:`, e);
         })
         .finally(updateUI);
+}
+
+function clampNumberInput(value, min, max) {
+    const parsed = Number.parseInt(String(value), 10);
+    if (!Number.isFinite(parsed)) {
+        return min;
+    }
+    return Math.min(max, Math.max(min, parsed));
 }
 
 /**
@@ -313,9 +331,7 @@ async function onForceSummarize() {
         toastr.warning('Already summarizing. Please wait.');
         return;
     }
-    if (s.pauseSummarization) {
-        log('Force Summarize overrides pause mode.');
-    }
+    showManualCacheWarning(s);
     $(this)
         .prop('disabled', true)
         .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
@@ -378,6 +394,7 @@ async function onSlopBreaker() {
         toastr.warning('Already summarizing. Please wait.');
         return;
     }
+    showManualCacheWarning(s);
 
     const plan = getSlopBreakerPlan(getChat(), getChatStore(), s);
     if (plan.reason !== 'ready') {
@@ -417,6 +434,17 @@ async function onSlopBreaker() {
             .html('<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>');
         updateUI();
     }
+}
+
+function showManualCacheWarning(settings) {
+    if (settings.memoryMode !== MEMORY_MODES.CACHE) {
+        return;
+    }
+    toastr.info(
+        'Manual summarization updates memory immediately and may reset cache savings for the next request.',
+        'Summaryception',
+        { timeOut: 5000 },
+    );
 }
 
 /**
@@ -517,6 +545,10 @@ function onResetDefaults() {
     const s = getSettings();
 
     // Reset sliders
+    s.memoryMode = defaultSettings.memoryMode;
+    s.customMemoryPosition = defaultSettings.customMemoryPosition;
+    s.customMemoryRole = defaultSettings.customMemoryRole;
+    s.customMemoryDepth = defaultSettings.customMemoryDepth;
     s.minSummaryTurns = defaultSettings.minSummaryTurns;
     s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
     s.minSummaryBudget = defaultSettings.minSummaryBudget;

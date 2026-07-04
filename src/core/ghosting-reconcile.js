@@ -3,7 +3,6 @@ import { log } from '../foundation/logger.js';
 import {
     calculateContiguousSummarizedUpTo,
     getChatStore,
-    getSettings,
     saveChatStore,
 } from '../foundation/state.js';
 import { repairGhostingForRange } from './ghosting.js';
@@ -121,9 +120,8 @@ function getProcessedRepairRange(store, chat) {
  * @returns {boolean}
  */
 function hasGhostingWork(chat, range) {
-    const disableGhosting = getSettings().disableGhosting;
     for (let i = range[0]; i <= range[1]; i++) {
-        if (shouldRepairLoadedMessage(chat[i], disableGhosting)) {
+        if (shouldRepairLoadedMessage(chat[i])) {
             return true;
         }
     }
@@ -133,18 +131,14 @@ function hasGhostingWork(chat, range) {
 /**
  * Check whether one loaded message should be repaired.
  * @param {ChatMessage | undefined} msg
- * @param {boolean} disableGhosting
  * @returns {boolean}
  */
-function shouldRepairLoadedMessage(msg, disableGhosting) {
+function shouldRepairLoadedMessage(msg) {
     if (!msg || !msg.mes?.trim() || isUserHidden(msg)) {
         return false;
     }
 
     const owned = msg.extra?.sc_ghosted === true;
-    if (disableGhosting) {
-        return !owned;
-    }
     return !owned || !isVisuallyHidden(msg);
 }
 

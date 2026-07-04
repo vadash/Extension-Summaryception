@@ -85,22 +85,36 @@
                             </span>
                             <input type="checkbox" id="sc_enabled" />
                         </label>
-                        <label class="checkbox_label sc-toggle-row" for="sc_pause_summarization">
-                            <span class="sc-toggle-icon fa-solid fa-pause"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Pause Summarization</span>
-                                <small class="sc-hint">Keep existing summaries injected without processing new turns.</small>
-                            </span>
-                            <input type="checkbox" id="sc_pause_summarization" />
-                        </label>
-                        <label class="checkbox_label sc-toggle-row" for="sc_disable_ghosting">
-                            <span class="sc-toggle-icon fa-solid fa-eye"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Disable Message Hiding</span>
-                                <small class="sc-hint">Summaries still exclude old turns from LLM context.</small>
-                            </span>
-                            <input type="checkbox" id="sc_disable_ghosting" />
-                        </label>
+                    </div>
+                </section>
+                <section id="sc_cache_status_section" class="sc-section" style="display: none;">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-box-archive"></span>
+                            Cache Mode
+                        </h4>
+                    </div>
+                    <div class="sc-status-grid sc-cache-grid" aria-label="Cache-friendly memory status">
+                        <div class="sc-status-item">
+                            <span class="sc-status-label">Live Tokens</span>
+                            <strong id="sc_cache_live_tokens">0</strong>
+                        </div>
+                        <div class="sc-status-item">
+                            <span class="sc-status-label">Cache Budget</span>
+                            <strong id="sc_cache_budget">0</strong>
+                        </div>
+                        <div class="sc-status-item">
+                            <span class="sc-status-label">Protected Tail</span>
+                            <strong id="sc_cache_tail_tokens">0</strong>
+                        </div>
+                        <div class="sc-status-item">
+                            <span class="sc-status-label">Flush Size</span>
+                            <strong id="sc_cache_flush_tokens">0</strong>
+                        </div>
+                        <div class="sc-status-item">
+                            <span class="sc-status-label">Ready State</span>
+                            <strong id="sc_cache_ready_state">Within cache budget</strong>
+                        </div>
                     </div>
                 </section>
                 <section class="sc-section">
@@ -127,6 +141,10 @@
                             <i class="fa-solid fa-wrench"></i>
                             <span>Repair</span>
                         </button>
+                    </div>
+                    <div id="sc_manual_cache_warning" class="sc-note" style="display: none;">
+                        <span class="fa-solid fa-circle-info"></span>
+                        <small>Manual summarization updates memory immediately and may reset cache savings for the next request.</small>
                     </div>
                 </section>
             </div>
@@ -286,6 +304,77 @@
                         </h4>
                     </div>
                     <div class="sc-row">
+                        <label>
+                            <span>Memory Mode</span>
+                        </label>
+                        <div class="sc-toggle-list sc-radio-group" role="radiogroup" aria-label="Memory Mode">
+                            <label class="checkbox_label sc-toggle-row" for="sc_memory_mode_standard">
+                                <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Standard</span>
+                                    <small class="sc-hint">Continuous summaries with the normal verbatim window.</small>
+                                </span>
+                                <input type="radio" id="sc_memory_mode_standard" name="sc_memory_mode" value="standard" />
+                            </label>
+                            <label class="checkbox_label sc-toggle-row" for="sc_memory_mode_cache">
+                                <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Cache Friendly</span>
+                                    <small class="sc-hint">Frozen memory plus a larger live chat window.</small>
+                                </span>
+                                <input type="radio" id="sc_memory_mode_cache" name="sc_memory_mode" value="cache" />
+                            </label>
+                            <label class="checkbox_label sc-toggle-row" for="sc_memory_mode_custom">
+                                <span class="sc-toggle-icon fa-solid fa-location-dot"></span>
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Custom</span>
+                                    <small class="sc-hint">Choose where committed memory is injected.</small>
+                                </span>
+                                <input type="radio" id="sc_memory_mode_custom" name="sc_memory_mode" value="custom" />
+                            </label>
+                        </div>
+                    </div>
+                    <div id="sc_memory_help_standard" class="sc-note">
+                        <span class="fa-solid fa-circle-info"></span>
+                        <small>Standard mode summarizes continuously once the live chat exceeds the verbatim window and normal turn/budget thresholds.</small>
+                    </div>
+                    <div id="sc_memory_help_cache" class="sc-note" style="display: none;">
+                        <span class="fa-solid fa-circle-info"></span>
+                        <small>Cache Friendly keeps Prompt | frozen Summaryception memory | growing live chat, uses a 32k live budget, protects a 4k-8k tail, and flushes older live chat in one commit.</small>
+                    </div>
+                    <div id="sc_memory_help_custom" class="sc-note" style="display: none;">
+                        <span class="fa-solid fa-circle-info"></span>
+                        <small>Custom changes only the injection placement, role, and chat depth; summarization cadence stays standard.</small>
+                    </div>
+                    <div id="sc_custom_memory_controls" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="sc_custom_memory_position">
+                                <span>Memory Position</span>
+                            </label>
+                            <select id="sc_custom_memory_position" class="text_pole">
+                                <option value="before_prompt">Before Prompt</option>
+                                <option value="in_prompt">In Prompt</option>
+                                <option value="in_chat">In Chat</option>
+                            </select>
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="sc_custom_memory_role">
+                                <span>Memory Role</span>
+                            </label>
+                            <select id="sc_custom_memory_role" class="text_pole">
+                                <option value="system">System</option>
+                                <option value="user">User</option>
+                                <option value="assistant">Assistant</option>
+                            </select>
+                        </div>
+                        <div id="sc_custom_memory_depth_row" class="sc-setting-row" style="display: none;">
+                            <label for="sc_custom_memory_depth">
+                                <span>Chat Depth</span>
+                            </label>
+                            <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
+                        </div>
+                    </div>
+                    <div class="sc-row">
                         <label for="sc_verbatim_token_budget">
                             <span>Verbatim Token Budget</span>
                             <small class="sc-hint">Recent visible chat kept raw before Layer 0 summarization.</small>
@@ -298,7 +387,7 @@
                     <div class="sc-row">
                         <label for="sc_min_summary_budget">
                             <span>Minimum Summary Budget</span>
-                            <small class="sc-hint">Overflow passage tokens to collect before summarizing short batches.</small>
+                            <small id="sc_min_summary_budget_hint" class="sc-hint">Overflow passage tokens to collect before summarizing short batches.</small>
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_min_summary_budget" min="2000" max="16000" step="1000" />

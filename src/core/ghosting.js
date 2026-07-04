@@ -1,6 +1,6 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { executeSlashCommandsWithOptions, getChat } from '../foundation/context.js';
-import { getChatStore, getSettings } from '../foundation/state.js';
+import { getChatStore } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
@@ -115,11 +115,10 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
         return true;
     }
 
-    const settings = getSettings();
     const store = getChatStore();
-    const ranges = collectHideRanges(chat, range, settings.disableGhosting);
+    const ranges = collectHideRanges(chat, range);
     const total = countRangeMessages(ranges);
-    const progressToast = createHideProgressToast(options, total, settings.disableGhosting);
+    const progressToast = createHideProgressToast(options, total);
     let processed = 0;
 
     for (const hideRange of ranges) {
@@ -132,7 +131,6 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
             store,
             range: hideRange,
             epoch,
-            disableGhosting: settings.disableGhosting,
             chatSave: options.chatSave || 'immediate',
         });
 
@@ -155,17 +153,13 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
  * @param {SummaryceptionStore} p.store
  * @param {[number, number]} p.range
  * @param {number} p.epoch
- * @param {boolean} p.disableGhosting
  * @param {'immediate' | 'deferred'} p.chatSave
  * @returns {Promise<boolean>}
  */
-async function applyHideRange({ chat, store, range, epoch, disableGhosting, chatSave }) {
+async function applyHideRange({ chat, store, range, epoch, chatSave }) {
     markGhostedRange(chat, store, range);
     await persistChatState({ chatSave });
 
-    if (disableGhosting) {
-        return true;
-    }
     if (!canStartPromptMutation(epoch)) {
         return false;
     }
@@ -216,13 +210,12 @@ function queueGhostRange(startIdx, endIdx, options) {
  * Build contiguous ranges of messages that still need ownership or visual hide work.
  * @param {ChatMessage[]} chat
  * @param {[number, number]} range
- * @param {boolean} disableGhosting
  * @returns {Array<[number, number]>}
  */
-function collectHideRanges(chat, range, disableGhosting) {
+function collectHideRanges(chat, range) {
     const indices = [];
     for (let i = range[0]; i <= range[1]; i++) {
-        if (messageNeedsGhosting(chat[i], disableGhosting)) {
+        if (messageNeedsGhosting(chat[i])) {
             indices.push(i);
         }
     }
@@ -232,18 +225,14 @@ function collectHideRanges(chat, range, disableGhosting) {
 /**
  * Check whether a message needs Summaryception ownership or visual hiding.
  * @param {ChatMessage | undefined} msg
- * @param {boolean} disableGhosting
  * @returns {boolean}
  */
-function messageNeedsGhosting(msg, disableGhosting) {
+function messageNeedsGhosting(msg) {
     if (!msg || !isGhostableMessage(msg)) {
         return false;
     }
 
     const owned = msg.extra?.sc_ghosted === true;
-    if (disableGhosting) {
-        return !owned;
-    }
     return !owned || !isVisuallyHidden(msg);
 }
 
@@ -469,11 +458,10 @@ function getGhostEffectKind(startIdx, endIdx, options) {
  * Create a progress toast for manual hide work.
  * @param {GhostRangeOptions} options
  * @param {number} total
- * @param {boolean} disableGhosting
  * @returns {unknown}
  */
-function createHideProgressToast(options, total, disableGhosting) {
-    if (!options.showProgress || disableGhosting || total === 0) {
+function createHideProgressToast(options, total) {
+    if (!options.showProgress || total === 0) {
         return null;
     }
     return toastr.info(`Hiding messages: 0 / ${total}`, 'Summaryception - Ghosting', {

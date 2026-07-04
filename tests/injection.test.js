@@ -48,3 +48,63 @@ describe('injection diagnostics', () => {
         expect(injectionLog?.[1]).not.toContain('chars');
     });
 });
+
+describe('memory injection options', () => {
+    it('maps standard mode to in-prompt system memory at depth zero', async () => {
+        const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
+
+        expect(getMemoryInjectionOptions({ memoryMode: 'standard' })).toEqual({
+            position: 0,
+            depth: 0,
+            scan: false,
+            role: 0,
+        });
+    });
+
+    it('maps cache mode to the same stable in-prompt system placement', async () => {
+        const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
+
+        expect(getMemoryInjectionOptions({ memoryMode: 'cache' })).toEqual({
+            position: 0,
+            depth: 0,
+            scan: false,
+            role: 0,
+        });
+    });
+
+    it('maps custom in-chat role and depth settings', async () => {
+        const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
+
+        expect(
+            getMemoryInjectionOptions({
+                memoryMode: 'custom',
+                customMemoryPosition: 'in_chat',
+                customMemoryRole: 'user',
+                customMemoryDepth: 42,
+            }),
+        ).toEqual({
+            position: 1,
+            depth: 42,
+            scan: false,
+            role: 1,
+        });
+    });
+
+    it('ignores custom depth outside in-chat placement', async () => {
+        const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
+
+        expect(
+            getMemoryInjectionOptions({
+                memoryMode: 'custom',
+                customMemoryPosition: 'before_prompt',
+                customMemoryRole: 'assistant',
+                customMemoryDepth: 42,
+            }),
+        ).toEqual({
+            position: 2,
+            depth: 0,
+            scan: false,
+            role: 2,
+        });
+    });
+});
