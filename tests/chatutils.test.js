@@ -138,12 +138,13 @@ describe('buildPassageFromRangeWithStats', () => {
         expect(applyRegexToMessage).not.toHaveBeenCalled();
     });
 
-    it('caches per-message token counts and reuses the first count after edits', async () => {
+    it('caches per-message token counts and refreshes them after edits', async () => {
         const chat = [msg({ mes: 'first count' })];
 
         const first = await buildPassageFromRangeWithStats(chat, 0, 0);
 
         expect(chat[0].extra.sc_token_count).toEqual({
+            textLength: 'Assistant: first count'.length * 2,
             rawTokens: countTokens('Assistant: first count'),
             finalTokens: countTokens('Assistant: first count'),
             rawTokensEstimated: false,
@@ -156,9 +157,18 @@ describe('buildPassageFromRangeWithStats', () => {
         const second = await buildPassageFromRangeWithStats(chat, 0, 0);
 
         expect(second.text).toBe('Assistant: edited source with many more words');
-        expect(second.stats.rawTokens).toBe(first.stats.rawTokens);
-        expect(second.stats.finalTokens).toBe(first.stats.finalTokens);
-        expect(getTokenCountAsync).not.toHaveBeenCalled();
+        expect(second.stats.rawTokens).toBe(countTokens(second.text));
+        expect(second.stats.finalTokens).toBe(countTokens(second.text));
+        expect(second.stats.rawTokens).toBeGreaterThan(first.stats.rawTokens);
+        expect(second.stats.finalTokens).toBeGreaterThan(first.stats.finalTokens);
+        expect(getTokenCountAsync).toHaveBeenCalledTimes(1);
+        expect(chat[0].extra.sc_token_count).toEqual({
+            textLength: second.text.length * 2,
+            rawTokens: countTokens(second.text),
+            finalTokens: countTokens(second.text),
+            rawTokensEstimated: false,
+            finalTokensEstimated: false,
+        });
     });
 
     it('reports saved tokens when regex shrinks rendered text', async () => {

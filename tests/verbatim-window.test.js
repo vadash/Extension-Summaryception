@@ -137,6 +137,7 @@ describe('getLayer0OverflowPlan', () => {
         expect(getTokenCountAsync).toHaveBeenCalledTimes(3);
         expect(chat.map((message) => message.extra.sc_token_count)).toEqual(
             chat.map(() => ({
+                textLength: ('Assistant: '.length + long.length) * 2,
                 rawTokens: 'Assistant: '.length + long.length,
                 finalTokens: 'Assistant: '.length + long.length,
                 rawTokensEstimated: false,

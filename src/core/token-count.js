@@ -18,6 +18,10 @@ const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
  */
 
 /**
+ * @typedef {MessageTokenStats & { textLength: number }} MessageTokenCache
+ */
+
+/**
  * Count tokens using SillyTavern's active tokenizer, with a marked fallback.
  * @param {string} text - Text to count
  * @returns {Promise<TokenCount>}
@@ -40,20 +44,21 @@ export async function countTextTokens(text) {
 }
 
 /**
- * Count rendered raw/final message lines, reusing the first saved message count.
+ * Count rendered raw/final message lines, reusing a saved message count while valid.
  * @param {ChatMessage} message - Chat message to cache on
  * @param {string} rawLine - Rendered message line before regex scripts
  * @param {string} finalLine - Rendered message line after regex scripts
  * @returns {Promise<MessageTokenStats>}
  */
 export async function countMessageTokens(message, rawLine, finalLine) {
-    const cached = readMessageTokenCache(message);
+    const textLength = getMessageTokenCacheLength(rawLine, finalLine);
+    const cached = readMessageTokenCache(message, textLength);
     if (cached) {
         return cached;
     }
 
     const counted = await countRenderedLines(rawLine, finalLine);
-    writeMessageTokenCache(message, counted);
+    writeMessageTokenCache(message, counted, textLength);
     return counted;
 }
 
@@ -117,20 +122,22 @@ async function countRenderedLines(rawLine, finalLine) {
 /**
  * Read a normalized message token cache entry.
  * @param {ChatMessage} message
+ * @param {number} textLength
  * @returns {MessageTokenStats | null}
  */
-function readMessageTokenCache(message) {
+function readMessageTokenCache(message, textLength) {
     const extra = /** @type {{ sc_token_count?: unknown }} */ (message?.extra || {});
-    return normalizeMessageTokenCache(extra[MESSAGE_TOKEN_CACHE_KEY]);
+    return normalizeMessageTokenCache(extra[MESSAGE_TOKEN_CACHE_KEY], textLength);
 }
 
 /**
- * Save message token stats without overwriting a valid first count.
+ * Save message token stats with a lightweight source text marker.
  * @param {ChatMessage} message
  * @param {MessageTokenStats} stats
+ * @param {number} textLength
  * @returns {void}
  */
-function writeMessageTokenCache(message, stats) {
+function writeMessageTokenCache(message, stats, textLength) {
     if (!message || typeof message !== 'object') {
         return;
     }
@@ -140,8 +147,9 @@ function writeMessageTokenCache(message, stats) {
         target.extra = {};
     }
 
-    /** @type {{ sc_token_count?: MessageTokenStats }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
+    /** @type {{ sc_token_count?: MessageTokenCache }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
         {
+            textLength,
             rawTokens: stats.rawTokens,
             finalTokens: stats.finalTokens,
             rawTokensEstimated: stats.rawTokensEstimated,
@@ -152,17 +160,22 @@ function writeMessageTokenCache(message, stats) {
 /**
  * Normalize a cached token stats object.
  * @param {unknown} cache
+ * @param {number} textLength
  * @returns {MessageTokenStats | null}
  */
-function normalizeMessageTokenCache(cache) {
+function normalizeMessageTokenCache(cache, textLength) {
     if (!cache || typeof cache !== 'object') {
         return null;
     }
 
     const record =
-        /** @type {{ rawTokens?: unknown, finalTokens?: unknown, rawTokensEstimated?: unknown, finalTokensEstimated?: unknown }} */ (
+        /** @type {{ textLength?: unknown, rawTokens?: unknown, finalTokens?: unknown, rawTokensEstimated?: unknown, finalTokensEstimated?: unknown }} */ (
             cache
         );
+    if (record.textLength !== textLength) {
+        return null;
+    }
+
     const rawTokens = normalizeCachedTokenCount(record.rawTokens);
     const finalTokens = normalizeCachedTokenCount(record.finalTokens);
 
@@ -176,6 +189,16 @@ function normalizeMessageTokenCache(cache) {
         rawTokensEstimated: record.rawTokensEstimated === true,
         finalTokensEstimated: record.finalTokensEstimated === true,
     };
+}
+
+/**
+ * Get the rendered text length marker for a token cache entry.
+ * @param {string} rawLine
+ * @param {string} finalLine
+ * @returns {number}
+ */
+function getMessageTokenCacheLength(rawLine, finalLine) {
+    return String(rawLine ?? '').length + String(finalLine ?? '').length;
 }
 
 /**
