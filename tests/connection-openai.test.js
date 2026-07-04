@@ -67,6 +67,14 @@ function sseEvent(content) {
 }
 
 /**
+ * @param {boolean} [trailingNewline]
+ * @returns {Uint8Array}
+ */
+function sseDone(trailingNewline = true) {
+    return new TextEncoder().encode(`data: [DONE]${trailingNewline ? '\n' : ''}`);
+}
+
+/**
  * Point the global fetch stub at a fixed response.
  * @param {Response} response
  */
@@ -80,6 +88,7 @@ describe('sendViaOpenAI streaming', () => {
             { value: sseEvent('Hello') },
             { value: sseEvent(' world') },
             { value: sseEvent('!') },
+            { value: sseDone() },
         ]);
         stubFetch(response);
 
@@ -94,11 +103,11 @@ describe('sendViaOpenAI streaming', () => {
         expect(result).toBe('Hello world!');
     });
 
-    it('flushes the residual buffer when the stream ends without a trailing newline', async () => {
-        const encoder = new TextEncoder();
+    it('accepts a final DONE marker without a trailing newline', async () => {
         const response = makeStreamResponse([
             { value: sseEvent('first') },
-            { value: encoder.encode('data: {"choices":[{"delta":{"content":"second"}}]}') },
+            { value: sseEvent('second') },
+            { value: sseDone(false) },
         ]);
         stubFetch(response);
 
@@ -113,7 +122,7 @@ describe('sendViaOpenAI streaming', () => {
         expect(result).toBe('firstsecond');
     });
 
-    it('returns partial content with a warning when a mid-stream disconnect yields >= 64 chars', async () => {
+    it('throws a retryable ConnectionError when a mid-stream disconnect yields long partial content', async () => {
         const longContent =
             'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.';
         const response = makeFailingStreamResponse(
@@ -123,21 +132,18 @@ describe('sendViaOpenAI streaming', () => {
         );
         stubFetch(response);
 
-        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
+        await expect(
+            sendViaOpenAI({
+                url: 'https://api.example.com',
+                apiKey: 'sk-test',
+                model: 'gpt-test',
+                systemPrompt: 'sys',
+                userPrompt: 'usr',
+            }),
+        ).rejects.toMatchObject({
+            name: 'ConnectionError',
+            retryable: true,
         });
-
-        expect(result).toContain(longContent);
-        expect(warnSpy).toHaveBeenCalledWith(
-            '[Summaryception][Connection]',
-            expect.stringContaining('partial summary'),
-        );
     });
 
     it('throws a retryable ConnectionError when a mid-stream disconnect yields < 64 chars', async () => {
@@ -146,6 +152,24 @@ describe('sendViaOpenAI streaming', () => {
             1,
             new TypeError('network error'),
         );
+        stubFetch(response);
+
+        await expect(
+            sendViaOpenAI({
+                url: 'https://api.example.com',
+                apiKey: 'sk-test',
+                model: 'gpt-test',
+                systemPrompt: 'sys',
+                userPrompt: 'usr',
+            }),
+        ).rejects.toMatchObject({
+            name: 'ConnectionError',
+            retryable: true,
+        });
+    });
+
+    it('throws a retryable ConnectionError when the stream ends without DONE', async () => {
+        const response = makeStreamResponse([{ value: sseEvent('incomplete summary') }]);
         stubFetch(response);
 
         await expect(
@@ -195,7 +219,7 @@ describe('sendViaOpenAI streaming', () => {
             userPrompt: 'usr',
         });
 
-        expect(result).toBe('alphabeta');
+        expect(result).toBe('alpha');
     });
 
     it('ignores role-only deltas with no content', async () => {
@@ -203,6 +227,7 @@ describe('sendViaOpenAI streaming', () => {
         const response = makeStreamResponse([
             { value: encoder.encode('data: {"choices":[{"delta":{"role":"assistant"}}]}\n') },
             { value: sseEvent('content') },
+            { value: sseDone() },
         ]);
         stubFetch(response);
 
@@ -223,7 +248,8 @@ describe('sendViaOpenAI streaming', () => {
             {
                 value: encoder.encode(
                     'data: {"choices":[{"delta":{"content":"first"}}]}\n' +
-                        'data: {"choices":[{"delta":{"content":"second"}}]}\n',
+                        'data: {"choices":[{"delta":{"content":"second"}}]}\n' +
+                        'data: [DONE]\n',
                 ),
             },
         ]);
@@ -249,7 +275,8 @@ describe('sendViaOpenAI streaming', () => {
                         'data: {not json}\n' +
                         'data: {"choices":[{"delta":{"content":42}}]}\n' +
                         'data: {"choices":[{"delta":{"role":"assistant"}}]}\n' +
-                        'data: {"choices":[{"delta":{"content":"kept"}}]}\n',
+                        'data: {"choices":[{"delta":{"content":"kept"}}]}\n' +
+                        'data: [DONE]\n',
                 ),
             },
         ]);

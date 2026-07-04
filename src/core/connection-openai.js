@@ -1,4 +1,4 @@
-import { CONNECTION_MODULE_NAME, ConnectionError } from './connection-error.js';
+import { ConnectionError } from './connection-error.js';
 import {
     fetchWithProxyFallback,
     isLocalUrl,
@@ -186,25 +186,11 @@ async function handleOpenAIErrorResponse(response) {
     );
 }
 
-// Minimum assembled content length (chars) to accept a truncated stream as a
-// partial summary instead of rejecting it for retry. Roughly one short
-// sentence; well below typical 200-800 char summaries, above noise.
-const PARTIAL_MIN_CHARS = 64;
-
 /**
  * Read an SSE stream and assemble the full content.
- *
- * Resilient to mid-stream disconnects and malformed trailing chunks:
- * - Aborts propagate unchanged so the caller can classify them as user aborts.
- * - Other read errors flush the residual buffer; if the assembled content meets
- *   {@link PARTIAL_MIN_CHARS}, it is returned with a warning, otherwise a
- *   retryable ConnectionError is thrown.
- * - On normal completion, any buffered line lacking a trailing newline is
- *   flushed so the final SSE event is not silently dropped.
- *
  * @param {Response} response
- * @returns {Promise<string>} The assembled content (possibly partial)
- * @throws {ConnectionError} retryable when a disconnect yields too little content
+ * @returns {Promise<string>} The assembled content
+ * @throws {ConnectionError} retryable when the stream ends before `[DONE]`
  * @throws {DOMException} AbortError when the underlying reader is aborted
  */
 async function readSSEStream(response) {
@@ -215,87 +201,82 @@ async function readSSEStream(response) {
 
     try {
         while (true) {
-            try {
-                const { done, value } = await reader.read();
-                if (done) {
-                    break;
-                }
+            const { done, value } = await readSSEChunk(reader);
+            if (done) {
+                break;
+            }
 
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
 
-                for (const line of lines) {
-                    fullContent += parseSSELine(line);
+            for (const line of lines) {
+                const event = parseSSELine(line);
+                if (event.done) {
+                    return fullContent;
                 }
-            } catch (err) {
-                return handleStreamReadError(err, fullContent, buffer);
+                fullContent += event.content;
             }
         }
     } finally {
         reader.releaseLock();
     }
 
-    fullContent += parseSSELine(buffer);
-    return fullContent;
+    buffer += decoder.decode();
+    const finalEvent = parseSSELine(buffer);
+    if (finalEvent.done) {
+        return fullContent;
+    }
+
+    throw new ConnectionError('OpenAI Compatible stream ended before the [DONE] marker.', {
+        retryable: true,
+    });
 }
 
 /**
- * Classify a read-loop error: rethrow aborts, accept partial content above the
- * threshold with a warning, otherwise throw a retryable ConnectionError.
- *
- * @param {unknown} err - The rejected error from `reader.read()`
- * @param {string} fullContent - Assembled content so far
- * @param {string} buffer - Unparsed residual buffer to flush before deciding
- * @returns {string} The accepted partial content (only on the accept path)
- * @throws {DOMException} rethrows when `err` is an AbortError
- * @throws {ConnectionError} retryable when partial content is below threshold
+ * Read one SSE chunk, preserving AbortError semantics and making disconnects retryable.
+ * @param {ReadableStreamDefaultReader<Uint8Array>} reader
+ * @returns {Promise<ReadableStreamReadResult<Uint8Array>>}
+ * @throws {ConnectionError} retryable when the stream read fails
+ * @throws {DOMException} AbortError when the underlying reader is aborted
  */
-function handleStreamReadError(err, fullContent, buffer) {
-    if (/** @type {{ name?: string }} */ (err)?.name === 'AbortError') {
-        throw err;
-    }
-
-    const flushed = fullContent + parseSSELine(buffer);
-    const trimmed = flushed.trim();
-
-    if (trimmed.length >= PARTIAL_MIN_CHARS) {
-        console.warn(
-            CONNECTION_MODULE_NAME,
-            `Stream disconnected after ${trimmed.length} chars; returning partial summary.`,
+async function readSSEChunk(reader) {
+    try {
+        return await reader.read();
+    } catch (err) {
+        if (/** @type {{ name?: string }} */ (err)?.name === 'AbortError') {
+            throw err;
+        }
+        throw new ConnectionError(
+            `OpenAI Compatible stream disconnected before completion: ${
+                /** @type {{ message?: string }} */ (err)?.message ?? 'unknown error'
+            }`,
+            { retryable: true },
         );
-        return flushed;
     }
-
-    throw new ConnectionError(
-        `Stream disconnected after ${trimmed.length} chars (below ${PARTIAL_MIN_CHARS} char minimum): ${
-            /** @type {{ message?: string }} */ (err)?.message ?? 'unknown error'
-        }`,
-        { retryable: true },
-    );
 }
 
 /**
  * Parse a single SSE data line and extract delta content.
  * @param {string} line - Raw SSE line
- * @returns {string} The delta content, or '' if unparseable/irrelevant
+ * @returns {{ content: string, done: boolean }} Parsed content and completion state
  */
 function parseSSELine(line) {
     const trimmed = line.trim();
     if (!trimmed || !trimmed.startsWith('data:')) {
-        return '';
+        return { content: '', done: false };
     }
 
     const data = trimmed.slice(5).trim();
     if (data === '[DONE]') {
-        return '';
+        return { content: '', done: true };
     }
 
     try {
         const parsed = /** @type {OpenAIChatCompletionChunk} */ (JSON.parse(data));
-        return extractDeltaContent(parsed.choices?.[0]);
+        return { content: extractDeltaContent(parsed.choices?.[0]), done: false };
     } catch (_e) {
-        return '';
+        return { content: '', done: false };
     }
 }
 

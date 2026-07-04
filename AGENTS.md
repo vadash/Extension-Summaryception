@@ -47,7 +47,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
-- SSE stream readers must flush the residual buffer on `done` (malformed trailing chunks) and classify mid-stream disconnects: abort signals propagate unchanged, short partials (<64 chars) throw retryable, longer partials return with a warning. See `docs/2026-07-04-resilient-sse-stream-parsing-in-connection-openai.md`.
+- SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and OpenAI-compatible streams must reach `data: [DONE]` before any generated text is accepted.
 
 ## Testing and Commits
 
