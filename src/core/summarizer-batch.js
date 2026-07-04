@@ -1,4 +1,5 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
+import { getContext, getChat } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
@@ -29,7 +30,7 @@ export async function summarizeBatchFromTurns(
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
 
     const s = getSettings();
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const store = getChatStore();
 
     const eligibleTurns = visibleTurns.filter(
@@ -230,7 +231,7 @@ async function traceTextTokens(label, text) {
  * @returns {Promise<import('./summarizer-commit.js').SummarizationJobSnapshot>}
  */
 async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
-    const ctx = SillyTavern.getContext();
+    const ctx = getContext();
     const passage = await buildPassageFromRangeWithStats(chat, passageStart, endIdx);
     const contextText = buildFullContext(0);
 
@@ -297,7 +298,7 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
  * @returns {boolean}
  */
 function isLayer0SnapshotValid(snapshot) {
-    const ctx = SillyTavern.getContext();
+    const ctx = getContext();
     const store = getChatStore();
     const [startIdx, endIdx] = snapshot.sourceRange;
 

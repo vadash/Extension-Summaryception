@@ -10,7 +10,7 @@ SillyTavern browser extension for layered recursive summarization. No build step
 - Prefix console output with `[Summaryception]` via `LOG_PREFIX`.
 - Keep functions under 80 lines, files under 1000 lines, complexity under 15.
 - Add JSDoc to exports and useful internal transaction/worker types.
-- Runtime globals: `SillyTavern.getContext()`, `toastr`, `$`.
+- Runtime globals: `SillyTavern` (accessed only via `src/foundation/context.js` facade), `toastr`, `$`.
 - Settings UI: keep control IDs stable; prefer compact theme-aware panels and Font Awesome icons over emoji headings.
 
 ## Boundaries
@@ -18,17 +18,18 @@ SillyTavern browser extension for layered recursive summarization. No build step
 `eslint-plugin-boundaries` enforces one-way imports:
 
 ```text
-constants <- logger, retry <- state <- core <- feature <- entry
+constants <- context, logger, retry <- state <- core <- feature <- entry
 ```
 
 - `src/foundation/constants.js`
+- `src/foundation/context.js` (SillyTavern facade; only module that touches `SillyTavern.getContext()`)
 - `src/foundation/logger.js`, `src/foundation/retry.js`
 - `src/foundation/state.js`
 - `src/core/*.js`
 - `src/features/*.js`
 - `src/entry/*.js`
 
-Lower layers must not import from higher layers.
+Lower layers must not import from higher layers. All SillyTavern runtime access goes through `src/foundation/context.js`.
 
 ## Architecture
 

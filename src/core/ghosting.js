@@ -1,4 +1,5 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
+import { executeSlashCommandsWithOptions, getChat } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
@@ -62,7 +63,7 @@ export async function ghostMessagesInRange(startIdx, endIdx, options = {}) {
  * @returns {Promise<void>}
  */
 export async function unghostAllMessages() {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const store = getChatStore();
     const ranges = getOwnedGhostRanges(chat, store);
     const total = countRangeMessages(ranges);
@@ -84,7 +85,7 @@ export async function unghostAllMessages() {
  * @returns {Promise<void>}
  */
 export async function unghostMessagesInRange(startIdx, endIdx) {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const store = getChatStore();
     const range = normalizeRange(startIdx, endIdx, chat.length);
 
@@ -105,7 +106,7 @@ export async function unghostMessagesInRange(startIdx, endIdx) {
  * @returns {Promise<boolean>}
  */
 async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const range = normalizeRange(startIdx, endIdx, chat.length);
 
     if (!range) {
@@ -166,10 +167,9 @@ async function applyHideRange({ chat, store, range, epoch, disableGhosting }) {
     }
 
     try {
-        await SillyTavern.getContext().executeSlashCommandsWithOptions(
-            `/hide ${formatSlashRange(range)}`,
-            { showOutput: false },
-        );
+        await executeSlashCommandsWithOptions(`/hide ${formatSlashRange(range)}`, {
+            showOutput: false,
+        });
     } catch (e) {
         console.error(LOG_PREFIX, `Failed to hide messages ${formatSlashRange(range)}:`, e);
     }
@@ -357,10 +357,9 @@ async function unhideRanges({ chat, store, ranges, progressToast = null, total =
     let processed = 0;
     for (const range of ranges) {
         try {
-            await SillyTavern.getContext().executeSlashCommandsWithOptions(
-                `/unhide ${formatSlashRange(range)}`,
-                { showOutput: false },
-            );
+            await executeSlashCommandsWithOptions(`/unhide ${formatSlashRange(range)}`, {
+                showOutput: false,
+            });
         } catch (e) {
             log(`Failed to unhide messages ${formatSlashRange(range)}:`, e);
         }

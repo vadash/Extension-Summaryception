@@ -1,4 +1,5 @@
 import { LOG_PREFIX, MODULE_NAME } from '../foundation/constants.js';
+import { getChatMetadata } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { unghostAllMessages } from '../core/ghosting.js';
@@ -29,7 +30,7 @@ export async function clearSummaryceptionMemory(
     store.summarizedUpTo = -1;
     store.ghostedIndices = [];
 
-    const { chatMetadata } = SillyTavern.getContext();
+    const chatMetadata = getChatMetadata();
     chatMetadata[MODULE_NAME] = store;
 
     await persistAndRefresh({ injection: true, ui: updateUi });

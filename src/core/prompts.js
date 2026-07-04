@@ -1,3 +1,4 @@
+import { getPromptManager } from '../foundation/context.js';
 import { getSettings } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
 
@@ -10,8 +11,7 @@ import { log } from '../foundation/logger.js';
 export function snapshotPromptToggles() {
     const snapshot = new Map();
     try {
-        const ctx = SillyTavern.getContext();
-        const promptManager = ctx.promptManager;
+        const promptManager = getPromptManager();
         if (!promptManager) {
             log('No prompt manager available, skipping toggle snapshot.');
             return snapshot;
@@ -43,8 +43,7 @@ export function snapshotPromptToggles() {
  */
 export function disableAllPromptToggles() {
     try {
-        const ctx = SillyTavern.getContext();
-        const promptManager = ctx.promptManager;
+        const promptManager = getPromptManager();
         if (!promptManager) {
             return;
         }
@@ -73,8 +72,7 @@ export function restorePromptToggles(snapshot) {
         return;
     }
     try {
-        const ctx = SillyTavern.getContext();
-        const promptManager = ctx.promptManager;
+        const promptManager = getPromptManager();
         if (!promptManager) {
             return;
         }

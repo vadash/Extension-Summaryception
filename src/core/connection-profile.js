@@ -1,4 +1,5 @@
 import { ConnectionError } from './connection-error.js';
+import { getConnectionManagerRequestService } from '../foundation/context.js';
 
 /**
  * Uses ST's ConnectionManagerRequestService to send a request via a saved profile.
@@ -50,8 +51,7 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
  * @returns {{ sendRequest: Function }}
  */
 function getProfileRequestService() {
-    const context = SillyTavern.getContext();
-    const service = context.ConnectionManagerRequestService;
+    const service = getConnectionManagerRequestService();
 
     if (!service) {
         throw new ConnectionError(

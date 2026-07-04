@@ -32,6 +32,7 @@ export default [
         settings: {
             'boundaries/elements': [
                 { type: 'constants', pattern: 'src/foundation/constants.js' },
+                { type: 'context', pattern: 'src/foundation/context.js' },
                 { type: 'logger', pattern: 'src/foundation/logger.js' },
                 { type: 'retry', pattern: 'src/foundation/retry.js' },
                 { type: 'state', pattern: 'src/foundation/state.js' },
@@ -129,18 +130,23 @@ export default [
                     default: 'disallow',
                     rules: [
                         { from: 'constants', allow: ['constants'] },
-                        { from: 'logger', allow: ['constants', 'logger'] },
-                        { from: 'retry', allow: ['constants', 'retry'] },
-                        { from: 'state', allow: ['constants', 'logger', 'state'] },
-                        { from: 'core', allow: ['constants', 'logger', 'retry', 'state', 'core'] },
+                        { from: 'context', allow: ['constants', 'context'] },
+                        { from: 'logger', allow: ['constants', 'context', 'logger'] },
+                        { from: 'retry', allow: ['constants', 'context', 'retry'] },
+                        { from: 'state', allow: ['constants', 'context', 'logger', 'state'] },
+                        {
+                            from: 'core',
+                            allow: ['constants', 'context', 'logger', 'retry', 'state', 'core'],
+                        },
                         {
                             from: 'feature',
-                            allow: ['constants', 'logger', 'state', 'core', 'feature'],
+                            allow: ['constants', 'context', 'logger', 'state', 'core', 'feature'],
                         },
                         {
                             from: 'entry',
                             allow: [
                                 'constants',
+                                'context',
                                 'logger',
                                 'retry',
                                 'state',

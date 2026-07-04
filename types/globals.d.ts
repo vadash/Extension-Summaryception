@@ -112,6 +112,19 @@ interface SillyTavernContext {
     SlashCommandParser?: SlashCommandParser;
     SlashCommand?: SlashCommand;
     name1?: string;
+    eventSource?: {
+        on(event: string, handler: (...args: unknown[]) => void): void;
+        off(event: string, handler: (...args: unknown[]) => void): void;
+    };
+    event_types?: Record<string, string>;
+    streamingProcessor?: {
+        isFinished?: boolean;
+    };
+    renderExtensionTemplateAsync?: (
+        thirdParty: string,
+        template: string,
+        data: Record<string, unknown>,
+    ) => Promise<string>;
     getContext(): SillyTavernContext;
 }
 

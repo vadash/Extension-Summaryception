@@ -1,4 +1,5 @@
 import { MODULE_NAME } from '../foundation/constants.js';
+import { setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { isDebugEnabled, log } from '../foundation/logger.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
@@ -53,8 +54,6 @@ let _activeInjectionSnapshot = null;
  */
 export function updateInjection() {
     try {
-        const { setExtensionPrompt } = SillyTavern.getContext();
-
         if (isPromptMutationFrozen()) {
             return;
         }
@@ -66,7 +65,7 @@ export function updateInjection() {
             return;
         }
 
-        setExtensionPrompt(MODULE_NAME, nextInjection, 0, 0, false, 0);
+        setExtensionPrompt(MODULE_NAME, nextInjection);
         _lastInjected = nextInjection;
 
         queueInjectionTokenLog('Injection updated', nextInjection);
@@ -81,12 +80,11 @@ export function updateInjection() {
  */
 export function reassertInjectionSnapshot() {
     try {
-        const { setExtensionPrompt } = SillyTavern.getContext();
         if (_activeInjectionSnapshot === null) {
             _activeInjectionSnapshot = buildEnabledInjectionText();
         }
 
-        setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot, 0, 0, false, 0);
+        setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot);
         _lastInjected = _activeInjectionSnapshot;
         queueInjectionTokenLog('Injection snapshot reasserted', _activeInjectionSnapshot);
     } catch (e) {

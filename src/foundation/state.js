@@ -1,4 +1,11 @@
 import { MODULE_NAME, defaultSettings } from './constants.js';
+import {
+    getChatMetadata,
+    getExtensionSettings,
+    getName1,
+    saveMetadata,
+    saveSettingsDebounced,
+} from './context.js';
 
 /**
  * @typedef {object} SummaryceptionSnippet
@@ -24,7 +31,7 @@ import { MODULE_NAME, defaultSettings } from './constants.js';
  * @returns {object} The current settings
  */
 export function getSettings() {
-    const { extensionSettings } = SillyTavern.getContext();
+    const extensionSettings = getExtensionSettings();
     if (!extensionSettings[MODULE_NAME]) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
@@ -40,7 +47,7 @@ export function getSettings() {
  *
  */
 export function saveSettings() {
-    SillyTavern.getContext().saveSettingsDebounced();
+    saveSettingsDebounced();
 }
 
 /**
@@ -48,7 +55,7 @@ export function saveSettings() {
  * @returns {SummaryceptionStore} The chat store with layers, summarizedUpTo, ghostedIndices
  */
 export function getChatStore() {
-    const { chatMetadata } = SillyTavern.getContext();
+    const chatMetadata = getChatMetadata();
     if (!chatMetadata[MODULE_NAME]) {
         chatMetadata[MODULE_NAME] = {
             layers: [],
@@ -64,7 +71,7 @@ export function getChatStore() {
  */
 export async function saveChatStore() {
     getChatStore();
-    await SillyTavern.getContext().saveMetadata();
+    await saveMetadata();
 }
 
 /**
@@ -211,6 +218,5 @@ function isValidTurnRange(range) {
  * @returns {string} The player name from ST context, or 'User' as fallback
  */
 export function getPlayerName() {
-    const ctx = SillyTavern.getContext();
-    return ctx.name1 || 'User';
+    return getName1();
 }

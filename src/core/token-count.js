@@ -1,3 +1,5 @@
+import { callTokenCountAsync } from '../foundation/context.js';
+
 const APPROX_TEXT_UNITS_PER_TOKEN = 4;
 
 /**
@@ -60,11 +62,8 @@ export function formatTokenValue(count, estimated = false) {
  */
 async function countWithActiveTokenizer(text) {
     try {
-        const tokenCounter = SillyTavern.getContext().getTokenCountAsync;
-        if (typeof tokenCounter !== 'function') {
-            return null;
-        }
-        return normalizeTokenCount(await tokenCounter(text));
+        const count = await callTokenCountAsync(text);
+        return normalizeTokenCount(count);
     } catch (_e) {
         return null;
     }

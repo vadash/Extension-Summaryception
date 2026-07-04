@@ -1,4 +1,5 @@
 import { LOG_PREFIX, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
+import { executeSlashCommandsWithOptions, getChat, saveChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
@@ -191,7 +192,7 @@ function bindTextareaHandlers() {
  * @returns {Promise<void>}
  */
 async function onRepairOrphans() {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     let repaired = 0;
 
     const progressToast = toastr.info(
@@ -212,9 +213,7 @@ async function onRepairOrphans() {
 
         if (isStuckHidden) {
             try {
-                await SillyTavern.getContext().executeSlashCommandsWithOptions(`/unhide ${i}`, {
-                    showOutput: false,
-                });
+                await executeSlashCommandsWithOptions(`/unhide ${i}`, { showOutput: false });
             } catch (e) {
                 log(`Repair: failed to unhide ${i}:`, e);
             }
@@ -236,10 +235,7 @@ async function onRepairOrphans() {
 
     if (repaired > 0) {
         try {
-            const ctx = SillyTavern.getContext();
-            if (ctx.saveChat) {
-                await ctx.saveChat();
-            }
+            await saveChat();
         } catch (e) {
             log('Could not save chat:', e);
         }
@@ -277,7 +273,7 @@ async function onForceSummarize() {
     try {
         resetCatchupDismissed();
 
-        const { chat } = SillyTavern.getContext();
+        const chat = getChat();
         const allAssistantTurns = getAssistantTurns(chat);
         const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
 

@@ -1,3 +1,4 @@
+import { getChat, getContext } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { getAssistantTurns } from './chatutils.js';
@@ -239,7 +240,7 @@ async function runAutoWorkerCycle() {
         return 'idle';
     }
 
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const allAssistantTurns = getAssistantTurns(chat);
     const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
 
@@ -466,7 +467,7 @@ async function maybePromoteAfterCatchup(cancelled) {
  * @returns {Array<Record<string, unknown>> | null}
  */
 function getCatchupVisibleTurns(s) {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const allAssistantTurns = getAssistantTurns(chat);
     const currentVisible = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
 
@@ -637,9 +638,7 @@ async function prepareCatchupRun() {
  * @returns {boolean}
  */
 function isForegroundGenerationActive() {
-    const ctx = /** @type {{ streamingProcessor?: { isFinished?: boolean } }} */ (
-        SillyTavern.getContext()
-    );
+    const ctx = getContext();
     if (ctx.streamingProcessor && ctx.streamingProcessor.isFinished === false) {
         return true;
     }

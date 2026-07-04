@@ -1,3 +1,4 @@
+import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { repairIfBranched, repairMissingGhostingForSummaries } from '../core/ghosting-reconcile.js';
@@ -23,7 +24,7 @@ let reconcileQueued = false;
  */
 export function onMessageReceived(messageIndex) {
     try {
-        const { chat } = SillyTavern.getContext();
+        const chat = getChat();
         const msg = chat[messageIndex];
         if (msg && !msg.is_user && !msg.is_system) {
             log('New assistant message at index', messageIndex);

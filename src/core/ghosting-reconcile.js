@@ -1,3 +1,4 @@
+import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import {
     calculateContiguousSummarizedUpTo,
@@ -12,7 +13,7 @@ import { repairGhostingForRange } from './ghosting.js';
  * @returns {Promise<boolean>} True when repair work was started
  */
 export async function repairMissingGhostingForSummaries() {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const store = getChatStore();
     if (store.summarizedUpTo < 0 || !hasSummaries(store)) {
         return false;
@@ -33,7 +34,7 @@ export async function repairMissingGhostingForSummaries() {
  * @returns {Promise<void>}
  */
 export async function repairIfBranched() {
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
     const store = getChatStore();
 
     if (!chat || chat.length === 0 || store.summarizedUpTo < 0) {

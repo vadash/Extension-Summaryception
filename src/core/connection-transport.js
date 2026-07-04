@@ -1,4 +1,5 @@
 import { CONNECTION_MODULE_NAME } from './connection-error.js';
+import { getRequestHeaders } from '../foundation/context.js';
 
 const LOCAL_URL_RE =
     /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i;
@@ -96,13 +97,5 @@ function proxiedUrl(url, useProxy = true) {
  * @returns {object}
  */
 function getProxyHeaders() {
-    try {
-        const ctx = SillyTavern.getContext();
-        if (typeof ctx.getRequestHeaders === 'function') {
-            return ctx.getRequestHeaders();
-        }
-    } catch (_e) {
-        /* fallback */
-    }
-    return { 'Content-Type': 'application/json' };
+    return getRequestHeaders();
 }

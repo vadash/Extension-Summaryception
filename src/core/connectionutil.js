@@ -9,6 +9,7 @@
  */
 
 import { CONNECTION_MODULE_NAME, ConnectionError } from './connection-error.js';
+import { getConnectionManagerRequestService } from '../foundation/context.js';
 import { sendViaDefault } from './connection-default.js';
 import { fetchOllamaModels, sendViaOllama } from './connection-ollama.js';
 import { sendViaOpenAI, testOpenAIConnection } from './connection-openai.js';
@@ -72,8 +73,7 @@ export function populateProfileDropdown(
     currentValue,
 ) {
     try {
-        const context = SillyTavern.getContext();
-        const service = context.ConnectionManagerRequestService;
+        const service = getConnectionManagerRequestService();
 
         if (service && typeof service.handleDropdown === 'function') {
             service.handleDropdown(selectElement);

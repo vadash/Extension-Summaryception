@@ -1,4 +1,5 @@
 import { PROMPT_PRESETS } from '../foundation/constants.js';
+import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import {
     calculateContiguousSummarizedUpTo,
@@ -121,7 +122,7 @@ function getWorkerLabel(s) {
 
 function getVisibleBacklogCount(s) {
     try {
-        const { chat } = SillyTavern.getContext();
+        const chat = getChat();
         const visibleTurns = getAssistantTurns(chat).filter(
             (t) => !chat[t.index].extra?.sc_ghosted,
         );
@@ -133,7 +134,7 @@ function getVisibleBacklogCount(s) {
 
 function getGhostedCount() {
     try {
-        const { chat } = SillyTavern.getContext();
+        const chat = getChat();
         return chat.filter((m) => m.extra?.sc_ghosted).length;
     } catch (_e) {
         return 0;
@@ -395,7 +396,7 @@ async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
     }
 
     const [rangeStart, rangeEnd] = /** @type {Array<number>} */ (sn.turnRange);
-    const { chat } = SillyTavern.getContext();
+    const chat = getChat();
 
     if (!confirm(`Regenerate summary for turns ${rangeStart}–${rangeEnd}?`)) {
         return;

@@ -9,6 +9,7 @@
  */
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
+import { getContext } from './src/foundation/context.js';
 import { getSettings } from './src/foundation/state.js';
 import { setInjectionUpdater, setUiUpdater } from './src/core/summarizer.js';
 import { setUiRefresher } from './src/features/persist.js';
@@ -27,7 +28,8 @@ import {
 import { registerSlashCommands } from './src/entry/commands.js';
 
 (async function init() {
-    const { eventSource, event_types, renderExtensionTemplateAsync } = SillyTavern.getContext();
+    const ctx = getContext();
+    const { eventSource, event_types, renderExtensionTemplateAsync } = ctx;
 
     getSettings();
     setUiUpdater(updateUI);

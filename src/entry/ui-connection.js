@@ -1,3 +1,4 @@
+import { getRequestHeaders } from '../foundation/context.js';
 import {
     fetchOllamaModels,
     testOpenAIConnection,
@@ -309,9 +310,7 @@ export async function fetchProfilesFallback(selectElement, currentValue) {
     try {
         const response = await fetch('/api/connection-manager/profiles', {
             method: 'GET',
-            headers: SillyTavern.getContext().getRequestHeaders?.() || {
-                'Content-Type': 'application/json',
-            },
+            headers: getRequestHeaders(),
         });
 
         if (!response.ok) {

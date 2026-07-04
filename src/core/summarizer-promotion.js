@@ -1,3 +1,4 @@
+import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
@@ -125,7 +126,7 @@ async function mergeLayerSnippets({ layerIndex, s }) {
  * @returns {object}
  */
 function capturePromotionSnapshot(layerIndex) {
-    const ctx = SillyTavern.getContext();
+    const ctx = getContext();
     const store = getChatStore();
 
     return {
@@ -219,7 +220,7 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
  * @returns {boolean}
  */
 function isPromotionSnapshotValid(snapshot) {
-    const ctx = SillyTavern.getContext();
+    const ctx = getContext();
     const store = getChatStore();
 
     if (!isSameChatSnapshot(snapshot, ctx)) {

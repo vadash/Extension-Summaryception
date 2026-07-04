@@ -1,3 +1,4 @@
+import { saveChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { saveChatStore } from '../foundation/state.js';
 
@@ -9,10 +10,7 @@ import { saveChatStore } from '../foundation/state.js';
 export async function persistChatState() {
     await saveChatStore();
     try {
-        const ctx = SillyTavern.getContext();
-        if (ctx.saveChat) {
-            await ctx.saveChat();
-        }
+        await saveChat();
     } catch (e) {
         log('Could not save chat:', e);
     }

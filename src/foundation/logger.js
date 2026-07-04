@@ -1,8 +1,9 @@
 import { LOG_PREFIX, MODULE_NAME, defaultSettings } from './constants.js';
+import { getExtensionSettings } from './context.js';
 
 function getDebugSettings() {
     try {
-        const { extensionSettings } = SillyTavern.getContext();
+        const extensionSettings = getExtensionSettings();
         return extensionSettings[MODULE_NAME] || defaultSettings;
     } catch (_e) {
         return defaultSettings;

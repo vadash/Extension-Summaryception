@@ -1,3 +1,4 @@
+import { getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -10,14 +11,13 @@ import { clearSummaryceptionMemory } from '../features/memory.js';
  */
 export function registerSlashCommands() {
     try {
-        const ctx = SillyTavern.getContext();
+        const SlashCommandParser = getSlashCommandParser();
+        const SlashCommand = getSlashCommand();
 
-        if (!ctx.SlashCommandParser?.addCommandObject || !ctx.SlashCommand) {
+        if (!SlashCommandParser?.addCommandObject || !SlashCommand) {
             log('SlashCommandParser not available, skipping command registration.');
             return;
         }
-
-        const { SlashCommandParser, SlashCommand } = ctx;
 
         SlashCommandParser.addCommandObject(
             SlashCommand.fromProps({
