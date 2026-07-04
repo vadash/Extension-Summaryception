@@ -4,6 +4,7 @@ import { log, trace } from '../foundation/logger.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
 import { maybePromoteLayer } from './summarizer-promotion.js';
+import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
 import {
@@ -43,28 +44,15 @@ function refreshUI() {
 }
 
 /** @typedef {'auto'} SummarizationMode */
-
-/**
- * @typedef {object} WorkerStatus
- * @property {boolean} running - A worker drain is active.
- * @property {boolean} pending - At least one summarization request is waiting.
- * @property {boolean} dirty - Chat changed while the worker was active.
- * @property {SummarizationMode} mode - Current worker mode.
- * @property {string} reason - Last request reason.
- */
-
-/** @type {WorkerStatus} */
-const workerStatus = {
-    running: false,
-    pending: false,
-    dirty: false,
-    mode: 'auto',
-    reason: '',
-};
-
-let workerPromise = null;
-let manualSummarizing = false;
 let catchupDismissed = false;
+
+const summarizerQueue = new SummarizerQueue({
+    drainOneCycle: runAutoWorkerCycle,
+    abort: abortCurrentSummarizerRequest,
+    refreshUi: refreshUI,
+    withUsageRun,
+    yieldCycle: yieldWorkerCycle,
+});
 
 setCommitCallbacks({
     requeue: (reason) => {
@@ -85,7 +73,7 @@ export function resetCatchupDismissed() {
  * @returns {boolean}
  */
 export function getIsSummarizing() {
-    return workerStatus.running || manualSummarizing;
+    return summarizerQueue.getIsSummarizing();
 }
 
 /**
@@ -94,7 +82,7 @@ export function getIsSummarizing() {
  * @returns {void}
  */
 export function setSummarizing(value) {
-    manualSummarizing = value;
+    summarizerQueue.setSummarizing(value);
 }
 
 /**
@@ -102,10 +90,7 @@ export function setSummarizing(value) {
  * @returns {void}
  */
 export function abortSummarization() {
-    abortCurrentSummarizerRequest();
-    workerStatus.pending = false;
-    workerStatus.dirty = false;
-    manualSummarizing = false;
+    summarizerQueue.abort();
 }
 
 /**
@@ -149,19 +134,7 @@ export async function endForegroundGeneration() {
  * @returns {Promise<void>}
  */
 export function requestSummarization({ reason = 'auto', mode = 'auto' } = {}) {
-    workerStatus.pending = true;
-    workerStatus.reason = reason;
-    workerStatus.mode = mode;
-
-    if (workerStatus.running) {
-        workerStatus.dirty = true;
-        return workerPromise || Promise.resolve();
-    }
-
-    workerPromise = drainSummarizationWorker().finally(() => {
-        workerPromise = null;
-    });
-    return workerPromise;
+    return summarizerQueue.request({ reason, mode });
 }
 
 /**
@@ -179,64 +152,31 @@ export async function maybeSummarizeTurns() {
  */
 export async function summarizeOneBatch(visibleTurns) {
     return await withUsageRun('manual batch', async () => {
-        manualSummarizing = true;
+        summarizerQueue.setSummarizing(true);
         try {
             return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
         } finally {
-            manualSummarizing = false;
+            summarizerQueue.setSummarizing(false);
         }
     });
-}
-
-/**
- * Drain coalesced auto work until the backlog is stable or guarded.
- * @returns {Promise<void>}
- */
-async function drainSummarizationWorker() {
-    await withUsageRun('auto worker drain', async () => {
-        workerStatus.running = true;
-        refreshUI();
-
-        try {
-            do {
-                workerStatus.pending = false;
-                workerStatus.dirty = false;
-                await drainAutoWork();
-            } while (workerStatus.pending || workerStatus.dirty);
-        } finally {
-            workerStatus.running = false;
-            refreshUI();
-        }
-    });
-}
-
-/**
- * Drain ready automatic work against fresh chat state.
- * @returns {Promise<void>}
- */
-async function drainAutoWork() {
-    while (true) {
-        const result = await runAutoWorkerCycle();
-        if (result !== 'processed') {
-            return;
-        }
-        await yieldWorkerCycle();
-    }
 }
 
 /**
  * Run one automatic worker action against fresh chat state.
+ * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
  * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
  */
-async function runAutoWorkerCycle() {
+async function runAutoWorkerCycle(queue) {
     await recoverStalePromptFreeze('auto worker');
 
     if (shouldStopAutoWorker()) {
+        queue.setPhase('paused');
         return 'blocked';
     }
 
     const s = getSettings();
     if (!s.enabled || s.pauseSummarization) {
+        queue.setPhase('paused');
         return 'idle';
     }
 
@@ -249,9 +189,11 @@ async function runAutoWorkerCycle() {
     );
 
     if (plan.reason !== 'none') {
+        queue.setPhase('layer0');
         return await processLayer0Overflow({ plan, s });
     }
 
+    queue.setPhase('promoting');
     return await processPromotions(s);
 }
 
@@ -402,7 +344,7 @@ export async function runCatchup(visibleTurns, overflow) {
             },
         );
 
-        manualSummarizing = true;
+        summarizerQueue.setSummarizing(true);
 
         try {
             let consecutiveFailures = 0;
@@ -456,7 +398,7 @@ export async function runCatchup(visibleTurns, overflow) {
             showCatchupOutcome({ cancelled, completed, failed, totalBatches });
             refreshUI();
         } finally {
-            manualSummarizing = false;
+            summarizerQueue.setSummarizing(false);
         }
     });
 }

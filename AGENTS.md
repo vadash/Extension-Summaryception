@@ -43,6 +43,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Injection uses `setExtensionPrompt()` from the last committed summary snapshot.
 - `getChatStore()` normalizes saved chat metadata; app/chat load reconciles branch drift and missing ghosting.
 - Background summarization is coalesced through one self-draining worker.
+- `SummarizerQueue` owns background worker state; `summarizer.js` remains the runtime facade.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Architecture refactor slices are tracked in `docs/2026-07-04-architecture-code-quality-refactor-plan.md`; keep them separate.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
