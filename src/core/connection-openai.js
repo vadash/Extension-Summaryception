@@ -1,4 +1,4 @@
-import { ConnectionError } from './connection-error.js';
+import { CONNECTION_MODULE_NAME, ConnectionError } from './connection-error.js';
 import {
     fetchWithProxyFallback,
     isLocalUrl,
@@ -180,10 +180,26 @@ async function handleOpenAIErrorResponse(response) {
     );
 }
 
+// Minimum assembled content length (chars) to accept a truncated stream as a
+// partial summary instead of rejecting it for retry. Roughly one short
+// sentence; well below typical 200-800 char summaries, above noise.
+const PARTIAL_MIN_CHARS = 64;
+
 /**
  * Read an SSE stream and assemble the full content.
+ *
+ * Resilient to mid-stream disconnects and malformed trailing chunks:
+ * - Aborts propagate unchanged so the caller can classify them as user aborts.
+ * - Other read errors flush the residual buffer; if the assembled content meets
+ *   {@link PARTIAL_MIN_CHARS}, it is returned with a warning, otherwise a
+ *   retryable ConnectionError is thrown.
+ * - On normal completion, any buffered line lacking a trailing newline is
+ *   flushed so the final SSE event is not silently dropped.
+ *
  * @param {Response} response
- * @returns {Promise<string>} The assembled content
+ * @returns {Promise<string>} The assembled content (possibly partial)
+ * @throws {ConnectionError} retryable when a disconnect yields too little content
+ * @throws {DOMException} AbortError when the underlying reader is aborted
  */
 async function readSSEStream(response) {
     const reader = /** @type {ReadableStream<Uint8Array>} */ (response.body).getReader();
@@ -193,24 +209,64 @@ async function readSSEStream(response) {
 
     try {
         while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                break;
-            }
+            try {
+                const { done, value } = await reader.read();
+                if (done) {
+                    break;
+                }
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
-            for (const line of lines) {
-                fullContent += parseSSELine(line);
+                for (const line of lines) {
+                    fullContent += parseSSELine(line);
+                }
+            } catch (err) {
+                return handleStreamReadError(err, fullContent, buffer);
             }
         }
     } finally {
         reader.releaseLock();
     }
 
+    fullContent += parseSSELine(buffer);
     return fullContent;
+}
+
+/**
+ * Classify a read-loop error: rethrow aborts, accept partial content above the
+ * threshold with a warning, otherwise throw a retryable ConnectionError.
+ *
+ * @param {unknown} err - The rejected error from `reader.read()`
+ * @param {string} fullContent - Assembled content so far
+ * @param {string} buffer - Unparsed residual buffer to flush before deciding
+ * @returns {string} The accepted partial content (only on the accept path)
+ * @throws {DOMException} rethrows when `err` is an AbortError
+ * @throws {ConnectionError} retryable when partial content is below threshold
+ */
+function handleStreamReadError(err, fullContent, buffer) {
+    if (/** @type {{ name?: string }} */ (err)?.name === 'AbortError') {
+        throw err;
+    }
+
+    const flushed = fullContent + parseSSELine(buffer);
+    const trimmed = flushed.trim();
+
+    if (trimmed.length >= PARTIAL_MIN_CHARS) {
+        console.warn(
+            CONNECTION_MODULE_NAME,
+            `Stream disconnected after ${trimmed.length} chars; returning partial summary.`,
+        );
+        return flushed;
+    }
+
+    throw new ConnectionError(
+        `Stream disconnected after ${trimmed.length} chars (below ${PARTIAL_MIN_CHARS} char minimum): ${
+            /** @type {{ message?: string }} */ (err)?.message ?? 'unknown error'
+        }`,
+        { retryable: true },
+    );
 }
 
 /**
