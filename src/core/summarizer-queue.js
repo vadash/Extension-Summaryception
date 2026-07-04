@@ -35,8 +35,6 @@ export class SummarizerQueue {
         this.running = false;
         this.pending = false;
         this.dirty = false;
-        this.mode = 'auto';
-        this.reason = '';
         this.workerPromise = null;
         this.manualSummarizing = false;
         /** @type {SummarizerQueuePhase} */
@@ -51,13 +49,10 @@ export class SummarizerQueue {
 
     /**
      * Queue or coalesce an automatic summarization request.
-     * @param {{ reason?: string, mode?: 'auto' }} [opts]
      * @returns {Promise<void>}
      */
-    request({ reason = 'auto', mode = 'auto' } = {}) {
+    request() {
         this.pending = true;
-        this.reason = reason;
-        this.mode = mode;
 
         if (this.running) {
             this.dirty = true;

@@ -133,8 +133,8 @@ export async function endForegroundGeneration() {
  * @param {{ reason?: string, mode?: SummarizationMode }} [opts]
  * @returns {Promise<void>}
  */
-export function requestSummarization({ reason = 'auto', mode = 'auto' } = {}) {
-    return summarizerQueue.request({ reason, mode });
+export function requestSummarization({ reason: _reason = 'auto', mode: _mode = 'auto' } = {}) {
+    return summarizerQueue.request();
 }
 
 /**

@@ -27,7 +27,7 @@ describe('SummarizerQueue', () => {
     it('starts a drain on the first request', async () => {
         const { queue, deps } = makeQueue();
 
-        await queue.request({ reason: 'first-message', mode: 'auto' });
+        await queue.request();
 
         expect(deps.withUsageRun).toHaveBeenCalledWith('auto worker drain', expect.any(Function));
         expect(deps.drainOneCycle).toHaveBeenCalledTimes(1);
@@ -41,10 +41,10 @@ describe('SummarizerQueue', () => {
             drainOneCycle: vi.fn(async () => await cycle.promise),
         });
 
-        const firstRun = queue.request({ reason: 'first-message', mode: 'auto' });
+        const firstRun = queue.request();
         await vi.waitFor(() => expect(deps.drainOneCycle).toHaveBeenCalledTimes(1));
 
-        const secondRun = queue.request({ reason: 'second-message', mode: 'auto' });
+        const secondRun = queue.request();
 
         expect(secondRun).toBe(firstRun);
         cycle.resolve('idle');
@@ -56,13 +56,13 @@ describe('SummarizerQueue', () => {
         let queue;
         const drainOneCycle = vi.fn(async () => {
             if (drainOneCycle.mock.calls.length === 1) {
-                queue.request({ reason: 'new-message', mode: 'auto' });
+                queue.request();
             }
             return 'idle';
         });
         ({ queue } = makeQueue({ drainOneCycle }));
 
-        await queue.request({ reason: 'first-message', mode: 'auto' });
+        await queue.request();
 
         expect(drainOneCycle).toHaveBeenCalledTimes(2);
     });
@@ -72,18 +72,18 @@ describe('SummarizerQueue', () => {
         let queue;
         const drainOneCycle = vi.fn(async () => {
             if (drainOneCycle.mock.calls.length === 1) {
-                queue.request({ reason: 'new-message', mode: 'auto' });
+                queue.request();
                 return 'failed';
             }
             return 'idle';
         });
         ({ queue } = makeQueue({ drainOneCycle }));
 
-        await queue.request({ reason: 'first-message', mode: 'auto' });
+        await queue.request();
 
         expect(drainOneCycle).toHaveBeenCalledTimes(1);
 
-        await queue.request({ reason: 'external-retry', mode: 'auto' });
+        await queue.request();
 
         expect(drainOneCycle).toHaveBeenCalledTimes(2);
     });
@@ -95,9 +95,9 @@ describe('SummarizerQueue', () => {
         });
 
         queue.setSummarizing(true);
-        const run = queue.request({ reason: 'first-message', mode: 'auto' });
+        const run = queue.request();
         await vi.waitFor(() => expect(deps.drainOneCycle).toHaveBeenCalledTimes(1));
-        queue.request({ reason: 'new-message', mode: 'auto' });
+        queue.request();
 
         queue.abort();
         cycle.resolve('idle');
@@ -140,7 +140,7 @@ describe('SummarizerQueue', () => {
             },
         }));
 
-        await queue.request({ reason: 'new-message', mode: 'auto' });
+        await queue.request();
 
         expect(phases).toContain('layer0');
         expect(phases).toContain('promoting');
