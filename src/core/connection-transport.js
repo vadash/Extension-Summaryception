@@ -43,12 +43,12 @@ export async function readErrorText(response) {
  * Attempt a fetch through ST's CORS proxy, falling back to a direct request.
  * Throws an Error with .proxyError and .directError properties if both fail.
  * @param {string} targetUrl - The direct URL to fetch
- * @param {object} opts - Fetch options (method, headers, body)
+ * @param {object} opts - Fetch options (method, headers, body, signal)
  * @returns {Promise<Response>}
  */
 export async function fetchWithProxyFallback(
     targetUrl,
-    { method = 'GET', headers = {}, body } = {},
+    { method = 'GET', headers = {}, body, signal } = {},
 ) {
     const requestHeaders = { 'Content-Type': 'application/json', ...headers };
     try {
@@ -56,8 +56,12 @@ export async function fetchWithProxyFallback(
             method,
             headers: { ...getProxyHeaders(), ...requestHeaders },
             body,
+            ...(signal ? { signal } : {}),
         });
     } catch (proxyError) {
+        if (isAbortError(proxyError)) {
+            throw proxyError;
+        }
         console.warn(
             `${CONNECTION_MODULE_NAME} CORS proxy failed, trying direct:`,
             proxyError.message,
@@ -67,8 +71,12 @@ export async function fetchWithProxyFallback(
                 method,
                 headers: requestHeaders,
                 body,
+                ...(signal ? { signal } : {}),
             });
         } catch (directError) {
+            if (isAbortError(directError)) {
+                throw directError;
+            }
             const combined = /** @type {Error & { proxyError: unknown, directError: unknown }} */ (
                 new Error('Both proxy and direct fetch failed')
             );
@@ -90,6 +98,15 @@ function proxiedUrl(url, useProxy = true) {
         return url;
     }
     return `/proxy/${url}`;
+}
+
+/**
+ * Check whether a fetch failure came from aborting the request.
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isAbortError(error) {
+    return /** @type {{ name?: string }} */ (error)?.name === 'AbortError';
 }
 
 /**

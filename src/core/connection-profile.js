@@ -6,12 +6,13 @@ import { getConnectionManagerRequestService } from '../foundation/context.js';
  * @type {ConnectionProvider}
  */
 export const ProfileProvider = {
-    async generate({ settings, systemPrompt, userPrompt }) {
+    async generate({ settings, systemPrompt, userPrompt, signal }) {
         return await sendViaProfile(
             settings.connectionProfileId,
             systemPrompt,
             userPrompt,
             settings.summarizerResponseLength,
+            signal,
         );
     },
     async testConnection(settings) {
@@ -28,9 +29,10 @@ export const ProfileProvider = {
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
  * @param {number} maxTokens - Max tokens for the response, or 0 to use the profile preset
+ * @param {AbortSignal} [signal] - Optional request abort signal
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTokens = 0) {
+export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTokens = 0, signal) {
     if (!profileId) {
         throw new ConnectionError(
             'No Connection Profile selected. Please select one in Summaryception settings.',
@@ -50,6 +52,7 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
         const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
         const raw = await service.sendRequest(profileId, messages, tokenLimit, {
             includeInstruct: false,
+            ...(signal ? { signal } : {}),
         });
 
         console.log('[Summaryception][Connection] Profile sendRequest returned:', typeof raw, raw);

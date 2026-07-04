@@ -33,12 +33,13 @@ export const providers = Object.freeze({
  * @param {ExtensionSettings} settings - The extension settings containing connection config
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
+ * @param {AbortSignal} [signal] - Optional request abort signal
  * @returns {Promise<string>} The generated response text
  * @throws {ConnectionError|Error} If the request fails
  */
-export async function sendSummarizerRequest(settings, systemPrompt, userPrompt) {
+export async function sendSummarizerRequest(settings, systemPrompt, userPrompt, signal) {
     const provider = getConnectionProvider(settings.connectionSource);
-    return await provider.generate({ settings, systemPrompt, userPrompt });
+    return await provider.generate({ settings, systemPrompt, userPrompt, signal });
 }
 
 /**

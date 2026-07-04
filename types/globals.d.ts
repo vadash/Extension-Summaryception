@@ -141,6 +141,7 @@ interface ConnectionGenerateParams {
     settings: ExtensionSettings;
     systemPrompt: string;
     userPrompt: string;
+    signal?: AbortSignal;
 }
 
 interface ConnectionTestResult {

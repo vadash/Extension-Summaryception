@@ -141,10 +141,17 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
 
         await traceSummarizerRequest({ s, prompt });
 
-        const result = await Promise.race([
-            sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt),
-            makeTimeoutRace(signal, 120000),
-        ]);
+        const abortContext = createAttemptAbortContext(signal, 120000);
+
+        let result;
+        try {
+            result = await Promise.race([
+                sendSummarizerRequest(s, s.summarizerSystemPrompt, prompt, abortContext.signal),
+                abortContext.promise,
+            ]);
+        } finally {
+            abortContext.cleanup();
+        }
 
         trace('  sendSummarizerRequest returned:', result?.substring?.(0, 50));
 
@@ -294,22 +301,48 @@ function shouldStopRetrying(attemptResult, attempt) {
 }
 
 /**
- * Build a promise that rejects on abort or after a timeout.
- * @param {AbortSignal} signal
+ * Build an attempt-local abort context that closes the provider request on user abort or timeout.
+ * @param {AbortSignal} userSignal
  * @param {number} timeoutMs
- * @returns {Promise<never>}
+ * @returns {{ signal: AbortSignal, promise: Promise<never>, cleanup: () => void }}
  */
-function makeTimeoutRace(signal, timeoutMs) {
-    return new Promise((_, reject) => {
-        const timer = setTimeout(
-            () => reject(new Error('Request timed out after 120s')),
-            timeoutMs,
-        );
-        signal.addEventListener('abort', () => {
+function createAttemptAbortContext(userSignal, timeoutMs) {
+    const controller = new AbortController();
+    let timer;
+    let abortUserRequest = () => {};
+
+    /** @type {Promise<never>} */
+    const promise = new Promise((_, reject) => {
+        const rejectAsUserAbort = () => {
             clearTimeout(timer);
+            controller.abort(new Error('Aborted by user'));
             reject(new Error('Aborted by user'));
-        });
+        };
+
+        abortUserRequest = rejectAsUserAbort;
+
+        if (userSignal.aborted) {
+            rejectAsUserAbort();
+            return;
+        }
+
+        timer = setTimeout(() => {
+            const error = new Error('Request timed out after 120s');
+            reject(error);
+            controller.abort(error);
+        }, timeoutMs);
+
+        userSignal.addEventListener('abort', rejectAsUserAbort, { once: true });
     });
+
+    return {
+        signal: controller.signal,
+        promise,
+        cleanup: () => {
+            clearTimeout(timer);
+            userSignal.removeEventListener('abort', abortUserRequest);
+        },
+    };
 }
 
 /**

@@ -122,6 +122,26 @@ describe('sendViaOpenAI streaming', () => {
         expect(result).toBe('firstsecond');
     });
 
+    it('passes abort signals to direct fetch requests', async () => {
+        const controller = new AbortController();
+        const response = makeStreamResponse([{ value: sseEvent('done') }, { value: sseDone() }]);
+        stubFetch(response);
+
+        await sendViaOpenAI({
+            url: 'https://api.example.com',
+            apiKey: 'sk-test',
+            model: 'gpt-test',
+            systemPrompt: 'sys',
+            userPrompt: 'usr',
+            signal: controller.signal,
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            'https://api.example.com/v1/chat/completions',
+            expect.objectContaining({ signal: controller.signal }),
+        );
+    });
+
     it('throws a retryable ConnectionError when a mid-stream disconnect yields long partial content', async () => {
         const longContent =
             'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.';

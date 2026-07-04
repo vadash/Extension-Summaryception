@@ -50,6 +50,25 @@ describe('sendViaProfile', () => {
         );
     });
 
+    it('passes abort signals to Connection Manager requests', async () => {
+        const controller = new AbortController();
+        const sendRequest = installProfileService('string response');
+
+        await expect(
+            sendViaProfile('profile-1', 'system prompt', 'user prompt', 0, controller.signal),
+        ).resolves.toBe('string response');
+
+        expect(sendRequest).toHaveBeenCalledWith(
+            'profile-1',
+            [
+                { role: 'system', content: 'system prompt' },
+                { role: 'user', content: 'user prompt' },
+            ],
+            undefined,
+            { includeInstruct: false, signal: controller.signal },
+        );
+    });
+
     it('extracts top-level content responses', async () => {
         await expectProfileResponse({ content: 'content response' }, 'content response');
     });

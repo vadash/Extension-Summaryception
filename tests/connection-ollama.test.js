@@ -52,6 +52,24 @@ describe('sendViaOllama', () => {
             }),
         });
     });
+
+    it('passes abort signals to proxied chat requests', async () => {
+        const controller = new AbortController();
+        stubJsonResponse({ message: { content: 'summary text' } });
+
+        await sendViaOllama(
+            'http://localhost:11434/',
+            'llama3',
+            'system prompt',
+            'user prompt',
+            controller.signal,
+        );
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/proxy/http://localhost:11434/api/chat',
+            expect.objectContaining({ signal: controller.signal }),
+        );
+    });
 });
 
 describe('fetchOllamaModels', () => {

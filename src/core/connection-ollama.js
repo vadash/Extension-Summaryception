@@ -6,12 +6,13 @@ import { fetchWithProxyFallback, readErrorText } from './connection-transport.js
  * @type {ConnectionProvider}
  */
 export const OllamaProvider = {
-    async generate({ settings, systemPrompt, userPrompt }) {
+    async generate({ settings, systemPrompt, userPrompt, signal }) {
         return await sendViaOllama(
             settings.ollamaUrl,
             settings.ollamaModel,
             systemPrompt,
             userPrompt,
+            signal,
         );
     },
     async testConnection(settings) {
@@ -28,9 +29,10 @@ export const OllamaProvider = {
  * @param {string} model - The model name
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
+ * @param {AbortSignal} [signal] - Optional request abort signal
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaOllama(url, model, systemPrompt, userPrompt) {
+export async function sendViaOllama(url, model, systemPrompt, userPrompt, signal) {
     if (!url) {
         throw new ConnectionError(
             'Ollama URL is not configured. Please set it in Summaryception settings.',
@@ -58,8 +60,11 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt) {
 
     let response;
     try {
-        response = await fetchWithProxyFallback(targetUrl, { method: 'POST', body });
+        response = await fetchWithProxyFallback(targetUrl, { method: 'POST', body, signal });
     } catch (e) {
+        if (/** @type {{ name?: string }} */ (e)?.name === 'AbortError') {
+            throw e;
+        }
         throw new ConnectionError(
             `Failed to connect to Ollama at ${baseUrl}. ` +
                 `CORS proxy error: ${e.proxyError.message}. Direct error: ${e.directError.message}. ` +

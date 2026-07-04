@@ -11,7 +11,7 @@ import {
  * @type {ConnectionProvider}
  */
 export const OpenAIProvider = {
-    async generate({ settings, systemPrompt, userPrompt }) {
+    async generate({ settings, systemPrompt, userPrompt, signal }) {
         return await sendViaOpenAI({
             url: settings.openaiUrl,
             apiKey: settings.openaiKey,
@@ -19,6 +19,7 @@ export const OpenAIProvider = {
             systemPrompt,
             userPrompt,
             maxTokens: settings.openaiMaxTokens,
+            signal,
         });
     },
     async testConnection(settings) {
@@ -41,6 +42,7 @@ export const OpenAIProvider = {
  * @property {string} systemPrompt - The system prompt
  * @property {string} userPrompt - The user prompt
  * @property {number} [maxTokens] - Max tokens for the response
+ * @property {AbortSignal} [signal] - Optional request abort signal
  */
 
 /**
@@ -50,6 +52,7 @@ export const OpenAIProvider = {
  * @property {Record<string, string>} headers - Request headers
  * @property {string} body - JSON request body
  * @property {string} baseUrl - The original base URL
+ * @property {AbortSignal} [signal] - Optional request abort signal
  */
 
 /**
@@ -57,7 +60,15 @@ export const OpenAIProvider = {
  * @param {OpenAIRequestParams} params
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaOpenAI({ url, apiKey, model, systemPrompt, userPrompt, maxTokens }) {
+export async function sendViaOpenAI({
+    url,
+    apiKey,
+    model,
+    systemPrompt,
+    userPrompt,
+    maxTokens,
+    signal,
+}) {
     if (!url) {
         throw new ConnectionError(
             'OpenAI Compatible URL is not configured. Please set it in Summaryception settings.',
@@ -84,7 +95,14 @@ export async function sendViaOpenAI({ url, apiKey, model, systemPrompt, userProm
     const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
     const body = buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit });
 
-    const response = await executeOpenAIFetch({ endpoint, useProxy, headers, body, baseUrl });
+    const response = await executeOpenAIFetch({
+        endpoint,
+        useProxy,
+        headers,
+        body,
+        baseUrl,
+        signal,
+    });
 
     if (!response.ok) {
         await handleOpenAIErrorResponse(response);
@@ -159,13 +177,26 @@ function buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit })
  * @returns {Promise<Response>}
  * @throws {ConnectionError}
  */
-async function executeOpenAIFetch({ endpoint, useProxy, headers, body, baseUrl }) {
+async function executeOpenAIFetch({ endpoint, useProxy, headers, body, baseUrl, signal }) {
     try {
         if (useProxy) {
-            return await fetchWithProxyFallback(endpoint, { method: 'POST', headers, body });
+            return await fetchWithProxyFallback(endpoint, {
+                method: 'POST',
+                headers,
+                body,
+                signal,
+            });
         }
-        return await fetch(endpoint, { method: 'POST', headers, body });
+        return await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body,
+            ...(signal ? { signal } : {}),
+        });
     } catch (e) {
+        if (/** @type {{ name?: string }} */ (e)?.name === 'AbortError') {
+            throw e;
+        }
         const err =
             /** @type {{ proxyError?: { message: string }, directError?: { message: string }, message: string }} */ (
                 e
