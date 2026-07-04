@@ -10,7 +10,10 @@ import {
     maybeSummarizeTurns,
     resetCatchupDismissed,
     runCatchup,
+    runSlopBreaker,
+    showSlopBreakerNoop,
 } from '../core/summarizer.js';
+import { getSlopBreakerPlan } from '../core/slop-breaker.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
@@ -340,13 +343,113 @@ async function onForceSummarize() {
             timeOut: 2000,
         });
 
-        await runCatchup(plan.visibleTurns, overflow);
+        const outcome = await runCatchup(plan.visibleTurns, overflow);
         updateInjection();
+        reloadAfterManualRun(outcome);
     } finally {
         $(this)
             .prop('disabled', false)
             .html('<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>');
         updateUI();
+    }
+}
+
+/**
+ * Run Slop Breaker after validating the current chat tail.
+ * @returns {Promise<void>}
+ */
+async function onSlopBreaker() {
+    const s = getSettings();
+    if (!s.enabled) {
+        toastr.warning('Enable Summaryception first.');
+        return;
+    }
+    if (getIsSummarizing()) {
+        toastr.warning('Already summarizing. Please wait.');
+        return;
+    }
+
+    const plan = getSlopBreakerPlan(getChat(), getChatStore(), s);
+    if (plan.reason !== 'ready') {
+        showSlopBreakerNoop();
+        return;
+    }
+    if (!(await confirmSlopBreaker())) {
+        return;
+    }
+
+    $(this)
+        .prop('disabled', true)
+        .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
+    try {
+        const outcome = await runSlopBreaker();
+        updateInjection();
+        reloadAfterManualRun(outcome);
+    } finally {
+        $(this)
+            .prop('disabled', false)
+            .html('<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>');
+        updateUI();
+    }
+}
+
+/**
+ * Show the Slop Breaker confirmation modal.
+ * @returns {Promise<boolean>}
+ */
+function confirmSlopBreaker() {
+    return new Promise((resolve) => {
+        const $overlay = $('<div class="sc-catchup-overlay">')
+            .html(
+                `
+        <div class="sc-catchup-modal">
+        <h3>Run Slop Breaker?</h3>
+        <div class="sc-catchup-dialog">
+        <p>This summarizes the current live conversation context, including messages normally kept verbatim. Use it when the AI is stuck repeating phrases, formats, or corrections. If the latest message is an AI reply, it will be committed into memory and may no longer be safe to swipe or regenerate.</p>
+        <hr>
+        <div class="sc-catchup-options">
+        <button id="sc_slop_breaker_confirm" class="menu_button">
+        <i class="fa-solid fa-broom"></i>
+        <div class="sc-btn-text">
+        <span class="sc-btn-label">Break Slop</span>
+        </div>
+        </button>
+        <button id="sc_slop_breaker_cancel" class="menu_button">
+        <i class="fa-solid fa-xmark"></i>
+        <div class="sc-btn-text">
+        <span class="sc-btn-label">Cancel</span>
+        </div>
+        </button>
+        </div>
+        </div>
+        </div>
+        `,
+            )
+            .appendTo('body');
+
+        $overlay.find('#sc_slop_breaker_confirm').on('click', () => {
+            $overlay.remove();
+            resolve(true);
+        });
+        $overlay.find('#sc_slop_breaker_cancel').on('click', () => {
+            $overlay.remove();
+            resolve(false);
+        });
+    });
+}
+
+/**
+ * Reload the page after successful manual context changes.
+ * @param {{ shouldReload?: boolean } | undefined} outcome
+ * @returns {void}
+ */
+function reloadAfterManualRun(outcome) {
+    if (!outcome?.shouldReload) {
+        return;
+    }
+    const reload = globalThis.location?.reload;
+    if (typeof reload === 'function') {
+        reload.call(globalThis.location);
     }
 }
 
@@ -468,6 +571,7 @@ function bindClickHandlers() {
     });
 
     $(document).on('click', '#sc_force_summarize', onForceSummarize);
+    $(document).on('click', '#sc_slop_breaker', onSlopBreaker);
 
     $(document).on('click', '#sc_stop_summarize', function () {
         if (!getIsSummarizing() && !hasActiveAbortController()) {

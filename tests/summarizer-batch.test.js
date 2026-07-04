@@ -65,6 +65,44 @@ async function runStaleCase(mutator) {
 }
 
 describe('summarizeBatchFromTurns stale result rejection', () => {
+    it('uses an explicit source endpoint for a final user-ended batch', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'assistant source' }),
+                makeMessage({ isUser: true, mes: 'trailing user', name: 'Player' }),
+                makeMessage({ isUser: true, mes: 'preserved user', name: 'Player' }),
+            ],
+            settings: {
+                enabled: true,
+                applyRegexScripts: false,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 5,
+                minSummaryBudget: 6000,
+                verbatimTokenBudget: 16000,
+            },
+        });
+        ctx.chatId = 'chat-a';
+        mocks.callSummarizer.mockResolvedValue('new summary');
+
+        const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+
+        const { summarizeBatchFromTurns } = await import('../src/core/summarizer-batch.js');
+        const success = await summarizeBatchFromTurns([{ index: 0, mes: 'assistant source' }], {
+            sourceEndIdx: 1,
+        });
+
+        expect(success).toBe(true);
+        expect(mocks.callSummarizer.mock.calls[0][0]).toContain('Assistant: assistant source');
+        expect(mocks.callSummarizer.mock.calls[0][0]).toContain('Player: trailing user');
+        expect(mocks.callSummarizer.mock.calls[0][0]).not.toContain('preserved user');
+        expect(ctx.chatMetadata.summaryception.layers[0][0].turnRange).toEqual([0, 1]);
+        expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(1);
+        expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 1, {
+            chatSave: 'deferred',
+        });
+    });
+
     it('discards a result when the chat id changes', async () => {
         await runStaleCase((ctx) => {
             ctx.chatId = 'chat-b';

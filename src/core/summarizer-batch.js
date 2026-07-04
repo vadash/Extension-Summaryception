@@ -18,13 +18,13 @@ import {
 /**
  * Shared batch summarization logic used by normal and catch-up paths.
  * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
- * @param {{ showToasts?: boolean, catchExceptions?: boolean }} [opts]
+ * @param {{ showToasts?: boolean, catchExceptions?: boolean, sourceEndIdx?: number }} [opts]
  * @returns {Promise<boolean>}
  */
 export async function summarizeBatchFromTurns(
     /** @type {import('./chatutils.js').AssistantTurn[]} */ visibleTurns,
-    /** @type {{ showToasts?: boolean, catchExceptions?: boolean }} */
-    { showToasts = false, catchExceptions = false } = {},
+    /** @type {{ showToasts?: boolean, catchExceptions?: boolean, sourceEndIdx?: number }} */
+    { showToasts = false, catchExceptions = false, sourceEndIdx } = {},
 ) {
     trace('>>> ENTERING summarizeBatchFromTurns');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
@@ -44,7 +44,7 @@ export async function summarizeBatchFromTurns(
         chat,
         store,
         eligibleTurns,
-        opts: { showToasts, catchExceptions },
+        opts: { showToasts, catchExceptions, sourceEndIdx },
     });
 }
 
@@ -81,7 +81,7 @@ async function repairGhosting(visibleTurns, summarizedUpTo) {
  * @param {ChatMessage[]} p.chat - Chat array
  * @param {SummaryceptionStore} p.store - Chat store
  * @param {import('./chatutils.js').AssistantTurn[]} p.eligibleTurns - Eligible turns
- * @param {{ showToasts: boolean, catchExceptions: boolean }} p.opts - Options
+ * @param {{ showToasts: boolean, catchExceptions: boolean, sourceEndIdx?: number }} p.opts - Options
  * @returns {Promise<boolean>}
  */
 async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
@@ -91,7 +91,8 @@ async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
         return false;
     }
 
-    const { startIdx, endIdx } = getBatchRange(batch);
+    const { startIdx, endIdx: batchEndIdx } = getBatchRange(batch);
+    const endIdx = getSourceEndIdx(batchEndIdx, opts.sourceEndIdx);
     trace('  startIdx:', startIdx, 'endIdx:', endIdx);
     trace('  store.summarizedUpTo:', store.summarizedUpTo);
 
@@ -316,6 +317,23 @@ function getBatchRange(batch) {
         startIdx: batch[0].index,
         endIdx: batch[batch.length - 1].index,
     };
+}
+
+/**
+ * Resolve the source range endpoint for a batch.
+ * @param {number} batchEndIdx - Last assistant turn in the batch
+ * @param {number | undefined} sourceEndIdx - Optional forced source endpoint
+ * @returns {number}
+ */
+function getSourceEndIdx(batchEndIdx, sourceEndIdx) {
+    if (
+        typeof sourceEndIdx === 'number' &&
+        Number.isInteger(sourceEndIdx) &&
+        sourceEndIdx >= batchEndIdx
+    ) {
+        return sourceEndIdx;
+    }
+    return batchEndIdx;
 }
 
 /**

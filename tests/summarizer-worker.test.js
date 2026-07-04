@@ -141,6 +141,67 @@ describe('requestSummarization', () => {
 });
 
 describe('runCatchup', () => {
+    it('requests a reload after a catch-up batch commits', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
+            },
+            getTokenCountAsync: async (text) => text.length,
+        });
+
+        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async (turns) => {
+            ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
+            return true;
+        });
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        const outcome = await runCatchup([], 1);
+
+        expect(outcome.shouldReload).toBe(true);
+        expect(outcome.completed).toBe(1);
+    });
+
+    it('does not request a reload when catch-up totally fails', async () => {
+        installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
+            },
+            getTokenCountAsync: async (text) => text.length,
+        });
+
+        mocks.summarizeOneBatchFromTurns.mockResolvedValue(false);
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        const outcome = await runCatchup([], 1);
+
+        expect(outcome.shouldReload).toBe(false);
+        expect(outcome.completed).toBe(0);
+    });
+
     it('defers final promotion when the prompt guard activates during catch-up', async () => {
         installSillyTavernStub({
             chat: [
@@ -172,6 +233,42 @@ describe('runCatchup', () => {
 
         expect(mocks.summarizeOneBatchFromTurns).toHaveBeenCalledTimes(1);
         expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
+    });
+});
+
+describe('runSlopBreaker', () => {
+    it('summarizes through the previous countable message and requests reload when committed', async () => {
+        const ctx = installSillyTavernStub({
+            chat: [
+                makeMessage({ mes: 'assistant source' }),
+                makeMessage({ isUser: true, mes: 'trailing user', name: 'Player' }),
+                makeMessage({ isUser: true, mes: 'preserved user', name: 'Player' }),
+            ],
+            settings: {
+                enabled: true,
+                pauseSummarization: false,
+                minSummaryTurns: 3,
+                maxSummaryTurns: 5,
+                minSummaryBudget: 6000,
+                verbatimTokenBudget: 16000,
+                applyRegexScripts: false,
+            },
+        });
+
+        mocks.summarizeBatchFromTurns.mockImplementationOnce(async (_turns, opts) => {
+            ctx.chatMetadata.summaryception.summarizedUpTo = opts.sourceEndIdx;
+            return true;
+        });
+
+        const { runSlopBreaker } = await import('../src/core/summarizer.js');
+        const outcome = await runSlopBreaker();
+
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledWith(
+            [{ index: 0, mes: 'assistant source', name: 'Assistant' }],
+            { catchExceptions: true, sourceEndIdx: 1 },
+        );
+        expect(outcome.fullyCommitted).toBe(true);
+        expect(outcome.shouldReload).toBe(true);
     });
 });
 

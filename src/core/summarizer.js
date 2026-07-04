@@ -8,6 +8,7 @@ import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
 import { flushPendingChatSave } from './persist-state.js';
+import { getSlopBreakerPlan } from './slop-breaker.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
@@ -45,6 +46,15 @@ function refreshUI() {
 }
 
 /** @typedef {'auto'} SummarizationMode */
+/**
+ * @typedef {object} ManualRunOutcome
+ * @property {boolean} cancelled - Whether the user aborted the run
+ * @property {number} completed - Number of committed batches
+ * @property {number} failed - Number of failed batches
+ * @property {number} totalBatches - Estimated batch count
+ * @property {boolean} fullyCommitted - Whether the intended manual cut completed
+ * @property {boolean} shouldReload - Whether the browser should reload
+ */
 let catchupDismissed = false;
 
 const summarizerQueue = new SummarizerQueue({
@@ -308,13 +318,14 @@ function showAutoBacklogNotice(plan) {
  *
  */
 export async function runCatchup(visibleTurns, overflow) {
-    await withUsageRun('force summarize catch-up', async () => {
+    return await withUsageRun('force summarize catch-up', async () => {
         trace('>>> ENTERING runCatchup');
         trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
         trace('  overflow:', overflow);
 
+        const outcome = createManualRunOutcome();
         if (!(await prepareCatchupRun())) {
-            return;
+            return outcome;
         }
 
         const initialPlan = await getCatchupPlan();
@@ -323,15 +334,17 @@ export async function runCatchup(visibleTurns, overflow) {
                 'Nothing to summarize - current chat is within the verbatim window.',
                 'Summaryception',
             );
-            return;
+            return outcome;
         }
 
         const totalBatches = estimateCatchupBatches(initialPlan);
         let completed = 0;
         let failed = 0;
         let cancelled = false;
+        let blocked = false;
 
         trace('  totalBatches calculated:', totalBatches);
+        outcome.totalBatches = totalBatches;
 
         const progressToast = toastr.info(
             `Processing backlog: 0 / ${totalBatches} batches (0%)`,
@@ -366,18 +379,29 @@ export async function runCatchup(visibleTurns, overflow) {
                     currentPlan.reason === 'repair'
                         ? currentPlan.visibleTurns
                         : currentPlan.batchTurns;
+                const beforeIndex = getChatStore().summarizedUpTo;
                 const success = await summarizeOneBatchFromTurns(turns);
+                const committed = getChatStore().summarizedUpTo > beforeIndex;
 
-                if (success) {
+                if (success && committed) {
                     trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
                     completed++;
                     consecutiveFailures = 0;
                     if (shouldStopAutoWorker()) {
                         trace('  Prompt mutation queued; pausing catch-up until it flushes');
+                        blocked = true;
                         break;
                     }
+                } else if (success) {
+                    blocked = true;
+                    trace('  Batch result queued or did not advance the summary cursor');
+                    break;
                 } else {
                     trace('  >>> summarizeOneBatchFromTurns returned FAILURE');
+                    if (cancelled || !summarizerQueue.getIsSummarizing()) {
+                        cancelled = true;
+                        break;
+                    }
                     failed++;
                     consecutiveFailures++;
 
@@ -399,13 +423,143 @@ export async function runCatchup(visibleTurns, overflow) {
 
             toastr.clear(progressToast);
             await maybePromoteAfterCatchup(cancelled);
-            showCatchupOutcome({ cancelled, completed, failed, totalBatches });
+            showCatchupOutcome({ cancelled, blocked, completed, failed, totalBatches });
             refreshUI();
+            return {
+                cancelled,
+                completed,
+                failed,
+                totalBatches,
+                fullyCommitted: !cancelled && !blocked && failed === 0 && completed > 0,
+                shouldReload: !cancelled && !blocked && completed > 0,
+            };
         } finally {
             summarizerQueue.setSummarizing(false);
             await flushPendingChatSave();
         }
     });
+}
+
+/**
+ * Run Slop Breaker up to a fixed live-context cut.
+ * @returns {Promise<ManualRunOutcome>}
+ */
+export async function runSlopBreaker() {
+    return await withUsageRun('slop breaker', async () => {
+        if (!(await prepareManualRun('manual slop breaker', 'Slop Breaker'))) {
+            return createManualRunOutcome();
+        }
+
+        const initialPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
+        if (initialPlan.reason !== 'ready') {
+            showSlopBreakerNoop();
+            return createManualRunOutcome();
+        }
+
+        return await runSlopBreakerPlan(initialPlan);
+    });
+}
+
+/**
+ * Drain Layer 0 batches for a Slop Breaker plan.
+ * @param {import('./slop-breaker.js').SlopBreakerPlan} initialPlan
+ * @returns {Promise<ManualRunOutcome>}
+ */
+async function runSlopBreakerPlan(initialPlan) {
+    const targetIndex = initialPlan.targetIndex;
+    const totalBatches = initialPlan.totalBatches;
+    let completed = 0;
+    let failed = 0;
+    let cancelled = false;
+    let blocked = false;
+
+    const progressToast = toastr.info(
+        `Breaking slop: 0 / ${totalBatches} batches (0%)`,
+        'Summaryception Slop Breaker',
+        {
+            timeOut: 0,
+            extendedTimeOut: 0,
+            tapToDismiss: false,
+            closeButton: true,
+            onCloseClick: () => {
+                cancelled = true;
+                abortSummarization();
+            },
+        },
+    );
+
+    summarizerQueue.setSummarizing(true);
+
+    try {
+        let consecutiveFailures = 0;
+
+        while (!cancelled) {
+            const currentPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), {
+                targetIndex,
+            });
+            if (currentPlan.reason !== 'ready') {
+                break;
+            }
+
+            const success = await summarizeBatchFromTurns(currentPlan.batchTurns, {
+                catchExceptions: true,
+                sourceEndIdx: currentPlan.sourceEndIdx,
+            });
+            const afterIndex = getChatStore().summarizedUpTo;
+
+            if (success && afterIndex >= currentPlan.sourceEndIdx) {
+                completed++;
+                consecutiveFailures = 0;
+                if (afterIndex >= targetIndex) {
+                    break;
+                }
+                if (shouldStopAutoWorker()) {
+                    blocked = true;
+                    break;
+                }
+            } else if (success) {
+                blocked = true;
+                break;
+            } else {
+                if (cancelled || !summarizerQueue.getIsSummarizing()) {
+                    cancelled = true;
+                    break;
+                }
+                failed++;
+                consecutiveFailures++;
+                if (consecutiveFailures >= 3) {
+                    break;
+                }
+            }
+
+            updateProgressToast({
+                progressToast,
+                completed,
+                failed,
+                totalBatches,
+                label: 'Breaking slop',
+            });
+
+            await new Promise((r) => setTimeout(r, 200));
+        }
+
+        toastr.clear(progressToast);
+        const fullyCommitted =
+            !cancelled && !blocked && getChatStore().summarizedUpTo >= targetIndex;
+        showSlopBreakerOutcome({ cancelled, blocked, completed, failed, fullyCommitted });
+        refreshUI();
+        return {
+            cancelled,
+            completed,
+            failed,
+            totalBatches,
+            fullyCommitted,
+            shouldReload: fullyCommitted,
+        };
+    } finally {
+        summarizerQueue.setSummarizing(false);
+        await flushPendingChatSave();
+    }
 }
 
 /**
@@ -453,21 +607,43 @@ function estimateCatchupBatches(plan) {
 }
 
 /**
+ * Create an empty manual run outcome.
+ * @returns {ManualRunOutcome}
+ */
+function createManualRunOutcome() {
+    return {
+        cancelled: false,
+        completed: 0,
+        failed: 0,
+        totalBatches: 0,
+        fullyCommitted: false,
+        shouldReload: false,
+    };
+}
+
+/**
  * Update the catch-up progress toast text.
  * @param {object} p
  * @param {unknown} p.progressToast
  * @param {number} p.completed
  * @param {number} p.failed
  * @param {number} p.totalBatches
+ * @param {string} [p.label]
  * @returns {void}
  */
-function updateProgressToast({ progressToast, completed, failed, totalBatches }) {
+function updateProgressToast({
+    progressToast,
+    completed,
+    failed,
+    totalBatches,
+    label = 'Processing',
+}) {
     const pct = Math.round((completed / totalBatches) * 100);
     const failStr = failed > 0 ? ` | ${failed} failed` : '';
     $(progressToast)
         .find('.toast-message')
         .text(
-            `Processing: ${completed} / ${totalBatches} batches (${pct}%)${failStr}\nClick ✕ to pause`,
+            `${label}: ${completed} / ${totalBatches} batches (${pct}%)${failStr}\nClick x to pause`,
         );
 }
 
@@ -475,15 +651,22 @@ function updateProgressToast({ progressToast, completed, failed, totalBatches })
  * Show the appropriate toast after a catch-up run finishes.
  * @param {object} p
  * @param {boolean} p.cancelled
+ * @param {boolean} p.blocked
  * @param {number} p.completed
  * @param {number} p.failed
  * @param {number} p.totalBatches
  * @returns {void}
  */
-function showCatchupOutcome({ cancelled, completed, failed, totalBatches }) {
+function showCatchupOutcome({ cancelled, blocked, completed, failed, totalBatches }) {
     if (cancelled) {
         toastr.warning(
-            `Catch-up paused at ${completed}/${totalBatches}. Progress saved — will continue on next message.`,
+            `Catch-up paused at ${completed}/${totalBatches}. Progress saved - will continue on next message.`,
+            'Summaryception',
+            { timeOut: 5000 },
+        );
+    } else if (blocked) {
+        toastr.warning(
+            `Catch-up paused at ${completed}/${totalBatches}. Try again after generation finishes.`,
             'Summaryception',
             { timeOut: 5000 },
         );
@@ -494,6 +677,53 @@ function showCatchupOutcome({ cancelled, completed, failed, totalBatches }) {
     } else {
         toastr.warning(
             `Catch-up finished. ${completed} succeeded, ${failed} failed (will retry on next trigger).`,
+            'Summaryception',
+            { timeOut: 6000 },
+        );
+    }
+}
+
+/**
+ * Show the Slop Breaker no-op toast.
+ * @returns {void}
+ */
+export function showSlopBreakerNoop() {
+    toastr.info('Nothing to reset yet. Wait for an AI reply first.', 'Summaryception');
+}
+
+/**
+ * Show the Slop Breaker completion, abort, or failure toast.
+ * @param {object} p
+ * @param {boolean} p.cancelled
+ * @param {boolean} p.blocked
+ * @param {number} p.completed
+ * @param {number} p.failed
+ * @param {boolean} p.fullyCommitted
+ * @returns {void}
+ */
+function showSlopBreakerOutcome({ cancelled, blocked, completed, failed, fullyCommitted }) {
+    if (fullyCommitted) {
+        toastr.success('Slop Breaker complete. Reloading chat context.', 'Summaryception', {
+            timeOut: 3000,
+        });
+    } else if (cancelled && completed === 0) {
+        toastr.warning('Slop Breaker stopped. No new cut was completed.', 'Summaryception', {
+            timeOut: 5000,
+        });
+    } else if (cancelled || blocked) {
+        toastr.warning(
+            'Slop Breaker stopped. Partial progress was saved, but the intended cut was not completed.',
+            'Summaryception',
+            { timeOut: 6000 },
+        );
+    } else if (completed === 0) {
+        toastr.error('Slop Breaker failed. No new cut was completed.', 'Summaryception', {
+            timeOut: 6000,
+        });
+    } else {
+        toastr.warning(
+            `Slop Breaker paused after ${completed} batch${completed === 1 ? '' : 'es'}. ` +
+                `${failed} failed; the intended cut was not completed.`,
             'Summaryception',
             { timeOut: 6000 },
         );
@@ -590,14 +820,24 @@ async function recoverStalePromptFreeze(reason) {
  * @returns {Promise<boolean>} True when catch-up may proceed
  */
 async function prepareCatchupRun() {
-    await recoverStalePromptFreeze('manual catch-up');
+    return await prepareManualRun('manual catch-up', 'Force Summarize');
+}
+
+/**
+ * Recover stale guard state and block manual work during foreground generation.
+ * @param {string} recoverReason - Context for stale guard recovery logs
+ * @param {string} actionLabel - User-facing manual action name
+ * @returns {Promise<boolean>} True when manual work may proceed
+ */
+async function prepareManualRun(recoverReason, actionLabel) {
+    await recoverStalePromptFreeze(recoverReason);
 
     if (!shouldStopAutoWorker()) {
         return true;
     }
 
     toastr.warning(
-        'Foreground generation is active. Try Force Summarize again after the response finishes.',
+        `Foreground generation is active. Try ${actionLabel} again after the response finishes.`,
         'Summaryception',
         { timeOut: 5000 },
     );
