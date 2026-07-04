@@ -1,10 +1,8 @@
-import { PROMPT_PRESETS } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import {
     calculateContiguousSummarizedUpTo,
     getSettings,
-    saveSettings,
     getChatStore,
     saveChatStore,
 } from '../foundation/state.js';
@@ -25,7 +23,6 @@ export async function updateUI() {
         const store = getChatStore();
 
         syncSettingsInputs(s);
-        ensurePromptPresetMigrated(s);
 
         $('#sc_prompt_preset').val(s.promptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
@@ -70,28 +67,6 @@ function syncSettingsInputs(s) {
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
-}
-
-/**
- * Migrate prompt presets for existing users: empty/old-default -> narrative, custom -> 'custom'.
- * @param {ReturnType<typeof getSettings>} s
- * @returns {void}
- */
-function ensurePromptPresetMigrated(s) {
-    if (s.promptPreset) {
-        return;
-    }
-    const currentPrompt = (s.summarizerUserPrompt || '').trim();
-    const gameStatePrompt = PROMPT_PRESETS.gamestate.trim();
-
-    if (!currentPrompt || currentPrompt === gameStatePrompt) {
-        s.promptPreset = 'narrative';
-        s.summarizerUserPrompt = PROMPT_PRESETS.narrative;
-        saveSettings();
-    } else {
-        s.promptPreset = 'custom';
-        saveSettings();
-    }
 }
 
 async function renderOverview(s, store) {

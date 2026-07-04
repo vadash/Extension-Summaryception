@@ -1,4 +1,4 @@
-import { MODULE_NAME, defaultSettings } from './constants.js';
+import { MODULE_NAME, PROMPT_PRESETS, defaultSettings } from './constants.js';
 import {
     getChatMetadata,
     getExtensionSettings,
@@ -17,6 +17,9 @@ export function getSettings() {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
     const settings = extensionSettings[MODULE_NAME];
+    const hadPromptPreset = Boolean(settings.promptPreset);
+    const promptBeforeBackfill =
+        typeof settings.summarizerUserPrompt === 'string' ? settings.summarizerUserPrompt : '';
     const settingsRecord = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (settings)
     );
@@ -27,6 +30,7 @@ export function getSettings() {
         }
     }
     normalizeVerbatimWindowSettings(settings);
+    ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill);
     return settings;
 }
 
@@ -108,6 +112,30 @@ function normalizeVerbatimWindowSettings(settings) {
     }
     settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, 16000, 1000);
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
+}
+
+/**
+ * Migrate prompt presets for existing users: empty/old-default -> narrative, custom -> 'custom'.
+ * @param {ExtensionSettings} settings
+ * @param {boolean} hadPromptPreset
+ * @param {string} promptBeforeBackfill
+ * @returns {void}
+ */
+function ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill) {
+    if (hadPromptPreset) {
+        return;
+    }
+    const currentPrompt = promptBeforeBackfill.trim();
+    const gameStatePrompt = PROMPT_PRESETS.gamestate.trim();
+
+    if (!currentPrompt || currentPrompt === gameStatePrompt) {
+        settings.promptPreset = 'narrative';
+        settings.summarizerUserPrompt = PROMPT_PRESETS.narrative;
+        saveSettingsDebounced();
+    } else {
+        settings.promptPreset = 'custom';
+        saveSettingsDebounced();
+    }
 }
 
 function clampInteger(value, min, max) {

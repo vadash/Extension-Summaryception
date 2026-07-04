@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { installSillyTavernStub, makeContext, makeMessage } from './test-helpers.js';
-import { defaultSettings } from '../src/foundation/constants.js';
+import { PROMPT_PRESETS, defaultSettings } from '../src/foundation/constants.js';
 
 describe('state.js', () => {
     beforeEach(() => {
@@ -34,6 +34,35 @@ describe('state.js', () => {
         expect(s.maxSummaryTurns).toBe(7);
         expect(s.minSummaryBudget).toBe(8000);
         expect(s.verbatimTokenBudget).toBe(32000);
+    });
+
+    it('migrates an old default prompt preset when settings are loaded', async () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                summarizerUserPrompt: PROMPT_PRESETS.gamestate,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+        const { getSettings } = await import('../src/foundation/state.js');
+        const s = getSettings();
+        expect(s.promptPreset).toBe('narrative');
+        expect(s.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it('migrates an old custom prompt preset when settings are loaded', async () => {
+        const customPrompt = 'Summarize only named locations.';
+        const ctx = installSillyTavernStub({
+            settings: {
+                summarizerUserPrompt: customPrompt,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+        const { getSettings } = await import('../src/foundation/state.js');
+        const s = getSettings();
+        expect(s.promptPreset).toBe('custom');
+        expect(s.summarizerUserPrompt).toBe(customPrompt);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
     it('normalizes dynamic verbatim window settings to valid slider values', async () => {
