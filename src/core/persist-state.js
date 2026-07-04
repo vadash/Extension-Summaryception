@@ -68,23 +68,3 @@ async function saveChatSafely() {
         log('Could not save chat:', e);
     }
 }
-
-function flushPendingChatSaveOnUnload() {
-    if (!chatSaveTimer) {
-        return;
-    }
-
-    clearScheduledChatSave();
-    void saveChatSafely();
-}
-
-function registerLifecycleFlush() {
-    if (typeof globalThis.addEventListener !== 'function') {
-        return;
-    }
-
-    globalThis.addEventListener('pagehide', flushPendingChatSaveOnUnload);
-    globalThis.addEventListener('beforeunload', flushPendingChatSaveOnUnload);
-}
-
-registerLifecycleFlush();

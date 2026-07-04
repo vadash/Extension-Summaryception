@@ -42,7 +42,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Ghosted messages are hidden from the LLM with `/hide` but remain visible in UI.
 - Injection uses `setExtensionPrompt()` from the last committed summary snapshot.
 - `getChatStore()` normalizes saved chat metadata; app/chat load reconciles branch drift and missing ghosting.
-- `persistChatState()` saves metadata immediately; deferred chat-file saves must be flushed at worker/manual boundaries.
+- `persistChatState()` saves metadata immediately; deferred chat-file saves must be flushed at worker/manual boundaries, not unload.
 - Background summarization is coalesced through one self-draining worker.
 - `SummarizerQueue` owns background worker state; `summarizer.js` remains the runtime facade.
 - Prompt-affecting commits/effects are queued during foreground generation.
