@@ -126,6 +126,7 @@ export function beginForegroundGeneration() {
  */
 export async function endForegroundGeneration() {
     await endCommitFreeze();
+    await flushPendingChatSave();
     await requestSummarization({ reason: 'generation-ended', mode: 'auto' });
     refreshUI();
 }

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     summarizeBatchFromTurns: vi.fn(),
     summarizeOneBatchFromTurns: vi.fn(),
     maybePromoteLayer: vi.fn(),
+    flushPendingChatSave: vi.fn(),
 }));
 
 vi.mock('../src/core/summarizer-batch.js', () => ({
@@ -14,6 +15,10 @@ vi.mock('../src/core/summarizer-batch.js', () => ({
 
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     maybePromoteLayer: mocks.maybePromoteLayer,
+}));
+
+vi.mock('../src/core/persist-state.js', () => ({
+    flushPendingChatSave: mocks.flushPendingChatSave,
 }));
 
 function deferred() {
@@ -28,6 +33,7 @@ function deferred() {
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
+    mocks.flushPendingChatSave.mockResolvedValue(undefined);
     globalThis.toastr = {
         info: vi.fn(),
         success: vi.fn(),
@@ -211,5 +217,40 @@ describe('foreground commit guard', () => {
         expect(getPendingCommitCount()).toBe(0);
         expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
         expect(hideMessages).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('foreground generation save flush', () => {
+    it('flushes pending chat saves after queued commits are applied', async () => {
+        const order = [];
+        installSillyTavernStub({
+            chat: [],
+            settings: {
+                enabled: false,
+            },
+        });
+        mocks.flushPendingChatSave.mockImplementation(async () => {
+            order.push('flush');
+        });
+
+        const { beginForegroundGeneration, endForegroundGeneration } =
+            await import('../src/core/summarizer.js');
+        const { commitWhenSafe, resetCommitStateForTests } =
+            await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+
+        beginForegroundGeneration();
+        await commitWhenSafe({
+            kind: 'layer0',
+            snapshot: {},
+            apply: async () => {
+                order.push('commit');
+                return true;
+            },
+        });
+
+        await endForegroundGeneration();
+
+        expect(order.slice(0, 2)).toEqual(['commit', 'flush']);
     });
 });
