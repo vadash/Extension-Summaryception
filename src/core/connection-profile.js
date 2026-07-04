@@ -84,7 +84,7 @@ export async function testProfileConnection(profileId) {
         getProfileRequestService();
         return {
             success: true,
-            message: `Connection Profile "${profileId}" is available.`,
+            message: `Connection Profile service is available for "${profileId}".`,
         };
     } catch (error) {
         return {
