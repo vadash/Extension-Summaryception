@@ -1,7 +1,7 @@
 import { getRequestHeaders } from '../foundation/context.js';
 import {
     fetchOllamaModels,
-    testOpenAIConnection,
+    testSummarizerConnection,
     populateProfileDropdown,
 } from '../core/connectionutil.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
@@ -233,7 +233,7 @@ export async function testOpenAIConnectionHandler() {
 
     showConnectionStatus('loading', 'Testing connection...');
 
-    const result = await testOpenAIConnection(s.openaiUrl, s.openaiKey, s.openaiModel);
+    const result = await testSummarizerConnection({ ...s, connectionSource: 'openai' });
 
     if (result.success) {
         showConnectionStatus('success', result.message);

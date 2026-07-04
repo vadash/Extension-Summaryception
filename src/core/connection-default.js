@@ -1,5 +1,38 @@
 import { ConnectionError } from './connection-error.js';
-import { generateRaw } from '../foundation/context.js';
+import { generateRaw, getContext } from '../foundation/context.js';
+
+/**
+ * Default SillyTavern active connection adapter.
+ * @type {ConnectionProvider}
+ */
+export const DefaultProvider = {
+    async generate({ settings, systemPrompt, userPrompt }) {
+        return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
+    },
+    async testConnection(_settings) {
+        try {
+            const ctx = getContext();
+            if (typeof ctx.generateRaw !== 'function') {
+                return {
+                    success: false,
+                    message: 'generateRaw is not available in the current SillyTavern context.',
+                };
+            }
+            return {
+                success: true,
+                message: 'Default connection is available through SillyTavern active API.',
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Default connection unavailable: ${error.message}`,
+            };
+        }
+    },
+    displayName(_settings) {
+        return 'Default (Main API)';
+    },
+};
 
 /**
  * Uses ST's built-in generateRaw(), which routes through the active connection.

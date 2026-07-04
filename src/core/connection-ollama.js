@@ -2,6 +2,27 @@ import { ConnectionError } from './connection-error.js';
 import { fetchWithProxyFallback, readErrorText } from './connection-transport.js';
 
 /**
+ * Ollama chat API adapter.
+ * @type {ConnectionProvider}
+ */
+export const OllamaProvider = {
+    async generate({ settings, systemPrompt, userPrompt }) {
+        return await sendViaOllama(
+            settings.ollamaUrl,
+            settings.ollamaModel,
+            systemPrompt,
+            userPrompt,
+        );
+    },
+    async testConnection(settings) {
+        return await testOllamaConnection(settings.ollamaUrl, settings.ollamaModel);
+    },
+    displayName(settings) {
+        return `Ollama: ${settings.ollamaModel || '(no model)'}`;
+    },
+};
+
+/**
  * Send a request to a local Ollama instance using /api/chat.
  * @param {string} url - The Ollama base URL
  * @param {string} model - The model name
@@ -102,4 +123,35 @@ export async function fetchOllamaModels(url) {
     }
 
     return data.models;
+}
+
+/**
+ * Test an Ollama endpoint and selected model.
+ * @param {string} url
+ * @param {string} model
+ * @returns {Promise<ConnectionTestResult>}
+ */
+export async function testOllamaConnection(url, model) {
+    try {
+        if (!model) {
+            throw new Error('Ollama model is not selected.');
+        }
+        const models = await fetchOllamaModels(url);
+        const hasModel = models.some((entry) => entry.name === model);
+        if (!hasModel) {
+            return {
+                success: false,
+                message: `Ollama is reachable, but model "${model}" was not found.`,
+            };
+        }
+        return {
+            success: true,
+            message: `Ollama connection successful. Model "${model}" is available.`,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: `Ollama connection failed: ${error.message}`,
+        };
+    }
 }

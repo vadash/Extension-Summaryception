@@ -2,6 +2,27 @@ import { ConnectionError } from './connection-error.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
 
 /**
+ * SillyTavern Connection Profile adapter.
+ * @type {ConnectionProvider}
+ */
+export const ProfileProvider = {
+    async generate({ settings, systemPrompt, userPrompt }) {
+        return await sendViaProfile(
+            settings.connectionProfileId,
+            systemPrompt,
+            userPrompt,
+            settings.summarizerResponseLength,
+        );
+    },
+    async testConnection(settings) {
+        return await testProfileConnection(settings.connectionProfileId);
+    },
+    displayName(settings) {
+        return `Profile: ${settings.connectionProfileId || '(none)'}`;
+    },
+};
+
+/**
  * Uses ST's ConnectionManagerRequestService to send a request via a saved profile.
  * @param {string} profileId - The connection profile identifier
  * @param {string} systemPrompt - The system prompt
@@ -44,6 +65,32 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
         return result;
     } catch (error) {
         handleProfileRequestError({ error, profileId });
+    }
+}
+
+/**
+ * Test whether the selected ST Connection Profile can be used.
+ * @param {string} profileId
+ * @returns {Promise<ConnectionTestResult>}
+ */
+export async function testProfileConnection(profileId) {
+    try {
+        if (!profileId) {
+            throw new ConnectionError(
+                'No Connection Profile selected. Please select one in Summaryception settings.',
+                { retryable: false },
+            );
+        }
+        getProfileRequestService();
+        return {
+            success: true,
+            message: `Connection Profile "${profileId}" is available.`,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            message: `Connection Profile unavailable: ${error.message}`,
+        };
     }
 }
 

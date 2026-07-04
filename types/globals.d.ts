@@ -137,6 +137,23 @@ interface ConnectionManagerRequestService {
     handleDropdown(element: HTMLSelectElement): void;
 }
 
+interface ConnectionGenerateParams {
+    settings: ExtensionSettings;
+    systemPrompt: string;
+    userPrompt: string;
+}
+
+interface ConnectionTestResult {
+    success: boolean;
+    message: string;
+}
+
+interface ConnectionProvider {
+    generate(params: ConnectionGenerateParams): Promise<string>;
+    testConnection(settings: ExtensionSettings): Promise<ConnectionTestResult>;
+    displayName(settings: ExtensionSettings): string;
+}
+
 interface SillyTavernPromptManager {
     addPrompt(name: string, content: string): boolean;
     getPrompt(name: string): string | null;

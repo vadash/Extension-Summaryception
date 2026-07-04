@@ -7,6 +7,33 @@ import {
 } from './connection-transport.js';
 
 /**
+ * OpenAI-compatible streaming chat adapter.
+ * @type {ConnectionProvider}
+ */
+export const OpenAIProvider = {
+    async generate({ settings, systemPrompt, userPrompt }) {
+        return await sendViaOpenAI({
+            url: settings.openaiUrl,
+            apiKey: settings.openaiKey,
+            model: settings.openaiModel,
+            systemPrompt,
+            userPrompt,
+            maxTokens: settings.openaiMaxTokens,
+        });
+    },
+    async testConnection(settings) {
+        return await testOpenAIConnection(
+            settings.openaiUrl,
+            settings.openaiKey,
+            settings.openaiModel,
+        );
+    },
+    displayName(settings) {
+        return `OpenAI: ${settings.openaiModel || '(no model)'}`;
+    },
+};
+
+/**
  * @typedef {object} OpenAIRequestParams
  * @property {string} url - The endpoint base URL
  * @property {string} apiKey - The API key

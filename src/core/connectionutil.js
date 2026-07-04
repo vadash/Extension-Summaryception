@@ -10,12 +10,23 @@
 
 import { CONNECTION_MODULE_NAME, ConnectionError } from './connection-error.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
-import { sendViaDefault } from './connection-default.js';
-import { fetchOllamaModels, sendViaOllama } from './connection-ollama.js';
-import { sendViaOpenAI, testOpenAIConnection } from './connection-openai.js';
-import { sendViaProfile } from './connection-profile.js';
+import { DefaultProvider } from './connection-default.js';
+import { OllamaProvider, fetchOllamaModels } from './connection-ollama.js';
+import { OpenAIProvider, testOpenAIConnection } from './connection-openai.js';
+import { ProfileProvider } from './connection-profile.js';
 
 export { ConnectionError, fetchOllamaModels, testOpenAIConnection };
+
+/**
+ * Registered connection providers keyed by settings.connectionSource.
+ * @type {Readonly<Record<string, ConnectionProvider>>}
+ */
+export const providers = Object.freeze({
+    default: DefaultProvider,
+    profile: ProfileProvider,
+    ollama: OllamaProvider,
+    openai: OpenAIProvider,
+});
 
 /**
  * Send a summarization request using the configured connection.
@@ -26,40 +37,18 @@ export { ConnectionError, fetchOllamaModels, testOpenAIConnection };
  * @throws {ConnectionError|Error} If the request fails
  */
 export async function sendSummarizerRequest(settings, systemPrompt, userPrompt) {
-    const source = settings.connectionSource || 'default';
+    const provider = getConnectionProvider(settings.connectionSource);
+    return await provider.generate({ settings, systemPrompt, userPrompt });
+}
 
-    switch (source) {
-        case 'profile':
-            return await sendViaProfile(
-                settings.connectionProfileId,
-                systemPrompt,
-                userPrompt,
-                settings.summarizerResponseLength,
-            );
-        case 'ollama':
-            return await sendViaOllama(
-                settings.ollamaUrl,
-                settings.ollamaModel,
-                systemPrompt,
-                userPrompt,
-            );
-        case 'openai':
-            return await sendViaOpenAI({
-                url: settings.openaiUrl,
-                apiKey: settings.openaiKey,
-                model: settings.openaiModel,
-                systemPrompt,
-                userPrompt,
-                maxTokens: settings.openaiMaxTokens,
-            });
-        case 'default':
-        default:
-            return await sendViaDefault(
-                systemPrompt,
-                userPrompt,
-                settings.summarizerResponseLength,
-            );
-    }
+/**
+ * Test the configured connection provider.
+ * @param {ExtensionSettings} settings
+ * @returns {Promise<ConnectionTestResult>}
+ */
+export async function testSummarizerConnection(settings) {
+    const provider = getConnectionProvider(settings.connectionSource);
+    return await provider.testConnection(settings);
 }
 
 /**
@@ -97,16 +86,14 @@ export function populateProfileDropdown(
  * @returns {string}
  */
 export function getConnectionDisplayName(settings) {
-    switch (settings.connectionSource) {
-        case 'default':
-            return 'Default (Main API)';
-        case 'profile':
-            return `Profile: ${settings.connectionProfileId || '(none)'}`;
-        case 'ollama':
-            return `Ollama: ${settings.ollamaModel || '(no model)'}`;
-        case 'openai':
-            return `OpenAI: ${settings.openaiModel || '(no model)'}`;
-        default:
-            return 'Default (Main API)';
-    }
+    return getConnectionProvider(settings.connectionSource).displayName(settings);
+}
+
+/**
+ * Resolve a provider by source, falling back to the default provider.
+ * @param {string} [source]
+ * @returns {ConnectionProvider}
+ */
+function getConnectionProvider(source = 'default') {
+    return providers[source || 'default'] || providers.default;
 }
