@@ -6,7 +6,7 @@ import { log, trace } from '../foundation/logger.js';
 /**
  * @typedef {object} SummarizationJobSnapshot
  * @property {string} chatId - Best-effort stable chat identity.
- * @property {Array} chatRef - Chat array reference captured before the request.
+ * @property {ChatMessage[]} chatRef - Chat array reference captured before the request.
  * @property {number} summarizedUpTo - Store cursor captured before the request.
  * @property {[number, number]} sourceRange - Source chat index range.
  * @property {string} sourceFingerprint - Fingerprint of source messages.

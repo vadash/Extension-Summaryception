@@ -5,7 +5,7 @@
  */
 export function getChatIdentity(ctx) {
     const context =
-        /** @type {{ chat?: Array<Record<string, unknown>>, chatId?: unknown, chat_id?: unknown, chatFile?: unknown, chat_filename?: unknown, characterId?: unknown, character_id?: unknown }} */ (
+        /** @type {{ chat?: ChatMessage[], chatId?: unknown, chat_id?: unknown, chatFile?: unknown, chat_filename?: unknown, characterId?: unknown, character_id?: unknown }} */ (
             ctx
         );
     const direct =
@@ -28,7 +28,7 @@ export function getChatIdentity(ctx) {
 
 /**
  * Fingerprint the source chat messages covered by a summarization job.
- * @param {Array} chat
+ * @param {ChatMessage[]} chat
  * @param {number} startIdx
  * @param {number} endIdx
  * @returns {string}

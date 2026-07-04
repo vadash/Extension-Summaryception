@@ -150,7 +150,7 @@ export async function maybeSummarizeTurns() {
 
 /**
  * Summarize a single batch of turns in normal mode, with toasts.
- * @param {Array<Record<string, unknown>>} visibleTurns
+ * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatch(visibleTurns) {

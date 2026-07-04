@@ -41,7 +41,7 @@ export async function countTextTokens(text) {
 
 /**
  * Count rendered raw/final message lines, reusing the first saved message count.
- * @param {Record<string, unknown>} message - Chat message to cache on
+ * @param {ChatMessage} message - Chat message to cache on
  * @param {string} rawLine - Rendered message line before regex scripts
  * @param {string} finalLine - Rendered message line after regex scripts
  * @returns {Promise<MessageTokenStats>}
@@ -116,7 +116,7 @@ async function countRenderedLines(rawLine, finalLine) {
 
 /**
  * Read a normalized message token cache entry.
- * @param {Record<string, unknown>} message
+ * @param {ChatMessage} message
  * @returns {MessageTokenStats | null}
  */
 function readMessageTokenCache(message) {
@@ -126,7 +126,7 @@ function readMessageTokenCache(message) {
 
 /**
  * Save message token stats without overwriting a valid first count.
- * @param {Record<string, unknown>} message
+ * @param {ChatMessage} message
  * @param {MessageTokenStats} stats
  * @returns {void}
  */

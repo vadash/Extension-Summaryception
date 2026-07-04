@@ -5,9 +5,16 @@ import { countMessageTokens } from './token-count.js';
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
 /**
+ * @typedef {object} AssistantTurn
+ * @property {number} index - Chat index for the assistant turn.
+ * @property {string} mes - Assistant message text.
+ * @property {string} name - Assistant display name.
+ */
+
+/**
  * Extract all assistant turns from the chat.
- * @param {Array} chat - The SillyTavern chat array
- * @returns {Array<{index: number, mes: string, name: string}>} Assistant turns
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
+ * @returns {AssistantTurn[]} Assistant turns
  */
 export function getAssistantTurns(chat) {
     const turns = [];
@@ -24,8 +31,8 @@ export function getAssistantTurns(chat) {
 
 /**
  * Get assistant turns that are not ghosted or hidden.
- * @param {Array} chat - The SillyTavern chat array
- * @returns {Array<{index: number, mes: string, name: string}>} Visible assistant turns
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
+ * @returns {AssistantTurn[]} Visible assistant turns
  */
 export function getVisibleAssistantTurns(chat) {
     const turns = [];
@@ -46,7 +53,7 @@ export function getVisibleAssistantTurns(chat) {
 
 /**
  * Map chat indices to SillyTavern prompt depth for regex min/max depth filters.
- * @param {Array} chat - The SillyTavern chat array
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @returns {Map<number, number>} Prompt depth by chat index
  */
 export function getPromptDepthsByChatIndex(chat) {
@@ -88,7 +95,7 @@ export function getPromptDepthsByChatIndex(chat) {
  * Build passage text and regex token stats from a range of chat messages.
  * Skips messages that are hidden (by user or system) UNLESS they were
  * hidden by Summaryception (sc_ghosted). Also skips empty messages.
- * @param {Array} chat
+ * @param {ChatMessage[]} chat
  * @param {number} startIdx
  * @param {number} endIdx
  * @returns {Promise<PassageWithStats>}
@@ -161,7 +168,7 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
 
 /**
  * Build passage text from a range of chat messages.
- * @param {Array} chat
+ * @param {ChatMessage[]} chat
  * @param {number} startIdx
  * @param {number} endIdx
  * @returns {Promise<string>}

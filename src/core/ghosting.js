@@ -151,8 +151,8 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
 /**
  * Mark a hide range as Summaryception-owned, persist it, then visually hide it.
  * @param {object} p
- * @param {Array} p.chat
- * @param {object} p.store
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
  * @param {[number, number]} p.range
  * @param {number} p.epoch
  * @param {boolean} p.disableGhosting
@@ -214,7 +214,7 @@ function queueGhostRange(startIdx, endIdx, options) {
 
 /**
  * Build contiguous ranges of messages that still need ownership or visual hide work.
- * @param {Array} chat
+ * @param {ChatMessage[]} chat
  * @param {[number, number]} range
  * @param {boolean} disableGhosting
  * @returns {Array<[number, number]>}
@@ -231,12 +231,12 @@ function collectHideRanges(chat, range, disableGhosting) {
 
 /**
  * Check whether a message needs Summaryception ownership or visual hiding.
- * @param {object} msg
+ * @param {ChatMessage | undefined} msg
  * @param {boolean} disableGhosting
  * @returns {boolean}
  */
 function messageNeedsGhosting(msg, disableGhosting) {
-    if (!isGhostableMessage(msg)) {
+    if (!msg || !isGhostableMessage(msg)) {
         return false;
     }
 
@@ -249,7 +249,7 @@ function messageNeedsGhosting(msg, disableGhosting) {
 
 /**
  * Check whether a message is eligible for Summaryception ghosting.
- * @param {object} msg
+ * @param {ChatMessage | undefined} msg
  * @returns {boolean}
  */
 function isGhostableMessage(msg) {
@@ -261,7 +261,7 @@ function isGhostableMessage(msg) {
 
 /**
  * Check whether a message is hidden by the user or by non-Summaryception system state.
- * @param {object} msg
+ * @param {ChatMessage} msg
  * @returns {boolean}
  */
 function isUserHidden(msg) {
@@ -270,7 +270,7 @@ function isUserHidden(msg) {
 
 /**
  * Check whether SillyTavern is visually hiding a message.
- * @param {object} msg
+ * @param {ChatMessage} msg
  * @returns {boolean}
  */
 function isVisuallyHidden(msg) {
@@ -279,8 +279,8 @@ function isVisuallyHidden(msg) {
 
 /**
  * Record a range as ghosted in memory.
- * @param {Array} chat
- * @param {object} store
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
  * @param {[number, number]} range
  * @returns {void}
  */
@@ -299,7 +299,7 @@ function markGhostedRange(chat, store, range) {
 
 /**
  * Track a ghosted index if it is not already present.
- * @param {object} store
+ * @param {SummaryceptionStore} store
  * @param {number} index
  * @returns {void}
  */
@@ -311,8 +311,8 @@ function addGhostedIndex(store, index) {
 
 /**
  * Collect ranges of Summaryception-owned messages.
- * @param {Array} chat
- * @param {object} store
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
  * @param {[number, number]} [limit]
  * @returns {Array<[number, number]>}
  */
@@ -328,8 +328,8 @@ function getOwnedGhostRanges(chat, store, limit) {
 
 /**
  * Collect indices that metadata or chat flags mark as Summaryception-owned.
- * @param {Array} chat
- * @param {object} store
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
  * @returns {number[]}
  */
 function collectGhostedIndices(chat, store) {
@@ -350,8 +350,8 @@ function collectGhostedIndices(chat, store) {
 /**
  * Apply batched unhide commands, then clear Summaryception ownership flags.
  * @param {object} p
- * @param {Array} p.chat
- * @param {object} p.store
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
  * @param {Array<[number, number]>} p.ranges
  * @param {unknown} [p.progressToast]
  * @param {number} [p.total]
@@ -376,15 +376,16 @@ async function unhideRanges({ chat, store, ranges, progressToast = null, total =
 
 /**
  * Clear Summaryception ownership in a range.
- * @param {Array} chat
- * @param {object} store
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
  * @param {[number, number]} range
  * @returns {void}
  */
 function clearGhostedRange(chat, store, range) {
     for (let i = range[0]; i <= range[1]; i++) {
-        if (chat[i]?.extra?.sc_ghosted) {
-            delete chat[i].extra.sc_ghosted;
+        const msg = chat[i];
+        if (msg?.extra?.sc_ghosted) {
+            delete msg.extra.sc_ghosted;
         }
     }
     store.ghostedIndices = store.ghostedIndices.filter((idx) => idx < range[0] || idx > range[1]);

@@ -101,8 +101,8 @@ function hasSummaries(store) {
 
 /**
  * Build the processed prefix that may need ghosting repair.
- * @param {object} store
- * @param {Array} chat
+ * @param {SummaryceptionStore} store
+ * @param {ChatMessage[]} chat
  * @returns {[number, number] | null}
  */
 function getProcessedRepairRange(store, chat) {
@@ -116,7 +116,7 @@ function getProcessedRepairRange(store, chat) {
 
 /**
  * Check whether a repair range contains missing ownership or visual hide work.
- * @param {Array} chat
+ * @param {ChatMessage[]} chat
  * @param {[number, number]} range
  * @returns {boolean}
  */
@@ -132,7 +132,7 @@ function hasGhostingWork(chat, range) {
 
 /**
  * Check whether one loaded message should be repaired.
- * @param {object} msg
+ * @param {ChatMessage | undefined} msg
  * @param {boolean} disableGhosting
  * @returns {boolean}
  */
@@ -150,7 +150,7 @@ function shouldRepairLoadedMessage(msg, disableGhosting) {
 
 /**
  * Check whether a message is user-hidden or non-Summaryception system state.
- * @param {object} msg
+ * @param {ChatMessage} msg
  * @returns {boolean}
  */
 function isUserHidden(msg) {
@@ -159,7 +159,7 @@ function isUserHidden(msg) {
 
 /**
  * Check whether SillyTavern is visually hiding a message.
- * @param {object} msg
+ * @param {ChatMessage} msg
  * @returns {boolean}
  */
 function isVisuallyHidden(msg) {

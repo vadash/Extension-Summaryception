@@ -8,12 +8,15 @@ interface ChatMessage {
     is_system: boolean;
     is_hidden?: boolean;
     mes?: string;
+    name?: string;
+    send_date?: unknown;
     extra?: ChatMessageExtra;
     [key: string]: unknown;
 }
 
 interface ChatMessageExtra {
     sc_ghosted?: boolean;
+    sc_token_count?: unknown;
     [key: string]: unknown;
 }
 

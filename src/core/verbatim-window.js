@@ -15,9 +15,9 @@ import { countMessageTokens } from './token-count.js';
 
 /**
  * @typedef {object} Layer0OverflowPlan
- * @property {Array<{index: number, mes: string, name: string}>} visibleTurns
- * @property {Array<{index: number, mes: string, name: string}>} eligibleTurns
- * @property {Array<{index: number, mes: string, name: string}>} batchTurns
+ * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns
+ * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
  * @property {'budget' | 'max' | 'repair' | 'none'} reason
  * @property {number} overflowCount - Total eligible assistant turns outside the verbatim window.
  * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
@@ -39,8 +39,8 @@ import { countMessageTokens } from './token-count.js';
 
 /**
  * Build the current Layer 0 overflow plan from chat state and settings.
- * @param {Array<Record<string, unknown>>} chat
- * @param {{ summarizedUpTo: number }} store
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
  * @param {VerbatimWindowSettings} settings
  * @returns {Promise<Layer0OverflowPlan>}
  */

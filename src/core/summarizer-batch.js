@@ -17,12 +17,12 @@ import {
 
 /**
  * Shared batch summarization logic used by normal and catch-up paths.
- * @param {Array<Record<string, unknown>>} visibleTurns
+ * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @param {{ showToasts?: boolean, catchExceptions?: boolean }} [opts]
  * @returns {Promise<boolean>}
  */
 export async function summarizeBatchFromTurns(
-    /** @type {Array<Record<string, unknown>>} */ visibleTurns,
+    /** @type {import('./chatutils.js').AssistantTurn[]} */ visibleTurns,
     /** @type {{ showToasts?: boolean, catchExceptions?: boolean }} */
     { showToasts = false, catchExceptions = false } = {},
 ) {
@@ -32,9 +32,7 @@ export async function summarizeBatchFromTurns(
     const chat = getChat();
     const store = getChatStore();
 
-    const eligibleTurns = visibleTurns.filter(
-        (t) => /** @type {number} */ (t.index) > store.summarizedUpTo,
-    );
+    const eligibleTurns = visibleTurns.filter((t) => t.index > store.summarizedUpTo);
     trace('  eligibleTurns after filtering:', eligibleTurns.length);
 
     if (eligibleTurns.length === 0) {
@@ -52,7 +50,7 @@ export async function summarizeBatchFromTurns(
 
 /**
  * Summarize one batch from pre-computed turns with exception catching.
- * @param {Array<Record<string, unknown>>} visibleTurns
+ * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @returns {Promise<boolean>}
  */
 export async function summarizeOneBatchFromTurns(visibleTurns) {
@@ -61,18 +59,16 @@ export async function summarizeOneBatchFromTurns(visibleTurns) {
 
 /**
  * Repair ghosting for turns already marked as summarized.
- * @param {Array<Record<string, unknown>>} visibleTurns
+ * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @param {number} summarizedUpTo
  * @returns {Promise<void>}
  */
 async function repairGhosting(visibleTurns, summarizedUpTo) {
     log('All visible turns are already summarized — repairing ghosting...');
-    const turnsToGhost = visibleTurns.filter(
-        (t) => /** @type {number} */ (t.index) <= summarizedUpTo,
-    );
+    const turnsToGhost = visibleTurns.filter((t) => t.index <= summarizedUpTo);
     if (turnsToGhost.length > 0) {
-        const first = /** @type {number} */ (turnsToGhost[0].index);
-        const last = /** @type {number} */ (turnsToGhost[turnsToGhost.length - 1].index);
+        const first = turnsToGhost[0].index;
+        const last = turnsToGhost[turnsToGhost.length - 1].index;
         await repairGhostingForRange(first, last, { chatSave: 'deferred' });
     }
     await persistChatState({ chatSave: 'deferred' });
@@ -82,9 +78,9 @@ async function repairGhosting(visibleTurns, summarizedUpTo) {
 /**
  * Core logic for summarizing a batch of turns.
  * @param {object} p
- * @param {Array} p.chat - Chat array
- * @param {object} p.store - Chat store
- * @param {Array<Record<string, unknown>>} p.eligibleTurns - Eligible turns
+ * @param {ChatMessage[]} p.chat - Chat array
+ * @param {SummaryceptionStore} p.store - Chat store
+ * @param {import('./chatutils.js').AssistantTurn[]} p.eligibleTurns - Eligible turns
  * @param {{ showToasts: boolean, catchExceptions: boolean }} p.opts - Options
  * @returns {Promise<boolean>}
  */
@@ -220,8 +216,8 @@ async function traceTextTokens(label, text) {
 /**
  * Capture all state required to safely commit a layer-0 summary later.
  * @param {object} p
- * @param {Array} p.chat
- * @param {object} p.store
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
  * @param {number} p.passageStart
  * @param {number} p.endIdx
  * @returns {Promise<import('./summarizer-commit.js').SummarizationJobSnapshot>}
@@ -312,13 +308,13 @@ function isLayer0SnapshotValid(snapshot) {
 
 /**
  * Get the first and last chat indices for a batch.
- * @param {Array<Record<string, unknown>>} batch
+ * @param {import('./chatutils.js').AssistantTurn[]} batch
  * @returns {{ startIdx: number, endIdx: number }}
  */
 function getBatchRange(batch) {
     return {
-        startIdx: /** @type {number} */ (batch[0].index),
-        endIdx: /** @type {number} */ (batch[batch.length - 1].index),
+        startIdx: batch[0].index,
+        endIdx: batch[batch.length - 1].index,
     };
 }
 
