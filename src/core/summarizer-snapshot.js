@@ -51,7 +51,7 @@ export function fingerprintSourceRange(chat, startIdx, endIdx) {
 
 /**
  * Fingerprint summary layers without including ghosting metadata.
- * @param {Record<string, unknown>} store
+ * @param {SummaryceptionStore} store
  * @returns {string}
  */
 export function fingerprintSummaryStore(store) {

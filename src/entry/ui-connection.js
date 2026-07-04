@@ -70,7 +70,7 @@ function bindConnectionProfile(settings) {
 /**
  * Bind an `<input>` element to a string settings key.
  * @param {string} elementId
- * @param {string} key
+ * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel'} key
  * @param {string} [fallback]
  * @returns {void}
  */
@@ -90,7 +90,7 @@ function bindConnectionStringInput(elementId, key, fallback) {
 /**
  * Bind a numeric `<input>` element to a number settings key.
  * @param {string} elementId
- * @param {string} key
+ * @param {'openaiMaxTokens'} key
  * @param {number} [fallback]
  * @returns {void}
  */
@@ -267,7 +267,10 @@ export function showConnectionStatus(type, message) {
         loading: 'fa-solid fa-spinner fa-spin',
     };
 
-    $icon.attr('class', icons[type] || 'fa-solid fa-circle');
+    $icon.attr(
+        'class',
+        /** @type {Record<string, string>} */ (icons)[type] || 'fa-solid fa-circle',
+    );
     $text.text(message);
 
     if (type !== 'loading') {

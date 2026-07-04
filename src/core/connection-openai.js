@@ -7,14 +7,27 @@ import {
 } from './connection-transport.js';
 
 /**
+ * @typedef {object} OpenAIRequestParams
+ * @property {string} url - The endpoint base URL
+ * @property {string} apiKey - The API key
+ * @property {string} model - The model name
+ * @property {string} systemPrompt - The system prompt
+ * @property {string} userPrompt - The user prompt
+ * @property {number} [maxTokens] - Max tokens for the response
+ */
+
+/**
+ * @typedef {object} OpenAIFetchOptions
+ * @property {string} endpoint - The normalized endpoint URL
+ * @property {boolean} useProxy - Whether to route through ST's CORS proxy
+ * @property {Record<string, string>} headers - Request headers
+ * @property {string} body - JSON request body
+ * @property {string} baseUrl - The original base URL
+ */
+
+/**
  * Send a request to any OpenAI-compatible endpoint using streaming.
- * @param {object} params
- * @param {string} params.url - The endpoint base URL
- * @param {string} params.apiKey - The API key
- * @param {string} params.model - The model name
- * @param {string} params.systemPrompt - The system prompt
- * @param {string} params.userPrompt - The user prompt
- * @param {number} [params.maxTokens] - Max tokens for the response
+ * @param {OpenAIRequestParams} params
  * @returns {Promise<string>} The generated response content
  */
 export async function sendViaOpenAI({ url, apiKey, model, systemPrompt, userPrompt, maxTokens }) {
@@ -35,6 +48,7 @@ export async function sendViaOpenAI({ url, apiKey, model, systemPrompt, userProm
     const endpoint = normalizeOpenAIEndpoint(baseUrl);
     const useProxy = isLocalUrl(endpoint);
 
+    /** @type {Record<string, string>} */
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) {
         headers['Authorization'] = `Bearer ${apiKey}`;
@@ -92,14 +106,11 @@ export async function testOpenAIConnection(url, apiKey, model) {
 
 /**
  * Build the request body for an OpenAI-compatible streaming call.
- * @param {object} params
- * @param {string} params.model
- * @param {string} params.systemPrompt
- * @param {string} params.userPrompt
- * @param {number|undefined} params.tokenLimit
+ * @param {{ model: string, systemPrompt: string, userPrompt: string, tokenLimit?: number }} params
  * @returns {string} JSON-encoded request body
  */
 function buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit }) {
+    /** @type {{ model: string, messages: Array<{ role: string, content: string }>, temperature: number, stream: boolean, max_tokens?: number }} */
     const requestBody = {
         model: model,
         messages: [
@@ -117,12 +128,7 @@ function buildOpenAIRequestBody({ model, systemPrompt, userPrompt, tokenLimit })
 
 /**
  * Execute the fetch for an OpenAI-compatible endpoint, using proxy for local URLs.
- * @param {object} opts
- * @param {string} opts.endpoint - The normalized endpoint URL
- * @param {boolean} opts.useProxy - Whether to route through ST's CORS proxy
- * @param {object} opts.headers - Request headers
- * @param {string} opts.body - JSON request body
- * @param {string} opts.baseUrl - The original base URL
+ * @param {OpenAIFetchOptions} opts
  * @returns {Promise<Response>}
  * @throws {ConnectionError}
  */
@@ -286,9 +292,19 @@ function parseSSELine(line) {
     }
 
     try {
-        const parsed = JSON.parse(data);
-        return parsed.choices?.[0]?.delta?.content || '';
+        const parsed = /** @type {OpenAIChatCompletionChunk} */ (JSON.parse(data));
+        return extractDeltaContent(parsed.choices?.[0]);
     } catch (_e) {
         return '';
     }
+}
+
+/**
+ * Extract string content from an OpenAI-compatible stream choice.
+ * @param {OpenAIChatCompletionChoice | undefined} choice
+ * @returns {string}
+ */
+function extractDeltaContent(choice) {
+    const delta = /** @type {OpenAIChatCompletionDelta | undefined} */ (choice?.delta);
+    return typeof delta?.content === 'string' ? delta.content : '';
 }

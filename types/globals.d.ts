@@ -8,7 +8,12 @@ interface ChatMessage {
     is_system: boolean;
     is_hidden?: boolean;
     mes?: string;
-    extra?: Record<string, unknown>;
+    extra?: ChatMessageExtra;
+    [key: string]: unknown;
+}
+
+interface ChatMessageExtra {
+    sc_ghosted?: boolean;
     [key: string]: unknown;
 }
 
@@ -20,17 +25,29 @@ interface SlashCommand {
     fromProps(props: Record<string, unknown>): SlashCommand;
 }
 
-interface ChatStore {
-    layers: Array<Array<Record<string, unknown>>>;
+interface SummaryceptionSnippet {
+    text: string;
+    turnRange?: [number, number];
+    promoted?: boolean;
+    seedFromLayer?: number;
+    fromLayer?: number;
+    mergedCount?: number;
+    timestamp?: number;
+    regenerated?: boolean;
+}
+
+interface SummaryceptionStore {
+    layers: SummaryceptionSnippet[][];
     summarizedUpTo: number;
     ghostedIndices: number[];
-    [key: string]: unknown;
 }
 
 interface ExtensionSettings {
     enabled: boolean;
-    verbatimTurns: number;
-    turnsPerSummary: number;
+    minSummaryTurns: number;
+    maxSummaryTurns: number;
+    minSummaryBudget: number;
+    verbatimTokenBudget: number;
     snippetsPerLayer: number;
     snippetsPerPromotion: number;
     maxLayers: number;
@@ -42,6 +59,7 @@ interface ExtensionSettings {
     lastCustomPrompt: string;
     pauseSummarization: boolean;
     disableGhosting: boolean;
+    applyRegexScripts: boolean;
     stripPatterns: string[];
     debugMode: boolean;
     traceMode: boolean;
@@ -57,30 +75,85 @@ interface ExtensionSettings {
     openaiMaxTokens: number;
 }
 
+interface GenerateRawMessage {
+    role: string;
+    content: unknown;
+}
+
+interface GenerateRawOptions {
+    prompt?: string | GenerateRawMessage[];
+    systemPrompt?: string;
+    trimNames?: boolean;
+    responseLength?: number;
+    [key: string]: unknown;
+}
+
+interface OpenAIChatCompletionDelta {
+    content?: string;
+    role?: string;
+    [key: string]: unknown;
+}
+
+interface OpenAIChatCompletionChoice {
+    delta?: OpenAIChatCompletionDelta;
+    [key: string]: unknown;
+}
+
+interface OpenAIChatCompletionChunk {
+    choices?: OpenAIChatCompletionChoice[];
+    [key: string]: unknown;
+}
+
+interface ConnectionProfileMessage {
+    role: string;
+    content: unknown;
+}
+
+interface ConnectionProfileChoice {
+    message?: ConnectionProfileMessage;
+    [key: string]: unknown;
+}
+
+interface ConnectionProfileResponse {
+    content?: unknown;
+    message?: ConnectionProfileMessage;
+    choices?: ConnectionProfileChoice[];
+    data?: unknown;
+    [key: string]: unknown;
+}
+
 interface ConnectionManagerRequestService {
     send(messages: string[], systemPrompt: string): Promise<string>;
-    /**
-     * @param {string} profileId
-     * @param {Array<{ role: string; content: unknown }>} messages
-     * @param {number} [maxTokens]
-     * @param {Record<string, unknown>} [custom]
-     * @param {Record<string, unknown>} [overridePayload]
-     * @returns {Promise<string | Record<string, unknown>>}
-     */
     sendRequest(
         profileId: string,
-        messages: unknown,
+        messages: ConnectionProfileMessage[],
         maxTokens?: number,
         custom?: Record<string, unknown>,
         overridePayload?: Record<string, unknown>,
-    ): Promise<unknown>;
+    ): Promise<string | ConnectionProfileResponse>;
     handleDropdown(element: HTMLSelectElement): void;
+}
+
+interface SillyTavernPromptManager {
+    addPrompt(name: string, content: string): boolean;
+    getPrompt(name: string): string | null;
+    getPromptCollection(): { collection?: Array<{ identifier?: string; enabled?: boolean }> };
+    getPromptOrderEntries(): Array<{ identifier: string; enabled: boolean }>;
+}
+
+interface SillyTavernEventSource {
+    on(event: string, handler: (...args: unknown[]) => void): void;
+    off(event: string, handler: (...args: unknown[]) => void): void;
+}
+
+interface SillyTavernStreamingProcessor {
+    isFinished?: boolean;
 }
 
 interface SillyTavernContext {
     chat: ChatMessage[];
-    extensionSettings: { [key: string]: ExtensionSettings };
-    chatMetadata: { [key: string]: ChatStore };
+    extensionSettings: Record<string, ExtensionSettings>;
+    chatMetadata: Record<string, SummaryceptionStore>;
     setExtensionPrompt(
         id: string,
         text: string,
@@ -96,36 +169,22 @@ interface SillyTavernContext {
         command: string,
         options: Record<string, unknown>,
     ): Promise<void>;
-    generateRaw(
-        messages: string[] | Record<string, unknown>,
-        systemPrompt?: string,
-    ): Promise<string>;
+    generateRaw(options: GenerateRawOptions): Promise<string>;
     getTokenCountAsync?: (text: string) => Promise<number>;
-    promptManager?: {
-        addPrompt(name: string, content: string): boolean;
-        getPrompt(name: string): string | null;
-        getPromptCollection(): { collection?: Array<{ identifier?: string; enabled?: boolean }> };
-        getPromptOrderEntries(): Array<{ identifier: string; enabled: boolean }>;
-    };
+    promptManager?: SillyTavernPromptManager;
     saveChat?: () => Promise<void>;
     ConnectionManagerRequestService?: ConnectionManagerRequestService;
     SlashCommandParser?: SlashCommandParser;
     SlashCommand?: SlashCommand;
     name1?: string;
-    eventSource?: {
-        on(event: string, handler: (...args: unknown[]) => void): void;
-        off(event: string, handler: (...args: unknown[]) => void): void;
-    };
+    eventSource?: SillyTavernEventSource;
     event_types?: Record<string, string>;
-    streamingProcessor?: {
-        isFinished?: boolean;
-    };
+    streamingProcessor?: SillyTavernStreamingProcessor;
     renderExtensionTemplateAsync?: (
         thirdParty: string,
         template: string,
         data: Record<string, unknown>,
     ) => Promise<string>;
-    getContext(): SillyTavernContext;
 }
 
 interface Toastr {

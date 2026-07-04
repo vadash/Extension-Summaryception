@@ -19,7 +19,7 @@ export { ConnectionError, fetchOllamaModels, testOpenAIConnection };
 
 /**
  * Send a summarization request using the configured connection.
- * @param {object} settings - The extension settings containing connection config
+ * @param {ExtensionSettings} settings - The extension settings containing connection config
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
  * @returns {Promise<string>} The generated response text
@@ -93,7 +93,7 @@ export function populateProfileDropdown(
 
 /**
  * Get a human-readable name for the current connection source.
- * @param {object} settings
+ * @param {ExtensionSettings} settings
  * @returns {string}
  */
 export function getConnectionDisplayName(settings) {

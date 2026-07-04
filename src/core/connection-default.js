@@ -9,6 +9,7 @@ import { generateRaw } from '../foundation/context.js';
  * @returns {Promise<string>} The generated text
  */
 export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
+    /** @type {GenerateRawOptions} */
     const options = {
         prompt: [{ role: 'user', content: userPrompt }],
         systemPrompt,

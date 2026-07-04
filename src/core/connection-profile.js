@@ -20,6 +20,7 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
     const service = getProfileRequestService();
 
     try {
+        /** @type {ConnectionProfileMessage[]} */
         const messages = [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
@@ -48,7 +49,7 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
 
 /**
  * Get SillyTavern's validated profile request service.
- * @returns {{ sendRequest: Function }}
+ * @returns {ConnectionManagerRequestService}
  */
 function getProfileRequestService() {
     const service = getConnectionManagerRequestService();
@@ -74,7 +75,7 @@ function getProfileRequestService() {
 
 /**
  * Extract content from a `choices[0].message.content` structure.
- * @param {Array<Record<string, unknown>>} choices
+ * @param {ConnectionProfileChoice[]} choices
  * @returns {string|null} The content string, or null if not found
  */
 function extractChoiceContent(choices) {
@@ -82,33 +83,36 @@ function extractChoiceContent(choices) {
     if (!choice?.message || typeof choice.message !== 'object') {
         return null;
     }
-    const msg = /** @type {Record<string, unknown>} */ (choice.message);
-    return typeof msg.content === 'string' ? msg.content : null;
+    return typeof choice.message.content === 'string' ? choice.message.content : null;
 }
 
 /**
  * Extract content from a `message.content` wrapper.
- * @param {Record<string, unknown>} obj
+ * @param {ConnectionProfileResponse} obj
  * @returns {string|null} The content string, or null if not found
  */
 function extractMessageContent(obj) {
     if (!obj.message || typeof obj.message !== 'object') {
         return null;
     }
-    const content = /** @type {Record<string, unknown>} */ (obj.message).content;
+    const content = /** @type {ConnectionProfileMessage} */ (obj.message).content;
     return typeof content === 'string' ? content : null;
 }
 
 /**
  * Extract content from a `data` field.
- * @param {Record<string, unknown>} obj
+ * @param {ConnectionProfileResponse} obj
  * @returns {string|null} The data string, or null if absent
  */
 function extractDataField(obj) {
     if (obj.data === null || obj.data === undefined) {
         return null;
     }
-    return typeof obj.data === 'string' ? obj.data : JSON.stringify(obj.data);
+    if (typeof obj.data === 'string') {
+        return obj.data;
+    }
+    const serialized = JSON.stringify(obj.data);
+    return typeof serialized === 'string' ? serialized : null;
 }
 
 /**
@@ -122,7 +126,13 @@ function parseProfileResponse(raw) {
         return raw;
     }
 
-    const obj = /** @type {Record<string, unknown>} */ (raw);
+    if (raw === null || raw === undefined || typeof raw !== 'object') {
+        throw new ConnectionError('Connection Profile returned an empty or invalid response.', {
+            retryable: true,
+        });
+    }
+
+    const obj = /** @type {ConnectionProfileResponse} */ (raw);
 
     if (typeof obj.content === 'string') {
         return obj.content;

@@ -9,7 +9,7 @@
 
 /**
  * Get the raw SillyTavern context object.
- * @returns {object} The current SillyTavern context
+ * @returns {SillyTavernContext} The current SillyTavern context
  */
 export function getContext() {
     return SillyTavern.getContext();
@@ -17,7 +17,7 @@ export function getContext() {
 
 /**
  * Get the active chat array.
- * @returns {Array<object>}
+ * @returns {ChatMessage[]}
  */
 export function getChat() {
     return getContext().chat;
@@ -25,7 +25,7 @@ export function getChat() {
 
 /**
  * Get the chat metadata object (per-chat extension storage root).
- * @returns {Record<string, unknown>}
+ * @returns {Record<string, SummaryceptionStore>}
  */
 export function getChatMetadata() {
     return getContext().chatMetadata;
@@ -33,10 +33,10 @@ export function getChatMetadata() {
 
 /**
  * Get the extension settings object (cross-chat settings root).
- * @returns {Record<string, Record<string, unknown>>}
+ * @returns {Record<string, ExtensionSettings>}
  */
 export function getExtensionSettings() {
-    return /** @type {Record<string, Record<string, unknown>>} */ (getContext().extensionSettings);
+    return getContext().extensionSettings;
 }
 
 /**
@@ -81,10 +81,10 @@ export async function saveChat() {
 /**
  * Execute a slash command through SillyTavern's command parser.
  * @param {string} command - The slash command string
- * @param {object} [options] - Command options
+ * @param {Record<string, unknown>} [options] - Command options
  * @returns {Promise<void>}
  */
-export async function executeSlashCommandsWithOptions(command, options) {
+export async function executeSlashCommandsWithOptions(command, options = {}) {
     await getContext().executeSlashCommandsWithOptions(command, options);
 }
 
@@ -92,7 +92,7 @@ export async function executeSlashCommandsWithOptions(command, options) {
  * Set an extension prompt via SillyTavern's PromptManager bridge.
  * @param {string} name - Extension identifier
  * @param {string} text - Prompt text
- * @param {object} [options] - Optional position/depth/scan/role
+ * @param {{ position?: number, depth?: number, scan?: boolean, role?: unknown }} [options] - Optional position/depth/scan/role
  * @returns {void}
  */
 export function setExtensionPrompt(name, text, options = {}) {
@@ -102,7 +102,7 @@ export function setExtensionPrompt(name, text, options = {}) {
 
 /**
  * Call SillyTavern's active generateRaw function, preserving `this` binding.
- * @param {object} options - Generate options
+ * @param {GenerateRawOptions} options - Generate options
  * @returns {Promise<string>}
  */
 export async function generateRaw(options) {
@@ -144,7 +144,7 @@ export function getRequestHeaders() {
 
 /**
  * Get SillyTavern's PromptManager, or null if unavailable.
- * @returns {object | null}
+ * @returns {SillyTavernPromptManager | null}
  */
 export function getPromptManager() {
     return getContext().promptManager || null;
@@ -152,7 +152,7 @@ export function getPromptManager() {
 
 /**
  * Get SillyTavern's ConnectionManagerRequestService, or null if unavailable.
- * @returns {object | null}
+ * @returns {ConnectionManagerRequestService | null}
  */
 export function getConnectionManagerRequestService() {
     return getContext().ConnectionManagerRequestService || null;
@@ -160,7 +160,7 @@ export function getConnectionManagerRequestService() {
 
 /**
  * Get SillyTavern's SlashCommandParser, or null if unavailable.
- * @returns {object | null}
+ * @returns {SlashCommandParser | null}
  */
 export function getSlashCommandParser() {
     return getContext().SlashCommandParser || null;
@@ -168,7 +168,7 @@ export function getSlashCommandParser() {
 
 /**
  * Get SillyTavern's SlashCommand helper class, or null if unavailable.
- * @returns {object | null}
+ * @returns {SlashCommand | null}
  */
 export function getSlashCommand() {
     return getContext().SlashCommand || null;
@@ -176,7 +176,7 @@ export function getSlashCommand() {
 
 /**
  * Get SillyTavern's event source, or null if unavailable.
- * @returns {object | null}
+ * @returns {SillyTavernEventSource | null}
  */
 export function getEventSource() {
     return getContext().eventSource || null;
@@ -184,7 +184,7 @@ export function getEventSource() {
 
 /**
  * Get SillyTavern's event_types enum, or null if unavailable.
- * @returns {object | null}
+ * @returns {Record<string, string> | null}
  */
 export function getEventTypes() {
     return getContext().event_types || null;
@@ -192,7 +192,7 @@ export function getEventTypes() {
 
 /**
  * Get SillyTavern's active streaming processor, or null if unavailable.
- * @returns {object | null}
+ * @returns {SillyTavernStreamingProcessor | null}
  */
 export function getStreamingProcessor() {
     return getContext().streamingProcessor || null;

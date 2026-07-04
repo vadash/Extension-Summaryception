@@ -136,6 +136,7 @@ function bindInputHelpers() {
  * @returns {void}
  */
 function bindSliderHandlers() {
+    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion' | 'maxLayers', display: string }>} */
     const sliders = [
         {
             id: '#sc_verbatim_token_budget',
@@ -224,6 +225,7 @@ function syncRetentionSliderDisplays() {
  * @returns {void}
  */
 function bindTextareaHandlers() {
+    /** @type {Array<{ id: string, key: 'injectionTemplate' | 'summarizerSystemPrompt' }>} */
     const textareas = [
         { id: '#sc_injection_template', key: 'injectionTemplate' },
         { id: '#sc_summarizer_system_prompt', key: 'summarizerSystemPrompt' },

@@ -8,40 +8,26 @@ import {
 } from './context.js';
 
 /**
- * @typedef {object} SummaryceptionSnippet
- * @property {string} text - Summary text saved for injection
- * @property {[number, number]} [turnRange] - Source chat index range for Layer 0 snippets
- * @property {number} [timestamp] - Last update timestamp
- * @property {boolean} [regenerated] - Whether the snippet was regenerated manually
- * @property {boolean} [promoted] - Whether the snippet was promoted without merging
- * @property {number} [seedFromLayer] - Source layer for seeded promotion
- * @property {number} [fromLayer] - Source layer for merged promotion
- * @property {number} [mergedCount] - Number of snippets merged into this snippet
- */
-
-/**
- * @typedef {object} SummaryceptionStore
- * @property {Array<Array<SummaryceptionSnippet>>} layers - Summary snippets by layer
- * @property {number} summarizedUpTo - Highest summarized chat index, or -1
- * @property {number[]} ghostedIndices - Chat indices hidden by Summaryception
- */
-
-/**
  * Get the extension settings object.
- * @returns {object} The current settings
+ * @returns {ExtensionSettings} The current settings
  */
 export function getSettings() {
     const extensionSettings = getExtensionSettings();
     if (!extensionSettings[MODULE_NAME]) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
+    const settings = extensionSettings[MODULE_NAME];
+    const settingsRecord = /** @type {Record<string, unknown>} */ (
+        /** @type {unknown} */ (settings)
+    );
+    const defaultsRecord = /** @type {Record<string, unknown>} */ (defaultSettings);
     for (const key of Object.keys(defaultSettings)) {
-        if (!Object.hasOwn(extensionSettings[MODULE_NAME], key)) {
-            extensionSettings[MODULE_NAME][key] = defaultSettings[key];
+        if (!Object.hasOwn(settings, key)) {
+            settingsRecord[key] = defaultsRecord[key];
         }
     }
-    normalizeVerbatimWindowSettings(extensionSettings[MODULE_NAME]);
-    return extensionSettings[MODULE_NAME];
+    normalizeVerbatimWindowSettings(settings);
+    return settings;
 }
 
 /**
@@ -99,7 +85,7 @@ export function calculateContiguousSummarizedUpTo(store) {
 
 /**
  * Normalize persisted chat metadata in place.
- * @param {object} store
+ * @param {SummaryceptionStore} store
  * @returns {SummaryceptionStore}
  */
 function normalizeChatStore(store) {
@@ -109,6 +95,11 @@ function normalizeChatStore(store) {
     return store;
 }
 
+/**
+ * Normalize retention settings in place.
+ * @param {ExtensionSettings} settings
+ * @returns {void}
+ */
 function normalizeVerbatimWindowSettings(settings) {
     settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
     settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 10);

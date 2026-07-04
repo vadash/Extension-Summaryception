@@ -197,4 +197,72 @@ describe('sendViaOpenAI streaming', () => {
 
         expect(result).toBe('alphabeta');
     });
+
+    it('ignores role-only deltas with no content', async () => {
+        const encoder = new TextEncoder();
+        const response = makeStreamResponse([
+            { value: encoder.encode('data: {"choices":[{"delta":{"role":"assistant"}}]}\n') },
+            { value: sseEvent('content') },
+        ]);
+        stubFetch(response);
+
+        const result = await sendViaOpenAI({
+            url: 'https://api.example.com',
+            apiKey: 'sk-test',
+            model: 'gpt-test',
+            systemPrompt: 'sys',
+            userPrompt: 'usr',
+        });
+
+        expect(result).toBe('content');
+    });
+
+    it('appends multiple SSE data lines from one chunk in order', async () => {
+        const encoder = new TextEncoder();
+        const response = makeStreamResponse([
+            {
+                value: encoder.encode(
+                    'data: {"choices":[{"delta":{"content":"first"}}]}\n' +
+                        'data: {"choices":[{"delta":{"content":"second"}}]}\n',
+                ),
+            },
+        ]);
+        stubFetch(response);
+
+        const result = await sendViaOpenAI({
+            url: 'https://api.example.com',
+            apiKey: 'sk-test',
+            model: 'gpt-test',
+            systemPrompt: 'sys',
+            userPrompt: 'usr',
+        });
+
+        expect(result).toBe('firstsecond');
+    });
+
+    it('ignores malformed and non-content data while keeping valid content', async () => {
+        const encoder = new TextEncoder();
+        const response = makeStreamResponse([
+            {
+                value: encoder.encode(
+                    'event: ping\n' +
+                        'data: {not json}\n' +
+                        'data: {"choices":[{"delta":{"content":42}}]}\n' +
+                        'data: {"choices":[{"delta":{"role":"assistant"}}]}\n' +
+                        'data: {"choices":[{"delta":{"content":"kept"}}]}\n',
+                ),
+            },
+        ]);
+        stubFetch(response);
+
+        const result = await sendViaOpenAI({
+            url: 'https://api.example.com',
+            apiKey: 'sk-test',
+            model: 'gpt-test',
+            systemPrompt: 'sys',
+            userPrompt: 'usr',
+        });
+
+        expect(result).toBe('kept');
+    });
 });

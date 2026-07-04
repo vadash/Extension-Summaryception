@@ -45,7 +45,6 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Background summarization is coalesced through one self-draining worker.
 - `SummarizerQueue` owns background worker state; `summarizer.js` remains the runtime facade.
 - Prompt-affecting commits/effects are queued during foreground generation.
-- Architecture refactor slices are tracked in `docs/2026-07-04-architecture-code-quality-refactor-plan.md`; keep them separate.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
 - SSE stream readers must flush the residual buffer on `done` (malformed trailing chunks) and classify mid-stream disconnects: abort signals propagate unchanged, short partials (<64 chars) throw retryable, longer partials return with a warning. See `docs/2026-07-04-resilient-sse-stream-parsing-in-connection-openai.md`.
