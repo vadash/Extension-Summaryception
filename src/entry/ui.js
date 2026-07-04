@@ -1,18 +1,17 @@
 import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
-import {
-    calculateContiguousSummarizedUpTo,
-    getSettings,
-    getChatStore,
-    saveChatStore,
-} from '../foundation/state.js';
-import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
-import { unghostMessagesInRange } from '../core/ghosting.js';
-import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
-import { withUsageRun } from '../core/summarizer-usage.js';
+import { getSettings, getChatStore } from '../foundation/state.js';
+import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
-import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
+import { assembleSummaryBlock } from '../features/injection.js';
+import {
+    deleteSnippetAt,
+    getSnippetRegenerationTarget,
+    getSnippetTextAt,
+    regenerateSnippetAt,
+    updateSnippetTextAt,
+} from '../features/snippet-manager.js';
 
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
@@ -701,13 +700,12 @@ function onSnippetTextClick() {
         return;
     }
 
-    const store = getChatStore();
-    const snippet = store.layers[position.layerIdx]?.[position.snippetIdx];
-    if (!snippet) {
+    const snippetText = getSnippetTextAt(position.layerIdx, position.snippetIdx);
+    if (snippetText.status !== 'found') {
         return;
     }
 
-    startSnippetEdit($(this), snippet);
+    startSnippetEdit($(this), position, snippetText.text);
 }
 
 function getSnippetPosition(element) {
@@ -721,9 +719,9 @@ function getSnippetPosition(element) {
     return { layerIdx, snippetIdx };
 }
 
-function startSnippetEdit(textEl, snippet) {
+function startSnippetEdit(textEl, position, initialText) {
     let finished = false;
-    const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(snippet.text);
+    const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(initialText);
     const finish = async (shouldSave) => {
         if (finished) {
             return;
@@ -731,7 +729,7 @@ function startSnippetEdit(textEl, snippet) {
         finished = true;
         try {
             if (shouldSave) {
-                await commitSnippetEdit(textarea, snippet);
+                await commitSnippetEdit(textarea, position);
             }
         } finally {
             updateSnippetBrowser();
@@ -757,18 +755,17 @@ function startSnippetEdit(textEl, snippet) {
     textarea.focus().select();
 }
 
-async function commitSnippetEdit(textarea, snippet) {
-    const newText = String(textarea.val()).trim();
-    if (!newText || newText === snippet.text) {
-        return;
+async function commitSnippetEdit(textarea, position) {
+    const result = await updateSnippetTextAt(
+        position.layerIdx,
+        position.snippetIdx,
+        textarea.val(),
+    );
+    if (result.status === 'updated') {
+        toastr.success('Snippet updated', 'Summaryception', {
+            timeOut: 1500,
+        });
     }
-
-    snippet.text = newText;
-    await saveChatStore();
-    updateInjection();
-    toastr.success('Snippet updated', 'Summaryception', {
-        timeOut: 1500,
-    });
 }
 
 function resizeSnippetEdit(textarea) {
@@ -780,131 +777,30 @@ function resizeSnippetEdit(textarea) {
     element.style.height = element.scrollHeight + 'px';
 }
 
-/**
- * Collect existing snippet context (excluding one specific index).
- * @param {ReturnType<typeof getChatStore>} store
- * @param {number} excludeLayerIdx
- * @param {number} excludeSnippetIdx
- * @returns {string}
- */
-function buildSnippetContext(store, excludeLayerIdx, excludeSnippetIdx) {
-    const contextParts = [];
-    for (let i = store.layers.length - 1; i >= 0; i--) {
-        const l = store.layers[i];
-        if (!l) {
-            continue;
-        }
-        for (let j = 0; j < l.length; j++) {
-            if (i === excludeLayerIdx && j === excludeSnippetIdx) {
-                continue;
-            }
-            contextParts.push(l[j].text);
-        }
-    }
-    return contextParts.length > 0 ? contextParts.join(' ') : '(none yet)';
-}
-
-/**
- * Handle regenerate (redo) click for a single layer-0 snippet.
- * @param {ReturnType<typeof getChatStore>} store
- * @param {any} btn
- * @param {number} layerIdx
- * @param {number} snippetIdx
- * @returns {Promise<void>}
- */
-async function regenerateSnippet(store, btn, layerIdx, snippetIdx) {
-    const layer = store.layers[layerIdx];
-    if (!layer || !layer[snippetIdx]) {
-        return;
-    }
-
-    const sn = layer[snippetIdx];
-
-    if (!sn.turnRange) {
-        toastr.warning(
-            'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
-            'Summaryception',
-            { timeOut: 5000 },
-        );
-        return;
-    }
-
-    if (getIsSummarizing()) {
-        toastr.warning('Already summarizing. Please wait.', 'Summaryception');
-        return;
-    }
-
-    const [rangeStart, rangeEnd] = /** @type {Array<number>} */ (sn.turnRange);
-    const chat = getChat();
-
-    if (!confirm(`Regenerate summary for turns ${rangeStart}–${rangeEnd}?`)) {
-        return;
-    }
-
-    setSummarizing(true);
-    btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
-
-    try {
-        await withUsageRun('snippet regeneration', async () => {
-            const passage = await buildPassageFromRangeWithStats(chat, rangeStart, rangeEnd);
-            const storyTxt = passage.text;
-
-            if (!storyTxt.trim()) {
-                toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
-                return;
-            }
-
-            const contextStr = buildSnippetContext(store, layerIdx, snippetIdx);
-
-            toastr.info(
-                `Regenerating summary for turns ${rangeStart}-${rangeEnd}...`,
-                'Summaryception',
-                {
-                    timeOut: 3000,
-                    progressBar: true,
-                },
-            );
-
-            const newSummary = await callSummarizer(storyTxt, contextStr, {
-                kind: 'regenerate',
-                sourceRange: [rangeStart, rangeEnd],
-                regexStats: passage.stats,
-            });
-
-            if (!newSummary) {
-                toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
-                return;
-            }
-
-            sn.text = newSummary;
-            sn.timestamp = Date.now();
-            sn.regenerated = true;
-
-            await saveChatStore();
-            updateInjection();
-            updateUI();
-
-            toastr.success(
-                `Snippet regenerated for turns ${rangeStart}–${rangeEnd}`,
-                'Summaryception',
-                {
-                    timeOut: 3000,
-                },
-            );
-        });
-    } finally {
-        setSummarizing(false);
-        btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');
-    }
-}
-
 async function onSnippetRedoClick() {
     const position = getSnippetPosition($(this));
     if (!position) {
         return;
     }
 
-    await regenerateSnippet(getChatStore(), $(this), position.layerIdx, position.snippetIdx);
+    const target = getSnippetRegenerationTarget(position.layerIdx, position.snippetIdx);
+    if (target.status !== 'ready') {
+        handleRegenerationTargetStatus(target);
+        return;
+    }
+    if (!confirm(`Regenerate summary for turns ${target.range[0]}-${target.range[1]}?`)) {
+        return;
+    }
+
+    toastr.info(
+        `Regenerating summary for turns ${target.range[0]}-${target.range[1]}...`,
+        'Summaryception',
+        {
+            timeOut: 3000,
+            progressBar: true,
+        },
+    );
+    await runSnippetRegeneration($(this), position);
 }
 
 async function onSnippetDeleteClick() {
@@ -913,41 +809,58 @@ async function onSnippetDeleteClick() {
         return;
     }
 
-    const store = getChatStore();
-    const layer = store.layers[position.layerIdx];
-    if (!layer || !layer[position.snippetIdx]) {
-        return;
+    const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx);
+    if (result.status === 'deleted') {
+        updateUI();
+        toastr.info(`Snippet removed from Layer ${result.layerIndex}`, 'Summaryception');
     }
-
-    const removed = layer[position.snippetIdx];
-    layer.splice(position.snippetIdx, 1);
-
-    if (position.layerIdx === 0) {
-        store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
-        const range = getSnippetTurnRange(removed);
-        if (range) {
-            await unghostMessagesInRange(range[0], range[1]);
-        }
-    }
-
-    await saveChatStore();
-    updateInjection();
-    updateUI();
-    toastr.info(`Snippet removed from Layer ${position.layerIdx}`, 'Summaryception');
 }
 
-/**
- * Get a valid turn range from a snippet.
- * @param {object} snippet
- * @returns {[number, number] | null}
- */
-function getSnippetTurnRange(snippet) {
-    const range = snippet?.turnRange;
-    if (!Array.isArray(range) || range.length < 2) {
-        return null;
+function handleRegenerationTargetStatus(target) {
+    if (target.status === 'ready') {
+        return true;
     }
-    if (!Number.isInteger(range[0]) || !Number.isInteger(range[1])) {
-        return null;
+    if (target.status === 'busy') {
+        toastr.warning('Already summarizing. Please wait.', 'Summaryception');
+        return false;
     }
-    return range[0] >= 0 && range[1] >= range[0] ? /** @type {[number, number]} */ (range) : null;
+    if (target.status === 'unsupported') {
+        toastr.warning(
+            'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
+            'Summaryception',
+            { timeOut: 5000 },
+        );
+    }
+    return false;
+}
+
+async function runSnippetRegeneration(btn, position) {
+    btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
+    try {
+        const result = await regenerateSnippetAt(position.layerIdx, position.snippetIdx);
+        handleRegenerationResult(result);
+    } finally {
+        btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');
+    }
+}
+
+function handleRegenerationResult(result) {
+    if (result.status === 'regenerated') {
+        updateUI();
+        toastr.success(
+            `Snippet regenerated for turns ${result.range[0]}-${result.range[1]}`,
+            'Summaryception',
+            { timeOut: 3000 },
+        );
+        return;
+    }
+    if (result.status === 'empty-source') {
+        toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
+    } else if (result.status === 'failed') {
+        toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
+    } else if (result.status === 'busy') {
+        toastr.warning('Already summarizing. Please wait.', 'Summaryception');
+    } else if (result.status === 'unsupported') {
+        handleRegenerationTargetStatus(result);
+    }
 }

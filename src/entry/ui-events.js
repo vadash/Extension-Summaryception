@@ -1,5 +1,5 @@
 import { LOG_PREFIX, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
-import { executeSlashCommandsWithOptions, getChat, saveChat } from '../foundation/context.js';
+import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
@@ -18,6 +18,7 @@ import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
+import { repairOrphanedMessages } from '../features/maintenance.js';
 import { updateUI, updateCustomPromptSlots } from './ui.js';
 
 // Event bindings
@@ -247,62 +248,37 @@ function bindTextareaHandlers() {
  * @returns {Promise<void>}
  */
 async function onRepairOrphans() {
-    const chat = getChat();
-    let repaired = 0;
-
     const progressToast = toastr.info(
         'Scanning for orphaned messages...',
         'Summaryception - Repair',
         { timeOut: 0, extendedTimeOut: 0, tapToDismiss: false },
     );
 
-    for (let i = 0; i < chat.length; i++) {
-        const m = chat[i];
-
-        const isStuckHidden =
-            (m.is_system || m.is_hidden) &&
-            !m.is_user &&
-            !m.extra?.sc_ghosted &&
-            m.mes &&
-            m.mes.trim().length > 0;
-
-        if (isStuckHidden) {
-            try {
-                await executeSlashCommandsWithOptions(`/unhide ${i}`, { showOutput: false });
-            } catch (e) {
-                log(`Repair: failed to unhide ${i}:`, e);
-            }
-
-            m.is_system = false;
-            delete m.is_hidden;
-
-            repaired++;
-
-            if (repaired % 5 === 0) {
-                $(progressToast)
-                    .find('.toast-message')
-                    .text(`Repairing: found ${repaired} orphaned messages...`);
-            }
-        }
-    }
+    const result = await repairOrphanedMessages({
+        onProgress: (repaired) => updateRepairProgress(progressToast, repaired),
+    });
 
     toastr.clear(progressToast);
 
-    if (repaired > 0) {
-        try {
-            await saveChat();
-        } catch (e) {
-            log('Could not save chat:', e);
-        }
+    if (result.status === 'repaired') {
         updateUI();
         toastr.success(
-            `Repaired ${repaired} orphaned messages. They are now visible to the summarizer again.`,
+            `Repaired ${result.repaired} orphaned messages. They are now visible to the summarizer again.`,
             'Summaryception',
             { timeOut: 5000 },
         );
     } else {
         toastr.info('No orphaned messages found.', 'Summaryception', { timeOut: 3000 });
     }
+}
+
+function updateRepairProgress(progressToast, repaired) {
+    if (repaired % 5 !== 0) {
+        return;
+    }
+    $(progressToast)
+        .find('.toast-message')
+        .text(`Repairing: found ${repaired} orphaned messages...`);
 }
 
 /**

@@ -53,6 +53,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and OpenAI-compatible streams must reach `data: [DONE]` before any generated text is accepted.
+- Entry UI modules bind DOM and user feedback; workflow mutations belong in `src/features/*.js`.
 
 ## Testing and Commits
 
