@@ -67,23 +67,51 @@ function getCachedRegexEnginePath() {
         return null;
     }
 
-    const cachedPath = storage.getItem(REGEX_ENGINE_CACHE_KEY);
+    let cachedPath = null;
+    try {
+        cachedPath = storage.getItem(REGEX_ENGINE_CACHE_KEY);
+    } catch (_e) {
+        return null;
+    }
+
     if (!cachedPath) {
         return null;
     }
     if (!REGEX_ENGINE_PATHS.includes(cachedPath)) {
-        storage.removeItem(REGEX_ENGINE_CACHE_KEY);
+        removeCachedRegexEnginePath(storage);
         return null;
     }
     return cachedPath;
 }
 
 function cacheRegexEnginePath(enginePath) {
-    getLocalStorage()?.setItem(REGEX_ENGINE_CACHE_KEY, enginePath);
+    const storage = getLocalStorage();
+    if (!storage) {
+        return;
+    }
+
+    try {
+        storage.setItem(REGEX_ENGINE_CACHE_KEY, enginePath);
+    } catch (_e) {
+        // Ignore unavailable storage in hardened browser modes.
+    }
 }
 
 function clearCachedRegexEnginePath() {
-    getLocalStorage()?.removeItem(REGEX_ENGINE_CACHE_KEY);
+    const storage = getLocalStorage();
+    if (!storage) {
+        return;
+    }
+
+    removeCachedRegexEnginePath(storage);
+}
+
+function removeCachedRegexEnginePath(storage) {
+    try {
+        storage.removeItem(REGEX_ENGINE_CACHE_KEY);
+    } catch (_e) {
+        // Ignore unavailable storage in hardened browser modes.
+    }
 }
 
 function getLocalStorage() {
