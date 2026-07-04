@@ -350,13 +350,12 @@ function renderSnippetBrowser(browser, view) {
     browser.children('.sc-muted').remove();
     removeMissingLayers(browser, new Set(view.layers.map((layer) => layer.key)));
 
+    let cursor = null;
     for (const layer of view.layers) {
         const layerEl = getOrCreateLayerElement(browser, layer);
         updateLayerElement(layerEl, layer);
         renderLayerSnippets(layerEl, layer);
-        if (!hasFocusedSnippetEdit(layerEl)) {
-            browser.append(layerEl);
-        }
+        cursor = placeElementAfterCursor(browser, layerEl, cursor);
     }
 
     browser.scrollTop(previousScrollTop);
@@ -409,13 +408,26 @@ function renderLayerSnippets(layerEl, layer) {
     const rowKeys = new Set(layer.snippets.map((snippet) => snippet.key));
     removeMissingSnippetRows(layerEl, rowKeys);
 
+    let cursor = layerEl.children('.sc-browser-layer-title').first();
     for (const snippet of layer.snippets) {
         const row = getOrCreateSnippetRow(layerEl, snippet);
         updateSnippetRow(row, snippet);
-        if (!hasFocusedSnippetEdit(row)) {
-            layerEl.append(row);
-        }
+        cursor = placeElementAfterCursor(layerEl, row, cursor);
     }
+}
+
+function placeElementAfterCursor(parent, element, cursor) {
+    if (cursor?.length) {
+        if (!cursor.next().is(element)) {
+            element.insertAfter(cursor);
+        }
+        return element;
+    }
+
+    if (!parent.children().first().is(element)) {
+        parent.prepend(element);
+    }
+    return element;
 }
 
 function removeMissingSnippetRows(layerEl, rowKeys) {
@@ -778,19 +790,4 @@ function getSnippetTurnRange(snippet) {
         return null;
     }
     return range[0] >= 0 && range[1] >= range[0] ? /** @type {[number, number]} */ (range) : null;
-}
-
-/**
- * Escape a string for safe HTML rendering.
- *
- * Uses vanilla DOM instead of jQuery: this is the canonical XSS-safe idiom
- * (textContent + innerHTML) with zero wrapper overhead.
- *
- * @param {string} text
- * @returns {string}
- */
-export function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
