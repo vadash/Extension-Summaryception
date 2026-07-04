@@ -10,13 +10,16 @@ vi.mock('../src/core/regex-proxy.js', () => ({
     applyRegexToMessage: vi.fn(async (text) => text),
 }));
 
+let getTokenCountAsync;
+
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: false });
     vi.mocked(applyRegexToMessage).mockImplementation(async (text) => text);
+    getTokenCountAsync = vi.fn(async (text) => countTokens(text));
     globalThis.SillyTavern = {
         getContext: () => ({
-            getTokenCountAsync: vi.fn(async (text) => countTokens(text)),
+            getTokenCountAsync,
         }),
     };
 });
@@ -133,6 +136,29 @@ describe('buildPassageFromRangeWithStats', () => {
             changedMessageCount: 0,
         });
         expect(applyRegexToMessage).not.toHaveBeenCalled();
+    });
+
+    it('caches per-message token counts and reuses the first count after edits', async () => {
+        const chat = [msg({ mes: 'first count' })];
+
+        const first = await buildPassageFromRangeWithStats(chat, 0, 0);
+
+        expect(chat[0].extra.sc_token_count).toEqual({
+            rawTokens: countTokens('Assistant: first count'),
+            finalTokens: countTokens('Assistant: first count'),
+            rawTokensEstimated: false,
+            finalTokensEstimated: false,
+        });
+        expect(getTokenCountAsync).toHaveBeenCalledTimes(1);
+
+        getTokenCountAsync.mockClear();
+        chat[0].mes = 'edited source with many more words';
+        const second = await buildPassageFromRangeWithStats(chat, 0, 0);
+
+        expect(second.text).toBe('Assistant: edited source with many more words');
+        expect(second.stats.rawTokens).toBe(first.stats.rawTokens);
+        expect(second.stats.finalTokens).toBe(first.stats.finalTokens);
+        expect(getTokenCountAsync).not.toHaveBeenCalled();
     });
 
     it('reports saved tokens when regex shrinks rendered text', async () => {

@@ -1,6 +1,6 @@
 import { getAssistantTurns, getPromptDepthsByChatIndex } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { countTextTokens } from './token-count.js';
+import { countMessageTokens } from './token-count.js';
 
 /**
  * @typedef {object} VerbatimBudgetStats
@@ -190,28 +190,14 @@ async function countBudgetMessage(message, depth, settings) {
     const finalText = await getBudgetMessageText(message, rawText, depth, settings);
     const rawLine = getBudgetMessageLine(message, rawText);
     const finalLine = getBudgetMessageLine(message, finalText);
+    const tokens = await countMessageTokens(message, rawLine, finalLine);
 
-    if (rawLine === finalLine) {
-        const tokens = await countTextTokens(rawLine);
-        return {
-            rawTokens: tokens.count,
-            finalTokens: tokens.count,
-            rawTokensEstimated: tokens.estimated,
-            finalTokensEstimated: tokens.estimated,
-            changed: false,
-        };
-    }
-
-    const [rawTokens, finalTokens] = await Promise.all([
-        countTextTokens(rawLine),
-        countTextTokens(finalLine),
-    ]);
     return {
-        rawTokens: rawTokens.count,
-        finalTokens: finalTokens.count,
-        rawTokensEstimated: rawTokens.estimated,
-        finalTokensEstimated: finalTokens.estimated,
-        changed: true,
+        rawTokens: tokens.rawTokens,
+        finalTokens: tokens.finalTokens,
+        rawTokensEstimated: tokens.rawTokensEstimated,
+        finalTokensEstimated: tokens.finalTokensEstimated,
+        changed: rawLine !== finalLine,
     };
 }
 

@@ -23,10 +23,10 @@ beforeEach(() => {
     mocks.applyRegexToMessage.mockImplementation(async (text) => text);
 });
 
-async function getPlan(chat, settings = {}) {
+async function getPlan(chat, settings = {}, getTokenCountAsync = async (text) => text.length) {
     installSillyTavernStub({
         chat,
-        getTokenCountAsync: async (text) => text.length,
+        getTokenCountAsync,
     });
     const { getLayer0OverflowPlan } = await import('../src/core/verbatim-window.js');
     return await getLayer0OverflowPlan(
@@ -111,6 +111,38 @@ describe('getLayer0OverflowPlan', () => {
         expect(plan.reason).toBe('none');
         expect(plan.budgetStats.savedTokens).toBeGreaterThan(0);
         expect(plan.tokenBudgetExceeded).toBe(false);
+    });
+
+    it('caches message token counts during budget scans and reuses them for summary stats', async () => {
+        const getTokenCountAsync = vi.fn(async (text) => text.length);
+        const long = 'x'.repeat(20);
+        const chat = [
+            makeMessage({ mes: long }),
+            makeMessage({ mes: long }),
+            makeMessage({ mes: long }),
+        ];
+
+        const plan = await getPlan(
+            chat,
+            {
+                minSummaryTurns: 2,
+                minSummaryBudget: 1,
+                verbatimTokenBudget: 50,
+            },
+            getTokenCountAsync,
+        );
+
+        expect(plan.reason).toBe('budget');
+        expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1]);
+        expect(getTokenCountAsync).toHaveBeenCalledTimes(3);
+        expect(chat.map((message) => message.extra.sc_token_count)).toEqual(
+            chat.map(() => ({
+                rawTokens: 'Assistant: '.length + long.length,
+                finalTokens: 'Assistant: '.length + long.length,
+                rawTokensEstimated: false,
+                finalTokensEstimated: false,
+            })),
+        );
     });
 
     it('uses the shared prompt-depth calculation for regex scripts', async () => {

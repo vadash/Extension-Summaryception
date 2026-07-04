@@ -1,6 +1,6 @@
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { countTextTokens } from './token-count.js';
+import { countMessageTokens } from './token-count.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
@@ -94,9 +94,12 @@ export function getPromptDepthsByChatIndex(chat) {
  * @returns {Promise<PassageWithStats>}
  */
 export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
-    const rawLines = [];
     const finalLines = [];
     let changedMessageCount = 0;
+    let rawTokens = 0;
+    let finalTokens = 0;
+    let rawTokensEstimated = false;
+    let finalTokensEstimated = false;
     const promptDepths = getPromptDepthsByChatIndex(chat);
     const applyRegexScripts = getSettings().applyRegexScripts;
 
@@ -127,28 +130,30 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
         }
 
         const speaker = m.is_user ? 'Player' : 'Assistant';
-        rawLines.push(`${speaker}: ${rawText}`);
-        finalLines.push(`${speaker}: ${finalText}`);
+        const rawLine = `${speaker}: ${rawText}`;
+        const finalLine = `${speaker}: ${finalText}`;
+        finalLines.push(finalLine);
+
+        const counted = await countMessageTokens(m, rawLine, finalLine);
+        rawTokens += counted.rawTokens;
+        finalTokens += counted.finalTokens;
+        rawTokensEstimated ||= counted.rawTokensEstimated;
+        finalTokensEstimated ||= counted.finalTokensEstimated;
     }
 
-    const rawText = rawLines.join('\n');
     const finalText = finalLines.join('\n');
-    const [rawTokenCount, finalTokenCount] = await Promise.all([
-        countTextTokens(rawText),
-        countTextTokens(finalText),
-    ]);
-    const savedTokens = rawTokenCount.count - finalTokenCount.count;
+    const savedTokens = rawTokens - finalTokens;
 
     return {
         text: finalText,
         stats: {
-            rawTokens: rawTokenCount.count,
-            finalTokens: finalTokenCount.count,
+            rawTokens,
+            finalTokens,
             savedTokens,
-            savedPercent: rawTokenCount.count > 0 ? (savedTokens / rawTokenCount.count) * 100 : 0,
-            rawTokensEstimated: rawTokenCount.estimated,
-            finalTokensEstimated: finalTokenCount.estimated,
-            savedTokensEstimated: rawTokenCount.estimated || finalTokenCount.estimated,
+            savedPercent: rawTokens > 0 ? (savedTokens / rawTokens) * 100 : 0,
+            rawTokensEstimated,
+            finalTokensEstimated,
+            savedTokensEstimated: rawTokensEstimated || finalTokensEstimated,
             changedMessageCount,
         },
     };

@@ -1,11 +1,20 @@
 import { callTokenCountAsync } from '../foundation/context.js';
 
 const APPROX_TEXT_UNITS_PER_TOKEN = 4;
+const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
 
 /**
  * @typedef {object} TokenCount
  * @property {number} count - Token count
  * @property {boolean} estimated - Whether the count came from the fallback estimator
+ */
+
+/**
+ * @typedef {object} MessageTokenStats
+ * @property {number} rawTokens - Rendered line tokens before regex scripts
+ * @property {number} finalTokens - Rendered line tokens after regex scripts
+ * @property {boolean} rawTokensEstimated - Whether rawTokens came from fallback estimation
+ * @property {boolean} finalTokensEstimated - Whether finalTokens came from fallback estimation
  */
 
 /**
@@ -31,6 +40,24 @@ export async function countTextTokens(text) {
 }
 
 /**
+ * Count rendered raw/final message lines, reusing the first saved message count.
+ * @param {Record<string, unknown>} message - Chat message to cache on
+ * @param {string} rawLine - Rendered message line before regex scripts
+ * @param {string} finalLine - Rendered message line after regex scripts
+ * @returns {Promise<MessageTokenStats>}
+ */
+export async function countMessageTokens(message, rawLine, finalLine) {
+    const cached = readMessageTokenCache(message);
+    if (cached) {
+        return cached;
+    }
+
+    const counted = await countRenderedLines(rawLine, finalLine);
+    writeMessageTokenCache(message, counted);
+    return counted;
+}
+
+/**
  * Format a TokenCount with '~' when it came from the fallback estimator.
  * @param {TokenCount | null | undefined} tokenCount - Count to format
  * @returns {string}
@@ -53,6 +80,114 @@ export function formatTokenValue(count, estimated = false) {
         return '?';
     }
     return `${estimated ? '~' : ''}${count}`;
+}
+
+/**
+ * Count rendered raw/final message lines without cache lookup.
+ * @param {string} rawLine
+ * @param {string} finalLine
+ * @returns {Promise<MessageTokenStats>}
+ */
+async function countRenderedLines(rawLine, finalLine) {
+    const normalizedRawLine = String(rawLine ?? '');
+    const normalizedFinalLine = String(finalLine ?? '');
+
+    if (normalizedRawLine === normalizedFinalLine) {
+        const tokens = await countTextTokens(normalizedRawLine);
+        return {
+            rawTokens: tokens.count,
+            finalTokens: tokens.count,
+            rawTokensEstimated: tokens.estimated,
+            finalTokensEstimated: tokens.estimated,
+        };
+    }
+
+    const [rawTokens, finalTokens] = await Promise.all([
+        countTextTokens(normalizedRawLine),
+        countTextTokens(normalizedFinalLine),
+    ]);
+    return {
+        rawTokens: rawTokens.count,
+        finalTokens: finalTokens.count,
+        rawTokensEstimated: rawTokens.estimated,
+        finalTokensEstimated: finalTokens.estimated,
+    };
+}
+
+/**
+ * Read a normalized message token cache entry.
+ * @param {Record<string, unknown>} message
+ * @returns {MessageTokenStats | null}
+ */
+function readMessageTokenCache(message) {
+    const extra = /** @type {{ sc_token_count?: unknown }} */ (message?.extra || {});
+    return normalizeMessageTokenCache(extra[MESSAGE_TOKEN_CACHE_KEY]);
+}
+
+/**
+ * Save message token stats without overwriting a valid first count.
+ * @param {Record<string, unknown>} message
+ * @param {MessageTokenStats} stats
+ * @returns {void}
+ */
+function writeMessageTokenCache(message, stats) {
+    if (!message || typeof message !== 'object') {
+        return;
+    }
+
+    const target = /** @type {{ extra?: unknown }} */ (message);
+    if (!target.extra || typeof target.extra !== 'object') {
+        target.extra = {};
+    }
+
+    /** @type {{ sc_token_count?: MessageTokenStats }} */ (target.extra)[MESSAGE_TOKEN_CACHE_KEY] =
+        {
+            rawTokens: stats.rawTokens,
+            finalTokens: stats.finalTokens,
+            rawTokensEstimated: stats.rawTokensEstimated,
+            finalTokensEstimated: stats.finalTokensEstimated,
+        };
+}
+
+/**
+ * Normalize a cached token stats object.
+ * @param {unknown} cache
+ * @returns {MessageTokenStats | null}
+ */
+function normalizeMessageTokenCache(cache) {
+    if (!cache || typeof cache !== 'object') {
+        return null;
+    }
+
+    const record =
+        /** @type {{ rawTokens?: unknown, finalTokens?: unknown, rawTokensEstimated?: unknown, finalTokensEstimated?: unknown }} */ (
+            cache
+        );
+    const rawTokens = normalizeCachedTokenCount(record.rawTokens);
+    const finalTokens = normalizeCachedTokenCount(record.finalTokens);
+
+    if (rawTokens === null || finalTokens === null) {
+        return null;
+    }
+
+    return {
+        rawTokens,
+        finalTokens,
+        rawTokensEstimated: record.rawTokensEstimated === true,
+        finalTokensEstimated: record.finalTokensEstimated === true,
+    };
+}
+
+/**
+ * Normalize a cached token count field.
+ * @param {unknown} count
+ * @returns {number | null}
+ */
+function normalizeCachedTokenCount(count) {
+    if (typeof count !== 'number' || !Number.isFinite(count)) {
+        return null;
+    }
+    return Math.max(0, Math.ceil(count));
 }
 
 /**
