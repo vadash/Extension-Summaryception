@@ -27,11 +27,11 @@ describe('constants', () => {
         expect(defaultSettings.customMemoryRole).toBe('system');
         expect(defaultSettings.customMemoryDepth).toBe(0);
         expect(defaultSettings.minSummaryTurns).toBe(3);
-        expect(defaultSettings.maxSummaryTurns).toBe(5);
+        expect(defaultSettings.maxSummaryTurns).toBe(8);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
             defaultSettings.minSummaryTurns,
         );
-        expect(defaultSettings.minSummaryBudget).toBe(6000);
+        expect(defaultSettings.minSummaryBudget).toBe(8000);
         expect(defaultSettings.verbatimTokenBudget).toBe(16000);
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
@@ -65,6 +65,8 @@ describe('constants', () => {
 
     it('defaults to the narrative preset', () => {
         expect(DEFAULT_PROMPT_PRESET).toBe('narrative');
+        expect(defaultSettings.promptPreset).toBe(DEFAULT_PROMPT_PRESET);
+        expect(defaultSettings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
     });
 
     it('strips common reasoning tokens by default', () => {

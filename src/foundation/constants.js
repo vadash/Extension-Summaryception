@@ -40,8 +40,8 @@ export const defaultSettings = Object.freeze({
     customMemoryRole: MEMORY_ROLES.SYSTEM,
     customMemoryDepth: 0,
     minSummaryTurns: 3,
-    maxSummaryTurns: 5,
-    minSummaryBudget: 6000,
+    maxSummaryTurns: 8,
+    minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     snippetsPerLayer: 30,
     snippetsPerPromotion: 3,
@@ -67,13 +67,21 @@ export const defaultSettings = Object.freeze({
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context. If the passage_in_question has 2nd person point of view, 'you' pronoun in prose refers to the player. Use the player name in the summary output instead of 'you'.
+Summarize only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
+If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
-Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, location changes, and time; plot developments and unresolved tensions; details that distinguish this moment from any other.
+### TRACKING PRIORITIES:
+1. **Chronological Events & Actions:** What happened, who initiated it, and the immediate outcome.
+2. **Relationship & Power Dynamics:** Shifts in intimacy, dominant/submissive rules established, emotional vulnerability, or verbal agreements/promises.
+3. **Physical & Inventory State:** Specific clothing worn/removed, items bought/used (e.g., lube, collar, wine), specific locations, and current time of day.
+4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
 
-Exclude anything insubstantial, fluff, atmospheric details, or events already covered in Prior Context.
+### EXCLUSIONS:
+- Exclude internal monologue that doesn't lead to action.
+- Exclude repetitive environmental descriptions, conversational filler, and events already established in <prior_context>.
 
-Write in short phrases, no more than 20; output must be a single line:`,
+### FORMATTING:
+Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
     promptPreset: 'narrative', // 'narrative' | 'gamestate' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
@@ -129,13 +137,21 @@ export const PROMPT_PRESETS = {
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context. If the passage_in_question has 2nd person point of view, 'you' pronoun in prose refers to the player. Use the player name in the summary output instead of 'you'.
+Summarize only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
+If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
-Focus on: character interactions, dialogue tone, and relationship dynamics; emotional beats and character motivations; atmosphere, mood, and sensory details that establish tone; narrative themes and subtext; names, location changes, and time; plot developments and unresolved tensions; details that distinguish this moment from any other.
+### TRACKING PRIORITIES:
+1. **Chronological Events & Actions:** What happened, who initiated it, and the immediate outcome.
+2. **Relationship & Power Dynamics:** Shifts in intimacy, dominant/submissive rules established, emotional vulnerability, or verbal agreements/promises.
+3. **Physical & Inventory State:** Specific clothing worn/removed, items bought/used (e.g., lube, collar, wine), specific locations, and current time of day.
+4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
 
-Exclude anything insubstantial, fluff, atmospheric details, or events already covered in Prior Context.
+### EXCLUSIONS:
+- Exclude internal monologue that doesn't lead to action.
+- Exclude repetitive environmental descriptions, conversational filler, and events already established in <prior_context>.
 
-Write in short phrases, no more than 20; output must be a single line:`,
+### FORMATTING:
+Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
     gamestate: `<player_name>
 {{player_name}}
