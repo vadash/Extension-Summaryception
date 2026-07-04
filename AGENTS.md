@@ -36,9 +36,9 @@ Lower layers must not import from higher layers. All SillyTavern runtime access 
 
 Layer data lives in `chatMetadata[MODULE_NAME]`.
 
-- Layer 0: turn summaries, 3 turns per snippet by default.
+- Layer 0: turn summaries selected by the dynamic verbatim window; overflow waits for `minSummaryTurns` (default 3) and `minSummaryBudget` (default 6000 tokens), capped by `maxSummaryTurns` (default 5).
 - Layers 1+: meta-summaries promoted from lower layers.
-- Recent assistant turns stay verbatim according to `verbatimTurns`.
+- Recent chat stays verbatim according to `verbatimTokenBudget` (default 16000 tokens), counting prompt-visible user and assistant messages after regex when enabled.
 - Ghosted messages are hidden from the LLM with `/hide` but remain visible in UI.
 - Injection uses `setExtensionPrompt()` from the last committed summary snapshot.
 - `getChatStore()` normalizes saved chat metadata; app/chat load reconciles branch drift and missing ghosting.

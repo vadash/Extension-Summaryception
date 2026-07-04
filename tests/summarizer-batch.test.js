@@ -39,8 +39,10 @@ async function runStaleCase(mutator) {
         settings: {
             enabled: true,
             applyRegexScripts: false,
-            turnsPerSummary: 1,
-            verbatimTurns: 0,
+            minSummaryTurns: 2,
+            maxSummaryTurns: 5,
+            minSummaryBudget: 6000,
+            verbatimTokenBudget: 16000,
         },
     });
     ctx.chatId = 'chat-a';
@@ -93,8 +95,10 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
             settings: {
                 enabled: true,
                 applyRegexScripts: false,
-                turnsPerSummary: 1,
-                verbatimTurns: 0,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 5,
+                minSummaryBudget: 6000,
+                verbatimTokenBudget: 16000,
             },
         });
         ctx.chatId = 'chat-a';
@@ -132,8 +136,10 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
             settings: {
                 enabled: true,
                 applyRegexScripts: false,
-                turnsPerSummary: 1,
-                verbatimTurns: 0,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 5,
+                minSummaryBudget: 6000,
+                verbatimTokenBudget: 16000,
             },
         });
         ctx.chatId = 'chat-a';

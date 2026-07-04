@@ -41,36 +41,49 @@ beforeEach(async () => {
 describe('requestSummarization', () => {
     it('coalesces message events that arrive while a batch request is in flight', async () => {
         const firstBatch = deferred();
+        const longTurn = 'x'.repeat(3000);
         const ctx = installSillyTavernStub({
             chat: [
-                makeMessage({ mes: 'first' }),
-                makeMessage({ mes: 'second' }),
-                makeMessage({ mes: 'third' }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
+                makeMessage({ mes: longTurn }),
             ],
             settings: {
                 enabled: true,
                 pauseSummarization: false,
-                verbatimTurns: 1,
-                turnsPerSummary: 1,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
             },
+            getTokenCountAsync: async (text) => text.length,
         });
 
         mocks.summarizeBatchFromTurns
-            .mockImplementationOnce(async () => {
+            .mockImplementationOnce(async (turns) => {
                 await firstBatch.promise;
-                ctx.chat[0].extra.sc_ghosted = true;
+                for (const turn of turns) {
+                    ctx.chat[turn.index].extra.sc_ghosted = true;
+                }
                 return true;
             })
-            .mockImplementationOnce(async () => {
-                ctx.chat[1].extra.sc_ghosted = true;
+            .mockImplementationOnce(async (turns) => {
+                for (const turn of turns) {
+                    ctx.chat[turn.index].extra.sc_ghosted = true;
+                }
                 return true;
             });
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         const firstRun = requestSummarization({ reason: 'first-message', mode: 'auto' });
 
-        await Promise.resolve();
-        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1));
 
         const secondRun = requestSummarization({ reason: 'second-message', mode: 'auto' });
         expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
@@ -85,30 +98,38 @@ describe('requestSummarization', () => {
     it('continues automatic layer-0 batches until visible turns reach the limit', async () => {
         const ctx = installSillyTavernStub({
             chat: [
-                makeMessage({ mes: 'first' }),
-                makeMessage({ mes: 'second' }),
-                makeMessage({ mes: 'third' }),
-                makeMessage({ mes: 'fourth' }),
-                makeMessage({ mes: 'fifth' }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
             ],
             settings: {
                 enabled: true,
                 pauseSummarization: false,
-                verbatimTurns: 1,
-                turnsPerSummary: 1,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
             },
+            getTokenCountAsync: async (text) => text.length,
         });
 
-        mocks.summarizeBatchFromTurns.mockImplementation(async (visibleTurns) => {
-            const [turn] = visibleTurns;
-            ctx.chat[turn.index].extra.sc_ghosted = true;
+        mocks.summarizeBatchFromTurns.mockImplementation(async (turns) => {
+            for (const turn of turns) {
+                ctx.chat[turn.index].extra.sc_ghosted = true;
+            }
             return true;
         });
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         await requestSummarization({ reason: 'new-message', mode: 'auto' });
 
-        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(4);
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
         expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
     });
 });
@@ -116,13 +137,22 @@ describe('requestSummarization', () => {
 describe('runCatchup', () => {
     it('defers final promotion when the prompt guard activates during catch-up', async () => {
         installSillyTavernStub({
-            chat: [makeMessage({ mes: 'first' }), makeMessage({ mes: 'second' })],
+            chat: [
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+            ],
             settings: {
                 enabled: true,
                 pauseSummarization: false,
-                verbatimTurns: 0,
-                turnsPerSummary: 1,
+                minSummaryTurns: 2,
+                maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
+                verbatimTokenBudget: 4000,
+                applyRegexScripts: false,
             },
+            getTokenCountAsync: async (text) => text.length,
         });
 
         mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async () => {

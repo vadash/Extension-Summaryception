@@ -17,14 +17,40 @@ describe('state.js', () => {
         }
     });
 
-    it('does not clobber an explicit user setting (e.g., disabled pause flag)', async () => {
-        installSillyTavernStub({ settings: { enabled: false, verbatimTurns: 3 } });
+    it('does not clobber explicit new user settings', async () => {
+        installSillyTavernStub({
+            settings: {
+                enabled: false,
+                minSummaryTurns: 4,
+                maxSummaryTurns: 7,
+                minSummaryBudget: 8000,
+                verbatimTokenBudget: 32000,
+            },
+        });
         const { getSettings } = await import('../src/foundation/state.js');
         const s = getSettings();
         expect(s.enabled).toBe(false);
-        expect(s.verbatimTurns).toBe(3);
-        // Non-provided keys fall back to defaults.
-        expect(s.turnsPerSummary).toBe(defaultSettings.turnsPerSummary);
+        expect(s.minSummaryTurns).toBe(4);
+        expect(s.maxSummaryTurns).toBe(7);
+        expect(s.minSummaryBudget).toBe(8000);
+        expect(s.verbatimTokenBudget).toBe(32000);
+    });
+
+    it('normalizes dynamic verbatim window settings to valid slider values', async () => {
+        installSillyTavernStub({
+            settings: {
+                minSummaryTurns: 9,
+                maxSummaryTurns: 4,
+                minSummaryBudget: 6500,
+                verbatimTokenBudget: 6500,
+            },
+        });
+        const { getSettings } = await import('../src/foundation/state.js');
+        const s = getSettings();
+        expect(s.minSummaryTurns).toBe(9);
+        expect(s.maxSummaryTurns).toBe(9);
+        expect(s.minSummaryBudget).toBe(7000);
+        expect(s.verbatimTokenBudget).toBe(7000);
     });
 
     it('initializes the chat store with empty layers and a sentinel summarizedUpTo', async () => {

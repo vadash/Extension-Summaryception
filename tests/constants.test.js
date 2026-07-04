@@ -21,9 +21,14 @@ describe('constants', () => {
         expect(Object.isFrozen(defaultSettings)).toBe(true);
     });
 
-    it('provides sane verbatim / summary defaults matching documented behaviour', () => {
-        expect(defaultSettings.verbatimTurns).toBeGreaterThanOrEqual(1);
-        expect(defaultSettings.turnsPerSummary).toBeGreaterThanOrEqual(1);
+    it('provides sane dynamic verbatim window defaults', () => {
+        expect(defaultSettings.minSummaryTurns).toBe(3);
+        expect(defaultSettings.maxSummaryTurns).toBe(5);
+        expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
+            defaultSettings.minSummaryTurns,
+        );
+        expect(defaultSettings.minSummaryBudget).toBe(6000);
+        expect(defaultSettings.verbatimTokenBudget).toBe(16000);
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
         );

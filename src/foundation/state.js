@@ -40,6 +40,7 @@ export function getSettings() {
             extensionSettings[MODULE_NAME][key] = defaultSettings[key];
         }
     }
+    normalizeVerbatimWindowSettings(extensionSettings[MODULE_NAME]);
     return extensionSettings[MODULE_NAME];
 }
 
@@ -106,6 +107,29 @@ function normalizeChatStore(store) {
     store.summarizedUpTo = normalizeSummarizedUpTo(store.summarizedUpTo);
     store.ghostedIndices = normalizeGhostedIndices(store.ghostedIndices);
     return store;
+}
+
+function normalizeVerbatimWindowSettings(settings) {
+    settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
+    settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 10);
+    if (settings.maxSummaryTurns < settings.minSummaryTurns) {
+        settings.maxSummaryTurns = settings.minSummaryTurns;
+    }
+    settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, 16000, 1000);
+    settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
+}
+
+function clampInteger(value, min, max) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+        return min;
+    }
+    return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function clampToStep(value, min, max, step) {
+    const clamped = clampInteger(value, min, max);
+    return Math.min(max, Math.max(min, Math.round(clamped / step) * step));
 }
 
 /**

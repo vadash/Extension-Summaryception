@@ -222,6 +222,10 @@
     font-weight: 700;
     text-align: center;
 }
+.sc-val-wide {
+    flex-basis: 52px;
+    min-width: 52px;
+}
 .sc-button-row {
     display: flex;
     flex-wrap: wrap;

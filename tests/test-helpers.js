@@ -42,6 +42,7 @@ export function makeMessage({
  * @param {Function} [opts.executeSlashCommandsWithOptions]
  * @param {Function} [opts.saveChat]
  * @param {Function} [opts.setExtensionPrompt]
+ * @param {Function} [opts.getTokenCountAsync]
  * @returns {Record<string, unknown>}
  */
 export function makeContext({
@@ -51,6 +52,7 @@ export function makeContext({
     executeSlashCommandsWithOptions = async () => {},
     saveChat,
     setExtensionPrompt = () => {},
+    getTokenCountAsync,
 } = {}) {
     const ctx = {
         chat,
@@ -64,6 +66,9 @@ export function makeContext({
     };
     if (saveChat) {
         ctx.saveChat = saveChat;
+    }
+    if (getTokenCountAsync) {
+        ctx.getTokenCountAsync = getTokenCountAsync;
     }
     return ctx;
 }

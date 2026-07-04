@@ -5,8 +5,10 @@ export const LOG_PREFIX = '[Summaryception]';
 
 export const defaultSettings = Object.freeze({
     enabled: true,
-    verbatimTurns: 10,
-    turnsPerSummary: 3,
+    minSummaryTurns: 3,
+    maxSummaryTurns: 5,
+    minSummaryBudget: 6000,
+    verbatimTokenBudget: 16000,
     snippetsPerLayer: 30,
     snippetsPerPromotion: 3,
     maxLayers: 5,

@@ -8,17 +8,18 @@ import {
     getChatStore,
     saveChatStore,
 } from '../foundation/state.js';
-import { buildPassageFromRangeWithStats, getAssistantTurns } from '../core/chatutils.js';
+import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
+import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock, updateInjection } from '../features/injection.js';
 
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
- * @returns {void}
+ * @returns {Promise<void>}
  */
-export function updateUI() {
+export async function updateUI() {
     try {
         const s = getSettings();
         const store = getChatStore();
@@ -33,7 +34,7 @@ export function updateUI() {
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
 
-        renderOverview(s, store);
+        await renderOverview(s, store);
         renderLayerStats(s, store);
         renderPreview();
         updateSnippetBrowser();
@@ -52,10 +53,14 @@ function syncSettingsInputs(s) {
     $('#sc_enabled').prop('checked', s.enabled);
     $('#sc_pause_summarization').prop('checked', s.pauseSummarization);
     $('#sc_disable_ghosting').prop('checked', s.disableGhosting);
-    $('#sc_verbatim_turns').val(s.verbatimTurns);
-    $('#sc_verbatim_turns_val').text(s.verbatimTurns);
-    $('#sc_turns_per_summary').val(s.turnsPerSummary);
-    $('#sc_turns_per_summary_val').text(s.turnsPerSummary);
+    $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
+    $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
+    $('#sc_min_summary_budget').val(s.minSummaryBudget);
+    $('#sc_min_summary_budget_val').text(s.minSummaryBudget);
+    $('#sc_min_summary_turns').val(s.minSummaryTurns);
+    $('#sc_min_summary_turns_val').text(s.minSummaryTurns);
+    $('#sc_max_summary_turns').val(s.maxSummaryTurns);
+    $('#sc_max_summary_turns_val').text(s.maxSummaryTurns);
     $('#sc_snippets_per_layer').val(s.snippetsPerLayer);
     $('#sc_snippets_per_layer_val').text(s.snippetsPerLayer);
     $('#sc_snippets_per_promotion').val(s.snippetsPerPromotion);
@@ -89,12 +94,12 @@ function ensurePromptPresetMigrated(s) {
     }
 }
 
-function renderOverview(s, store) {
+async function renderOverview(s, store) {
     const metrics = getLayerMetrics(store);
     const ghostedCount = getGhostedCount();
 
     $('#sc_status_enabled').text(getModeLabel(s));
-    $('#sc_status_worker').text(getWorkerLabel(s));
+    $('#sc_status_worker').text(await getWorkerLabel(s, store));
     $('#sc_status_snippets').text(String(metrics.totalSnippets));
     $('#sc_status_depth').text(String(metrics.deepestLayer));
     $('#sc_status_ghosted').text(String(ghostedCount));
@@ -105,7 +110,7 @@ function getModeLabel(s) {
     return s.enabled ? (s.pauseSummarization ? 'Paused' : 'Enabled') : 'Disabled';
 }
 
-function getWorkerLabel(s) {
+async function getWorkerLabel(s, store) {
     if (getIsSummarizing()) {
         return 'Running';
     }
@@ -116,17 +121,14 @@ function getWorkerLabel(s) {
         return 'Paused';
     }
 
-    const backlogCount = getVisibleBacklogCount(s);
+    const backlogCount = await getVisibleBacklogCount(s, store);
     return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
 }
 
-function getVisibleBacklogCount(s) {
+async function getVisibleBacklogCount(s, store) {
     try {
-        const chat = getChat();
-        const visibleTurns = getAssistantTurns(chat).filter(
-            (t) => !chat[t.index].extra?.sc_ghosted,
-        );
-        return Math.max(0, visibleTurns.length - s.verbatimTurns);
+        const plan = await getLayer0OverflowPlan(getChat(), store, s);
+        return plan.reason === 'none' ? 0 : Math.max(plan.batchTurns.length, plan.overflowCount);
     } catch (_e) {
         return 0;
     }

@@ -1,11 +1,11 @@
 import { getChat, getContext } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
-import { getAssistantTurns } from './chatutils.js';
 import { summarizeBatchFromTurns, summarizeOneBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
 import { maybePromoteLayer } from './summarizer-promotion.js';
 import { withUsageRun } from './summarizer-usage.js';
+import { getLayer0OverflowPlan } from './verbatim-window.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
@@ -240,14 +240,16 @@ async function runAutoWorkerCycle() {
         return 'idle';
     }
 
-    const chat = getChat();
-    const allAssistantTurns = getAssistantTurns(chat);
-    const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
+    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
 
-    log(`Visible assistant turns: ${visibleTurns.length}, limit: ${s.verbatimTurns}`);
+    log(
+        `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
+            `verbatim budget: ${plan.budgetStats.finalTokens}/${s.verbatimTokenBudget} tokens, ` +
+            `summary budget: ${plan.summaryStats.finalTokens}/${s.minSummaryBudget} tokens`,
+    );
 
-    if (visibleTurns.length > s.verbatimTurns) {
-        return await processLayer0Overflow({ visibleTurns, s });
+    if (plan.reason !== 'none') {
+        return await processLayer0Overflow({ plan, s });
     }
 
     return await processPromotions(s);
@@ -266,19 +268,19 @@ function shouldStopAutoWorker() {
 /**
  * Process a single layer-0 overflow batch in automatic mode.
  * @param {object} p
- * @param {Array<Record<string, unknown>>} p.visibleTurns
+ * @param {import('./verbatim-window.js').Layer0OverflowPlan} p.plan
  * @param {object} p.s
  * @returns {Promise<'processed' | 'blocked' | 'failed'>}
  */
-async function processLayer0Overflow({ visibleTurns, s }) {
-    const overflow = visibleTurns.length - s.verbatimTurns;
-    const backlogThreshold = s.turnsPerSummary * 2;
+async function processLayer0Overflow({ plan, s }) {
+    const backlogThreshold = s.maxSummaryTurns * 2;
 
-    if (overflow > backlogThreshold) {
-        showAutoBacklogNotice(overflow);
+    if (plan.eligibleTurns.length > backlogThreshold) {
+        showAutoBacklogNotice(plan);
     }
 
-    const success = await summarizeBatchFromTurns(visibleTurns, {
+    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
+    const success = await summarizeBatchFromTurns(turns, {
         showToasts: false,
         catchExceptions: true,
     });
@@ -338,17 +340,19 @@ async function yieldWorkerCycle() {
 
 /**
  * Show a non-blocking notice for large automatic backlog catch-up.
- * @param {number} overflow
+ * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
  * @returns {void}
  */
-function showAutoBacklogNotice(overflow) {
+function showAutoBacklogNotice(plan) {
     if (catchupDismissed) {
         return;
     }
 
     catchupDismissed = true;
     toastr.info(
-        `${overflow} turns exceed the verbatim limit. Summaryception will keep processing background batches while the chat is idle; use Force Summarize for a cancelable catch-up.`,
+        `${plan.eligibleTurns.length} old turns are ready for summary. ` +
+            'Summaryception will keep processing background batches while the chat is idle; ' +
+            'use Force Summarize for a cancelable catch-up.',
         'Summaryception',
         { timeOut: 6000 },
     );
@@ -367,8 +371,16 @@ export async function runCatchup(visibleTurns, overflow) {
             return;
         }
 
-        const s = getSettings();
-        const totalBatches = Math.ceil(overflow / s.turnsPerSummary);
+        const initialPlan = await getCatchupPlan();
+        if (!initialPlan) {
+            toastr.info(
+                'Nothing to summarize - current chat is within the verbatim window.',
+                'Summaryception',
+            );
+            return;
+        }
+
+        const totalBatches = estimateCatchupBatches(initialPlan);
         let completed = 0;
         let failed = 0;
         let cancelled = false;
@@ -398,13 +410,17 @@ export async function runCatchup(visibleTurns, overflow) {
             while (!cancelled) {
                 trace(`  Loop iteration - completed: ${completed}, failed: ${failed}`);
 
-                const currentVisible = getCatchupVisibleTurns(s);
-                if (!currentVisible) {
+                const currentPlan = await getCatchupPlan();
+                if (!currentPlan) {
                     break;
                 }
 
                 trace('  About to call summarizeOneBatchFromTurns...');
-                const success = await summarizeOneBatchFromTurns(currentVisible);
+                const turns =
+                    currentPlan.reason === 'repair'
+                        ? currentPlan.visibleTurns
+                        : currentPlan.batchTurns;
+                const success = await summarizeOneBatchFromTurns(turns);
 
                 if (success) {
                     trace('  >>> summarizeOneBatchFromTurns returned SUCCESS');
@@ -462,25 +478,35 @@ async function maybePromoteAfterCatchup(cancelled) {
 }
 
 /**
- * Get the latest visible assistant turns for catch-up, or null when complete.
- * @param {object} s - Settings
- * @returns {Array<Record<string, unknown>> | null}
+ * Get the latest overflow plan for catch-up, or null when complete.
+ * @returns {Promise<import('./verbatim-window.js').Layer0OverflowPlan | null>}
  */
-function getCatchupVisibleTurns(s) {
-    const chat = getChat();
-    const allAssistantTurns = getAssistantTurns(chat);
-    const currentVisible = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
+async function getCatchupPlan() {
+    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getSettings());
 
-    trace(
-        `  currentVisible turns: ${currentVisible.length}, verbatimTurns limit: ${s.verbatimTurns}`,
-    );
+    trace(`  currentVisible turns: ${plan.visibleTurnCount}, plan reason: ${plan.reason}`);
 
-    if (currentVisible.length <= s.verbatimTurns) {
-        trace('  Visible turns now within limit, breaking');
+    if (plan.reason === 'none') {
+        trace('  Visible turns now within the dynamic window, breaking');
         return null;
     }
 
-    return currentVisible;
+    return plan;
+}
+
+/**
+ * Estimate catch-up progress from the first overflow snapshot.
+ * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
+ * @returns {number}
+ */
+function estimateCatchupBatches(plan) {
+    const batchLimit = Math.max(1, getSettings().maxSummaryTurns);
+    const readyTurns = Math.max(
+        plan.eligibleTurns.length,
+        plan.softOverflowCount,
+        plan.overflowCount,
+    );
+    return Math.max(1, Math.ceil(readyTurns / batchLimit));
 }
 
 /**
@@ -533,13 +559,14 @@ function showCatchupOutcome({ cancelled, completed, failed, totalBatches }) {
 
 /**
  * Show the backlog catch-up dialog with process/skip/partial options.
- * @param {number} overflowCount - Number of unsummarized turns beyond the verbatim limit
+ * @param {number} overflowCount - Number of unsummarized turns beyond the dynamic window
  * @param {number} estimatedCalls - Estimated number of summarizer calls required
  * @returns {Promise<string>} 'catchup' | 'skip' | 'partial'
  */
 export async function showCatchupDialog(overflowCount, estimatedCalls) {
     return new Promise((resolve) => {
         const s = getSettings();
+        const partialBatchSize = s.maxSummaryTurns;
 
         const $overlay = $('<div class="sc-catchup-overlay">')
             .html(
@@ -548,7 +575,7 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
         <h3>🧠 Summaryception — Backlog Detected</h3>
         <div class="sc-catchup-dialog">
         <p>Summaryception detected <strong>${overflowCount} unsummarized turns</strong>
-        in this chat (beyond your ${s.verbatimTurns} verbatim limit).</p>
+        in this chat (beyond your dynamic verbatim window).</p>
         <p>This will require approximately <strong>${estimatedCalls} summarizer calls</strong> to process.</p>
         <hr>
         <div class="sc-catchup-options">
@@ -570,7 +597,7 @@ export async function showCatchupDialog(overflowCount, estimatedCalls) {
         <i class="fa-solid fa-play"></i>
         <div class="sc-btn-text">
         <span class="sc-btn-label">Just One Batch</span>
-        <span class="sc-btn-desc">Summarize ${s.turnsPerSummary} turns now, deal with the rest later</span>
+        <span class="sc-btn-desc">Summarize up to ${partialBatchSize} turns now, deal with the rest later</span>
         </div>
         </button>
         </div>

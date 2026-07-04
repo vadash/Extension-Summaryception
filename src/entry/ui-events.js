@@ -3,7 +3,6 @@ import { executeSlashCommandsWithOptions, getChat, saveChat } from '../foundatio
 import { log } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
-import { getAssistantTurns } from '../core/chatutils.js';
 import {
     abortSummarization,
     getIsSummarizing,
@@ -12,6 +11,7 @@ import {
     resetCatchupDismissed,
     runCatchup,
 } from '../core/summarizer.js';
+import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
@@ -137,11 +137,25 @@ function bindInputHelpers() {
  */
 function bindSliderHandlers() {
     const sliders = [
-        { id: '#sc_verbatim_turns', key: 'verbatimTurns', display: '#sc_verbatim_turns_val' },
         {
-            id: '#sc_turns_per_summary',
-            key: 'turnsPerSummary',
-            display: '#sc_turns_per_summary_val',
+            id: '#sc_verbatim_token_budget',
+            key: 'verbatimTokenBudget',
+            display: '#sc_verbatim_token_budget_val',
+        },
+        {
+            id: '#sc_min_summary_budget',
+            key: 'minSummaryBudget',
+            display: '#sc_min_summary_budget_val',
+        },
+        {
+            id: '#sc_min_summary_turns',
+            key: 'minSummaryTurns',
+            display: '#sc_min_summary_turns_val',
+        },
+        {
+            id: '#sc_max_summary_turns',
+            key: 'maxSummaryTurns',
+            display: '#sc_max_summary_turns_val',
         },
         {
             id: '#sc_snippets_per_layer',
@@ -160,13 +174,49 @@ function bindSliderHandlers() {
         $(document).on('input', sl.id, function () {
             const val = parseInt($(this).val(), 10);
             getSettings()[sl.key] = val;
-            $(sl.display).text(val);
+            enforceRetentionConstraints(sl.key);
+            if (isRetentionSlider(sl.key)) {
+                syncRetentionSliderDisplays();
+            } else {
+                $(sl.display).text(val);
+            }
             saveSettings();
             updateInjection();
         });
     }
 
     bindInputHelpers();
+}
+
+function isRetentionSlider(key) {
+    return [
+        'verbatimTokenBudget',
+        'minSummaryBudget',
+        'minSummaryTurns',
+        'maxSummaryTurns',
+    ].includes(key);
+}
+
+function enforceRetentionConstraints(changedKey) {
+    const s = getSettings();
+    if (changedKey === 'maxSummaryTurns' && s.maxSummaryTurns < s.minSummaryTurns) {
+        s.minSummaryTurns = s.maxSummaryTurns;
+    }
+    if (s.maxSummaryTurns < s.minSummaryTurns) {
+        s.maxSummaryTurns = s.minSummaryTurns;
+    }
+}
+
+function syncRetentionSliderDisplays() {
+    const s = getSettings();
+    $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
+    $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
+    $('#sc_min_summary_budget').val(s.minSummaryBudget);
+    $('#sc_min_summary_budget_val').text(s.minSummaryBudget);
+    $('#sc_min_summary_turns').val(s.minSummaryTurns);
+    $('#sc_min_summary_turns_val').text(s.minSummaryTurns);
+    $('#sc_max_summary_turns').val(s.maxSummaryTurns);
+    $('#sc_max_summary_turns_val').text(s.maxSummaryTurns);
 }
 
 /**
@@ -251,7 +301,7 @@ async function onRepairOrphans() {
 }
 
 /**
- * Force the catch-up pass to summarize overflow turns beyond verbatim limit.
+ * Force the catch-up pass to summarize turns beyond the dynamic verbatim window.
  * @returns {Promise<void>}
  */
 async function onForceSummarize() {
@@ -273,24 +323,22 @@ async function onForceSummarize() {
     try {
         resetCatchupDismissed();
 
-        const chat = getChat();
-        const allAssistantTurns = getAssistantTurns(chat);
-        const visibleTurns = allAssistantTurns.filter((t) => !chat[t.index].extra?.sc_ghosted);
+        const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
 
-        if (visibleTurns.length <= s.verbatimTurns) {
+        if (plan.reason === 'none') {
             toastr.info(
-                'Nothing to summarize - visible turns are within the verbatim limit.',
+                'Nothing to summarize - current chat is within the verbatim window.',
                 'Summaryception',
             );
             return;
         }
 
-        const overflow = visibleTurns.length - s.verbatimTurns;
-        toastr.info(`${overflow} turns to process. Starting...`, 'Summaryception', {
+        const overflow = Math.max(plan.eligibleTurns.length, plan.overflowCount);
+        toastr.info(`${overflow} turns ready to process. Starting...`, 'Summaryception', {
             timeOut: 2000,
         });
 
-        await runCatchup(visibleTurns, overflow);
+        await runCatchup(plan.visibleTurns, overflow);
         updateInjection();
     } finally {
         $(this)
@@ -369,8 +417,10 @@ function onResetDefaults() {
     const s = getSettings();
 
     // Reset sliders
-    s.verbatimTurns = defaultSettings.verbatimTurns;
-    s.turnsPerSummary = defaultSettings.turnsPerSummary;
+    s.minSummaryTurns = defaultSettings.minSummaryTurns;
+    s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
+    s.minSummaryBudget = defaultSettings.minSummaryBudget;
+    s.verbatimTokenBudget = defaultSettings.verbatimTokenBudget;
     s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
     s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
     s.maxLayers = defaultSettings.maxLayers;

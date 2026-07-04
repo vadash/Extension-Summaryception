@@ -1,6 +1,6 @@
 import { LOG_PREFIX } from '../foundation/constants.js';
 import { getContext, getChat } from '../foundation/context.js';
-import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import { getChatStore, saveChatStore } from '../foundation/state.js';
 import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
@@ -29,7 +29,6 @@ export async function summarizeBatchFromTurns(
     trace('>>> ENTERING summarizeBatchFromTurns');
     trace('  visibleTurns:', visibleTurns?.length ?? 'UNDEFINED');
 
-    const s = getSettings();
     const chat = getChat();
     const store = getChatStore();
 
@@ -44,7 +43,6 @@ export async function summarizeBatchFromTurns(
     }
 
     return await summarizeBatchCore({
-        s,
         chat,
         store,
         eligibleTurns,
@@ -84,16 +82,14 @@ async function repairGhosting(visibleTurns, summarizedUpTo) {
 /**
  * Core logic for summarizing a batch of turns.
  * @param {object} p
- * @param {object} p.s - Settings
  * @param {Array} p.chat - Chat array
  * @param {object} p.store - Chat store
  * @param {Array<Record<string, unknown>>} p.eligibleTurns - Eligible turns
  * @param {{ showToasts: boolean, catchExceptions: boolean }} p.opts - Options
  * @returns {Promise<boolean>}
  */
-async function summarizeBatchCore({ s, chat, store, eligibleTurns, opts }) {
-    const batch = eligibleTurns.slice(0, Math.min(s.turnsPerSummary, eligibleTurns.length));
-
+async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
+    const batch = eligibleTurns;
     if (batch.length === 0) {
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY BATCH');
         return false;
