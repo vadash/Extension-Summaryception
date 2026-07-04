@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub, makeMessage } from './test-helpers.js';
+import {
+    deferred,
+    installBrowserRuntimeStub,
+    installSummaryContext,
+    makeLongMessages,
+    makeMessage,
+} from './test-helpers.js';
 
 const mocks = vi.hoisted(() => ({
     summarizeBatchFromTurns: vi.fn(),
@@ -21,55 +27,44 @@ vi.mock('../src/core/persist-state.js', () => ({
     flushPendingChatSave: mocks.flushPendingChatSave,
 }));
 
-function deferred() {
-    /** @type {(value?: unknown) => void} */
-    let resolve;
-    const promise = new Promise((r) => {
-        resolve = r;
-    });
-    return { promise, resolve };
-}
-
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.flushPendingChatSave.mockResolvedValue(undefined);
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
-    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }), length: 1 });
+    installBrowserRuntimeStub();
 });
+
+function workerSettings(overrides = {}) {
+    return {
+        minSummaryTurns: 2,
+        maxSummaryTurns: 3,
+        minSummaryBudget: 1000,
+        verbatimTokenBudget: 4000,
+        ...overrides,
+    };
+}
+
+function installWorkerContext(options = {}) {
+    return installSummaryContext({
+        chat: makeLongMessages(4),
+        settings: workerSettings(),
+        ...options,
+    });
+}
+
+function mockGhostingSummaries(ctx) {
+    mocks.summarizeBatchFromTurns.mockImplementation(async (turns) => {
+        for (const turn of turns) {
+            ctx.chat[turn.index].extra.sc_ghosted = true;
+        }
+        return true;
+    });
+}
 
 describe('requestSummarization', () => {
     it('coalesces message events that arrive while a batch request is in flight', async () => {
         const firstBatch = deferred();
-        const longTurn = 'x'.repeat(3000);
-        const ctx = installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-                makeMessage({ mes: longTurn }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
+        const ctx = installWorkerContext({ chat: makeLongMessages(8) });
 
         mocks.summarizeBatchFromTurns
             .mockImplementationOnce(async (turns) => {
@@ -102,35 +97,8 @@ describe('requestSummarization', () => {
     });
 
     it('continues automatic layer-0 batches until visible turns reach the limit', async () => {
-        const ctx = installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
-
-        mocks.summarizeBatchFromTurns.mockImplementation(async (turns) => {
-            for (const turn of turns) {
-                ctx.chat[turn.index].extra.sc_ghosted = true;
-            }
-            return true;
-        });
+        const ctx = installWorkerContext({ chat: makeLongMessages(8) });
+        mockGhostingSummaries(ctx);
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         await requestSummarization({ reason: 'new-message', mode: 'auto' });
@@ -142,25 +110,7 @@ describe('requestSummarization', () => {
 
 describe('runCatchup', () => {
     it('requests a reload after a catch-up batch commits', async () => {
-        const ctx = installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
-
+        const ctx = installWorkerContext();
         mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async (turns) => {
             ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
             return true;
@@ -174,24 +124,7 @@ describe('runCatchup', () => {
     });
 
     it('reports manual catch-up progress through callbacks', async () => {
-        const ctx = installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
+        const ctx = installWorkerContext();
         const onStart = vi.fn();
         const onProgress = vi.fn();
 
@@ -212,24 +145,7 @@ describe('runCatchup', () => {
     });
 
     it('honors an aborted manual catch-up signal before the first batch', async () => {
-        installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
+        installWorkerContext();
         const controller = new AbortController();
         controller.abort();
 
@@ -241,25 +157,7 @@ describe('runCatchup', () => {
     });
 
     it('does not request a reload when catch-up totally fails', async () => {
-        installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
-
+        installWorkerContext();
         mocks.summarizeOneBatchFromTurns.mockResolvedValue(false);
 
         const { runCatchup } = await import('../src/core/summarizer.js');
@@ -270,25 +168,7 @@ describe('runCatchup', () => {
     });
 
     it('defers final promotion when the prompt guard activates during catch-up', async () => {
-        installSillyTavernStub({
-            chat: [
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-                makeMessage({ mes: 'x'.repeat(3000) }),
-            ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 3,
-                minSummaryBudget: 1000,
-                verbatimTokenBudget: 4000,
-                applyRegexScripts: false,
-            },
-            getTokenCountAsync: async (text) => text.length,
-        });
-
+        installWorkerContext();
         mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async () => {
             const { beginForegroundGeneration } = await import('../src/core/summarizer-commit.js');
             beginForegroundGeneration();
@@ -305,21 +185,18 @@ describe('runCatchup', () => {
 
 describe('runSlopBreaker', () => {
     it('summarizes through the previous countable message and requests reload when committed', async () => {
-        const ctx = installSillyTavernStub({
+        const ctx = installWorkerContext({
             chat: [
                 makeMessage({ mes: 'assistant source' }),
                 makeMessage({ isUser: true, mes: 'trailing user', name: 'Player' }),
                 makeMessage({ isUser: true, mes: 'preserved user', name: 'Player' }),
             ],
-            settings: {
-                enabled: true,
-                pauseSummarization: false,
+            settings: workerSettings({
                 minSummaryTurns: 3,
                 maxSummaryTurns: 5,
                 minSummaryBudget: 6000,
                 verbatimTokenBudget: 16000,
-                applyRegexScripts: false,
-            },
+            }),
         });
 
         mocks.summarizeBatchFromTurns.mockImplementationOnce(async (_turns, opts) => {
@@ -355,10 +232,7 @@ describe('foreground commit guard', () => {
         const setExtensionPrompt = vi.fn();
         const hideMessages = vi.fn();
 
-        setCommitCallbacks({
-            reassertInjection,
-        });
-
+        setCommitCallbacks({ reassertInjection });
         beginForegroundGeneration();
         const result = await commitWhenSafe({
             kind: 'layer0',
@@ -387,12 +261,7 @@ describe('foreground commit guard', () => {
 describe('foreground generation save flush', () => {
     it('flushes pending chat saves after queued commits are applied', async () => {
         const order = [];
-        installSillyTavernStub({
-            chat: [],
-            settings: {
-                enabled: false,
-            },
-        });
+        installSummaryContext({ chat: [], settings: { enabled: false } });
         mocks.flushPendingChatSave.mockImplementation(async () => {
             order.push('flush');
         });

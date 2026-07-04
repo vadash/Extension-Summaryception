@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub } from './test-helpers.js';
+import { installBrowserRuntimeStub, installSillyTavernStub } from './test-helpers.js';
 
 const mocks = vi.hoisted(() => ({
     sendSummarizerRequest: vi.fn(),
@@ -12,13 +12,7 @@ vi.mock('../src/core/connectionutil.js', () => ({
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
+    installBrowserRuntimeStub();
     installSillyTavernStub({
         settings: {
             summarizerSystemPrompt: 'SYS',

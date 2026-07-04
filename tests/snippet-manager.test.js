@@ -1,29 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub, makeMessage } from './test-helpers.js';
+import {
+    installBrowserRuntimeStub,
+    installSillyTavernStub,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
-    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }), length: 1 });
+    installBrowserRuntimeStub();
 });
+
+function summaryMetadata(store) {
+    return { summaryception: makeSummaryStore(store) };
+}
 
 describe('snippet editing', () => {
     it('updates snippet text through chat metadata and refreshes injection', async () => {
         const ctx = installSnippetContext({
-            metadata: {
-                summaryception: {
-                    layers: [[{ text: 'old summary' }]],
-                    summarizedUpTo: -1,
-                    ghostedIndices: [],
-                },
-            },
+            metadata: summaryMetadata({ layers: [[{ text: 'old summary' }]] }),
         });
         const { snippetManager, mocks } = await loadSnippetManager();
 
@@ -57,18 +53,16 @@ describe('snippet deletion', () => {
                 makeMessage({ ghosted: true, isHidden: true }),
                 makeMessage({ ghosted: true, isHidden: true }),
             ],
-            metadata: {
-                summaryception: {
-                    layers: [
-                        [
-                            { text: 'first', turnRange: [0, 1] },
-                            { text: 'second', turnRange: [2, 3] },
-                        ],
+            metadata: summaryMetadata({
+                layers: [
+                    [
+                        { text: 'first', turnRange: [0, 1] },
+                        { text: 'second', turnRange: [2, 3] },
                     ],
-                    summarizedUpTo: 3,
-                    ghostedIndices: [0, 1, 2, 3],
-                },
-            },
+                ],
+                summarizedUpTo: 3,
+                ghostedIndices: [0, 1, 2, 3],
+            }),
             executeSlashCommandsWithOptions: slash,
             saveChat,
         });
@@ -97,19 +91,16 @@ describe('snippet regeneration', () => {
     it('regenerates Layer 0 snippets with surrounding snippet context', async () => {
         const ctx = installSnippetContext({
             chat: [makeMessage({ mes: 'Alpha' }), makeMessage({ mes: 'Beta' })],
-            metadata: {
-                summaryception: {
-                    layers: [
-                        [
-                            { text: 'old summary', turnRange: [0, 1] },
-                            { text: 'other context', turnRange: [2, 3] },
-                        ],
-                        [{ text: 'meta context', mergedCount: 2, fromLayer: 0 }],
+            metadata: summaryMetadata({
+                layers: [
+                    [
+                        { text: 'old summary', turnRange: [0, 1] },
+                        { text: 'other context', turnRange: [2, 3] },
                     ],
-                    summarizedUpTo: 3,
-                    ghostedIndices: [],
-                },
-            },
+                    [{ text: 'meta context', mergedCount: 2, fromLayer: 0 }],
+                ],
+                summarizedUpTo: 3,
+            }),
         });
         const { snippetManager, mocks } = await loadSnippetManager();
         mocks.callSummarizer.mockResolvedValue('new summary');
@@ -142,13 +133,10 @@ describe('snippet regeneration', () => {
 
     it('returns busy without starting a usage run', async () => {
         installSnippetContext({
-            metadata: {
-                summaryception: {
-                    layers: [[{ text: 'old summary', turnRange: [0, 0] }]],
-                    summarizedUpTo: 0,
-                    ghostedIndices: [],
-                },
-            },
+            metadata: summaryMetadata({
+                layers: [[{ text: 'old summary', turnRange: [0, 0] }]],
+                summarizedUpTo: 0,
+            }),
         });
         const { snippetManager, mocks } = await loadSnippetManager();
         mocks.getIsSummarizing.mockReturnValue(true);
@@ -163,13 +151,9 @@ describe('snippet regeneration', () => {
 
     it('rejects unsupported or missing regeneration targets', async () => {
         installSnippetContext({
-            metadata: {
-                summaryception: {
-                    layers: [[], [{ text: 'meta summary', turnRange: [0, 0] }]],
-                    summarizedUpTo: -1,
-                    ghostedIndices: [],
-                },
-            },
+            metadata: summaryMetadata({
+                layers: [[], [{ text: 'meta summary', turnRange: [0, 0] }]],
+            }),
         });
         const { snippetManager } = await loadSnippetManager();
 
@@ -184,18 +168,15 @@ describe('snippet regeneration', () => {
     it('keeps the original snippet when source text is empty or summarizer fails', async () => {
         const ctx = installSnippetContext({
             chat: [makeMessage({ mes: '   ' }), makeMessage({ mes: 'usable source' })],
-            metadata: {
-                summaryception: {
-                    layers: [
-                        [
-                            { text: 'empty source', turnRange: [0, 0] },
-                            { text: 'failed source', turnRange: [1, 1] },
-                        ],
+            metadata: summaryMetadata({
+                layers: [
+                    [
+                        { text: 'empty source', turnRange: [0, 0] },
+                        { text: 'failed source', turnRange: [1, 1] },
                     ],
-                    summarizedUpTo: 1,
-                    ghostedIndices: [],
-                },
-            },
+                ],
+                summarizedUpTo: 1,
+            }),
         });
         const { snippetManager, mocks } = await loadSnippetManager();
         mocks.callSummarizer.mockResolvedValue('');

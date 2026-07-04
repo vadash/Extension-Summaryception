@@ -1,14 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { deferred } from './test-helpers.js';
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';
-
-function deferred() {
-    /** @type {(value: unknown) => void} */
-    let resolve;
-    const promise = new Promise((r) => {
-        resolve = r;
-    });
-    return { promise, resolve };
-}
 
 function makeQueue(overrides = {}) {
     const deps = {

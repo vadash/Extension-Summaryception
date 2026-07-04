@@ -6,16 +6,18 @@ vi.stubGlobal('fetch', vi.fn());
 
 const { sendViaOpenAI } = await import('../src/core/connection-openai.js');
 
+const BASE_REQUEST = {
+    url: 'https://api.example.com',
+    apiKey: 'sk-test',
+    model: 'gpt-test',
+    systemPrompt: 'sys',
+    userPrompt: 'usr',
+};
+
 beforeEach(() => {
     vi.clearAllMocks();
 });
 
-/**
- * Build a Response whose body is a ReadableStream emitting the given byte
- * chunks with the given delays between them.
- * @param {Array<{ value: Uint8Array, delay?: number }>} chunks
- * @returns {Response}
- */
 function makeStreamResponse(chunks) {
     const stream = new ReadableStream({
         async start(controller) {
@@ -31,14 +33,6 @@ function makeStreamResponse(chunks) {
     return new Response(stream, { status: 200 });
 }
 
-/**
- * Build a Response whose body is a ReadableStream that fails on the Nth
- * read attempt. Prior reads succeed with the supplied chunks.
- * @param {Array<{ value: Uint8Array }>} chunks - chunks to emit before failing
- * @param {number} failAfter - number of successful reads before rejection
- * @param {Error} error - the error to reject with
- * @returns {Response}
- */
 function makeFailingStreamResponse(chunks, failAfter, error) {
     let readCount = 0;
     const stream = new ReadableStream({
@@ -58,28 +52,28 @@ function makeFailingStreamResponse(chunks, failAfter, error) {
     return new Response(stream, { status: 200 });
 }
 
-/**
- * @param {string} content
- * @returns {Uint8Array}
- */
 function sseEvent(content) {
     return new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"${content}"}}]}\n`);
 }
 
-/**
- * @param {boolean} [trailingNewline]
- * @returns {Uint8Array}
- */
 function sseDone(trailingNewline = true) {
     return new TextEncoder().encode(`data: [DONE]${trailingNewline ? '\n' : ''}`);
 }
 
-/**
- * Point the global fetch stub at a fixed response.
- * @param {Response} response
- */
 function stubFetch(response) {
     /** @type {any} */ (globalThis.fetch).mockResolvedValue(response);
+}
+
+function sendTestRequest(overrides = {}) {
+    return sendViaOpenAI({ ...BASE_REQUEST, ...overrides });
+}
+
+async function expectRetryableStreamFailure(response) {
+    stubFetch(response);
+    await expect(sendTestRequest()).rejects.toMatchObject({
+        name: 'ConnectionError',
+        retryable: true,
+    });
 }
 
 describe('sendViaOpenAI streaming', () => {
@@ -92,13 +86,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('Hello world!');
     });
@@ -111,13 +99,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('firstsecond');
     });
@@ -127,14 +109,7 @@ describe('sendViaOpenAI streaming', () => {
         const response = makeStreamResponse([{ value: sseEvent('done') }, { value: sseDone() }]);
         stubFetch(response);
 
-        await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-            signal: controller.signal,
-        });
+        await sendTestRequest({ signal: controller.signal });
 
         expect(globalThis.fetch).toHaveBeenCalledWith(
             'https://api.example.com/v1/chat/completions',
@@ -142,68 +117,24 @@ describe('sendViaOpenAI streaming', () => {
         );
     });
 
-    it('throws a retryable ConnectionError when a mid-stream disconnect yields long partial content', async () => {
-        const longContent =
-            'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.';
+    it.each([
+        [
+            'long',
+            'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.',
+        ],
+        ['short', 'hi'],
+    ])('throws a retryable ConnectionError for %s partial disconnects', async (_label, content) => {
         const response = makeFailingStreamResponse(
-            [{ value: sseEvent(longContent) }],
+            [{ value: sseEvent(content) }],
             1,
             new TypeError('network error'),
         );
-        stubFetch(response);
-
-        await expect(
-            sendViaOpenAI({
-                url: 'https://api.example.com',
-                apiKey: 'sk-test',
-                model: 'gpt-test',
-                systemPrompt: 'sys',
-                userPrompt: 'usr',
-            }),
-        ).rejects.toMatchObject({
-            name: 'ConnectionError',
-            retryable: true,
-        });
-    });
-
-    it('throws a retryable ConnectionError when a mid-stream disconnect yields < 64 chars', async () => {
-        const response = makeFailingStreamResponse(
-            [{ value: sseEvent('hi') }],
-            1,
-            new TypeError('network error'),
-        );
-        stubFetch(response);
-
-        await expect(
-            sendViaOpenAI({
-                url: 'https://api.example.com',
-                apiKey: 'sk-test',
-                model: 'gpt-test',
-                systemPrompt: 'sys',
-                userPrompt: 'usr',
-            }),
-        ).rejects.toMatchObject({
-            name: 'ConnectionError',
-            retryable: true,
-        });
+        await expectRetryableStreamFailure(response);
     });
 
     it('throws a retryable ConnectionError when the stream ends without DONE', async () => {
         const response = makeStreamResponse([{ value: sseEvent('incomplete summary') }]);
-        stubFetch(response);
-
-        await expect(
-            sendViaOpenAI({
-                url: 'https://api.example.com',
-                apiKey: 'sk-test',
-                model: 'gpt-test',
-                systemPrompt: 'sys',
-                userPrompt: 'usr',
-            }),
-        ).rejects.toMatchObject({
-            name: 'ConnectionError',
-            retryable: true,
-        });
+        await expectRetryableStreamFailure(response);
     });
 
     it('rethrows AbortError so the caller classifies it as a user abort', async () => {
@@ -211,15 +142,7 @@ describe('sendViaOpenAI streaming', () => {
         const response = makeFailingStreamResponse([], 0, abortError);
         stubFetch(response);
 
-        await expect(
-            sendViaOpenAI({
-                url: 'https://api.example.com',
-                apiKey: 'sk-test',
-                model: 'gpt-test',
-                systemPrompt: 'sys',
-                userPrompt: 'usr',
-            }),
-        ).rejects.toThrow(/Aborted/);
+        await expect(sendTestRequest()).rejects.toThrow(/Aborted/);
     });
 
     it('ignores the [DONE] sentinel and returns only delta content', async () => {
@@ -231,13 +154,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('alpha');
     });
@@ -251,13 +168,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('content');
     });
@@ -275,13 +186,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('firstsecond');
     });
@@ -302,13 +207,7 @@ describe('sendViaOpenAI streaming', () => {
         ]);
         stubFetch(response);
 
-        const result = await sendViaOpenAI({
-            url: 'https://api.example.com',
-            apiKey: 'sk-test',
-            model: 'gpt-test',
-            systemPrompt: 'sys',
-            userPrompt: 'usr',
-        });
+        const result = await sendTestRequest();
 
         expect(result).toBe('kept');
     });

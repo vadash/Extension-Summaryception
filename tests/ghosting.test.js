@@ -1,31 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub, makeMessage } from './test-helpers.js';
+import {
+    installBrowserRuntimeStub,
+    installSillyTavernStub,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
-    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }), length: 1 });
+    installBrowserRuntimeStub();
 });
+
+function summaryMetadata(store) {
+    return { summaryception: makeSummaryStore(store) };
+}
+
+function installGhostingContext(options = {}) {
+    return installSillyTavernStub({
+        settings: { disableGhosting: false },
+        ...options,
+    });
+}
 
 describe('ghosting prompt guard', () => {
     it('uses a single slash range for contiguous hide work', async () => {
         const slash = vi.fn(async () => {});
-        installSillyTavernStub({
+        installGhostingContext({
             chat: [
                 makeMessage({ mes: 'first' }),
                 makeMessage({ mes: 'second' }),
                 makeMessage({ mes: 'third' }),
             ],
-            settings: {
-                disableGhosting: false,
-            },
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -50,15 +56,12 @@ describe('ghosting prompt guard', () => {
             }
         });
 
-        installSillyTavernStub({
+        installGhostingContext({
             chat: [
                 makeMessage({ mes: 'first' }),
                 makeMessage({ isSystem: true, mes: 'system hole' }),
                 makeMessage({ mes: 'third' }),
             ],
-            settings: {
-                disableGhosting: false,
-            },
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -82,7 +85,7 @@ describe('ghosting prompt guard', () => {
 
     it('splits hide ranges around system, empty, and hidden holes', async () => {
         const slash = vi.fn(async () => {});
-        const ctx = installSillyTavernStub({
+        const ctx = installGhostingContext({
             chat: [
                 makeMessage({ mes: 'first' }),
                 makeMessage({ isUser: true, mes: 'user' }),
@@ -92,9 +95,6 @@ describe('ghosting prompt guard', () => {
                 makeMessage({ mes: 'second assistant' }),
                 makeMessage({ ghosted: true, isHidden: true, mes: 'already hidden' }),
             ],
-            settings: {
-                disableGhosting: false,
-            },
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -120,13 +120,7 @@ describe('ghosting persistence repair', () => {
         const saveChat = vi.fn(async () => {});
         const ctx = installSillyTavernStub({
             chat: [makeMessage({ ghosted: true }), makeMessage({ ghosted: true }), makeMessage()],
-            metadata: {
-                summaryception: {
-                    layers: [],
-                    summarizedUpTo: -1,
-                    ghostedIndices: [1],
-                },
-            },
+            metadata: summaryMetadata({ ghostedIndices: [1] }),
             executeSlashCommandsWithOptions: slash,
             saveChat,
         });
@@ -149,13 +143,7 @@ describe('ghosting persistence repair', () => {
                 makeMessage({ ghosted: true }),
                 makeMessage({ ghosted: true }),
             ],
-            metadata: {
-                summaryception: {
-                    layers: [],
-                    summarizedUpTo: -1,
-                    ghostedIndices: [0, 1, 2],
-                },
-            },
+            metadata: summaryMetadata({ ghostedIndices: [0, 1, 2] }),
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -172,16 +160,12 @@ describe('ghosting persistence repair', () => {
 
     it('repairs missing ghost flags when summaries exist', async () => {
         const slash = vi.fn(async () => {});
-        const ctx = installSillyTavernStub({
+        const ctx = installGhostingContext({
             chat: [makeMessage({ isUser: true }), makeMessage()],
-            metadata: {
-                summaryception: {
-                    layers: [[{ text: 'summary', turnRange: [0, 1] }]],
-                    summarizedUpTo: 1,
-                    ghostedIndices: [],
-                },
-            },
-            settings: { disableGhosting: false },
+            metadata: summaryMetadata({
+                layers: [[{ text: 'summary', turnRange: [0, 1] }]],
+                summarizedUpTo: 1,
+            }),
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -198,20 +182,17 @@ describe('ghosting persistence repair', () => {
 
     it('repairs checkpointed flags that were not visually hidden before reload', async () => {
         const slash = vi.fn(async () => {});
-        const ctx = installSillyTavernStub({
+        const ctx = installGhostingContext({
             chat: [
                 makeMessage({ ghosted: true }),
                 makeMessage({ ghosted: true, isHidden: true }),
                 makeMessage(),
             ],
-            metadata: {
-                summaryception: {
-                    layers: [[{ text: 'summary', turnRange: [0, 2] }]],
-                    summarizedUpTo: 2,
-                    ghostedIndices: [0, 1],
-                },
-            },
-            settings: { disableGhosting: false },
+            metadata: summaryMetadata({
+                layers: [[{ text: 'summary', turnRange: [0, 2] }]],
+                summarizedUpTo: 2,
+                ghostedIndices: [0, 1],
+            }),
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -228,7 +209,7 @@ describe('ghosting persistence repair', () => {
 
     it('repairs visible gaps across the full processed prefix after promotion', async () => {
         const slash = vi.fn(async () => {});
-        const ctx = installSillyTavernStub({
+        const ctx = installGhostingContext({
             chat: [
                 makeMessage({ ghosted: true, isHidden: true }),
                 makeMessage(),
@@ -236,14 +217,11 @@ describe('ghosting persistence repair', () => {
                 makeMessage(),
                 makeMessage({ ghosted: true, isHidden: true }),
             ],
-            metadata: {
-                summaryception: {
-                    layers: [[], [{ text: 'promoted summary', fromLayer: 0, mergedCount: 3 }]],
-                    summarizedUpTo: 4,
-                    ghostedIndices: [0, 2, 4],
-                },
-            },
-            settings: { disableGhosting: false },
+            metadata: summaryMetadata({
+                layers: [[], [{ text: 'promoted summary', fromLayer: 0, mergedCount: 3 }]],
+                summarizedUpTo: 4,
+                ghostedIndices: [0, 2, 4],
+            }),
             executeSlashCommandsWithOptions: slash,
         });
 
@@ -264,13 +242,11 @@ describe('ghosting persistence repair', () => {
                 makeMessage({ ghosted: true, isHidden: true }),
                 makeMessage({ ghosted: true, isHidden: true }),
             ],
-            metadata: {
-                summaryception: {
-                    layers: [[{ text: 'summary', turnRange: [0, 1] }]],
-                    summarizedUpTo: 1,
-                    ghostedIndices: [0, 1],
-                },
-            },
+            metadata: summaryMetadata({
+                layers: [[{ text: 'summary', turnRange: [0, 1] }]],
+                summarizedUpTo: 1,
+                ghostedIndices: [0, 1],
+            }),
             executeSlashCommandsWithOptions: slash,
         });
 

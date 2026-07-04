@@ -1,27 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub } from './test-helpers.js';
+import {
+    installBrowserRuntimeStub,
+    installSillyTavernStub,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
+    installBrowserRuntimeStub();
 });
 
 describe('promotion prompt guard', () => {
     it('updates injection for queued promotion commits only after unfreeze', async () => {
         const ctx = installSillyTavernStub({
             metadata: {
-                summaryception: {
+                summaryception: makeSummaryStore({
                     layers: [[{ text: 'older' }, { text: 'newer' }]],
                     summarizedUpTo: 4,
-                    ghostedIndices: [],
-                },
+                }),
             },
             settings: {
                 maxLayers: 3,

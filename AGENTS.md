@@ -60,6 +60,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 
 - Never run manual verification checks (lint, format, typecheck, build).
 - Use `npm test` for behavior changes; tests are Vitest.
+- Prefer `tests/test-helpers.js` fixtures over inline SillyTavern/toastr/jQuery stubs.
 - Manual-check SillyTavern integration with `debugMode` or `traceMode`.
 - Test each connection source independently when connection code changes.
 - Verify backlog detection, foreground-generation freeze, ghosting, and layer promotion with large chats.

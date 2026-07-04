@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub, makeMessage } from './test-helpers.js';
+import { installBrowserRuntimeStub, installSummaryContext, makeMessage } from './test-helpers.js';
 
 const mocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
@@ -24,28 +24,13 @@ vi.mock('../src/core/persist-state.js', () => ({
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
+    installBrowserRuntimeStub();
 });
 
 async function runStaleCase(mutator) {
-    const ctx = installSillyTavernStub({
+    const ctx = installBatchContext({
         chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
-        settings: {
-            enabled: true,
-            applyRegexScripts: false,
-            minSummaryTurns: 2,
-            maxSummaryTurns: 5,
-            minSummaryBudget: 6000,
-            verbatimTokenBudget: 16000,
-        },
     });
-    ctx.chatId = 'chat-a';
 
     mocks.callSummarizer.mockImplementation(async () => {
         mutator(ctx);
@@ -64,24 +49,21 @@ async function runStaleCase(mutator) {
     expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
 }
 
+function installBatchContext(options = {}) {
+    const ctx = installSummaryContext(options);
+    ctx.chatId = 'chat-a';
+    return ctx;
+}
+
 describe('summarizeBatchFromTurns stale result rejection', () => {
     it('uses an explicit source endpoint for a final user-ended batch', async () => {
-        const ctx = installSillyTavernStub({
+        const ctx = installBatchContext({
             chat: [
                 makeMessage({ mes: 'assistant source' }),
                 makeMessage({ isUser: true, mes: 'trailing user', name: 'Player' }),
                 makeMessage({ isUser: true, mes: 'preserved user', name: 'Player' }),
             ],
-            settings: {
-                enabled: true,
-                applyRegexScripts: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 5,
-                minSummaryBudget: 6000,
-                verbatimTokenBudget: 16000,
-            },
         });
-        ctx.chatId = 'chat-a';
         mocks.callSummarizer.mockResolvedValue('new summary');
 
         const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
@@ -128,18 +110,9 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
     });
 
     it('defers prompt effects for a completed summary while foreground generation is frozen', async () => {
-        const ctx = installSillyTavernStub({
+        installBatchContext({
             chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
-            settings: {
-                enabled: true,
-                applyRegexScripts: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 5,
-                minSummaryBudget: 6000,
-                verbatimTokenBudget: 16000,
-            },
         });
-        ctx.chatId = 'chat-a';
         mocks.callSummarizer.mockResolvedValue('new summary');
 
         const {
@@ -171,18 +144,9 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
     });
 
     it('discards a deferred result when summary layers change before unfreeze', async () => {
-        const ctx = installSillyTavernStub({
+        const ctx = installBatchContext({
             chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
-            settings: {
-                enabled: true,
-                applyRegexScripts: false,
-                minSummaryTurns: 2,
-                maxSummaryTurns: 5,
-                minSummaryBudget: 6000,
-                verbatimTokenBudget: 16000,
-            },
         });
-        ctx.chatId = 'chat-a';
         mocks.callSummarizer.mockResolvedValue('new summary');
 
         const { beginForegroundGeneration, endForegroundGeneration, resetCommitStateForTests } =

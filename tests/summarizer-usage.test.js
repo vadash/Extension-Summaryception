@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub } from './test-helpers.js';
+import { installBrowserRuntimeStub, installSillyTavernStub } from './test-helpers.js';
 
 const mocks = vi.hoisted(() => ({
     sendSummarizerRequest: vi.fn(),
@@ -14,13 +14,7 @@ let consoleLogSpy;
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
+    installBrowserRuntimeStub();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 });
 

@@ -1,17 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub, makeMessage } from './test-helpers.js';
+import {
+    installBrowserRuntimeStub,
+    installSillyTavernStub,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    globalThis.toastr = {
-        info: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn(),
-        error: vi.fn(),
-        clear: vi.fn(),
-    };
-    globalThis.$ = () => ({ find: () => ({ text: vi.fn() }), length: 1 });
+    installBrowserRuntimeStub();
 });
 
 afterEach(() => {
@@ -25,11 +23,10 @@ describe('loaded chat reconciliation', () => {
             order.push(command);
         });
         const metadata = {
-            summaryception: {
+            summaryception: makeSummaryStore({
                 layers: [[{ text: 'committed summary', turnRange: [0, 1] }]],
                 summarizedUpTo: 1,
-                ghostedIndices: [],
-            },
+            }),
         };
         const ctx = installSillyTavernStub({
             chat: [makeMessage(), makeMessage()],
@@ -62,13 +59,7 @@ describe('loaded chat reconciliation', () => {
         const repairMissingGhostingForSummaries = vi.fn(async () => false);
         installSillyTavernStub({
             chat: [],
-            metadata: {
-                summaryception: {
-                    layers: [],
-                    summarizedUpTo: -1,
-                    ghostedIndices: [],
-                },
-            },
+            metadata: { summaryception: makeSummaryStore() },
         });
 
         vi.doMock('../src/core/ghosting-reconcile.js', () => ({

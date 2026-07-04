@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { countTokens, makeMessage } from './test-helpers.js';
 
 // Mock state.js so chatutils does not need a live SillyTavern global.
 vi.mock('../src/foundation/state.js', () => ({
@@ -34,35 +35,12 @@ import {
     buildFullContext,
 } from '../src/core/chatutils.js';
 
-function msg({
-    isUser = false,
-    isSystem = false,
-    isHidden = false,
-    mes = 'text',
-    name = 'Assistant',
-    ghosted = false,
-} = {}) {
-    return {
-        is_user: isUser,
-        is_system: isSystem,
-        is_hidden: isHidden,
-        mes,
-        name,
-        extra: ghosted ? { sc_ghosted: true } : {},
-    };
-}
-
-function countTokens(text) {
-    const trimmed = String(text || '').trim();
-    return trimmed ? trimmed.split(/\s+/).length : 0;
-}
-
 describe('getAssistantTurns', () => {
     it('returns only assistant messages, preserving their chat index', () => {
         const chat = [
-            msg({ isUser: true, mes: 'Hi' }),
-            msg({ mes: 'Hello!' }),
-            msg({ mes: 'Anything else?' }),
+            makeMessage({ isUser: true, mes: 'Hi' }),
+            makeMessage({ mes: 'Hello!' }),
+            makeMessage({ mes: 'Anything else?' }),
         ];
         const turns = getAssistantTurns(chat);
         expect(turns).toHaveLength(2);
@@ -71,8 +49,8 @@ describe('getAssistantTurns', () => {
 
     it('considers system messages that were ghosted as assistant turns', () => {
         const chat = [
-            msg({ isSystem: true, mes: 'sys', ghosted: true }),
-            msg({ isSystem: true, mes: 'plain sys' }),
+            makeMessage({ isSystem: true, mes: 'sys', ghosted: true }),
+            makeMessage({ isSystem: true, mes: 'plain sys' }),
         ];
         const turns = getAssistantTurns(chat);
         expect(turns).toHaveLength(1);
@@ -80,7 +58,11 @@ describe('getAssistantTurns', () => {
     });
 
     it('skips messages whose mes is empty or whitespace', () => {
-        const chat = [msg({ mes: '' }), msg({ mes: '   ' }), msg({ mes: 'real' })];
+        const chat = [
+            makeMessage({ mes: '' }),
+            makeMessage({ mes: '   ' }),
+            makeMessage({ mes: 'real' }),
+        ];
         const turns = getAssistantTurns(chat);
         expect(turns).toHaveLength(1);
         expect(turns[0].index).toBe(2);
@@ -90,10 +72,10 @@ describe('getAssistantTurns', () => {
 describe('getVisibleAssistantTurns', () => {
     it('excludes user, system, and ghosted messages', () => {
         const chat = [
-            msg({ isUser: true }),
-            msg({ ghosted: true }),
-            msg({ isSystem: true }),
-            msg({ mes: 'visible' }),
+            makeMessage({ isUser: true }),
+            makeMessage({ ghosted: true }),
+            makeMessage({ isSystem: true }),
+            makeMessage({ mes: 'visible' }),
         ];
         const turns = getVisibleAssistantTurns(chat);
         expect(turns).toHaveLength(1);
@@ -103,25 +85,34 @@ describe('getVisibleAssistantTurns', () => {
 
 describe('buildPassageFromRange', () => {
     it('prefixes each speaker and joins with newlines', async () => {
-        const chat = [msg({ isUser: true, mes: 'go north' }), msg({ mes: 'You enter a forest.' })];
+        const chat = [
+            makeMessage({ isUser: true, mes: 'go north' }),
+            makeMessage({ mes: 'You enter a forest.' }),
+        ];
         const passage = await buildPassageFromRange(chat, 0, 1);
         expect(passage).toBe(['Player: go north', 'Assistant: You enter a forest.'].join('\n'));
     });
 
     it('skips messages hidden by the user but keeps our ghosted ones', async () => {
-        const chat = [msg({ isHidden: true, mes: 'secret' }), msg({ ghosted: true, mes: 'ours' })];
+        const chat = [
+            makeMessage({ isHidden: true, mes: 'secret' }),
+            makeMessage({ ghosted: true, mes: 'ours' }),
+        ];
         await expect(buildPassageFromRange(chat, 0, 1)).resolves.toBe('Assistant: ours');
     });
 
     it('handles a missing or empty message inside the range', async () => {
-        const chat = [msg({ mes: 'good' }), msg({ mes: '' })];
+        const chat = [makeMessage({ mes: 'good' }), makeMessage({ mes: '' })];
         await expect(buildPassageFromRange(chat, 0, 1)).resolves.toBe('Assistant: good');
     });
 });
 
 describe('buildPassageFromRangeWithStats', () => {
     it('reports matching raw and final tokens when regex is off', async () => {
-        const chat = [msg({ isUser: true, mes: 'go north' }), msg({ mes: 'You enter.' })];
+        const chat = [
+            makeMessage({ isUser: true, mes: 'go north' }),
+            makeMessage({ mes: 'You enter.' }),
+        ];
         const result = await buildPassageFromRangeWithStats(chat, 0, 1);
 
         expect(result.text).toBe(['Player: go north', 'Assistant: You enter.'].join('\n'));
@@ -139,7 +130,7 @@ describe('buildPassageFromRangeWithStats', () => {
     });
 
     it('caches per-message token counts and refreshes them after edits', async () => {
-        const chat = [msg({ mes: 'first count' })];
+        const chat = [makeMessage({ mes: 'first count' })];
 
         const first = await buildPassageFromRangeWithStats(chat, 0, 0);
 
@@ -175,7 +166,7 @@ describe('buildPassageFromRangeWithStats', () => {
         vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('visible');
 
-        const chat = [msg({ mes: 'visible hidden' })];
+        const chat = [makeMessage({ mes: 'visible hidden' })];
         const result = await buildPassageFromRangeWithStats(chat, 0, 0);
         const rawTokens = countTokens('Assistant: visible hidden');
         const finalTokens = countTokens('Assistant: visible');
@@ -196,7 +187,7 @@ describe('buildPassageFromRangeWithStats', () => {
         vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('short expanded');
 
-        const chat = [msg({ mes: 'short' })];
+        const chat = [makeMessage({ mes: 'short' })];
         const result = await buildPassageFromRangeWithStats(chat, 0, 0);
         const rawTokens = countTokens('Assistant: short');
         const finalTokens = countTokens('Assistant: short expanded');
