@@ -44,6 +44,7 @@ const RETRYABLE_MESSAGE_PATTERNS = [
     'too many requests',
     'server error',
     'timeout',
+    'timed out',
     'econnreset',
     'econnrefused',
     'network',

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     getConnectionDisplayName,
     providers,
+    resolveFallbackSummarizerConnectionSettings,
     resolveSummarizerConnectionSettings,
     sendSummarizerRequest,
     testSummarizerConnection,
@@ -156,6 +157,66 @@ describe('connection providers registry', () => {
         };
 
         expect(resolveSummarizerConnectionSettings(settings, { kind: 'layer0' })).toBe(settings);
+    });
+
+    it('resolves a distinct fallback route for Layer 0 calls', () => {
+        const fallback = resolveFallbackSummarizerConnectionSettings(
+            {
+                connectionSource: 'profile',
+                connectionProfileId: 'fast-profile',
+                fallbackConnectionSource: 'profile',
+                fallbackConnectionProfileId: 'backup-profile',
+                fallbackSummarizerResponseLength: 512,
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(fallback).toMatchObject({
+            connectionSource: 'profile',
+            connectionProfileId: 'backup-profile',
+            summarizerResponseLength: 512,
+        });
+    });
+
+    it('resolves fallback after the promotion merge override', () => {
+        const fallback = resolveFallbackSummarizerConnectionSettings(
+            {
+                connectionSource: 'profile',
+                connectionProfileId: 'fast-profile',
+                mergeConnectionSource: 'profile',
+                mergeConnectionProfileId: 'smart-profile',
+                fallbackConnectionSource: 'openai',
+                openaiUrl: 'https://example.test/v1',
+                openaiKey: 'shared-key',
+                fallbackOpenaiModel: 'backup-model',
+                fallbackOpenaiMaxTokens: 300,
+            },
+            { kind: 'promotion' },
+        );
+
+        expect(fallback).toMatchObject({
+            connectionSource: 'openai',
+            openaiUrl: 'https://example.test/v1',
+            openaiKey: 'shared-key',
+            openaiModel: 'backup-model',
+            openaiMaxTokens: 300,
+        });
+    });
+
+    it('does not resolve fallback when it matches the primary route', () => {
+        const fallback = resolveFallbackSummarizerConnectionSettings(
+            {
+                connectionSource: 'openai',
+                openaiUrl: 'https://example.test/v1',
+                openaiKey: 'shared-key',
+                openaiModel: 'same-model',
+                fallbackConnectionSource: 'openai',
+                fallbackOpenaiModel: 'same-model',
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(fallback).toBeNull();
     });
 
     it('tests connections through the resolved provider', async () => {

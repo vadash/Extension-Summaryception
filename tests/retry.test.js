@@ -82,6 +82,7 @@ describe('isRetryableError', () => {
         expect(isRetryableError(new Error('Too Many Requests'))).toBe(true);
         expect(isRetryableError(new Error('Server Error: boom'))).toBe(true);
         expect(isRetryableError(new Error('timeout'))).toBe(true);
+        expect(isRetryableError(new Error('Request timed out after 120s'))).toBe(true);
         expect(isRetryableError(new Error('ECONNRESET'))).toBe(true);
         expect(isRetryableError(new Error('ECONNREFUSED'))).toBe(true);
         expect(isRetryableError(new Error('network error'))).toBe(true);

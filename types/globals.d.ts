@@ -87,6 +87,12 @@ interface ExtensionSettings {
     mergeOllamaModel: string;
     mergeOpenaiModel: string;
     mergeOpenaiMaxTokens: number;
+    fallbackConnectionSource: string;
+    fallbackSummarizerResponseLength: number;
+    fallbackConnectionProfileId: string;
+    fallbackOllamaModel: string;
+    fallbackOpenaiModel: string;
+    fallbackOpenaiMaxTokens: number;
 }
 
 interface GenerateRawMessage {

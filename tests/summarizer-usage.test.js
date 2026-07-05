@@ -6,6 +6,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/core/connectionutil.js', () => ({
+    ConnectionError: class ConnectionError extends Error {
+        constructor(message, { retryable = false, status = null } = {}) {
+            super(message);
+            this.name = 'ConnectionError';
+            this.retryable = retryable;
+            this.status = status;
+        }
+    },
+    resolveFallbackSummarizerConnectionSettings: () => null,
     resolveSummarizerConnectionSettings: (settings) => settings,
     sendSummarizerRequest: mocks.sendSummarizerRequest,
 }));

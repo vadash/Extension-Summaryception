@@ -94,4 +94,13 @@ describe('constants', () => {
         expect(defaultSettings.mergeOpenaiMaxTokens).toBe(0);
         expect(defaultSettings.mergeSummarizerResponseLength).toBe(0);
     });
+
+    it('keeps the fallback connection disabled by default', () => {
+        expect(defaultSettings.fallbackConnectionSource).toBe('disabled');
+        expect(defaultSettings.fallbackConnectionProfileId).toBe('');
+        expect(defaultSettings.fallbackOllamaModel).toBe('');
+        expect(defaultSettings.fallbackOpenaiModel).toBe('');
+        expect(defaultSettings.fallbackOpenaiMaxTokens).toBe(0);
+        expect(defaultSettings.fallbackSummarizerResponseLength).toBe(0);
+    });
 });

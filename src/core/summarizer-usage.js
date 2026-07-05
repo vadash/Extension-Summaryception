@@ -13,6 +13,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {PassageRegexStats} [regexStats] - Passage regex stats
  * @property {number} [layerIndex] - Source layer for promotion calls
  * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
+ * @property {boolean} [useFallback] - Whether this call is routed through fallback
  */
 
 /**

@@ -104,6 +104,20 @@ export function getConnectionDisplayName(settings) {
  * @returns {ExtensionSettings}
  */
 export function resolveSummarizerConnectionSettings(settings, metadata = {}) {
+    if (metadata.useFallback) {
+        return resolveFallbackSummarizerConnectionSettings(settings, metadata) || settings;
+    }
+
+    return resolvePrimarySummarizerConnectionSettings(settings, metadata);
+}
+
+/**
+ * Resolve the primary connection for one summarizer call.
+ * @param {ExtensionSettings} settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {ExtensionSettings}
+ */
+export function resolvePrimarySummarizerConnectionSettings(settings, metadata = {}) {
     if (metadata.kind !== 'promotion' || !shouldUseMergeConnection(settings)) {
         return settings;
     }
@@ -120,12 +134,77 @@ export function resolveSummarizerConnectionSettings(settings, metadata = {}) {
 }
 
 /**
+ * Resolve the fallback connection for one summarizer call, if configured and distinct.
+ * @param {ExtensionSettings} settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {ExtensionSettings|null}
+ */
+export function resolveFallbackSummarizerConnectionSettings(settings, metadata = {}) {
+    if (!shouldUseFallbackConnection(settings)) {
+        return null;
+    }
+
+    const primary = resolvePrimarySummarizerConnectionSettings(settings, metadata);
+    const fallback = {
+        ...settings,
+        connectionSource: settings.fallbackConnectionSource,
+        summarizerResponseLength: settings.fallbackSummarizerResponseLength || 0,
+        connectionProfileId: settings.fallbackConnectionProfileId || '',
+        ollamaModel: settings.fallbackOllamaModel || '',
+        openaiModel: settings.fallbackOpenaiModel || '',
+        openaiMaxTokens: settings.fallbackOpenaiMaxTokens || 0,
+    };
+
+    return isSameConnectionRoute(primary, fallback) ? null : fallback;
+}
+
+/**
  * Check whether the Layer 1+ override is configured.
  * @param {ExtensionSettings} settings
  * @returns {boolean}
  */
 function shouldUseMergeConnection(settings) {
     return Boolean(settings.mergeConnectionSource && settings.mergeConnectionSource !== 'inherit');
+}
+
+/**
+ * Check whether fallback routing is configured with a known provider.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean}
+ */
+function shouldUseFallbackConnection(settings) {
+    const source = settings.fallbackConnectionSource;
+    return Boolean(source && source !== 'disabled' && providers[source]);
+}
+
+/**
+ * Compare provider identity, ignoring tunables that do not change the backend route.
+ * @param {ExtensionSettings} primary
+ * @param {ExtensionSettings} fallback
+ * @returns {boolean}
+ */
+function isSameConnectionRoute(primary, fallback) {
+    if ((primary.connectionSource || 'default') !== (fallback.connectionSource || 'default')) {
+        return false;
+    }
+
+    if (fallback.connectionSource === 'profile') {
+        return (primary.connectionProfileId || '') === (fallback.connectionProfileId || '');
+    }
+    if (fallback.connectionSource === 'ollama') {
+        return (
+            (primary.ollamaUrl || '') === (fallback.ollamaUrl || '') &&
+            (primary.ollamaModel || '') === (fallback.ollamaModel || '')
+        );
+    }
+    if (fallback.connectionSource === 'openai') {
+        return (
+            (primary.openaiUrl || '') === (fallback.openaiUrl || '') &&
+            (primary.openaiKey || '') === (fallback.openaiKey || '') &&
+            (primary.openaiModel || '') === (fallback.openaiModel || '')
+        );
+    }
+    return true;
 }
 
 /**

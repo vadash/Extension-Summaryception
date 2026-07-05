@@ -1,5 +1,10 @@
 import { LOG_PREFIX, defaultSettings } from '../foundation/constants.js';
-import { resolveSummarizerConnectionSettings, sendSummarizerRequest } from './connectionutil.js';
+import {
+    ConnectionError,
+    resolveFallbackSummarizerConnectionSettings,
+    resolveSummarizerConnectionSettings,
+    sendSummarizerRequest,
+} from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
 import { isTraceEnabled, log, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
@@ -214,12 +219,78 @@ function formatPromptLogCount(count, singular) {
  * @returns {Promise<string>} Summary text, or '' on failure
  */
 async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata }) {
+    const primary = await runSummarizerAttemptSeries({
+        s,
+        systemPrompt,
+        prompt,
+        signal,
+        metadata,
+        routeLabel: 'primary',
+    });
+
+    if (primary.status === 'success') {
+        return primary.result;
+    }
+    if (primary.status === 'aborted') {
+        return abortWithToast();
+    }
+
+    const fallbackSettings = resolveFallbackSummarizerConnectionSettings(s, metadata);
+    if (primary.retryable && fallbackSettings) {
+        log(
+            `Primary summarizer failed after retryable errors; trying fallback ` +
+                `(${fallbackSettings.connectionSource}).`,
+        );
+        const fallback = await runSummarizerAttemptSeries({
+            s,
+            systemPrompt,
+            prompt,
+            signal,
+            metadata: { ...metadata, useFallback: true },
+            routeLabel: 'fallback',
+        });
+
+        if (fallback.status === 'success') {
+            return fallback.result;
+        }
+        if (fallback.status === 'aborted') {
+            return abortWithToast();
+        }
+        return failSummarization(fallback.error, {
+            retriesExhausted: fallback.retryable,
+        });
+    }
+
+    return failSummarization(primary.error, {
+        retriesExhausted: primary.retryable,
+    });
+}
+
+/**
+ * Run retry attempts for one resolved connection route.
+ * @param {object} p
+ * @param {object} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
+ * @param {string} p.prompt - Fully substituted user prompt
+ * @param {AbortSignal} p.signal - Abort signal
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @param {string} p.routeLabel - Human-readable route label for trace logs
+ * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false } | { status: 'failed', result: string, error: Error, retryable: boolean } | { status: 'aborted', result: string, error: Error, retryable: false }>}
+ */
+async function runSummarizerAttemptSeries({
+    s,
+    systemPrompt,
+    prompt,
+    signal,
+    metadata,
+    routeLabel,
+}) {
     /** @type {Error & { status?: number, response?: { status?: number } }} */
     let lastError = new Error('no error');
 
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
         if (signal.aborted) {
-            return abortWithToast();
+            return { status: 'aborted', result: '', error: lastError, retryable: false };
         }
 
         const attemptResult = await executeSummarizerAttempt({
@@ -229,26 +300,37 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
             signal,
             attempt,
             metadata,
+            routeLabel,
         });
 
         if (attemptResult.success) {
-            return attemptResult.result;
+            return {
+                status: 'success',
+                result: attemptResult.result,
+                error: attemptResult.error,
+                retryable: false,
+            };
         }
 
         lastError = attemptResult.error;
 
         if (attemptResult.aborted) {
-            return abortWithToast();
+            return { status: 'aborted', result: '', error: lastError, retryable: false };
         }
 
         if (shouldStopRetrying(attemptResult, attempt)) {
-            return failSummarization(lastError);
+            return {
+                status: 'failed',
+                result: '',
+                error: lastError,
+                retryable: attemptResult.shouldRetry,
+            };
         }
 
         await notifyRetryAndWait(lastError, attempt, signal);
     }
 
-    return failSummarization(lastError);
+    return { status: 'failed', result: '', error: lastError, retryable: true };
 }
 
 /**
@@ -260,14 +342,23 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
  * @param {AbortSignal} p.signal
  * @param {number} p.attempt - Zero-based attempt index
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @param {string} p.routeLabel - Human-readable route label for trace logs
  * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
  */
-async function executeSummarizerAttempt({ s, systemPrompt, prompt, signal, attempt, metadata }) {
-    trace(`  Attempt ${attempt} starting...`);
+async function executeSummarizerAttempt({
+    s,
+    systemPrompt,
+    prompt,
+    signal,
+    attempt,
+    metadata,
+    routeLabel,
+}) {
+    trace(`  ${routeLabel} attempt ${attempt} starting...`);
 
     try {
         if (attempt > 0) {
-            log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
+            log(`${routeLabel} retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
         }
 
         await traceSummarizerRequest({ s, systemPrompt, prompt, metadata });
@@ -461,7 +552,9 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
         }
 
         timer = setTimeout(() => {
-            const error = new Error('Request timed out after 120s');
+            const error = new ConnectionError('Request timed out after 120s', {
+                retryable: true,
+            });
             reject(error);
             controller.abort(error);
         }, timeoutMs);
@@ -558,11 +651,12 @@ function abortWithToast() {
  * @param {Error & { status?: number, response?: { status?: number } }} lastError
  * @returns {string} Always ''
  */
-function failSummarization(lastError) {
+function failSummarization(lastError, { retriesExhausted = true } = {}) {
     const status = lastError?.status || lastError?.response?.status || '';
-    console.error(LOG_PREFIX, 'Summarization failed after all retries:', lastError);
+    const retryText = retriesExhausted ? ` after ${RETRY_CONFIG.maxRetries} retries` : '';
+    console.error(LOG_PREFIX, `Summarization failed${retryText}:`, lastError);
     toastr.error(
-        `Summarization failed after ${RETRY_CONFIG.maxRetries} retries${status ? ` (${status})` : ''}. Batch skipped — will retry on next trigger.`,
+        `Summarization failed${retryText}${status ? ` (${status})` : ''}. Batch skipped — will retry on next trigger.`,
         'Summaryception',
         { timeOut: 8000 },
     );

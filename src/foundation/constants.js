@@ -150,6 +150,14 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
     mergeOllamaModel: '',
     mergeOpenaiModel: '',
     mergeOpenaiMaxTokens: 0,
+
+    // Optional fallback connection used after the primary route exhausts retryable failures.
+    fallbackConnectionSource: 'disabled', // 'disabled' | 'default' | 'profile' | 'ollama' | 'openai'
+    fallbackSummarizerResponseLength: 0,
+    fallbackConnectionProfileId: '',
+    fallbackOllamaModel: '',
+    fallbackOpenaiModel: '',
+    fallbackOpenaiMaxTokens: 0,
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────
