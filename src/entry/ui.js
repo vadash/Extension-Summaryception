@@ -132,7 +132,9 @@ async function getVisibleBacklogCount(s, store) {
     try {
         if (s.memoryMode === MEMORY_MODES.CACHE) {
             const plan = await getCacheFriendlyPlan(getChat(), store, s);
-            return plan.reason === 'ready' ? plan.chunks.length : 0;
+            return plan.reason === 'ready'
+                ? Math.max(plan.batchTurns.length, plan.overflowCount)
+                : 0;
         }
         const plan = await getLayer0OverflowPlan(getChat(), store, s);
         return plan.reason === 'none' ? 0 : Math.max(plan.batchTurns.length, plan.overflowCount);
@@ -154,14 +156,10 @@ function syncMemoryModeControls(s) {
     $('#sc_memory_help_custom').toggle(isCustom);
     $('#sc_manual_cache_warning').toggle(isCache);
     $('#sc_cache_status_section').toggle(isCache);
-    $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', isCache);
-    $('#sc_min_summary_turns, #sc_max_summary_turns')
-        .closest('.sc-row')
-        .toggleClass('sc-disabled', isCache);
+    $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', false);
+    $('#sc_min_summary_turns, #sc_max_summary_turns').closest('.sc-row').removeClass('sc-disabled');
     $('#sc_min_summary_budget_hint').text(
-        isCache
-            ? 'Target token size for each cache flush chunk.'
-            : 'Overflow passage tokens to collect before summarizing short batches.',
+        'Overflow passage tokens to collect before summarizing short batches.',
     );
 }
 
@@ -315,7 +313,7 @@ async function renderCacheStatus(s, store) {
 
 function getCacheReadyStateText(plan) {
     if (plan.reason === 'ready') {
-        return `Ready: ${plan.chunks.length} chunk${plan.chunks.length === 1 ? '' : 's'}`;
+        return `Ready: ${plan.batchTurns.length} / ${plan.overflowCount} turns`;
     }
     if (plan.tokenBudgetExceeded) {
         return 'Waiting for a flushable assistant turn';

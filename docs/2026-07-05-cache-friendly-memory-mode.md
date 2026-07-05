@@ -46,19 +46,14 @@ Existing custom templates are preserved unless reset/default-filled.
 
 Standard and Custom keep the existing continuous summarization behavior.
 
-Cache Friendly uses auto worker-only frozen-window planning:
+Cache Friendly uses auto worker-only delayed-start planning:
 
 - Count prompt-visible, unghosted live chat after `summarizedUpTo`.
 - If live tokens are within `verbatimTokenBudget`, do nothing and do not promote layers.
 - Protect a live tail of `clamp(roundTo1000(verbatimTokenBudget * 0.20), 4000, 8000)` tokens.
-- Flush from `summarizedUpTo + 1` through the last assistant turn before the protected tail.
-- Use token-balanced contiguous chunks ending on assistant turns.
-- Use `minSummaryBudget` as the cache chunk target.
-- Ignore `minSummaryTurns` and `maxSummaryTurns` in Cache Friendly.
-- Summarize chunks sequentially.
-- Later chunks see committed memory plus earlier draft summaries from the same flush.
-- If any chunk fails, commit nothing and hide nothing.
-- If all chunks succeed, append all Layer 0 snippets in one commit, refresh injection, ghost the flushed range, then run promotion immediately after the successful cache flush.
+- Select flushable assistant turns before the protected tail.
+- Process one capped Layer 0 batch with the same `maxSummaryTurns` limit as Standard and Custom.
+- After each committed Layer 0 batch, re-evaluate promotion pressure before any new Layer 0 work.
 
 ## UI
 
@@ -67,14 +62,14 @@ Cache Friendly uses auto worker-only frozen-window planning:
 - Repair visually hides old metadata-only Summaryception ghosts.
 - Add `Memory Mode` controls in Retention with one visible help panel.
 - In Cache Friendly:
-  - Disable Min/Max Summary Turns.
-  - Keep Minimum Summary Budget enabled as the cache chunk target.
+  - Keep Min/Max Summary Turns enabled because ready cache mode uses the same Layer 0 batching loop.
+  - Keep Minimum Summary Budget enabled for Standard/Custom short-batch readiness.
   - Show read-only Status cache stats.
 - Manual Force/Slop keeps standard behavior and warns that manual summaries update memory immediately.
 
 ## Tests
 
 - Injection option mapping for Standard, Cache Friendly, and Custom.
-- Cache planner under-budget, protected tail, flush range, balanced chunks, min/max ignored.
-- Cache transaction success, draft context, and failure rollback behavior.
+- Cache planner under-budget, protected tail, flush range, and capped batch selection.
+- Cache auto worker delayed-start behavior and promotion-first scheduling.
 - Ghosting and state/UI tests updated for removed pause/disable settings.

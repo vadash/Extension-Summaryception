@@ -3,14 +3,6 @@ import { applyRegexToMessage } from './regex-proxy.js';
 import { countMessageTokens } from './token-count.js';
 
 /**
- * @typedef {object} CacheFlushChunk
- * @property {number} startIdx
- * @property {number} endIdx
- * @property {number} assistantTurnCount
- * @property {number} finalTokens
- */
-
-/**
  * @typedef {object} CacheFriendlyPlan
  * @property {'ready' | 'none'} reason
  * @property {number} flushStartIdx
@@ -21,7 +13,8 @@ import { countMessageTokens } from './token-count.js';
  * @property {number} protectedTailTokens
  * @property {number} estimatedFlushTokens
  * @property {import('./chatutils.js').AssistantTurn[]} assistantTurns
- * @property {CacheFlushChunk[]} chunks
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
+ * @property {number} overflowCount
  * @property {import('./verbatim-window.js').VerbatimBudgetStats} liveStats
  * @property {import('./verbatim-window.js').VerbatimBudgetStats} flushStats
  * @property {boolean} tokenBudgetExceeded
@@ -62,20 +55,15 @@ export async function getCacheFriendlyPlan(chat, store, settings) {
 
     const flushEndIdx = assistantTurns[assistantTurns.length - 1].index;
     const flushStats = getRangeStats(liveData, flushStartIdx, flushEndIdx);
-    const chunks = buildCacheChunks({
-        flushStartIdx,
-        assistantTurns,
-        chunkCount: getChunkCount(assistantTurns.length, flushStats.finalTokens, settings),
-        liveData,
-    });
+    const batchTurns = assistantTurns.slice(0, Math.max(1, settings.maxSummaryTurns));
 
     return empty({
         reason: 'ready',
         flushEndIdx,
         tailStartIdx,
         assistantTurns,
+        batchTurns,
         flushStats,
-        chunks,
     });
 }
 
@@ -102,8 +90,8 @@ export function getProtectedTailTokens(verbatimTokenBudget) {
  * @param {number} [p.flushEndIdx]
  * @param {number} [p.tailStartIdx]
  * @param {import('./chatutils.js').AssistantTurn[]} [p.assistantTurns]
+ * @param {import('./chatutils.js').AssistantTurn[]} [p.batchTurns]
  * @param {import('./verbatim-window.js').VerbatimBudgetStats} [p.flushStats]
- * @param {CacheFlushChunk[]} [p.chunks]
  * @returns {CacheFriendlyPlan}
  */
 function buildPlan({
@@ -115,8 +103,8 @@ function buildPlan({
     flushEndIdx = -1,
     tailStartIdx = -1,
     assistantTurns = [],
+    batchTurns = [],
     flushStats = createBudgetStats(),
-    chunks = [],
 }) {
     const normalizedReason = reason === 'ready' ? 'ready' : 'none';
     return {
@@ -129,7 +117,8 @@ function buildPlan({
         protectedTailTokens,
         estimatedFlushTokens: flushStats.finalTokens,
         assistantTurns,
-        chunks,
+        batchTurns,
+        overflowCount: assistantTurns.length,
         liveStats: liveData.stats,
         flushStats,
         tokenBudgetExceeded: liveData.stats.finalTokens > settings.verbatimTokenBudget,
@@ -139,9 +128,7 @@ function buildPlan({
 async function collectLiveTokenData(chat, startIdx, settings) {
     const stats = createBudgetStats();
     const indexTokens = new Map();
-    const cumulativeByIndex = new Map();
     const promptDepths = getPromptDepthsByChatIndex(chat);
-    let cumulative = 0;
 
     for (let i = startIdx; i < chat.length; i++) {
         const message = chat[i];
@@ -149,12 +136,10 @@ async function collectLiveTokenData(chat, startIdx, settings) {
             const counted = await countLiveMessage(message, promptDepths.get(i), settings);
             addBudgetStats(stats, counted);
             indexTokens.set(i, counted.finalTokens);
-            cumulative += counted.finalTokens;
         }
-        cumulativeByIndex.set(i, cumulative);
     }
 
-    return { stats, indexTokens, cumulativeByIndex };
+    return { stats, indexTokens };
 }
 
 async function countLiveMessage(message, depth, settings) {
@@ -223,83 +208,6 @@ function getRangeStats(liveData, startIdx, endIdx) {
         stats.rawTokens += finalTokens;
     }
     return stats;
-}
-
-function getChunkCount(assistantTurnCount, flushTokens, settings) {
-    const target = Math.max(1, settings.minSummaryBudget);
-    return Math.min(assistantTurnCount, Math.max(1, Math.ceil(flushTokens / target)));
-}
-
-function buildCacheChunks({ flushStartIdx, assistantTurns, chunkCount, liveData }) {
-    if (assistantTurns.length === 0) {
-        return [];
-    }
-
-    const endpoints = assistantTurns.map((turn) => turn.index);
-    const totalTokens = getCumulative(liveData, endpoints[endpoints.length - 1]);
-    const chunks = [];
-    let previousPosition = -1;
-    let previousEndIdx = flushStartIdx - 1;
-
-    for (let boundary = 1; boundary < chunkCount; boundary++) {
-        const endpointPosition = chooseChunkEndpoint({
-            boundary,
-            chunkCount,
-            endpoints,
-            previousPosition,
-            totalTokens,
-            liveData,
-        });
-        chunks.push(
-            buildChunk(previousEndIdx + 1, endpointPosition, previousPosition, endpoints, liveData),
-        );
-        previousPosition = endpointPosition;
-        previousEndIdx = endpoints[endpointPosition];
-    }
-
-    chunks.push(
-        buildChunk(previousEndIdx + 1, endpoints.length - 1, previousPosition, endpoints, liveData),
-    );
-    return chunks;
-}
-
-function chooseChunkEndpoint({
-    boundary,
-    chunkCount,
-    endpoints,
-    previousPosition,
-    totalTokens,
-    liveData,
-}) {
-    const minPosition = previousPosition + 1;
-    const maxPosition = endpoints.length - (chunkCount - boundary) - 1;
-    const target = (totalTokens * boundary) / chunkCount;
-    let bestPosition = minPosition;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    for (let pos = minPosition; pos <= maxPosition; pos++) {
-        const distance = Math.abs(getCumulative(liveData, endpoints[pos]) - target);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            bestPosition = pos;
-        }
-    }
-    return bestPosition;
-}
-
-function buildChunk(startIdx, endpointPosition, previousPosition, endpoints, liveData) {
-    const endIdx = endpoints[endpointPosition];
-    const beforeStart = startIdx <= 0 ? 0 : getCumulative(liveData, startIdx - 1);
-    return {
-        startIdx,
-        endIdx,
-        assistantTurnCount: endpointPosition - previousPosition,
-        finalTokens: getCumulative(liveData, endIdx) - beforeStart,
-    };
-}
-
-function getCumulative(liveData, index) {
-    return liveData.cumulativeByIndex.get(index) || 0;
 }
 
 function createBudgetStats() {

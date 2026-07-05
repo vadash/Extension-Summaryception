@@ -43,7 +43,7 @@ describe('cache-friendly planner', () => {
 
         expect(plan.reason).toBe('none');
         expect(plan.liveTokens).toBe(3000);
-        expect(plan.chunks).toEqual([]);
+        expect(plan.batchTurns).toEqual([]);
     });
 
     it('calculates the protected tail from the verbatim budget', async () => {
@@ -64,23 +64,20 @@ describe('cache-friendly planner', () => {
         expect(plan.assistantTurns.map((turn) => turn.index)).toEqual([0, 1, 2, 3]);
     });
 
-    it('uses balanced chunks instead of leaving a tiny trailing chunk', async () => {
+    it('selects one capped batch from the flushable cache range', async () => {
         const plan = await getPlan(assistantMessages(12), {
             minSummaryBudget: 3000,
+            maxSummaryTurns: 3,
             verbatimTokenBudget: 5000,
         });
 
         expect(plan.reason).toBe('ready');
         expect(plan.estimatedFlushTokens).toBe(8000);
-        expect(plan.chunks.map((chunk) => [chunk.startIdx, chunk.endIdx])).toEqual([
-            [0, 2],
-            [3, 4],
-            [5, 7],
-        ]);
-        expect(plan.chunks.map((chunk) => chunk.finalTokens)).toEqual([3000, 2000, 3000]);
+        expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1, 2]);
+        expect(plan.overflowCount).toBe(8);
     });
 
-    it('ignores min and max turn sliders in cache mode', async () => {
+    it('uses max turn sliders after the initial cache delay', async () => {
         const plan = await getPlan(assistantMessages(12), {
             minSummaryTurns: 99,
             maxSummaryTurns: 1,
@@ -89,6 +86,7 @@ describe('cache-friendly planner', () => {
         });
 
         expect(plan.reason).toBe('ready');
-        expect(plan.chunks).toHaveLength(3);
+        expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0]);
+        expect(plan.overflowCount).toBe(8);
     });
 });

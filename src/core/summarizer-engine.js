@@ -3,7 +3,6 @@ import { getChat } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { log, trace } from '../foundation/logger.js';
 import { getCacheFriendlyPlan } from './cache-planner.js';
-import { summarizeCacheFlush } from './summarizer-cache.js';
 import { summarizeBatchFromTurns } from './summarizer-batch.js';
 import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
@@ -59,6 +58,12 @@ export async function runElasticAutoCycle(queue, { refreshUi, showAutoBacklogNot
         return 'idle';
     }
 
+    if (await hasPromotionOverflow(0)) {
+        queue.setPhase('promoting');
+        const promotionResult = await processPromotionCycle({ overflowKnown: true });
+        return promotionResult;
+    }
+
     if (s.memoryMode === MEMORY_MODES.CACHE) {
         return await runElasticCacheCycle(queue, s);
     }
@@ -71,8 +76,7 @@ export async function runElasticAutoCycle(queue, { refreshUi, showAutoBacklogNot
         return await processLayer0Plan(plan, s, { showAutoBacklogNotice });
     }
 
-    queue.setPhase('promoting');
-    return await processPromotionCycle();
+    return 'idle';
 }
 
 /**
@@ -114,17 +118,7 @@ async function runElasticCacheCycle(queue, s) {
     }
 
     queue.setPhase('layer0');
-    const result = await summarizeCacheFlush(plan);
-    if (shouldStopPromptWork()) {
-        return 'blocked';
-    }
-    if (result === 'failed' || result === 'stale') {
-        return 'failed';
-    }
-
-    queue.setPhase('promoting');
-    const promotionResult = await processPromotionCycle();
-    return promotionResult === 'idle' ? 'processed' : promotionResult;
+    return await processCacheLayer0Plan(plan);
 }
 
 /**
@@ -141,6 +135,24 @@ async function processLayer0Plan(plan, s, { showAutoBacklogNotice } = {}) {
     }
 
     const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
+    return await processLayer0Turns(turns);
+}
+
+/**
+ * Process one cache-delayed Layer 0 batch.
+ * @param {import('./cache-planner.js').CacheFriendlyPlan} plan
+ * @returns {Promise<'processed' | 'blocked' | 'failed'>}
+ */
+async function processCacheLayer0Plan(plan) {
+    return await processLayer0Turns(plan.batchTurns);
+}
+
+/**
+ * Process one Layer 0 summarization call.
+ * @param {import('./chatutils.js').AssistantTurn[]} turns
+ * @returns {Promise<'processed' | 'blocked' | 'failed'>}
+ */
+async function processLayer0Turns(turns) {
     const success = await summarizeBatchFromTurns(turns, {
         showToasts: false,
         catchExceptions: true,
@@ -156,8 +168,12 @@ async function processLayer0Plan(plan, s, { showAutoBacklogNotice } = {}) {
     return 'processed';
 }
 
-async function processPromotionCycle() {
-    const hadOverflow = await hasPromotionOverflow(0);
+async function processPromotionCycle({ overflowKnown = false } = {}) {
+    const hadOverflow = overflowKnown || (await hasPromotionOverflow(0));
+    if (!hadOverflow) {
+        return 'idle';
+    }
+
     const promoted = await maybePromoteLayer(0);
     if (shouldStopPromptWork()) {
         return 'blocked';
@@ -232,6 +248,17 @@ async function executeManualTask(deps, task) {
             const result = await task.processBatch(batch);
             updateManualOutcome({ outcome, result });
             consecutiveFailures = result.success && result.committed ? 0 : consecutiveFailures;
+
+            if (result.success && result.committed && !outcome.blocked) {
+                const normalized = await normalizePromotions();
+                if (normalized === 'blocked') {
+                    outcome.blocked = true;
+                } else if (normalized === 'failed') {
+                    outcome.failed++;
+                    break;
+                }
+            }
+
             if (shouldStopManualLoop(outcome, result, task.options.signal, deps.queue)) {
                 break;
             }
@@ -321,7 +348,7 @@ function estimateForceBatches(plan) {
 }
 
 async function normalizeManualMemory(outcome) {
-    if (outcome.cancelled || outcome.blocked || outcome.completed === 0) {
+    if (outcome.cancelled || outcome.blocked || outcome.completed === 0 || outcome.failed > 0) {
         return 'skipped';
     }
     if (shouldStopPromptWork()) {
@@ -409,6 +436,6 @@ function logCachePlan(plan) {
     log(
         `Cache mode live tokens: ${plan.liveTokens}/${plan.cacheBudget}, ` +
             `protected tail: ${plan.protectedTailTokens}, ` +
-            `flush: ${plan.estimatedFlushTokens}, chunks: ${plan.chunks.length}`,
+            `flush: ${plan.estimatedFlushTokens}, batch: ${plan.batchTurns.length}`,
     );
 }

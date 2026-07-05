@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
     maybePromoteLayer: vi.fn(),
     hasPromotionOverflow: vi.fn(),
     getCacheFriendlyPlan: vi.fn(),
-    summarizeCacheFlush: vi.fn(),
     flushPendingChatSave: vi.fn(),
 }));
 
@@ -31,10 +30,6 @@ vi.mock('../src/core/cache-planner.js', () => ({
     getCacheFriendlyPlan: mocks.getCacheFriendlyPlan,
 }));
 
-vi.mock('../src/core/summarizer-cache.js', () => ({
-    summarizeCacheFlush: mocks.summarizeCacheFlush,
-}));
-
 vi.mock('../src/core/persist-state.js', () => ({
     flushPendingChatSave: mocks.flushPendingChatSave,
 }));
@@ -44,8 +39,8 @@ beforeEach(async () => {
     vi.clearAllMocks();
     mocks.flushPendingChatSave.mockResolvedValue(undefined);
     mocks.hasPromotionOverflow.mockResolvedValue(false);
-    mocks.getCacheFriendlyPlan.mockResolvedValue({ reason: 'none', chunks: [] });
-    mocks.summarizeCacheFlush.mockResolvedValue('applied');
+    mocks.maybePromoteLayer.mockResolvedValue(false);
+    mocks.getCacheFriendlyPlan.mockResolvedValue({ reason: 'none', batchTurns: [] });
     installBrowserRuntimeStub();
 });
 
@@ -119,7 +114,21 @@ describe('requestSummarization', () => {
         await requestSummarization({ reason: 'new-message', mode: 'auto' });
 
         expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
+        expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
+    });
+
+    it('promotes before starting another automatic layer-0 batch when memory is over limit', async () => {
+        installWorkerContext({ chat: makeLongMessages(8) });
+        const queue = { setPhase: vi.fn(), getPhase: vi.fn(() => 'idle') };
+        mocks.hasPromotionOverflow.mockResolvedValueOnce(true);
+        mocks.maybePromoteLayer.mockResolvedValueOnce(true);
+
+        const { runElasticAutoCycle } = await import('../src/core/summarizer-engine.js');
+        const result = await runElasticAutoCycle(queue);
+
+        expect(result).toBe('processed');
         expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
+        expect(mocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
     });
 
     it('routes custom memory through the standard automatic engine path', async () => {
@@ -136,7 +145,7 @@ describe('requestSummarization', () => {
         expect(mocks.getCacheFriendlyPlan).not.toHaveBeenCalled();
     });
 
-    it('routes cache memory through the shared cache and promotion cycle', async () => {
+    it('delays cache memory until ready, then processes one normal layer-0 batch', async () => {
         installWorkerContext({
             settings: workerSettings({ memoryMode: 'cache' }),
         });
@@ -146,14 +155,18 @@ describe('requestSummarization', () => {
             cacheBudget: 4000,
             protectedTailTokens: 1000,
             estimatedFlushTokens: 3000,
-            chunks: [{ startIdx: 0, endIdx: 0, assistantTurnCount: 1 }],
+            batchTurns: [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+            overflowCount: 1,
         });
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         await requestSummarization({ reason: 'new-message', mode: 'auto' });
 
-        expect(mocks.summarizeCacheFlush).toHaveBeenCalledTimes(1);
-        expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledWith(
+            [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+            { showToasts: false, catchExceptions: true },
+        );
+        expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
     });
 });
 
@@ -191,6 +204,29 @@ describe('runCatchup', () => {
         expect(onProgress).toHaveBeenCalledWith(
             expect.objectContaining({ completed: 1, totalBatches: 1 }),
         );
+    });
+
+    it('normalizes promotion pressure between committed catch-up batches', async () => {
+        const order = [];
+        const ctx = installWorkerContext({ chat: makeLongMessages(8) });
+        mocks.summarizeBatchFromTurns.mockImplementation(async (turns) => {
+            order.push('layer0');
+            ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
+            return true;
+        });
+        mocks.hasPromotionOverflow
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce(false);
+        mocks.maybePromoteLayer.mockImplementation(async () => {
+            order.push('promotion');
+            return true;
+        });
+
+        const { runCatchup } = await import('../src/core/summarizer.js');
+        await runCatchup([], 2);
+
+        expect(order.slice(0, 3)).toEqual(['layer0', 'promotion', 'layer0']);
     });
 
     it('honors an aborted manual catch-up signal before the first batch', async () => {
@@ -262,6 +298,30 @@ describe('runSlopBreaker', () => {
         );
         expect(outcome.fullyCommitted).toBe(true);
         expect(outcome.shouldReload).toBe(true);
+    });
+
+    it('normalizes promotion pressure before continuing a slop breaker run', async () => {
+        const order = [];
+        const ctx = installWorkerContext({ chat: makeLongMessages(8) });
+        mocks.summarizeBatchFromTurns.mockImplementation(async (_turns, opts = {}) => {
+            order.push('layer0');
+            ctx.chatMetadata.summaryception.summarizedUpTo =
+                opts.sourceEndIdx ?? ctx.chatMetadata.summaryception.summarizedUpTo;
+            return true;
+        });
+        mocks.hasPromotionOverflow
+            .mockResolvedValueOnce(true)
+            .mockResolvedValueOnce(false)
+            .mockResolvedValueOnce(false);
+        mocks.maybePromoteLayer.mockImplementation(async () => {
+            order.push('promotion');
+            return true;
+        });
+
+        const { runSlopBreaker } = await import('../src/core/summarizer.js');
+        await runSlopBreaker();
+
+        expect(order.slice(0, 3)).toEqual(['layer0', 'promotion', 'layer0']);
     });
 });
 

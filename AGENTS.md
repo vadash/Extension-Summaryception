@@ -38,7 +38,7 @@ Lower layers must not import from higher layers. All SillyTavern runtime access 
 Layer data lives in `chatMetadata[MODULE_NAME]`.
 
 - Layer 0: turn summaries selected by the dynamic verbatim window; overflow waits for `minSummaryTurns` (default 3) and `minSummaryBudget` (default 8000 tokens), capped by `maxSummaryTurns` (default 8).
-- Memory Mode: `standard` and `custom` use continuous summarization; `cache` freezes injected memory, uses a 32k default live window, ignores min/max turn sliders, and commits token-balanced cache chunks all-or-nothing.
+- Memory Mode: `standard`, `custom`, and ready `cache` runs use the same one-L0-batch then promotion re-evaluation loop; `cache` only delays the first batch until its larger live window is exceeded.
 - Layers 1+: meta-summaries promoted from lower layers.
 - Recent chat stays verbatim according to `verbatimTokenBudget` (default 16000 tokens), counting prompt-visible user and assistant messages after regex when enabled.
 - Message token stats may be cached in `extra.sc_token_count`; first valid count wins.

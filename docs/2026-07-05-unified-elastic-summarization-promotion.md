@@ -9,7 +9,7 @@ Summaryception uses one elastic execution engine for automatic summarization, Fo
 - `AUTO`: normal chat summarization. It respects the dynamic verbatim window, `minSummaryTurns`, `minSummaryBudget`, and `maxSummaryTurns`.
 - `FORCE`: uses the same live-tail boundary as `AUTO`, but ignores minimum readiness so existing overflow can be summarized immediately.
 - `SLOP`: summarizes completed exchanges through the latest assistant/complete message. A trailing unmatched user message stays live.
-- `CACHE`: uses the cache planner and all-or-nothing cache chunks, then enters the same Layer 0 commit and promotion path.
+- `CACHE`: delays the first Layer 0 batch until the cache live-window threshold is exceeded, then uses the same one-batch Layer 0 commit and promotion re-evaluation path as the other strategies.
 
 Custom memory does not change summarization cadence. It only changes injection placement, role, and depth.
 
@@ -23,7 +23,7 @@ Dynamic layer quotas use only active non-empty layers. Layer weights halve by de
 - L0/L1: about `67% / 33%`
 - L0/L1/L2: about `57% / 29% / 14%`
 
-The promotion worker promotes the shallowest over-limit layer first. A layer is over-limit when it exceeds either its dynamic token quota or the `snippetsPerLayer` count guard, now shown as **Max Memories per Layer**.
+The promotion worker promotes the shallowest over-limit layer first. A layer is over-limit when it exceeds either its dynamic token quota or the `snippetsPerLayer` count guard, now shown as **Max Memories per Layer**. New Layer 0 work must not start while any layer is over-limit; promotion pressure is re-evaluated after every Layer 0 batch and every promotion merge.
 
 Empty destination layers are created by LLM-backed merge promotion. There is no free seed promotion. The visible Maximum Layer Depth setting is removed; the internal creation safety cap is `20`. Existing imported layers deeper than the cap are preserved and still included in quota calculations.
 
