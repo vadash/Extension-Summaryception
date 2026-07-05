@@ -131,6 +131,7 @@ Restart SillyTavern and enable the extension.
 Switch branches in SillyTavern if you prefer an older version.
 
 - **v10:** UI & prompt update. Redesigned the settings panel to be cleaner and more compact for ST sidebars. Added completely separate, customizable prompt editors for Layer 0 (recent turns) and Layer 1+ (deep memory merges).
+Refactor debug logging. Add summarizer fallback connection.
 - **v9:** The Elastic & Cache update.
   - *Dynamic Memory Budget:* you now set a total memory size (e.g., 10k tokens), and the extension balances Layer 0 and Layer 1+ to fit.
   - *Dual LLM Profile:* use one cheap API for daily summaries and a smart API for deep merges.
