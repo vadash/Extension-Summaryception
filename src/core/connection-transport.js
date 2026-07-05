@@ -1,5 +1,5 @@
-import { CONNECTION_MODULE_NAME } from './connection-error.js';
 import { getRequestHeaders } from '../foundation/context.js';
+import { warn } from '../foundation/logger.js';
 
 const LOCAL_URL_RE =
     /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?/i;
@@ -62,10 +62,7 @@ export async function fetchWithProxyFallback(
         if (isAbortError(proxyError)) {
             throw proxyError;
         }
-        console.warn(
-            `${CONNECTION_MODULE_NAME} CORS proxy failed, trying direct:`,
-            proxyError.message,
-        );
+        warn('[Connection] CORS proxy failed, trying direct:', proxyError.message);
         try {
             return await fetch(targetUrl, {
                 method,

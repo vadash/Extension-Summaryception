@@ -1,4 +1,4 @@
-import { log } from '../foundation/logger.js';
+import { debug } from '../foundation/logger.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
 /**
@@ -147,7 +147,7 @@ export function recordSummarizerUsage(usage) {
     }
 
     logEntry ||= { ...usage, callNumber: 0 };
-    log(formatCallUsageLine(logEntry));
+    debug(formatCallUsageLine(logEntry));
 }
 
 /**
@@ -188,7 +188,7 @@ function logRunMax(run) {
         return;
     }
 
-    log(
+    debug(
         `LLM run ${run.label} max call: #${maxCall.callNumber} ` +
             `${describeCall(maxCall.metadata)} total=${formatUsageTokenCount(
                 maxCall.totalTokens,

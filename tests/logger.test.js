@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const debugSettings = { debugMode: true, traceMode: true };
-const quietSettings = { debugMode: false, traceMode: false };
+const debugSettings = { debugMode: true, traceMode: true, promptLogMode: true };
+const quietSettings = { debugMode: false, traceMode: false, promptLogMode: false };
 
 let activeSettings = { ...quietSettings };
 
@@ -17,35 +17,71 @@ beforeEach(() => {
     };
 });
 
-import { log, trace, debugVisibleTurns } from '../src/foundation/logger.js';
+import {
+    debug,
+    error,
+    info,
+    isPromptLogEnabled,
+    log,
+    trace,
+    warn,
+    debugVisibleTurns,
+} from '../src/foundation/logger.js';
 
 describe('logger', () => {
     let out;
+    let warnings;
+    let errors;
     let origLog;
+    let origWarn;
+    let origError;
 
     beforeEach(() => {
         out = [];
+        warnings = [];
+        errors = [];
         origLog = console.log;
+        origWarn = console.warn;
+        origError = console.error;
         console.log = (...args) => {
             out.push(args);
+        };
+        console.warn = (...args) => {
+            warnings.push(args);
+        };
+        console.error = (...args) => {
+            errors.push(args);
         };
     });
 
     afterEach(() => {
         console.log = origLog;
+        console.warn = origWarn;
+        console.error = origError;
     });
 
-    it('log emits only when debugMode is true', () => {
+    it('info emits only when debugMode is true', () => {
         activeSettings = { ...debugSettings };
-        log('hello');
+        info('hello');
         expect(out).toHaveLength(1);
         expect(out[0]).toContain('hello');
     });
 
-    it('log is silent when debugMode is false', () => {
+    it('info is silent when debugMode is false', () => {
         activeSettings = { ...quietSettings };
-        log('nope');
+        info('nope');
         expect(out).toHaveLength(0);
+    });
+
+    it('debug and its log alias emit debug-tagged output', () => {
+        activeSettings = { ...debugSettings };
+        debug('hello');
+        log('alias');
+        expect(out).toHaveLength(2);
+        expect(out[0]).toContain('[DEBUG]');
+        expect(out[0]).toContain('hello');
+        expect(out[1]).toContain('[DEBUG]');
+        expect(out[1]).toContain('alias');
     });
 
     it('trace emits only when both debugMode and traceMode are true', () => {
@@ -64,6 +100,21 @@ describe('logger', () => {
         activeSettings = { debugMode: true, traceMode: false };
         trace('hidden');
         expect(out).toHaveLength(0);
+    });
+
+    it('warn and error are always visible', () => {
+        activeSettings = { ...quietSettings };
+        warn('heads up');
+        error('boom');
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain('heads up');
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('boom');
+    });
+
+    it('reports prompt log mode independently of debug mode', () => {
+        activeSettings = { debugMode: false, traceMode: false, promptLogMode: true };
+        expect(isPromptLogEnabled()).toBe(true);
     });
 
     it('debugVisibleTurns reports ghosted + visible counts', () => {

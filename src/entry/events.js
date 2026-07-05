@@ -1,5 +1,5 @@
 import { getChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { debug, info, warn } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { repairIfBranched, repairMissingGhostingForSummaries } from '../core/ghosting-reconcile.js';
 import {
@@ -28,14 +28,14 @@ export function onMessageReceived(messageIndex) {
         const chat = getChat();
         const msg = chat[messageIndex];
         if (msg && !msg.is_user && !msg.is_system) {
-            log('New assistant message at index', messageIndex);
+            debug('New assistant message at index', messageIndex);
             setTimeout(async () => {
                 await maybeSummarizeTurns();
                 updateUI();
             }, 500);
         }
     } catch (e) {
-        log('onMessageReceived error:', e);
+        warn('onMessageReceived error:', e);
     }
 }
 
@@ -43,7 +43,7 @@ export function onMessageReceived(messageIndex) {
  *
  */
 export function onChatChanged() {
-    log('Chat changed.');
+    debug('Chat changed.');
     resetCatchupDismissed();
     scheduleLoadedChatReconciliation();
 }
@@ -61,10 +61,10 @@ export async function onAppReady() {
  */
 export function onGenerationStarted() {
     if (hasActiveAbortController()) {
-        log('Ignoring generation start from active Summaryception request.');
+        debug('Ignoring generation start from active Summaryception request.');
         return;
     }
-    log('Foreground generation start detected; freezing Summaryception prompt mutations.');
+    info('Foreground generation start detected; freezing Summaryception prompt mutations.');
     beginForegroundGeneration();
 }
 
@@ -76,11 +76,11 @@ export function onGenerationEnded() {
     const hasFrozenMutations = hasFrozenPromptMutations();
 
     if (hasActiveSummaryRequest && !hasFrozenMutations) {
-        log('Ignoring generation end from active Summaryception request.');
+        debug('Ignoring generation end from active Summaryception request.');
         return;
     }
 
-    log(
+    info(
         'Generation end detected; flushing Summaryception prompt mutations.',
         `activeSummaryRequest=${hasActiveSummaryRequest}`,
         `frozen=${hasFrozenMutations}`,

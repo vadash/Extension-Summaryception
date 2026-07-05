@@ -1,5 +1,5 @@
 import { saveChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { warn } from '../foundation/logger.js';
 import { saveChatStore } from '../foundation/state.js';
 
 const CHAT_SAVE_DEBOUNCE_MS = 1500;
@@ -65,6 +65,6 @@ async function saveChatSafely() {
     try {
         await saveChat();
     } catch (e) {
-        log('Could not save chat:', e);
+        warn('Could not save chat:', e);
     }
 }

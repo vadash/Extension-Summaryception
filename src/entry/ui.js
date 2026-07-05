@@ -1,6 +1,6 @@
 import { MEMORY_MODES, MEMORY_POSITIONS } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { warn } from '../foundation/logger.js';
 import { getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
@@ -44,7 +44,7 @@ export async function updateUI() {
         updateSnippetBrowser();
         updateCustomPromptSlots();
     } catch (e) {
-        log('updateUI error:', e);
+        warn('updateUI error:', e);
     }
 }
 
@@ -306,7 +306,7 @@ async function renderVerbatimBudget(s, store) {
             legend: '#sc_verbatim_budget_legend',
         });
     } catch (e) {
-        log('Verbatim budget render error:', e);
+        warn('Verbatim budget render error:', e);
         clearBudgetView(
             '#sc_verbatim_budget_total',
             '#sc_verbatim_budget_bar',
@@ -330,7 +330,7 @@ async function renderMemoryBudget(s, store) {
             legend: '#sc_memory_budget_legend',
         });
     } catch (e) {
-        log('Memory budget render error:', e);
+        warn('Memory budget render error:', e);
         clearBudgetView(
             '#sc_memory_budget_total',
             '#sc_memory_budget_bar',
@@ -352,7 +352,7 @@ async function renderCacheStatus(s, store) {
         $('#sc_cache_flush_tokens').text(formatBudgetTokenLabel(plan.estimatedFlushTokens));
         $('#sc_cache_ready_state').text(getCacheReadyStateText(plan));
     } catch (e) {
-        log('Cache status render error:', e);
+        warn('Cache status render error:', e);
         $('#sc_cache_ready_state').text('Unavailable');
     }
 }

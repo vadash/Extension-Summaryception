@@ -8,8 +8,9 @@
  *   - openai: OpenAI-compatible endpoint, streaming supported
  */
 
-import { CONNECTION_MODULE_NAME, ConnectionError } from './connection-error.js';
+import { ConnectionError } from './connection-error.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
+import { error as logError, warn } from '../foundation/logger.js';
 import { DefaultProvider } from './connection-default.js';
 import { OllamaProvider, fetchOllamaModels } from './connection-ollama.js';
 import { OpenAIProvider, testOpenAIConnection } from './connection-openai.js';
@@ -80,10 +81,10 @@ export function populateProfileDropdown(
             return true;
         }
 
-        console.warn(`${CONNECTION_MODULE_NAME} handleDropdown not available.`);
+        warn('[Connection] handleDropdown not available.');
         return false;
     } catch (error) {
-        console.error(`${CONNECTION_MODULE_NAME} Error populating profile dropdown:`, error);
+        logError('[Connection] Error populating profile dropdown:', error);
         return false;
     }
 }

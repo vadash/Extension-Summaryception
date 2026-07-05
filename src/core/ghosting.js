@@ -1,7 +1,6 @@
-import { LOG_PREFIX } from '../foundation/constants.js';
 import { executeSlashCommandsWithOptions, getChat } from '../foundation/context.js';
 import { getChatStore } from '../foundation/state.js';
-import { log } from '../foundation/logger.js';
+import { debug, error, info, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
 
@@ -77,7 +76,7 @@ export async function unghostAllMessages() {
     const progressToast = createUnhideProgressToast(total);
     await unhideRanges({ chat, store, ranges, progressToast, total });
     toastr.clear(progressToast);
-    log(`Unghosted ${total} messages (only Summaryception-hidden ones)`);
+    info(`Unghosted ${total} messages (only Summaryception-hidden ones)`);
 }
 
 /**
@@ -169,7 +168,7 @@ async function applyHideRange({ chat, store, range, epoch, chatSave }) {
             showOutput: false,
         });
     } catch (e) {
-        console.error(LOG_PREFIX, `Failed to hide messages ${formatSlashRange(range)}:`, e);
+        error(`Failed to hide messages ${formatSlashRange(range)}:`, e);
     }
 
     await persistChatState({ chatSave });
@@ -198,7 +197,7 @@ function queueRemainingGhosting(nextStart, endIdx, options, progressToast) {
  * @returns {void}
  */
 function queueGhostRange(startIdx, endIdx, options) {
-    log(`Ghosting ${startIdx}-${endIdx} deferred; foreground generation is active.`);
+    debug(`Ghosting ${startIdx}-${endIdx} deferred; foreground generation is active.`);
     queuePromptEffect({
         kind: getGhostEffectKind(startIdx, endIdx, options),
         apply: async ({ epoch }) =>
@@ -354,7 +353,7 @@ async function unhideRanges({ chat, store, ranges, progressToast = null, total =
                 showOutput: false,
             });
         } catch (e) {
-            log(`Failed to unhide messages ${formatSlashRange(range)}:`, e);
+            warn(`Failed to unhide messages ${formatSlashRange(range)}:`, e);
         }
         clearGhostedRange(chat, store, range);
         processed += getRangeSize(range);

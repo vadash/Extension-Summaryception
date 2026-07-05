@@ -1,4 +1,5 @@
 import { getRequestHeaders } from '../foundation/context.js';
+import { error as logError, warn } from '../foundation/logger.js';
 import {
     fetchOllamaModels,
     testSummarizerConnection,
@@ -422,7 +423,7 @@ export async function refreshOllamaModels() {
         showConnectionStatus('success', `Found ${models.length} model(s)`);
         toastr.success(`Found ${models.length} Ollama model(s)`, 'Summaryception');
     } catch (error) {
-        console.error('[Summaryception] Failed to fetch Ollama models:', error);
+        logError('Failed to fetch Ollama models:', error);
         showConnectionStatus('error', `Failed: ${error.message}`);
         toastr.error(`Failed to fetch Ollama models: ${error.message}`, 'Summaryception');
     }
@@ -509,7 +510,7 @@ export async function fetchProfilesFallback($select, currentValue) {
         });
 
         if (!response.ok) {
-            console.warn('[Summaryception] Could not fetch connection profiles from API');
+            warn('Could not fetch connection profiles from API');
             return;
         }
 
@@ -539,6 +540,6 @@ export async function fetchProfilesFallback($select, currentValue) {
             $select.val(currentValue);
         }
     } catch (error) {
-        console.warn('[Summaryception] Could not fetch connection profiles:', error);
+        warn('Could not fetch connection profiles:', error);
     }
 }

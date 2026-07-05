@@ -1,7 +1,6 @@
-import { LOG_PREFIX } from '../foundation/constants.js';
 import { getContext, getChat } from '../foundation/context.js';
 import { getChatStore, saveChatStore } from '../foundation/state.js';
-import { isTraceEnabled, log, trace } from '../foundation/logger.js';
+import { debug, error, info, isTraceEnabled, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
@@ -64,7 +63,7 @@ export async function summarizeOneBatchFromTurns(visibleTurns) {
  * @returns {Promise<void>}
  */
 async function repairGhosting(visibleTurns, summarizedUpTo) {
-    log('All visible turns are already summarized — repairing ghosting...');
+    info('All visible turns are already summarized — repairing ghosting...');
     const turnsToGhost = visibleTurns.filter((t) => t.index <= summarizedUpTo);
     if (turnsToGhost.length > 0) {
         const first = turnsToGhost[0].index;
@@ -96,7 +95,7 @@ async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
     trace('  startIdx:', startIdx, 'endIdx:', endIdx);
     trace('  store.summarizedUpTo:', store.summarizedUpTo);
 
-    log(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
+    info(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
 
     ensureLayer0(store);
     const passageStart = store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
@@ -125,7 +124,7 @@ async function summarizeBatchSafely(p) {
             message: err?.message,
             stack: err?.stack?.substring?.(0, 200),
         });
-        console.error(LOG_PREFIX, 'summarizeBatchFromTurns exception:', err);
+        error('summarizeBatchFromTurns exception:', err);
         trace('<<< EXITING summarizeBatchFromTurns - EXCEPTION');
         return false;
     }
@@ -158,7 +157,7 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
     await traceTextTokens('  summary tokens:', summary || '');
 
     if (!summary) {
-        log('Summarization failed for batch, leaving turns intact for next attempt.');
+        debug('Summarization failed for batch, leaving turns intact for next attempt.');
         trace('<<< EXITING summarizeBatchFromTurns - EMPTY SUMMARY');
         return false;
     }
@@ -272,7 +271,7 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
     await persistChatState({ chatSave: 'deferred' });
 
-    log(`Layer 0 now has ${store.layers[0].length} snippets`);
+    info(`Layer 0 now has ${store.layers[0].length} snippets`);
 
     if (showToasts) {
         toastr.success(
@@ -358,7 +357,7 @@ function isPassageRangeValid(passageStart, endIdx) {
         return true;
     }
 
-    log(`ERROR: passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
+    error(`passageStart (${passageStart}) > endIdx (${endIdx}). Batch already summarized?`);
     trace('<<< EXITING summarizeBatchFromTurns - PASSAGE START GREATER THAN END');
     return false;
 }

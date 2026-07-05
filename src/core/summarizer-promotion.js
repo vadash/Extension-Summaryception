@@ -1,7 +1,7 @@
 import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
-import { log } from '../foundation/logger.js';
+import { debug, info } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -29,7 +29,7 @@ export async function maybePromoteLayer(layerIndex = 0) {
     }
 
     if (!canPromoteLayer(candidate.layerIndex)) {
-        log(`Internal layer depth cap (${INTERNAL_MAX_LAYER_DEPTH}) reached.`);
+        debug(`Internal layer depth cap (${INTERNAL_MAX_LAYER_DEPTH}) reached.`);
         return false;
     }
 
@@ -132,7 +132,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
         return false;
     }
 
-    log(
+    debug(
         `Layer ${layerIndex}: ${layer.length} memories exceed quota ` +
             `${formatTokenValue(quota)} tokens or count ${s.snippetsPerLayer}; promoting`,
     );
@@ -221,7 +221,7 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
     store.layers[layerIndex + 1] = destLayer;
 
     await savePromotionCommit();
-    log(`Layer ${layerIndex + 1} now has ${destLayer.length} memories`);
+    info(`Layer ${layerIndex + 1} now has ${destLayer.length} memories`);
 
     return true;
 }

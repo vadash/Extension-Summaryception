@@ -1,6 +1,6 @@
-import { LOG_PREFIX, MODULE_NAME } from '../foundation/constants.js';
+import { MODULE_NAME } from '../foundation/constants.js';
 import { getChatMetadata } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { error, info } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { unghostAllMessages } from '../core/ghosting.js';
 import { persistAndRefresh } from './persist.js';
@@ -18,7 +18,7 @@ export async function clearSummaryceptionMemory(
     try {
         await unghostAllMessages();
     } catch (e) {
-        console.error(LOG_PREFIX, 'Error during unghost (continuing with clear):', e);
+        error('Error during unghost (continuing with clear):', e);
         toastr.warning(
             'Some messages could not be unghosted, but memory will still be cleared.',
             'Summaryception',
@@ -34,5 +34,5 @@ export async function clearSummaryceptionMemory(
     chatMetadata[MODULE_NAME] = store;
 
     await persistAndRefresh({ injection: true, ui: updateUi });
-    log('Memory cleared & messages unghosted.');
+    info('Memory cleared & messages unghosted.');
 }

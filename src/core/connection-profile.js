@@ -1,5 +1,6 @@
 import { ConnectionError } from './connection-error.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
+import { trace, warn } from '../foundation/logger.js';
 
 /**
  * SillyTavern Connection Profile adapter.
@@ -55,7 +56,7 @@ export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTok
             ...(signal ? { signal } : {}),
         });
 
-        console.log('[Summaryception][Connection] Profile sendRequest returned:', typeof raw, raw);
+        trace('[Connection] Profile sendRequest returned:', typeof raw, raw);
 
         const result = parseProfileResponse(raw);
 
@@ -207,10 +208,7 @@ function parseProfileResponse(raw) {
 
     if (raw !== null && raw !== undefined && typeof raw === 'object') {
         const str = JSON.stringify(raw);
-        console.warn(
-            '[Summaryception][Connection] Unexpected return type from sendRequest:',
-            str.substring(0, 500),
-        );
+        warn('[Connection] Unexpected return type from sendRequest:', str.substring(0, 500));
         throw new ConnectionError(
             `Connection Profile returned unexpected type: ${typeof raw}. ` +
                 `Preview: ${str.substring(0, 200)}. ` +

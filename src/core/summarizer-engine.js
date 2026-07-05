@@ -1,7 +1,7 @@
 import { MEMORY_MODES } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
-import { log, trace } from '../foundation/logger.js';
+import { debug, info, trace } from '../foundation/logger.js';
 import { getCacheFriendlyPlan } from './cache-planner.js';
 import { summarizeBatchFromTurns } from './summarizer-batch.js';
 import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
@@ -160,7 +160,7 @@ async function processLayer0Turns(turns) {
     });
 
     if (!success) {
-        log('Batch failed, stopping summarization cycle to avoid retry loop.');
+        debug('Batch failed, stopping summarization cycle to avoid retry loop.');
         return 'failed';
     }
     if (shouldStopPromptWork()) {
@@ -353,7 +353,7 @@ async function normalizeManualMemory(outcome) {
         return 'skipped';
     }
     if (shouldStopPromptWork()) {
-        log('Manual promotion deferred; prompt mutation guard is active.');
+        info('Manual promotion deferred; prompt mutation guard is active.');
         return 'blocked';
     }
     return await normalizePromotions();
@@ -426,7 +426,7 @@ async function sleep(ms) {
 }
 
 function logOverflowPlan(plan, s) {
-    log(
+    debug(
         `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
             `verbatim budget: ${formatTokenValue(plan.budgetStats.finalTokens)}/` +
             `${formatTokenValue(s.verbatimTokenBudget)} tokens, ` +
@@ -436,7 +436,7 @@ function logOverflowPlan(plan, s) {
 }
 
 function logCachePlan(plan) {
-    log(
+    debug(
         `Cache mode live tokens: ${formatTokenValue(plan.liveTokens)}/` +
             `${formatTokenValue(plan.cacheBudget)}, ` +
             `protected tail: ${formatTokenValue(plan.protectedTailTokens)}, ` +

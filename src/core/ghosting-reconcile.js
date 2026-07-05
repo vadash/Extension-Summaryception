@@ -1,5 +1,5 @@
 import { getChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { debug } from '../foundation/logger.js';
 import {
     calculateContiguousSummarizedUpTo,
     getChatStore,
@@ -23,7 +23,7 @@ export async function repairMissingGhostingForSummaries() {
         return false;
     }
 
-    log(`Repairing summarized ghosting gaps in processed range 0-${range[1]}`);
+    debug(`Repairing summarized ghosting gaps in processed range 0-${range[1]}`);
     await repairGhostingForRange(range[0], range[1]);
     return true;
 }
@@ -46,7 +46,7 @@ export async function repairIfBranched() {
     }
 
     const oldSummarizedUpTo = store.summarizedUpTo;
-    log(
+    debug(
         `Branch detected! summarizedUpTo (${oldSummarizedUpTo}) >= chat length (${chatLength}). Repairing...`,
     );
 
@@ -56,7 +56,9 @@ export async function repairIfBranched() {
 
     await saveChatStore();
 
-    log(`Branch repair complete. summarizedUpTo: ${oldSummarizedUpTo} -> ${store.summarizedUpTo}`);
+    debug(
+        `Branch repair complete. summarizedUpTo: ${oldSummarizedUpTo} -> ${store.summarizedUpTo}`,
+    );
     toastr.info(
         `Branch detected - trimmed ${oldSummarizedUpTo - store.summarizedUpTo} turns of stale summary data that referenced messages beyond the branch point.`,
         'Summaryception - Branch Repair',
@@ -85,7 +87,7 @@ function trimLayer0PastBranch(store, chatLength) {
 
     const removed = before - store.layers[0].length;
     if (removed > 0) {
-        log(`Removed ${removed} Layer 0 snippets that referenced turns beyond branch point`);
+        debug(`Removed ${removed} Layer 0 snippets that referenced turns beyond branch point`);
     }
 }
 

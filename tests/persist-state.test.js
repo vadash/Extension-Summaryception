@@ -15,14 +15,14 @@ afterEach(() => {
 async function loadPersistState({
     saveChat = vi.fn(async () => {}),
     saveChatStore = vi.fn(async () => {}),
-    log = vi.fn(),
+    warn = vi.fn(),
 } = {}) {
     vi.doMock('../src/foundation/context.js', () => ({ saveChat }));
     vi.doMock('../src/foundation/state.js', () => ({ saveChatStore }));
-    vi.doMock('../src/foundation/logger.js', () => ({ log }));
+    vi.doMock('../src/foundation/logger.js', () => ({ warn }));
 
     const mod = await import('../src/core/persist-state.js');
-    return { ...mod, saveChat, saveChatStore, log };
+    return { ...mod, saveChat, saveChatStore, warn };
 }
 
 describe('persistChatState', () => {
@@ -78,10 +78,10 @@ describe('persistChatState', () => {
         const saveChat = vi.fn(async () => {
             throw error;
         });
-        const { persistChatState, log } = await loadPersistState({ saveChat });
+        const { persistChatState, warn } = await loadPersistState({ saveChat });
 
         await expect(persistChatState()).resolves.toBeUndefined();
 
-        expect(log).toHaveBeenCalledWith('Could not save chat:', error);
+        expect(warn).toHaveBeenCalledWith('Could not save chat:', error);
     });
 });

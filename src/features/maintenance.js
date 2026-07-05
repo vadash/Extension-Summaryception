@@ -1,5 +1,5 @@
 import { executeSlashCommandsWithOptions, getChat, saveChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { warn } from '../foundation/logger.js';
 
 /**
  * Check whether a hidden message is no longer owned by Summaryception.
@@ -48,7 +48,7 @@ async function repairOrphanedMessage(message, index) {
     try {
         await executeSlashCommandsWithOptions(`/unhide ${index}`, { showOutput: false });
     } catch (e) {
-        log(`Repair: failed to unhide ${index}:`, e);
+        warn(`Repair: failed to unhide ${index}:`, e);
     }
 
     message.is_system = false;
@@ -59,6 +59,6 @@ async function saveChatAfterRepair() {
     try {
         await saveChat();
     } catch (e) {
-        log('Could not save chat:', e);
+        warn('Could not save chat:', e);
     }
 }

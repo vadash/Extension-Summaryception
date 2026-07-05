@@ -28,16 +28,48 @@ export function isTraceEnabled() {
 }
 
 /**
- *
+ * Check whether full LLM prompt/response logging is enabled.
+ * @returns {boolean}
  */
-export function log(...args) {
+export function isPromptLogEnabled() {
+    return Boolean(getDebugSettings().promptLogMode);
+}
+
+/**
+ * Emit a low-frequency informational log when debug logging is enabled.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
+ */
+export function info(...args) {
     if (isDebugEnabled()) {
         console.log(LOG_PREFIX, ...args);
     }
 }
 
 /**
- *
+ * Emit a diagnostic log when debug logging is enabled.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
+ */
+export function debug(...args) {
+    if (isDebugEnabled()) {
+        console.log(LOG_PREFIX, '[DEBUG]', ...args);
+    }
+}
+
+/**
+ * Backward-compatible debug log alias.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
+ */
+export function log(...args) {
+    debug(...args);
+}
+
+/**
+ * Emit a high-volume trace log when debug and trace logging are enabled.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
  */
 export function trace(...args) {
     if (isTraceEnabled()) {
@@ -49,7 +81,28 @@ export function trace(...args) {
 }
 
 /**
- *
+ * Emit an always-visible warning.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
+ */
+export function warn(...args) {
+    console.warn(LOG_PREFIX, ...args);
+}
+
+/**
+ * Emit an always-visible error.
+ * @param {...unknown} args - Console arguments
+ * @returns {void}
+ */
+export function error(...args) {
+    console.error(LOG_PREFIX, ...args);
+}
+
+/**
+ * Trace visible/ghosted chat counts for ghosting diagnostics.
+ * @param {Array<{ is_user?: boolean, is_system?: boolean, is_hidden?: boolean, mes?: string, extra?: object }>} chat - Chat messages
+ * @param {{ summarizedUpTo: number }} store - Summaryception chat store
+ * @returns {void}
  */
 export function debugVisibleTurns(chat, store) {
     trace('=== DEBUG VISIBLE TURNS ===');
@@ -63,7 +116,11 @@ export function debugVisibleTurns(chat, store) {
 
     for (let i = 0; i < chat.length; i++) {
         const m = chat[i];
-        if (!m.is_user && !m.is_system && !m.extra?.sc_ghosted && m.mes?.trim()?.length > 0) {
+        if (!m) {
+            continue;
+        }
+        const messageText = m.mes?.trim() || '';
+        if (!m.is_user && !m.is_system && !m.extra?.sc_ghosted && messageText.length > 0) {
             visibleCount++;
             visibleIndices.push(i);
         }

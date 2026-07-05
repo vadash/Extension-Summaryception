@@ -1,5 +1,5 @@
 import { getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { warn } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
@@ -15,7 +15,7 @@ export function registerSlashCommands() {
         const SlashCommand = getSlashCommand();
 
         if (!SlashCommandParser?.addCommandObject || !SlashCommand) {
-            log('SlashCommandParser not available, skipping command registration.');
+            warn('SlashCommandParser not available, skipping command registration.');
             return;
         }
 
@@ -61,6 +61,6 @@ export function registerSlashCommands() {
             }),
         );
     } catch (e) {
-        log('Could not register slash commands:', e);
+        warn('Could not register slash commands:', e);
     }
 }

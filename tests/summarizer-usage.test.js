@@ -20,17 +20,37 @@ vi.mock('../src/core/connectionutil.js', () => ({
 }));
 
 let consoleLogSpy;
+let consoleGroupCollapsedSpy;
+let consoleGroupEndSpy;
 
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     installBrowserRuntimeStub();
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleGroupCollapsedSpy = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {});
+    consoleGroupEndSpy = vi.spyOn(console, 'groupEnd').mockImplementation(() => {});
 });
 
 afterEach(() => {
     consoleLogSpy.mockRestore();
+    consoleGroupCollapsedSpy.mockRestore();
+    consoleGroupEndSpy.mockRestore();
 });
+
+function findConsoleLogContaining(text) {
+    return consoleLogSpy.mock.calls.find((call) =>
+        call.some((part) => String(part).includes(text)),
+    );
+}
+
+function getConsoleText() {
+    return consoleLogSpy.mock.calls.flat().map(String).join('\n');
+}
+
+function findGroupTitleContaining(text) {
+    return consoleGroupCollapsedSpy.mock.calls.find(([title]) => String(title).includes(text))?.[0];
+}
 
 function installDebugContext() {
     const ctx = installSillyTavernStub({
@@ -46,7 +66,7 @@ function installDebugContext() {
 }
 
 describe('summarizer usage logging', () => {
-    it('logs a copyable full Layer 0 prompt block when prompt logging is enabled', async () => {
+    it('logs a full Layer 0 prompt and response transaction when prompt logging is enabled', async () => {
         installSillyTavernStub({
             settings: {
                 promptLogMode: true,
@@ -64,15 +84,18 @@ describe('summarizer usage logging', () => {
             assistantTurnCount: 2,
         });
 
-        const promptLog = consoleLogSpy.mock.calls.find(
-            ([first]) =>
-                typeof first === 'string' && first.includes('SUMMARYCEPTION LLM PROMPT START'),
-        )?.[0];
+        expect(findGroupTitleContaining('[Summaryception] [LLM] layer0 turns 1-3')).toContain(
+            'SUCCESS',
+        );
+        expect(findGroupTitleContaining('System Prompt')).toBe('System Prompt');
+        expect(findGroupTitleContaining('User Prompt')).toBe('User Prompt');
+        expect(findGroupTitleContaining('Raw LLM Response')).toBe('Raw LLM Response');
+        expect(findGroupTitleContaining('Cleaned Summary')).toBe('Cleaned Summary');
 
-        expect(promptLog).toContain('[Summaryception] LLM prompt: layer0 turns 1-3');
-        expect(promptLog).toContain('[system]\nSYS');
-        expect(promptLog).toContain('[user]\nCTX prior context STORY source passage');
-        expect(promptLog).toContain('SUMMARYCEPTION LLM PROMPT END');
+        const loggedText = getConsoleText();
+        expect(loggedText).toContain('SYS');
+        expect(loggedText).toContain('CTX prior context STORY source passage');
+        expect(loggedText).toContain('summary text');
     });
 
     it('labels promotion prompt logs with source and destination layers', async () => {
@@ -95,14 +118,42 @@ describe('summarizer usage logging', () => {
             mergedSnippetCount: 2,
         });
 
-        const promptLog = consoleLogSpy.mock.calls.find(
-            ([first]) =>
-                typeof first === 'string' && first.includes('SUMMARYCEPTION LLM PROMPT START'),
-        )?.[0];
+        expect(findGroupTitleContaining('promotion L1->L2 (2 snippets)')).toContain('SUCCESS');
+        const loggedText = getConsoleText();
+        expect(loggedText).toContain('PROMO_SYS');
+        expect(loggedText).toContain('PROMO deep context STORY merged snippets');
+        expect(loggedText).toContain('summary text');
+    });
 
-        expect(promptLog).toContain('LLM prompt: promotion L1->L2 (2 snippets)');
-        expect(promptLog).toContain('[system]\nPROMO_SYS');
-        expect(promptLog).toContain('[user]\nPROMO deep context STORY merged snippets');
+    it('logs failed prompt and response attempts with error details', async () => {
+        installSillyTavernStub({
+            settings: {
+                promptLogMode: true,
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        const { RETRY_CONFIG } = await import('../src/foundation/constants.js');
+        const originalMaxRetries = RETRY_CONFIG.maxRetries;
+        RETRY_CONFIG.maxRetries = 0;
+        mocks.sendSummarizerRequest.mockResolvedValueOnce('<thinking>only thoughts</thinking>');
+
+        try {
+            const { callSummarizer } = await import('../src/core/summarizer-request.js');
+            await callSummarizer('source passage', 'prior context', {
+                kind: 'layer0',
+                sourceRange: [4, 5],
+                assistantTurnCount: 1,
+            });
+        } finally {
+            RETRY_CONFIG.maxRetries = originalMaxRetries;
+        }
+
+        expect(findGroupTitleContaining('layer0 turns 4-5')).toContain('EMPTY');
+        expect(findGroupTitleContaining('Error')).toBe('Error');
+        expect(getConsoleText()).toContain('<thinking>only thoughts</thinking>');
+        expect(getConsoleText()).toContain('Empty response from summarizer');
     });
 
     it('logs estimated prompt, completion, and total tokens after a successful call', async () => {
@@ -134,11 +185,9 @@ describe('summarizer usage logging', () => {
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('source passage');
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).toBe('clean summary');
 
-        const usageLog = consoleLogSpy.mock.calls.find((call) =>
-            call[1]?.includes('LLM call layer0 turns 0-2'),
-        );
-        expect(usageLog?.[1]).toContain('regex tokens 30->20');
-        expect(usageLog?.[1]).toContain('tokens prompt=12 completion=4 total=16');
+        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-2');
+        expect(usageLog?.join(' ')).toContain('regex tokens 30->20');
+        expect(usageLog?.join(' ')).toContain('tokens prompt=12 completion=4 total=16');
     });
 
     it('uses promotion prompts for promotion usage token estimates', async () => {
@@ -174,11 +223,9 @@ describe('summarizer usage logging', () => {
         );
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).not.toContain('L0_SYS');
 
-        const usageLog = consoleLogSpy.mock.calls.find((call) =>
-            call[1]?.includes('LLM call promotion L1'),
-        );
-        expect(usageLog?.[1]).toContain('memory=6->5');
-        expect(usageLog?.[1]).toContain('tokens prompt=14 completion=5 total=19');
+        const usageLog = findConsoleLogContaining('LLM call promotion L1');
+        expect(usageLog?.join(' ')).toContain('memory=6->5');
+        expect(usageLog?.join(' ')).toContain('tokens prompt=14 completion=5 total=19');
     });
 
     it('formats large logged token counts with a compact k suffix', async () => {
@@ -196,10 +243,8 @@ describe('summarizer usage logging', () => {
             totalTokens: 1242944,
         });
 
-        const usageLog = consoleLogSpy.mock.calls.find((call) =>
-            call[1]?.includes('LLM call layer0 turns 0-1'),
-        );
-        expect(usageLog?.[1]).toContain('tokens prompt=8k completion=1234k total=1242k');
+        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-1');
+        expect(usageLog?.join(' ')).toContain('tokens prompt=8k completion=1234k total=1242k');
     });
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {
@@ -222,13 +267,11 @@ describe('summarizer usage logging', () => {
 
         expect(summary).toBe('fallback summary');
 
-        const usageLog = consoleLogSpy.mock.calls.find((call) =>
-            call[1]?.includes('LLM call layer0 turns 0-2'),
-        );
-        expect(usageLog?.[1]).toContain('tokens prompt=~');
-        expect(usageLog?.[1]).toContain('completion=~');
-        expect(usageLog?.[1]).toContain('total=~');
-        expect(usageLog?.[1]).not.toContain('chars');
+        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-2');
+        expect(usageLog?.join(' ')).toContain('tokens prompt=~');
+        expect(usageLog?.join(' ')).toContain('completion=~');
+        expect(usageLog?.join(' ')).toContain('total=~');
+        expect(usageLog?.join(' ')).not.toContain('chars');
     });
 
     it('logs the max-token call once when a usage run ends', async () => {
@@ -261,11 +304,11 @@ describe('summarizer usage logging', () => {
         });
 
         const maxLogs = consoleLogSpy.mock.calls.filter((call) =>
-            call[1]?.includes('LLM run auto worker drain max call'),
+            call.some((part) => String(part).includes('LLM run auto worker drain max call')),
         );
         expect(maxLogs).toHaveLength(1);
-        expect(maxLogs[0][1]).toContain('#2 promotion L0');
-        expect(maxLogs[0][1]).toContain('total=25 tokens');
+        expect(maxLogs[0].join(' ')).toContain('#2 promotion L0');
+        expect(maxLogs[0].join(' ')).toContain('total=25 tokens');
     });
 
     it('skips the max-token line when a usage run makes no LLM calls', async () => {
@@ -276,7 +319,7 @@ describe('summarizer usage logging', () => {
 
         expect(
             consoleLogSpy.mock.calls.some((call) =>
-                call[1]?.includes('LLM run manual batch max call'),
+                call.some((part) => String(part).includes('LLM run manual batch max call')),
             ),
         ).toBe(false);
     });

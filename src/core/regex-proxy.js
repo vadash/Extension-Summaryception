@@ -2,7 +2,7 @@
  * Lazy loader for SillyTavern's regex engine.
  * Uses dynamic import so the extension still loads if ST reorganizes the module.
  */
-import { LOG_PREFIX } from '../foundation/constants.js';
+import { warn } from '../foundation/logger.js';
 
 /**
  * @typedef {object} RegexModule
@@ -42,7 +42,7 @@ async function loadRegexModule() {
         }
     }
 
-    console.warn(LOG_PREFIX, 'Regex engine unavailable, using raw text.', failures.join(' | '));
+    warn('Regex engine unavailable, using raw text.', failures.join(' | '));
     return null;
 }
 
@@ -153,7 +153,7 @@ export async function applyRegexToMessage(mes, isUser, depth) {
             depth,
         });
     } catch (e) {
-        console.warn(LOG_PREFIX, 'Regex transformation failed, using raw text.', e?.message || e);
+        warn('Regex transformation failed, using raw text.', e?.message || e);
         return mes;
     }
 }

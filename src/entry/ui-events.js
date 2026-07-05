@@ -1,11 +1,6 @@
-import {
-    LOG_PREFIX,
-    MEMORY_MODES,
-    PROMPT_PRESETS,
-    defaultSettings,
-} from '../foundation/constants.js';
+import { MEMORY_MODES, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
-import { log } from '../foundation/logger.js';
+import { debug, error, warn } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
 import {
@@ -131,7 +126,7 @@ function bindMemoryModeHandlers() {
 function requestAutoSummaryRefresh(reason) {
     void maybeSummarizeTurns()
         .catch((e) => {
-            log(`Auto summarization request after ${reason} failed:`, e);
+            warn(`Auto summarization request after ${reason} failed:`, e);
         })
         .finally(updateUI);
 }
@@ -577,7 +572,7 @@ function triggerImport() {
                 { timeOut: 4000 },
             );
         } catch (err) {
-            console.error(LOG_PREFIX, err);
+            error(err);
             toastr.error('Import failed - check console.');
         }
     };
@@ -704,7 +699,7 @@ function bindPromptPresetHandlers() {
 
         if (previousPreset === 'custom') {
             s.lastCustomPrompt = s.summarizerUserPrompt || '';
-            log('Auto-saved custom prompt before switching to', selected);
+            debug('Auto-saved custom prompt before switching to', selected);
         }
 
         s.promptPreset = selected;
@@ -713,7 +708,7 @@ function bindPromptPresetHandlers() {
             if (s.lastCustomPrompt) {
                 $('#sc_summarizer_user_prompt').val(s.lastCustomPrompt);
                 s.summarizerUserPrompt = s.lastCustomPrompt;
-                log('Restored auto-saved custom prompt');
+                debug('Restored auto-saved custom prompt');
             }
             $('#sc_custom_prompt_manager').show();
         } else {
@@ -889,7 +884,7 @@ function triggerCustomPromptImport() {
                 timeOut: 3000,
             });
         } catch (err) {
-            console.error(LOG_PREFIX, err);
+            error(err);
             toastr.error('Import failed - check console.', 'Summaryception');
         }
     };

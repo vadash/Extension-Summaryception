@@ -1,4 +1,4 @@
-import { log, trace } from '../foundation/logger.js';
+import { debug, info, trace, warn } from '../foundation/logger.js';
 import { getContext } from '../foundation/context.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
@@ -96,7 +96,7 @@ export function beginForegroundGeneration() {
     reassertCommittedInjection();
     foregroundFrozen = true;
     generationEpoch++;
-    log('Foreground generation started; prompt-affecting mutations frozen.');
+    info('Foreground generation started; prompt-affecting mutations frozen.');
 }
 
 /**
@@ -109,7 +109,7 @@ export async function endForegroundGeneration() {
     }
 
     foregroundFrozen = false;
-    log(
+    info(
         'Foreground generation ended; flushing pending Summaryception commits.',
         `commits=${pendingCommits.length}`,
         `effects=${pendingPromptEffects.length}`,
@@ -126,7 +126,7 @@ export async function endForegroundGeneration() {
 export async function commitWhenSafe(commit) {
     if (foregroundFrozen) {
         pendingCommits.push(commit);
-        log(`Queued ${commit.kind} commit while foreground generation is active.`);
+        debug(`Queued ${commit.kind} commit while foreground generation is active.`);
         return 'queued';
     }
 
@@ -228,7 +228,7 @@ export async function recoverStalePromptFreeze(reason, { refreshUi } = {}) {
         return false;
     }
 
-    log(`Recovering stale foreground generation freeze before ${reason}.`);
+    warn(`Recovering stale foreground generation freeze before ${reason}.`);
     await endForegroundGeneration();
     if (refreshUi) {
         refreshUi();
@@ -279,7 +279,7 @@ async function applyCommit(commit) {
         return 'applied';
     }
 
-    log(`Discarded stale ${commit.kind} result; requeueing summarization.`);
+    debug(`Discarded stale ${commit.kind} result; requeueing summarization.`);
     if (requeueCallback) {
         requeueCallback(`stale-${commit.kind}`);
     }

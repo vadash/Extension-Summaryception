@@ -6,7 +6,15 @@ import {
     sendSummarizerRequest,
 } from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
-import { isTraceEnabled, log, trace } from '../foundation/logger.js';
+import {
+    debug,
+    error as logError,
+    info,
+    isPromptLogEnabled,
+    isTraceEnabled,
+    trace,
+    warn,
+} from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
 import { cleanSummarizerOutput } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
@@ -29,7 +37,7 @@ export function hasActiveAbortController() {
 export function abortCurrentSummarizerRequest() {
     if (currentAbortController) {
         currentAbortController.abort();
-        log('Abort signal sent.');
+        debug('Abort signal sent.');
     }
 }
 
@@ -53,7 +61,6 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     const promptConfig = resolveSummarizerPromptConfig(s, metadata);
     const prompt = buildSummarizerPrompt(promptConfig.userPromptTemplate, storyTxt, contextStr);
     const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
-    logSummarizerPrompt({ s, systemPrompt: promptConfig.systemPrompt, prompt, metadata });
 
     currentAbortController = new AbortController();
 
@@ -146,43 +153,6 @@ function buildSummarizerPrompt(template, storyTxt, contextStr) {
 }
 
 /**
- * Log a complete copyable prompt block for console debugging.
- * @param {object} p
- * @param {ExtensionSettings} p.s - Settings
- * @param {string} p.systemPrompt - System prompt sent to the summarizer
- * @param {string} p.prompt - Fully substituted user prompt
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
- * @returns {void}
- */
-function logSummarizerPrompt({ s, systemPrompt, prompt, metadata }) {
-    if (!s.promptLogMode) {
-        return;
-    }
-
-    const label = describePromptLogCall(metadata);
-    console.log(buildPromptLogBlock({ label, systemPrompt, prompt }));
-}
-
-/**
- * Build the console text for one summarizer request.
- * @param {object} p
- * @param {string} p.label - Human-readable call label
- * @param {string} p.systemPrompt - System prompt sent to the summarizer
- * @param {string} p.prompt - User prompt sent to the summarizer
- * @returns {string}
- */
-function buildPromptLogBlock({ label, systemPrompt, prompt }) {
-    return (
-        `${LOG_PREFIX} LLM prompt: ${label}\n` +
-        '--- SUMMARYCEPTION LLM PROMPT START ---\n' +
-        `[call]\n${label}\n\n` +
-        `[system]\n${systemPrompt || ''}\n\n` +
-        `[user]\n${prompt || ''}\n` +
-        '--- SUMMARYCEPTION LLM PROMPT END ---'
-    );
-}
-
-/**
  * Describe a summarizer request for prompt logs.
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @returns {string}
@@ -257,7 +227,7 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
 
     const fallbackSettings = resolveFallbackSummarizerConnectionSettings(s, metadata);
     if (primary.retryable && fallbackSettings) {
-        log(
+        info(
             `Primary summarizer failed after retryable errors; trying fallback ` +
                 `(${fallbackSettings.connectionSource}).`,
         );
@@ -375,19 +345,24 @@ async function executeSummarizerAttempt({
     routeLabel,
 }) {
     trace(`  ${routeLabel} attempt ${attempt} starting...`);
+    const startedAt = Date.now();
+    let rawResult = '';
+    let cleanedResult = '';
+    let usage = null;
+    let attemptError = null;
+    let status = 'failed';
 
     try {
         if (attempt > 0) {
-            log(`${routeLabel} retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
+            debug(`${routeLabel} retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
         }
 
         await traceSummarizerRequest({ s, systemPrompt, prompt, metadata });
 
         const abortContext = createAttemptAbortContext(signal, 120000);
 
-        let result;
         try {
-            result = await Promise.race([
+            rawResult = await Promise.race([
                 sendSummarizerRequest(s, systemPrompt, prompt, abortContext.signal, metadata),
                 abortContext.promise,
             ]);
@@ -395,27 +370,52 @@ async function executeSummarizerAttempt({
             abortContext.cleanup();
         }
 
-        trace('  sendSummarizerRequest returned:', result?.substring?.(0, 50));
+        trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
 
-        let trimmed = (result || '').trim();
-        trimmed = cleanSummarizerOutput(trimmed);
+        cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
 
-        if (!trimmed) {
-            log('Empty response from LLM, treating as retryable');
-            return buildAttemptFailure(new Error('Empty response from summarizer'), true);
+        if (!cleanedResult) {
+            attemptError = new Error('Empty response from summarizer');
+            status = 'empty';
+            debug('Empty response from LLM, treating as retryable');
+            return buildAttemptFailure(attemptError, true);
         }
 
-        await logSuccessfulUsage({ systemPrompt, prompt, summary: trimmed, metadata });
+        usage = await logSuccessfulUsage({
+            systemPrompt,
+            prompt,
+            summary: cleanedResult,
+            metadata,
+        });
+        status = 'success';
         trace('<<< EXITING callSummarizer WITH SUCCESS');
         return {
             success: true,
-            result: trimmed,
+            result: cleanedResult,
             error: new Error('no error'),
             aborted: false,
             shouldRetry: false,
         };
     } catch (err) {
-        return classifyAttemptError(err, signal);
+        const result = classifyAttemptError(err, signal);
+        attemptError = result.error;
+        status = result.aborted ? 'aborted' : 'failed';
+        return result;
+    } finally {
+        logLlmAttemptTransaction({
+            label: describePromptLogCall(metadata),
+            routeLabel,
+            attempt,
+            status,
+            durationMs: Date.now() - startedAt,
+            systemPrompt,
+            prompt,
+            rawResult,
+            cleanedResult,
+            metadata,
+            usage,
+            error: attemptError,
+        });
     }
 }
 
@@ -469,7 +469,7 @@ async function traceSummarizerRequest({ s, systemPrompt, prompt, metadata }) {
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {string} p.summary - Cleaned summarizer response
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
- * @returns {Promise<void>}
+ * @returns {Promise<import('./summarizer-usage.js').SummarizerTokenUsage>}
  */
 async function logSuccessfulUsage({ systemPrompt, prompt, summary, metadata }) {
     const usage = await estimateSummarizerUsage(systemPrompt, prompt, summary);
@@ -477,6 +477,7 @@ async function logSuccessfulUsage({ systemPrompt, prompt, summary, metadata }) {
         metadata,
         ...usage,
     });
+    return usage;
 }
 
 /**
@@ -502,7 +503,7 @@ function classifyAttemptError(err, signal) {
 
     const shouldRetry = isRetryableError(error);
     if (!shouldRetry) {
-        console.error(LOG_PREFIX, 'Non-retryable error:', error);
+        logError('Non-retryable error:', error);
     }
 
     return buildAttemptFailure(error, shouldRetry);
@@ -538,7 +539,7 @@ function shouldStopRetrying(attemptResult, attempt) {
 
     if (attempt >= RETRY_CONFIG.maxRetries) {
         trace('  MAX RETRIES EXHAUSTED');
-        console.error(LOG_PREFIX, `All ${RETRY_CONFIG.maxRetries} retries exhausted.`);
+        logError(`All ${RETRY_CONFIG.maxRetries} retries exhausted.`);
         return true;
     }
 
@@ -608,8 +609,7 @@ async function notifyRetryAndWait(
     const delaySec = (delay / 1000).toFixed(1);
     const status = lastError?.status || lastError?.response?.status || '?';
 
-    console.warn(
-        LOG_PREFIX,
+    warn(
         `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
         lastError.message || lastError,
     );
@@ -661,7 +661,7 @@ function sleepUntilOrAborted(delay, signal) {
  * @returns {string} Always ''
  */
 function abortWithToast() {
-    log('Summarization aborted by user.');
+    debug('Summarization aborted by user.');
     toastr.warning('Summarization aborted.', 'Summaryception', { timeOut: 3000 });
     return '';
 }
@@ -674,7 +674,7 @@ function abortWithToast() {
 function failSummarization(lastError, { retriesExhausted = true } = {}) {
     const status = lastError?.status || lastError?.response?.status || '';
     const retryText = retriesExhausted ? ` after ${RETRY_CONFIG.maxRetries} retries` : '';
-    console.error(LOG_PREFIX, `Summarization failed${retryText}:`, lastError);
+    logError(`Summarization failed${retryText}:`, lastError);
     toastr.error(
         `Summarization failed${retryText}${status ? ` (${status})` : ''}. Batch skipped — will retry on next trigger.`,
         'Summaryception',
@@ -682,4 +682,75 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
     );
     trace('<<< EXITING callSummarizer WITH FAILURE');
     return '';
+}
+
+/**
+ * Log a full prompt/response transaction for one LLM attempt.
+ * @param {object} p
+ * @param {string} p.label - Human-readable call label
+ * @param {string} p.routeLabel - Connection route label
+ * @param {number} p.attempt - Zero-based attempt number
+ * @param {string} p.status - Attempt status
+ * @param {number} p.durationMs - Attempt duration
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
+ * @param {string} p.prompt - User prompt sent to the summarizer
+ * @param {string} p.rawResult - Raw provider result
+ * @param {string} p.cleanedResult - Cleaned summary text
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @param {import('./summarizer-usage.js').SummarizerTokenUsage | null} p.usage - Token usage
+ * @param {Error | null} p.error - Attempt error
+ * @returns {void}
+ */
+function logLlmAttemptTransaction({
+    label,
+    routeLabel,
+    attempt,
+    status,
+    durationMs,
+    systemPrompt,
+    prompt,
+    rawResult,
+    cleanedResult,
+    metadata,
+    usage,
+    error: attemptError,
+}) {
+    if (!isPromptLogEnabled()) {
+        return;
+    }
+
+    const title =
+        `${LOG_PREFIX} [LLM] ${label} - ${status.toUpperCase()} ` +
+        `(${(durationMs / 1000).toFixed(1)}s, ${routeLabel} attempt ${attempt + 1})`;
+
+    console.groupCollapsed(title);
+    try {
+        console.log('Metadata', {
+            route: routeLabel,
+            attempt: attempt + 1,
+            status,
+            durationMs,
+            metadata,
+            usage,
+        });
+        console.groupCollapsed('System Prompt');
+        console.log(systemPrompt || '');
+        console.groupEnd();
+        console.groupCollapsed('User Prompt');
+        console.log(prompt || '');
+        console.groupEnd();
+        console.groupCollapsed('Raw LLM Response');
+        console.log(rawResult || '');
+        console.groupEnd();
+        console.groupCollapsed('Cleaned Summary');
+        console.log(cleanedResult || '');
+        console.groupEnd();
+        if (attemptError) {
+            console.groupCollapsed('Error');
+            console.log(attemptError);
+            console.groupEnd();
+        }
+    } finally {
+        console.groupEnd();
+    }
 }

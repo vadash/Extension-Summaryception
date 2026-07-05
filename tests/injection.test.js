@@ -107,10 +107,11 @@ describe('injection diagnostics', () => {
 
         expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
         const injectionLog = consoleLogSpy.mock.calls.find((call) =>
-            call[1]?.includes('Injection updated:'),
+            call.some((part) => String(part).includes('Injection updated:')),
         );
-        expect(injectionLog?.[1]).toMatch(/Injection updated: \d+ tokens/);
-        expect(injectionLog?.[1]).not.toContain('chars');
+        const joinedLog = injectionLog?.join(' ');
+        expect(joinedLog).toMatch(/Injection updated: \d+ tokens/);
+        expect(joinedLog).not.toContain('chars');
     });
 });
 
