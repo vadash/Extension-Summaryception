@@ -33,7 +33,7 @@
         "repomix-source.json",
         "repomix-tests.json",
         "package.json",
-        "AGENTS.md",
+        "**/AGENTS.md",
         ".prettierrc.json",
         ".prettierignore",
         ".github/workflows/**/*.yml",
