@@ -85,6 +85,34 @@ If the prose uses 2nd person ('you'), map it directly to <player_name>. Never us
 ### FORMATTING:
 Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
+    promotionSystemPrompt:
+        'Role: layered memory synthesizer. Merge lower-layer memories into a smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail. Output only the summary text - no preamble, no commentary, no markdown.',
+
+    promotionUserPrompt: `<prior_context>
+{{context_str}}
+</prior_context>
+
+<memories_to_consolidate>
+{{story_txt}}
+</memories_to_consolidate>
+
+Consolidate <memories_to_consolidate> into a smaller Layer 1+ memory that coherently follows <prior_context>.
+
+### SYNTHESIS PRIORITIES:
+1. Durable narrative/game state: relationships, agreements, goals, quests, locations, inventory, resources, injuries, rules, world facts, and permanent character changes.
+2. Current state and unresolved hooks: where people are, what they intend next, pending deadlines, promises, threats, mysteries, tasks, or hazards.
+3. Cause and effect: preserve why important state changed, but collapse repeated actions into their stable outcome.
+
+### COMPRESSION RULES:
+- Deduplicate anything already fully captured in <prior_context>.
+- Replace repeated micro-actions, dialogue loops, and transitional beats with one concise outcome.
+- Drop flavor, filler, and low-impact moment-to-moment detail unless it changes durable state.
+- Keep specific names, places, items, numbers, and constraints when they matter later.
+- If the memories conflict, keep the newest concrete state and omit obsolete wording.
+
+### FORMAT:
+Write one dense third-person paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, or meta-commentary.`,
+
     promptPreset: 'narrative', // 'narrative' | 'gamestate' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
     lastCustomPrompt: '', // Auto-saved when switching away from custom

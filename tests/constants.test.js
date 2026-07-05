@@ -70,6 +70,13 @@ describe('constants', () => {
         expect(defaultSettings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
     });
 
+    it('provides separate Layer 1+ promotion prompts', () => {
+        expect(defaultSettings.promotionSystemPrompt).toContain('memory synthesizer');
+        expect(defaultSettings.promotionUserPrompt).toContain('{{context_str}}');
+        expect(defaultSettings.promotionUserPrompt).toContain('{{story_txt}}');
+        expect(defaultSettings.promotionUserPrompt).toContain('memories_to_consolidate');
+    });
+
     it('strips common reasoning tokens by default', () => {
         expect(defaultSettings.stripPatterns).toContain('<|channel>thought');
         expect(defaultSettings.stripPatterns).toContain('<thinking>');

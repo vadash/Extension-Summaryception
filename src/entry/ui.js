@@ -75,6 +75,8 @@ function syncSettingsInputs(s) {
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
+    $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
+    $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
     syncMemoryModeControls(s);
 }
 

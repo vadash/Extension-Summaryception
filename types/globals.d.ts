@@ -61,6 +61,8 @@ interface ExtensionSettings {
     injectionTemplate: string;
     summarizerSystemPrompt: string;
     summarizerUserPrompt: string;
+    promotionSystemPrompt: string;
+    promotionUserPrompt: string;
     promptPreset: string;
     savedCustomPrompts: Record<string, string>;
     lastCustomPrompt: string;

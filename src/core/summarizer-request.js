@@ -1,4 +1,4 @@
-import { LOG_PREFIX } from '../foundation/constants.js';
+import { LOG_PREFIX, defaultSettings } from '../foundation/constants.js';
 import { resolveSummarizerConnectionSettings, sendSummarizerRequest } from './connectionutil.js';
 import { getSettings, getPlayerName } from '../foundation/state.js';
 import { isTraceEnabled, log, trace } from '../foundation/logger.js';
@@ -45,14 +45,16 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
         enabled: s.enabled,
     });
 
-    const prompt = buildSummarizerPrompt(s, storyTxt, contextStr);
-    logSummarizerPrompt({ s, prompt, metadata });
+    const promptConfig = resolveSummarizerPromptConfig(s, metadata);
+    const prompt = buildSummarizerPrompt(promptConfig.userPromptTemplate, storyTxt, contextStr);
+    logSummarizerPrompt({ s, systemPrompt: promptConfig.systemPrompt, prompt, metadata });
 
     currentAbortController = new AbortController();
 
     try {
         return await runSummarizerAttempts({
             s,
+            systemPrompt: promptConfig.systemPrompt,
             prompt,
             signal: currentAbortController.signal,
             metadata,
@@ -63,14 +65,56 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
 }
 
 /**
+ * Resolve the system and user prompt template for a summarizer call.
+ * @param {ExtensionSettings} s - Settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @returns {{ systemPrompt: string, userPromptTemplate: string }}
+ */
+function resolveSummarizerPromptConfig(s, metadata = {}) {
+    if (metadata.kind === 'promotion') {
+        return {
+            systemPrompt: getStringSetting(
+                s.promotionSystemPrompt,
+                defaultSettings.promotionSystemPrompt,
+            ),
+            userPromptTemplate: getStringSetting(
+                s.promotionUserPrompt,
+                defaultSettings.promotionUserPrompt,
+            ),
+        };
+    }
+
+    return {
+        systemPrompt: getStringSetting(
+            s.summarizerSystemPrompt,
+            defaultSettings.summarizerSystemPrompt,
+        ),
+        userPromptTemplate: getStringSetting(
+            s.summarizerUserPrompt,
+            defaultSettings.summarizerUserPrompt,
+        ),
+    };
+}
+
+/**
+ * Return a string setting while preserving intentionally empty strings.
+ * @param {unknown} value - Candidate setting value
+ * @param {string} fallback - Default value for malformed legacy settings
+ * @returns {string}
+ */
+function getStringSetting(value, fallback) {
+    return typeof value === 'string' ? value : fallback;
+}
+
+/**
  * Build the configured user prompt with runtime substitutions.
- * @param {object} s - Settings
+ * @param {string} template - User prompt template
  * @param {string} storyTxt - Story text
  * @param {string} contextStr - Context text
  * @returns {string}
  */
-function buildSummarizerPrompt(s, storyTxt, contextStr) {
-    return s.summarizerUserPrompt
+function buildSummarizerPrompt(template, storyTxt, contextStr) {
+    return template
         .replace('{{player_name}}', getPlayerName())
         .replace('{{context_str}}', contextStr || '(none yet)')
         .replace('{{story_txt}}', storyTxt);
@@ -80,17 +124,18 @@ function buildSummarizerPrompt(s, storyTxt, contextStr) {
  * Log a complete copyable prompt block for console debugging.
  * @param {object} p
  * @param {ExtensionSettings} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {void}
  */
-function logSummarizerPrompt({ s, prompt, metadata }) {
+function logSummarizerPrompt({ s, systemPrompt, prompt, metadata }) {
     if (!s.promptLogMode) {
         return;
     }
 
     const label = describePromptLogCall(metadata);
-    console.log(buildPromptLogBlock({ label, systemPrompt: s.summarizerSystemPrompt, prompt }));
+    console.log(buildPromptLogBlock({ label, systemPrompt, prompt }));
 }
 
 /**
@@ -162,12 +207,13 @@ function formatPromptLogCount(count, singular) {
  * Run retry attempts until success, abort, non-retryable error, or exhaustion.
  * @param {object} p
  * @param {object} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {AbortSignal} p.signal - Abort signal
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<string>} Summary text, or '' on failure
  */
-async function runSummarizerAttempts({ s, prompt, signal, metadata }) {
+async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata }) {
     /** @type {Error & { status?: number, response?: { status?: number } }} */
     let lastError = new Error('no error');
 
@@ -178,6 +224,7 @@ async function runSummarizerAttempts({ s, prompt, signal, metadata }) {
 
         const attemptResult = await executeSummarizerAttempt({
             s,
+            systemPrompt,
             prompt,
             signal,
             attempt,
@@ -208,13 +255,14 @@ async function runSummarizerAttempts({ s, prompt, signal, metadata }) {
  * Run a single summarizer attempt and classify the outcome.
  * @param {object} p
  * @param {object} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - The fully substituted prompt
  * @param {AbortSignal} p.signal
  * @param {number} p.attempt - Zero-based attempt index
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
  */
-async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }) {
+async function executeSummarizerAttempt({ s, systemPrompt, prompt, signal, attempt, metadata }) {
     trace(`  Attempt ${attempt} starting...`);
 
     try {
@@ -222,20 +270,14 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
             log(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
         }
 
-        await traceSummarizerRequest({ s, prompt, metadata });
+        await traceSummarizerRequest({ s, systemPrompt, prompt, metadata });
 
         const abortContext = createAttemptAbortContext(signal, 120000);
 
         let result;
         try {
             result = await Promise.race([
-                sendSummarizerRequest(
-                    s,
-                    s.summarizerSystemPrompt,
-                    prompt,
-                    abortContext.signal,
-                    metadata,
-                ),
+                sendSummarizerRequest(s, systemPrompt, prompt, abortContext.signal, metadata),
                 abortContext.promise,
             ]);
         } finally {
@@ -252,7 +294,7 @@ async function executeSummarizerAttempt({ s, prompt, signal, attempt, metadata }
             return buildAttemptFailure(new Error('Empty response from summarizer'), true);
         }
 
-        await logSuccessfulUsage({ s, prompt, summary: trimmed, metadata });
+        await logSuccessfulUsage({ systemPrompt, prompt, summary: trimmed, metadata });
         trace('<<< EXITING callSummarizer WITH SUCCESS');
         return {
             success: true,
@@ -290,11 +332,12 @@ async function traceSummarizerInputTokens(storyTxt, contextStr) {
  * Trace the summarizer request metadata.
  * @param {object} p
  * @param {object} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<void>}
  */
-async function traceSummarizerRequest({ s, prompt, metadata }) {
+async function traceSummarizerRequest({ s, systemPrompt, prompt, metadata }) {
     if (!isTraceEnabled()) {
         return;
     }
@@ -303,7 +346,7 @@ async function traceSummarizerRequest({ s, prompt, metadata }) {
     const effectiveSettings = resolveSummarizerConnectionSettings(s, metadata);
     trace('  About to call sendSummarizerRequest with:', {
         connectionSource: effectiveSettings.connectionSource,
-        summarizerSystemPrompt: s.summarizerSystemPrompt?.substring(0, 50),
+        summarizerSystemPrompt: systemPrompt?.substring(0, 50),
         promptTokens: formatTokenCount(promptTokens),
     });
 }
@@ -311,14 +354,14 @@ async function traceSummarizerRequest({ s, prompt, metadata }) {
 /**
  * Estimate and record usage for a successful summarizer response.
  * @param {object} p
- * @param {object} p.s - Settings
+ * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {string} p.summary - Cleaned summarizer response
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<void>}
  */
-async function logSuccessfulUsage({ s, prompt, summary, metadata }) {
-    const usage = await estimateSummarizerUsage(s.summarizerSystemPrompt, prompt, summary);
+async function logSuccessfulUsage({ systemPrompt, prompt, summary, metadata }) {
+    const usage = await estimateSummarizerUsage(systemPrompt, prompt, summary);
     recordSummarizerUsage({
         metadata,
         ...usage,

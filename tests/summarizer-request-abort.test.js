@@ -49,4 +49,35 @@ describe('callSummarizer abort signal plumbing', () => {
             expect.any(Object),
         );
     });
+
+    it('uses promotion prompts for promotion calls', async () => {
+        installSillyTavernStub({
+            settings: {
+                summarizerSystemPrompt: 'L0_SYS',
+                summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
+                promotionSystemPrompt: 'PROMO_SYS',
+                promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await expect(
+            callSummarizer('merged snippets', 'deep context', {
+                kind: 'promotion',
+                layerIndex: 0,
+                mergedSnippetCount: 3,
+            }),
+        ).resolves.toBe('summary text');
+
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledWith(
+            expect.any(Object),
+            'PROMO_SYS',
+            'PROMO deep context MEMORY merged snippets',
+            expect.any(AbortSignal),
+            expect.objectContaining({ kind: 'promotion' }),
+        );
+    });
 });

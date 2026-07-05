@@ -267,10 +267,12 @@ function syncRetentionSliderDisplays() {
  * @returns {void}
  */
 function bindTextareaHandlers() {
-    /** @type {Array<{ id: string, key: 'injectionTemplate' | 'summarizerSystemPrompt' }>} */
+    /** @type {Array<{ id: string, key: 'injectionTemplate' | 'summarizerSystemPrompt' | 'promotionSystemPrompt' | 'promotionUserPrompt' }>} */
     const textareas = [
         { id: '#sc_injection_template', key: 'injectionTemplate' },
         { id: '#sc_summarizer_system_prompt', key: 'summarizerSystemPrompt' },
+        { id: '#sc_promotion_system_prompt', key: 'promotionSystemPrompt' },
+        { id: '#sc_promotion_user_prompt', key: 'promotionUserPrompt' },
     ];
 
     for (const ta of textareas) {
@@ -572,6 +574,8 @@ function onResetDefaults() {
     // Reset prompts
     s.summarizerSystemPrompt = defaultSettings.summarizerSystemPrompt;
     s.summarizerUserPrompt = defaultSettings.summarizerUserPrompt;
+    s.promotionSystemPrompt = defaultSettings.promotionSystemPrompt;
+    s.promotionUserPrompt = defaultSettings.promotionUserPrompt;
     s.promptPreset = defaultSettings.promptPreset;
     s.injectionTemplate = defaultSettings.injectionTemplate;
     s.stripPatterns = [...defaultSettings.stripPatterns];

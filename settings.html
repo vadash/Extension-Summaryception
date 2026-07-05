@@ -32,7 +32,11 @@
                 </button>
                 <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="prompts">
                     <i class="fa-solid fa-pen-to-square"></i>
-                    <span>Prompts</span>
+                    <span>L0 Prompt</span>
+                </button>
+                <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="promotion-prompts">
+                    <i class="fa-solid fa-code-merge"></i>
+                    <span>L1+ Prompt</span>
                 </button>
                 <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="diagnostics">
                     <i class="fa-solid fa-screwdriver-wrench"></i>
@@ -556,12 +560,13 @@
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-pen-to-square"></span>
-                            Prompts
+                            Layer 0 Prompt
                         </h4>
                     </div>
+                    <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
                     <div class="sc-row sc-prompt-secondary">
                         <label for="sc_summarizer_system_prompt">
-                            <span>System Prompt</span>
+                            <span>Layer 0 System Prompt</span>
                         </label>
                         <textarea id="sc_summarizer_system_prompt" class="text_pole sc-textarea" rows="3"></textarea>
                     </div>
@@ -616,7 +621,7 @@
                     </div>
                     <div class="sc-row sc-prompt-primary">
                         <label for="sc_summarizer_user_prompt">
-                            <span>User Prompt (Turn to Snippet and Layer Promotion)</span>
+                            <span>Layer 0 User Prompt</span>
                             <small class="sc-hint">
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
@@ -629,6 +634,35 @@
                             <small class="sc-hint">Use <code>{{summary}}</code> for the combined summary block.</small>
                         </label>
                         <textarea id="sc_injection_template" class="text_pole sc-textarea" rows="3"></textarea>
+                    </div>
+                </section>
+            </div>
+            <div class="sc-tab-panel" role="tabpanel" data-sc-panel="promotion-prompts">
+                <section class="sc-section sc-prompt-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-code-merge"></span>
+                            Layer 1+ Promotion Prompt
+                        </h4>
+                    </div>
+                    <small class="sc-help-text">Used when consolidating lower-layer memories into deeper meta-summaries.</small>
+                    <div class="sc-row sc-prompt-secondary">
+                        <label for="sc_promotion_system_prompt">
+                            <span>Promotion System Prompt</span>
+                        </label>
+                        <textarea id="sc_promotion_system_prompt" class="text_pole sc-textarea" rows="3"></textarea>
+                    </div>
+                    <div class="sc-row sc-prompt-primary">
+                        <label for="sc_promotion_user_prompt">
+                            <span>Promotion User Prompt</span>
+                            <small class="sc-hint">
+                                Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
+                            </small>
+                            <small class="sc-hint">
+                                <code>{{story_txt}}</code> is lower-layer memory; <code>{{context_str}}</code> is existing deeper memory.
+                            </small>
+                        </label>
+                        <textarea id="sc_promotion_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
                     </div>
                 </section>
             </div>

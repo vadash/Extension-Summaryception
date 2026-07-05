@@ -68,7 +68,7 @@
     top: 0;
     z-index: 2;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
     gap: 3px;
     margin: 6px 0 8px;
     padding: 3px;

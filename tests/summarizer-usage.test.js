@@ -72,6 +72,8 @@ describe('summarizer usage logging', () => {
                 promptLogMode: true,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                promotionSystemPrompt: 'PROMO_SYS',
+                promotionUserPrompt: 'PROMO {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
             },
         });
@@ -90,7 +92,8 @@ describe('summarizer usage logging', () => {
         )?.[0];
 
         expect(promptLog).toContain('LLM prompt: promotion L1->L2 (2 snippets)');
-        expect(promptLog).toContain('[user]\nCTX deep context STORY merged snippets');
+        expect(promptLog).toContain('[system]\nPROMO_SYS');
+        expect(promptLog).toContain('[user]\nPROMO deep context STORY merged snippets');
     });
 
     it('logs estimated prompt, completion, and total tokens after a successful call', async () => {
@@ -127,6 +130,40 @@ describe('summarizer usage logging', () => {
         );
         expect(usageLog?.[1]).toContain('regex tokens 30->20');
         expect(usageLog?.[1]).toContain('tokens prompt=12 completion=4 total=16');
+    });
+
+    it('uses promotion prompts for promotion usage token estimates', async () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                debugMode: true,
+                summarizerSystemPrompt: 'L0_SYS',
+                summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
+                promotionSystemPrompt: 'PROMO_SYS',
+                promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        ctx.getTokenCountAsync = vi.fn().mockResolvedValueOnce(14).mockResolvedValueOnce(5);
+        mocks.sendSummarizerRequest.mockResolvedValue('merged summary');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+        await callSummarizer('merged snippets', 'deep context', {
+            kind: 'promotion',
+            layerIndex: 1,
+            mergedSnippetCount: 2,
+        });
+
+        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(2);
+        expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('PROMO_SYS');
+        expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain(
+            'PROMO deep context MEMORY merged snippets',
+        );
+        expect(ctx.getTokenCountAsync.mock.calls[0][0]).not.toContain('L0_SYS');
+
+        const usageLog = consoleLogSpy.mock.calls.find((call) =>
+            call[1]?.includes('LLM call promotion L1'),
+        );
+        expect(usageLog?.[1]).toContain('tokens prompt=14 completion=5 total=19');
     });
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {

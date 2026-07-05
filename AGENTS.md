@@ -54,6 +54,7 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
 - Layer 0 uses the base summarizer connection; `promotion` calls may use the Layer 1+ merge override.
+- Layer 0 and `promotion` calls use separate prompt settings, routed by summarizer call metadata.
 - Pass summarizer AbortSignals to direct fetch adapters and Connection Manager profiles; default `generateRaw()` still uses the local race fallback unless ST exposes a signal.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.
