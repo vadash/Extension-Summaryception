@@ -131,6 +131,8 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
 
     debugMode: false,
     traceMode: false,
+    promptInputLogMode: false,
+    promptOutputLogMode: false,
     promptLogMode: false,
 
     // ─── Connection Settings ─────────────────────────────────────

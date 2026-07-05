@@ -446,15 +446,28 @@ const HELP_ENTRIES = [
         }),
     ],
     [
-        'prompt_log_mode',
+        'prompt_input_log_mode',
         basicHelp({
-            selector: selectorFor('sc_prompt_log_mode'),
-            title: 'Log LLM Prompts & Responses',
-            short: 'Print full summarizer prompts and replies to the console.',
-            controls: [controlFor('sc_prompt_log_mode')],
+            selector: selectorFor('sc_prompt_input_log_mode'),
+            title: 'Log LLM Inputs',
+            short: 'Print full final summarizer inputs to the console.',
+            controls: [controlFor('sc_prompt_input_log_mode')],
             controlsText:
-                'Controls whether full summarizer prompts, responses, and errors are logged.',
-            when: 'only when diagnosing prompt quality or provider errors.',
+                'Controls whether full final system and user prompt content sent to the summarizer is logged.',
+            when: 'only when diagnosing prompt quality.',
+            risk: 'the browser console may contain private chat text.',
+        }),
+    ],
+    [
+        'prompt_output_log_mode',
+        basicHelp({
+            selector: selectorFor('sc_prompt_output_log_mode'),
+            title: 'Log LLM Outputs',
+            short: 'Print full summarizer replies to the console.',
+            controls: [controlFor('sc_prompt_output_log_mode')],
+            controlsText:
+                'Controls whether raw summarizer replies, cleaned summaries, and errors are logged.',
+            when: 'only when diagnosing provider output or cleanup behavior.',
             risk: 'the browser console may contain private chat text.',
         }),
     ],

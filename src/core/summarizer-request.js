@@ -10,7 +10,9 @@ import {
     debug,
     error as logError,
     info,
+    isPromptInputLogEnabled,
     isPromptLogEnabled,
+    isPromptOutputLogEnabled,
     isTraceEnabled,
     trace,
     warn,
@@ -788,12 +790,46 @@ function logLlmAttemptTransaction({
         return;
     }
 
+    const inputLogEnabled = isPromptInputLogEnabled();
+    const outputLogEnabled = isPromptOutputLogEnabled();
     const title =
         `${LOG_PREFIX} [LLM] ${label} - ${status.toUpperCase()} ` +
         `(${(durationMs / 1000).toFixed(1)}s, ${routeLabel} attempt ${attempt + 1})`;
 
     console.groupCollapsed(title);
     try {
+        if (inputLogEnabled) {
+            console.log(
+                JSON.stringify(
+                    buildLlmInputLog({
+                        label,
+                        routeLabel,
+                        attempt,
+                        systemPrompt,
+                        prompt,
+                    }),
+                    null,
+                    2,
+                ),
+            );
+        }
+        if (outputLogEnabled) {
+            console.log(
+                JSON.stringify(
+                    buildLlmOutputLog({
+                        label,
+                        routeLabel,
+                        attempt,
+                        status,
+                        rawResult,
+                        cleanedResult,
+                        attemptError,
+                    }),
+                    null,
+                    2,
+                ),
+            );
+        }
         console.log('Metadata', {
             route: routeLabel,
             attempt: attempt + 1,
@@ -802,24 +838,84 @@ function logLlmAttemptTransaction({
             metadata,
             usage,
         });
-        console.groupCollapsed('System Prompt');
-        console.log(systemPrompt || '');
-        console.groupEnd();
-        console.groupCollapsed('User Prompt');
-        console.log(prompt || '');
-        console.groupEnd();
-        console.groupCollapsed('Raw LLM Response');
-        console.log(rawResult || '');
-        console.groupEnd();
-        console.groupCollapsed('Cleaned Summary');
-        console.log(cleanedResult || '');
-        console.groupEnd();
-        if (attemptError) {
-            console.groupCollapsed('Error');
-            console.log(attemptError);
-            console.groupEnd();
-        }
     } finally {
         console.groupEnd();
     }
+}
+
+/**
+ * Build a copyable prompt-input log payload.
+ * @param {object} p
+ * @param {string} p.label
+ * @param {string} p.routeLabel
+ * @param {number} p.attempt
+ * @param {string} p.systemPrompt
+ * @param {string} p.prompt
+ * @returns {object}
+ */
+function buildLlmInputLog({ label, routeLabel, attempt, systemPrompt, prompt }) {
+    return {
+        type: 'summaryception.llm.input.v1',
+        label,
+        route: routeLabel,
+        attempt: attempt + 1,
+        messages: [
+            { role: 'system', content: systemPrompt || '' },
+            { role: 'user', content: prompt || '' },
+        ],
+    };
+}
+
+/**
+ * Build a copyable prompt-output log payload.
+ * @param {object} p
+ * @param {string} p.label
+ * @param {string} p.routeLabel
+ * @param {number} p.attempt
+ * @param {string} p.status
+ * @param {string} p.rawResult
+ * @param {string} p.cleanedResult
+ * @param {Error | null} p.attemptError
+ * @returns {object}
+ */
+function buildLlmOutputLog({
+    label,
+    routeLabel,
+    attempt,
+    status,
+    rawResult,
+    cleanedResult,
+    attemptError,
+}) {
+    return {
+        type: 'summaryception.llm.output.v1',
+        label,
+        route: routeLabel,
+        attempt: attempt + 1,
+        status,
+        rawResponse: rawResult || '',
+        cleanedSummary: cleanedResult || '',
+        error: serializeAttemptError(attemptError),
+    };
+}
+
+/**
+ * Serialize an attempt error into JSON-safe details.
+ * @param {Error | null} error
+ * @returns {object|null}
+ */
+function serializeAttemptError(error) {
+    if (!error) {
+        return null;
+    }
+    const e =
+        /** @type {Error & { status?: number, statusCode?: number, retryable?: boolean, response?: { status?: number } }} */ (
+            error
+        );
+    return {
+        name: e.name || 'Error',
+        message: e.message || String(e),
+        status: e.status || e.statusCode || e.response?.status || null,
+        retryable: typeof e.retryable === 'boolean' ? e.retryable : null,
+    };
 }

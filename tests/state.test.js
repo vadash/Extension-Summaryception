@@ -54,6 +54,19 @@ describe('state.js', () => {
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
+    it('migrates legacy combined prompt logging into input and output toggles', () => {
+        const ctx = installSillyTavernStub({
+            settings: { promptPreset: 'narrative', promptLogMode: true },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.promptInputLogMode).toBe(true);
+        expect(settings.promptOutputLogMode).toBe(true);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
     it('normalizes dynamic verbatim window settings to valid slider values', () => {
         installSillyTavernStub({
             settings: {

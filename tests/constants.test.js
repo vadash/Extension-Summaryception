@@ -39,6 +39,8 @@ describe('constants', () => {
             defaultSettings.snippetsPerPromotion,
         );
         expect(defaultSettings.maxLayers).toBeUndefined();
+        expect(defaultSettings.promptInputLogMode).toBe(false);
+        expect(defaultSettings.promptOutputLogMode).toBe(false);
         expect(defaultSettings.promptLogMode).toBe(false);
     });
 

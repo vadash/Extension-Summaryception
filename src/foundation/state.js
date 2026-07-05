@@ -27,6 +27,9 @@ export function getSettings() {
     const hadPromptPreset = Boolean(settings.promptPreset);
     const promptBeforeBackfill =
         typeof settings.summarizerUserPrompt === 'string' ? settings.summarizerUserPrompt : '';
+    const legacyPromptLogMode = Boolean(settings.promptLogMode);
+    const hadPromptInputLogMode = Object.hasOwn(settings, 'promptInputLogMode');
+    const hadPromptOutputLogMode = Object.hasOwn(settings, 'promptOutputLogMode');
     const settingsRecord = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (settings)
     );
@@ -39,6 +42,11 @@ export function getSettings() {
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill);
+    ensurePromptLogSettingsMigrated(settings, {
+        legacyPromptLogMode,
+        hadPromptInputLogMode,
+        hadPromptOutputLogMode,
+    });
     return settings;
 }
 
@@ -174,6 +182,29 @@ function ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackf
         settings.promptPreset = 'custom';
         saveSettingsDebounced();
     }
+}
+
+/**
+ * Split the legacy combined prompt log setting into input/output toggles.
+ * @param {ExtensionSettings} settings
+ * @param {{ legacyPromptLogMode: boolean, hadPromptInputLogMode: boolean, hadPromptOutputLogMode: boolean }} state
+ * @returns {void}
+ */
+function ensurePromptLogSettingsMigrated(
+    settings,
+    { legacyPromptLogMode, hadPromptInputLogMode, hadPromptOutputLogMode },
+) {
+    if (!legacyPromptLogMode || (hadPromptInputLogMode && hadPromptOutputLogMode)) {
+        return;
+    }
+
+    if (!hadPromptInputLogMode) {
+        settings.promptInputLogMode = true;
+    }
+    if (!hadPromptOutputLogMode) {
+        settings.promptOutputLogMode = true;
+    }
+    saveSettingsDebounced();
 }
 
 function clampInteger(value, min, max) {

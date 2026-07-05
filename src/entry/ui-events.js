@@ -71,8 +71,13 @@ function bindToggleHandlers() {
         saveSettings();
     });
 
-    $(document).on('change', '#sc_prompt_log_mode', function () {
-        getSettings().promptLogMode = $(this).prop('checked');
+    $(document).on('change', '#sc_prompt_input_log_mode', function () {
+        getSettings().promptInputLogMode = $(this).prop('checked');
+        saveSettings();
+    });
+
+    $(document).on('change', '#sc_prompt_output_log_mode', function () {
+        getSettings().promptOutputLogMode = $(this).prop('checked');
         saveSettings();
     });
 
@@ -622,6 +627,8 @@ function onResetDefaults() {
     // Reset debug
     s.debugMode = true;
     s.traceMode = defaultSettings.traceMode;
+    s.promptInputLogMode = defaultSettings.promptInputLogMode;
+    s.promptOutputLogMode = defaultSettings.promptOutputLogMode;
     s.promptLogMode = defaultSettings.promptLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
 

@@ -28,11 +28,35 @@ export function isTraceEnabled() {
 }
 
 /**
- * Check whether full LLM prompt/response logging is enabled.
+ * Check whether full LLM input logging is enabled.
+ * @returns {boolean}
+ */
+export function isPromptInputLogEnabled() {
+    const s = getDebugSettings();
+    if (Object.hasOwn(s, 'promptInputLogMode')) {
+        return Boolean(s.promptInputLogMode);
+    }
+    return Boolean(s.promptLogMode);
+}
+
+/**
+ * Check whether full LLM output logging is enabled.
+ * @returns {boolean}
+ */
+export function isPromptOutputLogEnabled() {
+    const s = getDebugSettings();
+    if (Object.hasOwn(s, 'promptOutputLogMode')) {
+        return Boolean(s.promptOutputLogMode);
+    }
+    return Boolean(s.promptLogMode);
+}
+
+/**
+ * Check whether any full LLM prompt/response logging is enabled.
  * @returns {boolean}
  */
 export function isPromptLogEnabled() {
-    return Boolean(getDebugSettings().promptLogMode);
+    return isPromptInputLogEnabled() || isPromptOutputLogEnabled();
 }
 
 /**

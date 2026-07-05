@@ -6,7 +6,7 @@
 - **Functions:** Prefer `const fn = () => {}` inline, and `function name() {}` for hoisted helpers. Keep functions under 80 lines and complexity under 15.
 - **Documentation:** Add JSDoc to exports and useful internal transaction/worker types.
 - **Logging:** Prefix console output with `[Summaryception]` via the `LOG_PREFIX` constant.
-- **Log Levels:** Use `info` for quiet lifecycle milestones, `debug` for diagnostic decisions, `trace` for hot-path details, and `warn`/`error` for always-visible failures. Keep full prompt/response dumps behind `promptLogMode`.
+- **Log Levels:** Use `info` for quiet lifecycle milestones, `debug` for diagnostic decisions, `trace` for hot-path details, and `warn`/`error` for always-visible failures. Keep full LLM input/output dumps behind `promptInputLogMode` and `promptOutputLogMode`.
 
 ## DOM Manipulation
 - **Live DOM:** Always use jQuery `$()` for querying nodes, binding events, and setting state.

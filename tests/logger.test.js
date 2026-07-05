@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const debugSettings = { debugMode: true, traceMode: true, promptLogMode: true };
-const quietSettings = { debugMode: false, traceMode: false, promptLogMode: false };
+const debugSettings = {
+    debugMode: true,
+    traceMode: true,
+    promptInputLogMode: true,
+    promptOutputLogMode: true,
+    promptLogMode: true,
+};
+const quietSettings = {
+    debugMode: false,
+    traceMode: false,
+    promptInputLogMode: false,
+    promptOutputLogMode: false,
+    promptLogMode: false,
+};
 
 let activeSettings = { ...quietSettings };
 
@@ -21,7 +33,9 @@ import {
     debug,
     error,
     info,
+    isPromptInputLogEnabled,
     isPromptLogEnabled,
+    isPromptOutputLogEnabled,
     log,
     trace,
     warn,
@@ -112,8 +126,23 @@ describe('logger', () => {
         expect(errors[0]).toContain('boom');
     });
 
-    it('reports prompt log mode independently of debug mode', () => {
+    it('reports prompt input/output log modes independently of debug mode', () => {
+        activeSettings = {
+            debugMode: false,
+            traceMode: false,
+            promptInputLogMode: true,
+            promptOutputLogMode: false,
+            promptLogMode: false,
+        };
+        expect(isPromptInputLogEnabled()).toBe(true);
+        expect(isPromptOutputLogEnabled()).toBe(false);
+        expect(isPromptLogEnabled()).toBe(true);
+    });
+
+    it('falls back to legacy prompt log mode when split settings are absent', () => {
         activeSettings = { debugMode: false, traceMode: false, promptLogMode: true };
+        expect(isPromptInputLogEnabled()).toBe(true);
+        expect(isPromptOutputLogEnabled()).toBe(true);
         expect(isPromptLogEnabled()).toBe(true);
     });
 

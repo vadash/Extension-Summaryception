@@ -31,7 +31,8 @@ export async function updateUI() {
         $('#sc_prompt_preset').val(s.promptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
         $('#sc_trace_mode').prop('checked', s.traceMode);
-        $('#sc_prompt_log_mode').prop('checked', s.promptLogMode);
+        $('#sc_prompt_input_log_mode').prop('checked', s.promptInputLogMode);
+        $('#sc_prompt_output_log_mode').prop('checked', s.promptOutputLogMode);
         $('#sc_apply_regex_scripts').prop('checked', s.applyRegexScripts);
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);

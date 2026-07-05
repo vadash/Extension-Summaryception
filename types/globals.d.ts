@@ -70,6 +70,8 @@ interface ExtensionSettings {
     stripPatterns: string[];
     debugMode: boolean;
     traceMode: boolean;
+    promptInputLogMode: boolean;
+    promptOutputLogMode: boolean;
     promptLogMode: boolean;
     connectionSource: string;
     summarizerResponseLength: number;
