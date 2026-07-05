@@ -109,6 +109,12 @@
     gap: 6px;
     margin-bottom: 6px;
 }
+.sc-field-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
 .sc-section-title {
     gap: 5px;
     margin: 0;
@@ -331,7 +337,7 @@
     font-weight: 700;
     text-align: center;
 }
-.sc-slider-row input[type='number'].sc-val {
+.sc-slider-row .sc-val {
     width: 32px;
 }
 .sc-val-wide {
@@ -339,8 +345,8 @@
     min-width: 52px;
     max-width: 82px;
 }
-.sc-slider-row input[type='number'].sc-val-wide {
-    width: 64px;
+.sc-slider-row .sc-val-wide {
+    width: 48px;
 }
 .sc-button-row {
     display: flex;

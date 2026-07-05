@@ -170,9 +170,12 @@
                         <div>
                             <div class="sc-field-header">
                                 <label for="sc_preview">Injection Preview</label>
-                                <button id="sc_refresh_preview" class="menu_button sc-icon-button" title="Refresh preview">
-                                    <i class="fa-solid fa-rotate"></i>
-                                </button>
+                                <div class="sc-field-actions">
+                                    <span id="sc_preview_token_count" class="sc-context-total">0 tokens</span>
+                                    <button id="sc_refresh_preview" class="menu_button sc-icon-button" title="Refresh preview">
+                                        <i class="fa-solid fa-rotate"></i>
+                                    </button>
+                                </div>
                             </div>
                             <textarea id="sc_preview" class="text_pole sc-textarea sc-preview" rows="6" readonly></textarea>
                         </div>
@@ -493,7 +496,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_verbatim_token_budget" min="4000" max="64000" step="1000" />
-                            <input id="sc_verbatim_token_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="4000" max="64000" step="1000" value="16000" />
+                            <input id="sc_verbatim_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -503,7 +506,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" />
-                            <input id="sc_memory_token_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="4000" max="32000" step="1000" value="10000" />
+                            <input id="sc_memory_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="10k" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -513,7 +516,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_min_summary_budget" min="2000" max="16000" step="1000" />
-                            <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="2000" max="16000" step="1000" value="8000" />
+                            <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" />
                         </div>
                     </div>
                     <div class="sc-row">

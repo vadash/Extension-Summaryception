@@ -39,7 +39,7 @@ export async function updateUI() {
         await renderBudgetStatus(s, store);
         await renderCacheStatus(s, store);
         renderLayerStats(s, store);
-        renderPreview();
+        await renderPreview();
         updateSnippetBrowser();
         updateCustomPromptSlots();
     } catch (e) {
@@ -59,11 +59,11 @@ function syncSettingsInputs(s) {
     $('#sc_custom_memory_role').val(s.customMemoryRole);
     $('#sc_custom_memory_depth').val(s.customMemoryDepth);
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
-    $('#sc_verbatim_token_budget_val').val(s.verbatimTokenBudget);
+    $('#sc_verbatim_token_budget_val').val(formatSliderChipValue(s.verbatimTokenBudget));
     $('#sc_memory_token_budget').val(s.memoryTokenBudget);
-    $('#sc_memory_token_budget_val').val(s.memoryTokenBudget);
+    $('#sc_memory_token_budget_val').val(formatSliderChipValue(s.memoryTokenBudget));
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
-    $('#sc_min_summary_budget_val').val(s.minSummaryBudget);
+    $('#sc_min_summary_budget_val').val(formatSliderChipValue(s.minSummaryBudget));
     $('#sc_min_summary_turns').val(s.minSummaryTurns);
     $('#sc_min_summary_turns_val').val(s.minSummaryTurns);
     $('#sc_max_summary_turns').val(s.maxSummaryTurns);
@@ -78,6 +78,10 @@ function syncSettingsInputs(s) {
     $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
     syncMemoryModeControls(s);
+}
+
+function formatSliderChipValue(value) {
+    return value % 1000 === 0 && value >= 1000 ? `${value / 1000}k` : String(value);
 }
 
 /**
@@ -470,12 +474,21 @@ function renderLayerStats(s, store) {
 }
 
 /**
- * Build and render the injection preview textarea.
- * @returns {void}
+ * Build and render the injection preview textarea and token count.
+ * @returns {Promise<void>}
  */
-function renderPreview() {
+async function renderPreview() {
     const preview = assembleSummaryBlock();
     $('#sc_preview').val(preview || '(empty - no summaries yet)');
+    if (!preview) {
+        $('#sc_preview_token_count').text('0 tokens');
+        return;
+    }
+
+    const tokens = await countTextTokens(preview);
+    $('#sc_preview_token_count').text(
+        `${formatBudgetTokenLabel(tokens.count, tokens.estimated)} tokens`,
+    );
 }
 
 /**

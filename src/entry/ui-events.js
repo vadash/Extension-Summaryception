@@ -228,6 +228,11 @@ function bindSliderHandlers() {
             saveSettings();
             updateInjection();
         });
+
+        $(document).on('focus', sl.display, function () {
+            const s = getSettings();
+            $(this).val(s[sl.key]);
+        });
     }
 
     bindInputHelpers();
@@ -253,11 +258,26 @@ function normalizeSliderValue(value, slider) {
     const min = parseSliderAttr(slider, 'min', 0);
     const max = parseSliderAttr(slider, 'max', min);
     const step = parseSliderAttr(slider, 'step', 1);
-    const parsed = Number.parseFloat(String(value));
+    const parsed = parseSliderInputValue(value, { min, step });
     const base = Number.isFinite(parsed) ? parsed : min;
     const clamped = Math.min(max, Math.max(min, base));
     const snapped = min + Math.round((clamped - min) / step) * step;
     return Math.round(Math.min(max, Math.max(min, snapped)));
+}
+
+function parseSliderInputValue(value, { min, step }) {
+    const raw = String(value).trim().toLowerCase();
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) {
+        return Number.NaN;
+    }
+    if (raw.endsWith('k')) {
+        return parsed * 1000;
+    }
+    if (step >= 1000 && parsed > 0 && parsed < min) {
+        return parsed * 1000;
+    }
+    return parsed;
 }
 
 function parseSliderAttr(slider, attr, fallback) {
@@ -287,21 +307,39 @@ function syncSliderDisplays(sliders, changedKey, display) {
         return;
     }
     $(binding.id).val(s[binding.key]);
-    $(binding.display).val(s[binding.key]);
+    $(binding.display).val(formatSliderChipValue(s[binding.key], $(binding.id)));
 }
 
 function syncRetentionSliderDisplays() {
     const s = getSettings();
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
-    $('#sc_verbatim_token_budget_val').val(s.verbatimTokenBudget);
+    $('#sc_verbatim_token_budget_val').val(
+        formatSliderChipValue(s.verbatimTokenBudget, $('#sc_verbatim_token_budget')),
+    );
     $('#sc_memory_token_budget').val(s.memoryTokenBudget);
-    $('#sc_memory_token_budget_val').val(s.memoryTokenBudget);
+    $('#sc_memory_token_budget_val').val(
+        formatSliderChipValue(s.memoryTokenBudget, $('#sc_memory_token_budget')),
+    );
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
-    $('#sc_min_summary_budget_val').val(s.minSummaryBudget);
+    $('#sc_min_summary_budget_val').val(
+        formatSliderChipValue(s.minSummaryBudget, $('#sc_min_summary_budget')),
+    );
     $('#sc_min_summary_turns').val(s.minSummaryTurns);
-    $('#sc_min_summary_turns_val').val(s.minSummaryTurns);
+    $('#sc_min_summary_turns_val').val(
+        formatSliderChipValue(s.minSummaryTurns, $('#sc_min_summary_turns')),
+    );
     $('#sc_max_summary_turns').val(s.maxSummaryTurns);
-    $('#sc_max_summary_turns_val').val(s.maxSummaryTurns);
+    $('#sc_max_summary_turns_val').val(
+        formatSliderChipValue(s.maxSummaryTurns, $('#sc_max_summary_turns')),
+    );
+}
+
+function formatSliderChipValue(value, slider) {
+    const step = parseSliderAttr(slider, 'step', 1);
+    if (step >= 1000 && value % 1000 === 0) {
+        return `${value / 1000}k`;
+    }
+    return String(value);
 }
 
 /**
