@@ -255,9 +255,9 @@ describe('summarizer usage logging', () => {
         expect(inputLog.messages[1].content).not.toContain('hidden before regex');
     });
 
-    it('logs estimated prompt, completion, and total tokens after a successful call', async () => {
+    it('logs compact input, prompt, output, and regex savings after a successful call', async () => {
         const ctx = installDebugContext();
-        ctx.getTokenCountAsync.mockResolvedValueOnce(12).mockResolvedValueOnce(4);
+        ctx.getTokenCountAsync.mockResolvedValueOnce(32).mockResolvedValueOnce(4);
         mocks.sendSummarizerRequest.mockResolvedValue(' clean summary ');
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
@@ -284,9 +284,11 @@ describe('summarizer usage logging', () => {
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('source passage');
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).toBe('clean summary');
 
-        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-2');
-        expect(usageLog?.join(' ')).toContain('regex tokens 30->20');
-        expect(usageLog?.join(' ')).toContain('tokens prompt=12 completion=4 total=16');
+        const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
+        expect(usageLog?.join(' ')).toContain('input 20, prompt 12, output 4');
+        expect(usageLog?.join(' ')).toContain('regex saved 33%');
+        expect(usageLog?.join(' ')).not.toContain('regex tokens');
+        expect(usageLog?.join(' ')).not.toContain('total=');
     });
 
     it('uses promotion prompts for promotion usage token estimates', async () => {
@@ -322,9 +324,10 @@ describe('summarizer usage logging', () => {
         );
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).not.toContain('L0_SYS');
 
-        const usageLog = findConsoleLogContaining('LLM call promotion L1');
+        const usageLog = findConsoleLogContaining('LLM call promotion L1 -> L2');
+        expect(usageLog?.join(' ')).toContain('input 6, prompt 8, output 5');
         expect(usageLog?.join(' ')).toContain('memory=6->5');
-        expect(usageLog?.join(' ')).toContain('tokens prompt=14 completion=5 total=19');
+        expect(usageLog?.join(' ')).not.toContain('regex saved');
     });
 
     it('formats large logged token counts with a compact k suffix', async () => {
@@ -342,8 +345,9 @@ describe('summarizer usage logging', () => {
             totalTokens: 1242944,
         });
 
-        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-1');
-        expect(usageLog?.join(' ')).toContain('tokens prompt=8k completion=1234k total=1242k');
+        const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-1');
+        expect(usageLog?.join(' ')).toContain('input ?, prompt 8k, output 1234k');
+        expect(usageLog?.join(' ')).not.toContain('total=');
     });
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {
@@ -366,10 +370,11 @@ describe('summarizer usage logging', () => {
 
         expect(summary).toBe('fallback summary');
 
-        const usageLog = findConsoleLogContaining('LLM call layer0 turns 0-2');
-        expect(usageLog?.join(' ')).toContain('tokens prompt=~');
-        expect(usageLog?.join(' ')).toContain('completion=~');
-        expect(usageLog?.join(' ')).toContain('total=~');
+        const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
+        expect(usageLog?.join(' ')).toContain('input ?');
+        expect(usageLog?.join(' ')).toContain('prompt ~');
+        expect(usageLog?.join(' ')).toContain('output ~');
+        expect(usageLog?.join(' ')).not.toContain('total=~');
         expect(usageLog?.join(' ')).not.toContain('chars');
     });
 
@@ -406,7 +411,7 @@ describe('summarizer usage logging', () => {
             call.some((part) => String(part).includes('LLM run auto worker drain max call')),
         );
         expect(maxLogs).toHaveLength(1);
-        expect(maxLogs[0].join(' ')).toContain('#2 promotion L0');
+        expect(maxLogs[0].join(' ')).toContain('#2 promotion L0 -> L1');
         expect(maxLogs[0].join(' ')).toContain('total=25 tokens');
     });
 

@@ -226,22 +226,75 @@ function detachEndedRun(run) {
  */
 function formatCallUsageLine(entry) {
     const callNumber = entry.callNumber > 0 ? `#${entry.callNumber} ` : '';
-    const stats = formatRegexStats(entry.metadata?.regexStats);
+    const inputTokens = getInputTokenCount(entry);
+    const promptTokens = getPromptOverheadTokenCount(entry, inputTokens);
+    const regexStats = formatRegexStats(entry.metadata);
     const memoryStats = formatPromotionMemoryStats(entry);
-    const statsParts = [stats, memoryStats].filter(Boolean);
-    const statsPart = statsParts.length > 0 ? `${statsParts.join('; ')}; ` : '';
+    const statsParts = [regexStats, memoryStats].filter(Boolean);
+    const statsPart = statsParts.length > 0 ? `; ${statsParts.join('; ')}` : '';
     return (
         `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
-        `${statsPart}tokens prompt=${formatUsageTokenCount(
-            entry.promptTokens,
-            entry.promptTokensEstimated,
-        )} ` +
-        `completion=${formatUsageTokenCount(
+        `input ${formatUsageTokenCount(inputTokens.count, inputTokens.estimated)}, ` +
+        `prompt ${formatUsageTokenCount(promptTokens.count, promptTokens.estimated)}, ` +
+        `output ${formatUsageTokenCount(
             entry.completionTokens,
             entry.completionTokensEstimated,
-        )} ` +
-        `total=${formatUsageTokenCount(entry.totalTokens, isTotalEstimated(entry))}`
+        )}${statsPart}`
     );
+}
+
+/**
+ * Get source text tokens for the LLM call.
+ * @param {SummarizerUsageEntry} entry - Usage entry
+ * @returns {{ count: number | null | undefined, estimated: boolean }}
+ */
+function getInputTokenCount(entry) {
+    if (entry.metadata?.kind === 'promotion') {
+        return {
+            count: entry.metadata.memoryTokensBefore,
+            estimated: Boolean(entry.metadata.memoryTokensBeforeEstimated),
+        };
+    }
+
+    const regexStats = entry.metadata?.regexStats;
+    if (regexStats) {
+        return {
+            count: regexStats.finalTokens,
+            estimated: Boolean(regexStats.finalTokensEstimated),
+        };
+    }
+
+    return {
+        count: null,
+        estimated: false,
+    };
+}
+
+/**
+ * Estimate prompt/context overhead by subtracting source text from full prompt tokens.
+ * @param {SummarizerUsageEntry} entry - Usage entry
+ * @param {{ count: number | null | undefined, estimated: boolean }} inputTokens - Source tokens
+ * @returns {{ count: number | null | undefined, estimated: boolean }}
+ */
+function getPromptOverheadTokenCount(entry, inputTokens) {
+    if (typeof entry.promptTokens !== 'number' || !Number.isFinite(entry.promptTokens)) {
+        return {
+            count: entry.promptTokens,
+            estimated: Boolean(entry.promptTokensEstimated),
+        };
+    }
+
+    if (typeof inputTokens.count !== 'number' || !Number.isFinite(inputTokens.count)) {
+        return {
+            count: entry.promptTokens,
+            estimated: Boolean(entry.promptTokensEstimated),
+        };
+    }
+
+    return {
+        count: Math.max(0, entry.promptTokens - inputTokens.count),
+        estimated: Boolean(entry.promptTokensEstimated || inputTokens.estimated),
+    };
 }
 
 /**
@@ -270,34 +323,30 @@ function formatPromotionMemoryStats(entry) {
 function describeCall(metadata = {}) {
     if (metadata.kind === 'layer0') {
         const turns = formatCount(metadata.assistantTurnCount, 'assistant turn');
-        return `layer0 turns ${formatRange(metadata.sourceRange)} (${turns})`;
+        return `CHAT -> L0 turns ${formatRange(metadata.sourceRange)} (${turns})`;
     }
     if (metadata.kind === 'promotion') {
         const snippets = formatCount(metadata.mergedSnippetCount, 'snippet');
-        return `promotion L${metadata.layerIndex ?? '?'} (${snippets})`;
+        const sourceLayer = metadata.layerIndex ?? '?';
+        const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
+        return `promotion L${sourceLayer} -> L${destLayer} (${snippets})`;
     }
     if (metadata.kind === 'regenerate') {
-        return `regenerate turns ${formatRange(metadata.sourceRange)}`;
+        return `CHAT -> L0 regenerate turns ${formatRange(metadata.sourceRange)}`;
     }
     return metadata.kind || 'summarizer';
 }
 
 /**
  * Format passage regex stats for a call log.
- * @param {PassageRegexStats | undefined} stats - Passage stats
+ * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
  * @returns {string}
  */
-function formatRegexStats(stats) {
-    if (!stats) {
+function formatRegexStats(metadata = {}) {
+    if (metadata.kind === 'promotion' || !metadata.regexStats) {
         return '';
     }
-    return (
-        `regex tokens ${formatTokenValue(stats.rawTokens, stats.rawTokensEstimated)}->` +
-        `${formatTokenValue(stats.finalTokens, stats.finalTokensEstimated)}, ` +
-        `saved=${formatTokenValue(stats.savedTokens, stats.savedTokensEstimated)} ` +
-        `(${formatNumber(stats.savedPercent, 1)}%), ` +
-        `changed=${stats.changedMessageCount}`
-    );
+    return `regex saved ${formatNumber(metadata.regexStats.savedPercent, 0)}%`;
 }
 
 /**
