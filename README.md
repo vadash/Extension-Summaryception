@@ -306,7 +306,19 @@ You can switch branch in ST if you dont like future patches
 
 ### v9
 
+This one is juicy
+
+*   **Dynamic memory budget** Just set total memory size to say 10k and extention will try to keep layers balanced. Its starts with L0 alone 100%, when it full L0/L1 about 67/33 and so on. 
+
+Read more in docs\2026-07-05-unified-elastic-summarization-promotion
+
+*   **Dual LLM profile:** Layer 0 uses the existing connection settings for raw chat-to-summary work and Layer 0 regeneration. Layer 1+ promotion merges can optionally use a separate, smarter connection
+
+Read more in docs\2026-07-05-dual-summarizer-model-routing
+
 *   **Cache Friendly mode:** Cache Friendly keeps the prompt shape as Prompt | frozen Summaryception memory | growing live chat, so provider prefix caching can reuse the stable prefix across many turns. It changes memory less often by flushing a large live-chat window into memory in one all-or-nothing commit.
+
+Read more in docs\2026-07-05-cache-friendly-memory-mode
 
 ### v8
 
