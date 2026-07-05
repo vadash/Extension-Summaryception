@@ -70,14 +70,17 @@ let _activeInjectionSnapshot = null;
 let _activeInjectionOptions = null;
 
 /**
- *
+ * Update the committed memory injection.
+ * @param {{ logMemoryStatus?: boolean }} [options] - Diagnostic logging options
+ * @returns {void}
  */
-export function updateInjection() {
+export function updateInjection({ logMemoryStatus = false } = {}) {
     try {
         if (isPromptMutationFrozen()) {
             return;
         }
 
+        const store = getChatStore();
         const nextInjection = buildEnabledInjectionText();
         const nextOptions = getMemoryInjectionOptions();
         _activeInjectionSnapshot = nextInjection;
@@ -91,7 +94,9 @@ export function updateInjection() {
         setExtensionPrompt(MODULE_NAME, nextInjection, nextOptions);
         _lastInjectionKey = nextKey;
 
-        queueInjectionTokenLog('Injection updated', nextInjection);
+        if (logMemoryStatus) {
+            queueMemoryStatusLog(nextInjection, store.layers);
+        }
     } catch (e) {
         warn('updateInjection error:', e);
     }
@@ -112,7 +117,6 @@ export function reassertInjectionSnapshot() {
 
         setExtensionPrompt(MODULE_NAME, _activeInjectionSnapshot, _activeInjectionOptions);
         _lastInjectionKey = getInjectionKey(_activeInjectionSnapshot, _activeInjectionOptions);
-        queueInjectionTokenLog('Injection snapshot reasserted', _activeInjectionSnapshot);
     } catch (e) {
         warn('reassertInjectionSnapshot error:', e);
     }
@@ -185,29 +189,54 @@ function getInjectionKey(text, options) {
 }
 
 /**
- * Queue a best-effort token diagnostic without delaying prompt updates.
- * @param {string} label - Log message prefix
+ * Queue a best-effort memory diagnostic without delaying prompt updates.
  * @param {string} text - Injection text
+ * @param {unknown[]} layers - Summary memory layers
  * @returns {void}
  */
-function queueInjectionTokenLog(label, text) {
+function queueMemoryStatusLog(text, layers) {
     if (!isDebugEnabled()) {
         return;
     }
-    void logInjectionTokenCount(label, text);
+    void logMemoryStatus(text, layers);
 }
 
 /**
- * Count and log injection tokens.
- * @param {string} label - Log message prefix
+ * Count and log compact memory status.
  * @param {string} text - Injection text
+ * @param {unknown[]} layers - Summary memory layers
  * @returns {Promise<void>}
  */
-async function logInjectionTokenCount(label, text) {
+async function logMemoryStatus(text, layers) {
     try {
         const tokenCount = await countTextTokens(text);
-        debug(`${label}: ${formatTokenCount(tokenCount)} tokens`);
+        debug(
+            `Memory updated: inject ${formatTokenCount(tokenCount)} tokens; ${formatLayerCounts(layers)}`,
+        );
     } catch (e) {
-        debug(`${label}: ? tokens`, e);
+        debug(`Memory updated: inject ? tokens; ${formatLayerCounts(layers)}`, e);
     }
+}
+
+function formatLayerCounts(layers) {
+    if (!Array.isArray(layers) || layers.length === 0) {
+        return 'layers L0=0';
+    }
+
+    const highestLayer = getHighestLayerIndex(layers);
+    const parts = [];
+    for (let i = 0; i <= highestLayer; i++) {
+        const layer = layers[i];
+        parts.push(`L${i}=${Array.isArray(layer) ? layer.length : 0}`);
+    }
+    return `layers ${parts.join(' ')}`;
+}
+
+function getHighestLayerIndex(layers) {
+    for (let i = layers.length - 1; i >= 0; i--) {
+        if (Array.isArray(layers[i]) && layers[i].length > 0) {
+            return i;
+        }
+    }
+    return 0;
 }

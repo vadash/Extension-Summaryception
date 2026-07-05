@@ -84,7 +84,7 @@ describe('assembleSummaryBlock', () => {
 });
 
 describe('injection diagnostics', () => {
-    it('logs injection size in tokens', async () => {
+    it('logs compact memory status when requested', async () => {
         const setExtensionPrompt = vi.fn();
         const ctx = installSillyTavernStub({
             metadata: {
@@ -102,15 +102,15 @@ describe('injection diagnostics', () => {
         ctx.getTokenCountAsync = vi.fn(async (text) => countTokens(text));
 
         const { updateInjection } = await import('../src/features/injection.js');
-        updateInjection();
+        updateInjection({ logMemoryStatus: true });
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
         const injectionLog = consoleLogSpy.mock.calls.find((call) =>
-            call.some((part) => String(part).includes('Injection updated:')),
+            call.some((part) => String(part).includes('Memory updated:')),
         );
         const joinedLog = injectionLog?.join(' ');
-        expect(joinedLog).toMatch(/Injection updated: \d+ tokens/);
+        expect(joinedLog).toMatch(/Memory updated: inject \d+ tokens; layers L0=1/);
         expect(joinedLog).not.toContain('chars');
     });
 });

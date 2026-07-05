@@ -5,7 +5,7 @@
 - **Naming:** `camelCase` for variables/functions, `SCREAMING_SNAKE_CASE` for constants, `PascalCase` for classes.
 - **Functions:** Prefer `const fn = () => {}` inline, and `function name() {}` for hoisted helpers. Keep functions under 80 lines and complexity under 15.
 - **Documentation:** Add JSDoc to exports and useful internal transaction/worker types.
-- **Logging:** Prefix console output with `[Summaryception]` via the `LOG_PREFIX` constant.
+- **Logging:** Prefix console output with `[Summaryception]` via the `LOG_PREFIX` constant. Runtime console labels use compact layer names (`L0`, `L1`, `L2`) rather than `layer0` or `Layer 0`.
 - **Log Levels:** Use `info` for quiet lifecycle milestones, `debug` for diagnostic decisions, `trace` for hot-path details, and `warn`/`error` for always-visible failures. Keep full LLM input dumps behind `promptInputLogMode`; `promptOutputLogMode` logs cleaned summaries/errors only and must not expose raw provider output.
 
 ## DOM Manipulation

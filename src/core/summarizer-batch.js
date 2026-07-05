@@ -267,11 +267,9 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
     await saveChatStore();
-    await updateCommittedInjection();
+    await updateCommittedInjection({ logMemoryStatus: true });
     await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
     await persistChatState({ chatSave: 'deferred' });
-
-    info(`Layer 0 now has ${store.layers[0].length} snippets`);
 
     if (showToasts) {
         toastr.success(

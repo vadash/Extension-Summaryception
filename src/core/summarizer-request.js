@@ -176,7 +176,7 @@ function buildSummarizerPrompt(template, storyTxt, contextStr, settings, metadat
  */
 function describePromptLogCall(metadata = {}) {
     if (metadata.kind === 'layer0') {
-        return `layer0 turns ${formatPromptLogRange(metadata.sourceRange)}`;
+        return `L0 turns ${formatPromptLogRange(metadata.sourceRange)}`;
     }
     if (metadata.kind === 'promotion') {
         const sourceLayer = metadata.layerIndex ?? '?';
@@ -422,7 +422,6 @@ async function executeSummarizerAttempt({
     const startedAt = Date.now();
     let rawResult = '';
     let cleanedResult = '';
-    let usage = null;
     let attemptError = null;
     let status = 'failed';
 
@@ -455,7 +454,7 @@ async function executeSummarizerAttempt({
             return buildAttemptFailure(attemptError, true);
         }
 
-        usage = await logSuccessfulUsage({
+        await logSuccessfulUsage({
             systemPrompt,
             prompt,
             summary: cleanedResult,
@@ -485,8 +484,6 @@ async function executeSummarizerAttempt({
             systemPrompt,
             prompt,
             cleanedResult,
-            metadata,
-            usage,
             error: attemptError,
         });
     }
@@ -775,8 +772,6 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - User prompt sent to the summarizer
  * @param {string} p.cleanedResult - Cleaned summary text
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
- * @param {import('./summarizer-usage.js').SummarizerTokenUsage | null} p.usage - Token usage
  * @param {Error | null} p.error - Attempt error
  * @returns {void}
  */
@@ -789,8 +784,6 @@ function logLlmAttemptTransaction({
     systemPrompt,
     prompt,
     cleanedResult,
-    metadata,
-    usage,
     error: attemptError,
 }) {
     if (!isPromptLogEnabled()) {
@@ -836,14 +829,6 @@ function logLlmAttemptTransaction({
                 ),
             );
         }
-        console.log('Metadata', {
-            route: routeLabel,
-            attempt: attempt + 1,
-            status,
-            durationMs,
-            metadata,
-            usage,
-        });
     } finally {
         console.groupEnd();
     }

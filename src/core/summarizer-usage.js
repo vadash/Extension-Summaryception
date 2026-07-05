@@ -15,6 +15,11 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
  * @property {number} [memoryTokensBefore] - Source memory size before promotion
  * @property {boolean} [memoryTokensBeforeEstimated] - Whether memoryTokensBefore was estimated
+ * @property {number} [overflowLayerIndex] - Layer that exceeded promotion limits
+ * @property {number} [overflowMemoryCount] - Memory count in the overflowing layer
+ * @property {number} [overflowMemoryLimit] - Configured memory count limit for the layer
+ * @property {number} [overflowTokens] - Token count in the overflowing layer
+ * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
  * @property {boolean} [useFallback] - Whether this call is routed through fallback
  */
 
@@ -229,8 +234,9 @@ function formatCallUsageLine(entry) {
     const inputTokens = getInputTokenCount(entry);
     const promptTokens = getPromptOverheadTokenCount(entry, inputTokens);
     const regexStats = formatRegexStats(entry.metadata);
+    const overflowStats = formatPromotionOverflowStats(entry.metadata);
     const memoryStats = formatPromotionMemoryStats(entry);
-    const statsParts = [regexStats, memoryStats].filter(Boolean);
+    const statsParts = [regexStats, overflowStats, memoryStats].filter(Boolean);
     const statsPart = statsParts.length > 0 ? `; ${statsParts.join('; ')}` : '';
     return (
         `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
@@ -309,10 +315,66 @@ function formatPromotionMemoryStats(entry) {
     if (typeof entry.metadata.memoryTokensBefore !== 'number') {
         return '';
     }
-    return `memory=${formatUsageTokenCount(
-        entry.metadata.memoryTokensBefore,
-        entry.metadata.memoryTokensBeforeEstimated,
-    )}->${formatUsageTokenCount(entry.completionTokens, entry.completionTokensEstimated)}`;
+    const savedPercent = getSavedPercent(entry.metadata.memoryTokensBefore, entry.completionTokens);
+    if (savedPercent === null) {
+        return '';
+    }
+    return `saved ${savedPercent}%`;
+}
+
+/**
+ * Format the promotion overflow reason for a call log.
+ * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
+ * @returns {string}
+ */
+function formatPromotionOverflowStats(metadata = {}) {
+    if (metadata.kind !== 'promotion') {
+        return '';
+    }
+    if (typeof metadata.overflowLayerIndex !== 'number') {
+        return '';
+    }
+
+    return (
+        `overflow L${metadata.overflowLayerIndex} ` +
+        `${formatOverflowValue(metadata.overflowMemoryCount)}/${formatOverflowValue(
+            metadata.overflowMemoryLimit,
+        )} memories, ` +
+        `${formatUsageTokenCount(metadata.overflowTokens)}/${formatUsageTokenCount(
+            metadata.overflowTokenQuota,
+        )} tokens`
+    );
+}
+
+/**
+ * Calculate rounded compression savings.
+ * @param {number | undefined} before - Source token count
+ * @param {number | null | undefined} after - Output token count
+ * @returns {number | null}
+ */
+function getSavedPercent(before, after) {
+    if (
+        typeof before !== 'number' ||
+        !Number.isFinite(before) ||
+        before <= 0 ||
+        typeof after !== 'number' ||
+        !Number.isFinite(after)
+    ) {
+        return null;
+    }
+    return Math.round(((before - after) / before) * 100);
+}
+
+/**
+ * Format an optional count limit.
+ * @param {number | undefined} value - Count value
+ * @returns {string}
+ */
+function formatOverflowValue(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return '?';
+    }
+    return String(value);
 }
 
 /**

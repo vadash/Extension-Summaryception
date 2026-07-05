@@ -1,7 +1,7 @@
 import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
-import { debug, info, warn } from '../foundation/logger.js';
+import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -39,6 +39,8 @@ export async function maybePromoteLayer(layerIndex = 0) {
         layerIndex: candidate.layerIndex,
         s,
         quota: candidate.quota,
+        layerTokens: candidate.tokens,
+        layerCount: candidate.count,
     });
 }
 
@@ -135,9 +137,11 @@ function getEffectivePromotionBatchSize(settings) {
  * @param {number} p.layerIndex
  * @param {ExtensionSettings} p.s
  * @param {number} p.quota
+ * @param {number} p.layerTokens
+ * @param {number} p.layerCount
  * @returns {Promise<boolean>}
  */
-async function mergeLayerSnippets({ layerIndex, s, quota }) {
+async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCount }) {
     const store = getChatStore();
     const layer = store.layers[layerIndex] || [];
     const mergeCount = getEffectivePromotionBatchSize(s);
@@ -145,11 +149,6 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
     if (toMerge.length < mergeCount) {
         return false;
     }
-
-    debug(
-        `Layer ${layerIndex}: ${layer.length} memories exceed quota ` +
-            `${formatTokenValue(quota)} tokens or count ${s.snippetsPerLayer}; promoting`,
-    );
 
     const storyTxt = toMerge.map((sn) => sn.text).join(' ');
     const memoryTokensBefore = await countTextTokens(storyTxt);
@@ -171,6 +170,11 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
         kind: 'promotion',
         layerIndex,
         mergedSnippetCount: toMerge.length,
+        overflowLayerIndex: layerIndex,
+        overflowMemoryCount: layerCount,
+        overflowMemoryLimit: s.snippetsPerLayer,
+        overflowTokens: layerTokens,
+        overflowTokenQuota: quota,
     });
     if (!metaSummary) {
         return false;
@@ -253,7 +257,6 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
     store.layers[layerIndex + 1] = destLayer;
 
     await savePromotionCommit();
-    info(`Layer ${layerIndex + 1} now has ${destLayer.length} memories`);
 
     return true;
 }
@@ -279,7 +282,7 @@ function isPromotionSnapshotValid(snapshot) {
  */
 async function savePromotionCommit() {
     await saveChatStore();
-    await updateCommittedInjection();
+    await updateCommittedInjection({ logMemoryStatus: true });
 }
 
 /**

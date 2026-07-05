@@ -46,7 +46,7 @@ let generationEpoch = 0;
 /**
  * Register callbacks used by transaction commits.
  * @param {object} callbacks
- * @param {() => void} [callbacks.updateInjection]
+ * @param {(options?: object) => void} [callbacks.updateInjection]
  * @param {() => void} [callbacks.reassertInjection]
  * @param {(reason: string) => void} [callbacks.requeue]
  * @returns {void}
@@ -137,12 +137,12 @@ export async function commitWhenSafe(commit) {
  * Update the committed injection snapshot after a metadata commit.
  * @returns {Promise<PromptEffectResult>}
  */
-export async function updateCommittedInjection() {
+export async function updateCommittedInjection(options = {}) {
     return await runPromptEffect({
         kind: 'injection-update',
         apply: () => {
             if (updateInjectionCallback) {
-                updateInjectionCallback();
+                updateInjectionCallback(options);
             }
             return true;
         },

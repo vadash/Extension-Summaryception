@@ -104,14 +104,14 @@ describe('summarizer usage logging', () => {
             assistantTurnCount: 2,
         });
 
-        expect(findGroupTitleContaining('[Summaryception] [LLM] layer0 turns 1-3')).toContain(
+        expect(findGroupTitleContaining('[Summaryception] [LLM] L0 turns 1-3')).toContain(
             'SUCCESS',
         );
         const inputLog = findJsonLog('summaryception.llm.input.v1');
         const outputLog = findJsonLog('summaryception.llm.output.v1');
 
         expect(inputLog).toMatchObject({
-            label: 'layer0 turns 1-3',
+            label: 'L0 turns 1-3',
             route: 'primary',
             attempt: 1,
             messages: [
@@ -155,7 +155,7 @@ describe('summarizer usage logging', () => {
 
         expect(inputLog).toBeNull();
         expect(outputLog).toMatchObject({
-            label: 'layer0 turns 1-3',
+            label: 'L0 turns 1-3',
             route: 'primary',
             attempt: 1,
             status: 'success',
@@ -165,6 +165,7 @@ describe('summarizer usage logging', () => {
         expect(outputLog).not.toHaveProperty('rawResponse');
         expect(getConsoleText()).not.toContain('CTX prior context STORY source passage');
         expect(getConsoleText()).not.toContain('private provider trace');
+        expect(getConsoleText()).not.toContain('Metadata');
     });
 
     it('logs both input and output for promotions when both toggles are enabled', async () => {
@@ -228,7 +229,7 @@ describe('summarizer usage logging', () => {
             RETRY_CONFIG.maxRetries = originalMaxRetries;
         }
 
-        expect(findGroupTitleContaining('layer0 turns 4-5')).toContain('EMPTY');
+        expect(findGroupTitleContaining('L0 turns 4-5')).toContain('EMPTY');
         expect(findJsonLog('summaryception.llm.output.v1')).toMatchObject({
             status: 'empty',
             cleanedSummary: '',
@@ -336,7 +337,8 @@ describe('summarizer usage logging', () => {
 
         const usageLog = findConsoleLogContaining('LLM call promotion L1 -> L2');
         expect(usageLog?.join(' ')).toContain('input 6, prompt 8, output 5');
-        expect(usageLog?.join(' ')).toContain('memory=6->5');
+        expect(usageLog?.join(' ')).toContain('saved 17%');
+        expect(usageLog?.join(' ')).not.toContain('memory=6->5');
         expect(usageLog?.join(' ')).not.toContain('regex saved');
     });
 
@@ -358,6 +360,35 @@ describe('summarizer usage logging', () => {
         const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-1');
         expect(usageLog?.join(' ')).toContain('input ?, prompt 8k, output 1234k');
         expect(usageLog?.join(' ')).not.toContain('total=');
+    });
+
+    it('logs promotion overflow reason and compression savings compactly', async () => {
+        installDebugContext();
+
+        const { recordSummarizerUsage } = await import('../src/core/summarizer-usage.js');
+        recordSummarizerUsage({
+            metadata: {
+                kind: 'promotion',
+                layerIndex: 0,
+                mergedSnippetCount: 4,
+                memoryTokensBefore: 944,
+                overflowLayerIndex: 0,
+                overflowMemoryCount: 31,
+                overflowMemoryLimit: 30,
+                overflowTokens: 13000,
+                overflowTokenQuota: 12000,
+            },
+            promptTokens: 1359,
+            completionTokens: 532,
+            totalTokens: 1891,
+        });
+
+        const usageLog = findConsoleLogContaining('LLM call promotion L0 -> L1');
+        const joinedLog = usageLog?.join(' ');
+        expect(joinedLog).toContain('input 944, prompt 415, output 532');
+        expect(joinedLog).toContain('overflow L0 31/30 memories, 13k/12k tokens');
+        expect(joinedLog).toContain('saved 44%');
+        expect(joinedLog).not.toContain('memory=944->532');
     });
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {
