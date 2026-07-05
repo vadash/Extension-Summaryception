@@ -26,6 +26,7 @@ The settings panel is optimized for SillyTavern's narrow extension sidebar:
 Settings help is metadata-driven from `src/entry/settings-help.js`.
 - Visible `.sc-hint` text stays short and plain; longer ELI5 guidance lives in the shared hover/focus tooltip.
 - Help metadata annotates rendered controls after `settings.html` is appended. It must not rename control IDs or change saved settings keys.
+- The shared tooltip is owned by the settings helper but appended to `<body>` and positioned from viewport rectangles so SillyTavern sidebar scrolling cannot clip or offset it.
 - Slider help should explain what the value means, what higher/lower values do, and the default.
 - Non-slider help should explain what the control changes, when to change it, and the main risk.
 

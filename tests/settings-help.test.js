@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { SETTINGS_HELP } from '../src/entry/settings-help.js';
+import { SETTINGS_HELP, calculateHelpTooltipPosition } from '../src/entry/settings-help.js';
 
 const SETTINGS_HTML = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
 
@@ -84,6 +84,20 @@ describe('settings help metadata', () => {
                 expect(SETTINGS_HELP[`${prefix}_${key}`].title).toBe(`${group.label} ${suffix}`);
             }
         }
+    });
+
+    it('keeps tooltip placement inside the viewport and settings width', () => {
+        const position = calculateHelpTooltipPosition({
+            anchorRect: { left: 760, right: 780, top: 550, bottom: 570 },
+            settingsRect: { left: 20, right: 820 },
+            tooltipWidth: 320,
+            tooltipHeight: 120,
+            viewportWidth: 840,
+            viewportHeight: 600,
+        });
+
+        expect(position.left).toBeLessThanOrEqual(494);
+        expect(position.top).toBe(424);
     });
 });
 

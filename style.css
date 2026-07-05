@@ -154,15 +154,18 @@
     margin: -3px 0 5px;
 }
 .sc-help-tooltip {
+    --sc-tooltip-border: var(--sc-border, var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16)));
+    --sc-tooltip-field: var(--sc-field, var(--SmartThemeBlurTintColor, rgba(18, 18, 24, 0.94)));
+    box-sizing: border-box;
     position: fixed;
     z-index: 10001;
     display: none;
     width: min(320px, calc(100vw - 16px));
     max-width: calc(100vw - 16px);
     padding: 8px 9px;
-    border: 1px solid var(--sc-border);
+    border: 1px solid var(--sc-tooltip-border);
     border-radius: 7px;
-    background: color-mix(in srgb, var(--sc-field) 94%, black);
+    background: color-mix(in srgb, var(--sc-tooltip-field) 94%, black);
     box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
     color: var(--SmartThemeBodyColor, #ddd);
     font-size: 0.8em;

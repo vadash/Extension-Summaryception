@@ -1,4 +1,5 @@
 const HELP_EVENT_NS = '.summaryceptionSettingsHelp';
+const HELP_TOOLTIP_ID = 'sc_help_tooltip';
 const HELP_TARGET_SELECTOR = '.sc-help-target';
 const HELP_FOCUS_SELECTOR = [
     '.sc-help-target',
@@ -483,6 +484,42 @@ export function initSettingsHelp() {
     bindHelpTooltip($settings, $tooltip);
 }
 
+/**
+ * Calculate viewport coordinates for the shared settings help tooltip.
+ * @param {object} p
+ * @param {{left: number, right: number, top: number, bottom: number}} p.anchorRect
+ * @param {{left: number, right: number}} p.settingsRect
+ * @param {number} p.tooltipWidth
+ * @param {number} p.tooltipHeight
+ * @param {number} p.viewportWidth
+ * @param {number} p.viewportHeight
+ * @returns {{left: number, top: number}}
+ */
+export function calculateHelpTooltipPosition({
+    anchorRect,
+    settingsRect,
+    tooltipWidth,
+    tooltipHeight,
+    viewportWidth,
+    viewportHeight,
+}) {
+    const minLeft = Math.max(8, settingsRect.left + 6);
+    const maxLeft = Math.max(
+        minLeft,
+        Math.min(viewportWidth - tooltipWidth - 8, settingsRect.right - tooltipWidth - 6),
+    );
+    let top = anchorRect.bottom + 6;
+
+    if (top + tooltipHeight > viewportHeight - 8) {
+        top = anchorRect.top - tooltipHeight - 6;
+    }
+
+    return {
+        left: clamp(anchorRect.left, minLeft, maxLeft),
+        top: clamp(top, 8, Math.max(8, viewportHeight - tooltipHeight - 8)),
+    };
+}
+
 function defineHelpMap(entries) {
     const result = {};
     const seen = new Set();
@@ -811,13 +848,15 @@ function getDescriptionId(key) {
 }
 
 function getHelpTooltip($settings) {
-    let $tooltip = $settings.children('.sc-help-tooltip').first();
+    $settings.children('.sc-help-tooltip').remove();
+
+    let $tooltip = $(`#${HELP_TOOLTIP_ID}`).first();
     if ($tooltip.length) {
         return $tooltip.empty();
     }
 
     $tooltip = $('<div class="sc-help-tooltip" role="tooltip"></div>').attr('aria-hidden', 'true');
-    $tooltip.appendTo($settings);
+    $tooltip.attr('id', HELP_TOOLTIP_ID).appendTo('body');
     return $tooltip;
 }
 
@@ -886,21 +925,18 @@ function positionTooltip($settings, $tooltip, anchor) {
     const tooltipHeight = $tooltip.outerHeight() || 80;
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 320;
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 480;
-    const minLeft = Math.max(8, settingsRect.left + 6);
-    const maxLeft = Math.max(
-        minLeft,
-        Math.min(viewportWidth - tooltipWidth - 8, settingsRect.right - tooltipWidth - 6),
-    );
-    const preferredLeft = anchorRect.left;
-    let top = anchorRect.bottom + 6;
-
-    if (top + tooltipHeight > viewportHeight - 8) {
-        top = anchorRect.top - tooltipHeight - 6;
-    }
+    const position = calculateHelpTooltipPosition({
+        anchorRect,
+        settingsRect,
+        tooltipWidth,
+        tooltipHeight,
+        viewportWidth,
+        viewportHeight,
+    });
 
     $tooltip.css({
-        left: `${clamp(preferredLeft, minLeft, maxLeft)}px`,
-        top: `${clamp(top, 8, Math.max(8, viewportHeight - tooltipHeight - 8))}px`,
+        left: `${position.left}px`,
+        top: `${position.top}px`,
     });
 }
 
