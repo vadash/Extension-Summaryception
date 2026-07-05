@@ -228,7 +228,7 @@ const HELP_ENTRIES = [
             meaning: 'Number of oldest snippets bundled when a layer promotes memory deeper.',
             higher: 'makes fewer, larger promotion merges.',
             lower: 'makes smaller promotion merges more often.',
-            defaultText: '3.',
+            defaultText: '4.',
         }),
     ],
     [

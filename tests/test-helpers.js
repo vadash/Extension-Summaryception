@@ -52,7 +52,7 @@ export function makeSummarySettings(overrides = {}) {
         verbatimTokenBudget: 16000,
         memoryTokenBudget: 10000,
         snippetsPerLayer: 30,
-        snippetsPerPromotion: 3,
+        snippetsPerPromotion: 4,
         ...overrides,
     };
 }

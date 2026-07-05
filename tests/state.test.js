@@ -66,6 +66,7 @@ describe('state.js', () => {
                 minSummaryBudget: 6500,
                 verbatimTokenBudget: 6500,
                 memoryTokenBudget: 6500,
+                snippetsPerPromotion: 1,
             },
         });
 
@@ -79,6 +80,21 @@ describe('state.js', () => {
             minSummaryBudget: 7000,
             verbatimTokenBudget: 7000,
             memoryTokenBudget: 7000,
+            snippetsPerPromotion: 3,
+        });
+    });
+
+    it('allows maximum summary turns up to twelve', () => {
+        installSillyTavernStub({
+            settings: {
+                minSummaryTurns: 3,
+                maxSummaryTurns: 14,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            minSummaryTurns: 3,
+            maxSummaryTurns: 12,
         });
     });
 

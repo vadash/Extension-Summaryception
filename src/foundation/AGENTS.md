@@ -9,4 +9,5 @@ This directory contains globals, constants, state management, and retry utilitie
 ## State Management
 - Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Settings are cross-chat (`extensionSettings[MODULE_NAME]`).
+- `getSettings()` normalizes persisted settings in place; keep these bounds aligned with matching `settings.html` controls.
 - `getChatStore()` normalizes saved chat metadata.

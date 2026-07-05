@@ -16,7 +16,7 @@ import {
 } from './summarizer-snapshot.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
-const MIN_PROMOTION_MERGE_COUNT = 2;
+const MIN_PROMOTION_MERGE_COUNT = 3;
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.

@@ -47,7 +47,7 @@ export const defaultSettings = Object.freeze({
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,
     snippetsPerLayer: 30,
-    snippetsPerPromotion: 3,
+    snippetsPerPromotion: 4,
     injectionTemplate:
         '<summaryception_memory>\n' +
         'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Memory is grouped by layer: higher-numbered <Lx> layers are older and more compressed, while lower-numbered layers are newer, with <L0> closest to the recent verbatim chat. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
@@ -73,14 +73,14 @@ Summarize only the essential narrative progression and state changes from <passa
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
 ### TRACKING PRIORITIES:
-1. **Chronological Events & Actions:** What happened, who initiated it, and the immediate outcome.
-2. **Relationship & Power Dynamics:** Shifts in intimacy, dominant/submissive rules established, emotional vulnerability, or verbal agreements/promises.
-3. **Physical & Inventory State:** Specific clothing worn/removed, items bought/used (e.g., lube, collar, wine), specific locations, and current time of day.
+1. **Chronological Events & Actions:** Detailed step-by-step actions, precise clock times (e.g. "at 9:15 AM"), and relative time markers.
+2. **Relationship Rules & Power Dynamics:** Shifts in intimacy, dominant/submissive boundaries established, psychological vulnerability, or verbal agreements.
+3. **Conditional Environmental & Physical State:** Track environmental conditions (e.g., weather, rain, temperature) and physical stats (e.g., stamina, fatigue, physical performance limits) ONLY if they directly drive character behavior, impact their physical state, or establish narrative consequences. Omit ambient weather or inert background facts if they do not change character state.
 4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
 
 ### EXCLUSIONS:
 - Exclude internal monologue that doesn't lead to action.
-- Exclude repetitive environmental descriptions, conversational filler, and events already established in <prior_context>.
+- Exclude repetitive conversational filler and atmospheric descriptions that do not impact character behavior.
 
 ### FORMATTING:
 Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
@@ -88,7 +88,11 @@ Output a single, highly dense chronological paragraph separated by semicolons. U
     promotionSystemPrompt:
         'Role: layered memory synthesizer. Merge lower-layer memories into a smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail. Output only the summary text - no preamble, no commentary, no markdown.',
 
-    promotionUserPrompt: `<prior_context>
+    promotionUserPrompt: `<player_name>
+{{player_name}}
+</player_name>
+
+<prior_context>
 {{context_str}}
 </prior_context>
 
@@ -96,19 +100,17 @@ Output a single, highly dense chronological paragraph separated by semicolons. U
 {{story_txt}}
 </memories_to_consolidate>
 
-Consolidate <memories_to_consolidate> into a smaller Layer 1+ memory that coherently follows <prior_context>.
+Consolidate only the new information from <memories_to_consolidate> into a highly compressed continuation block.
+
+### CRITICAL TEMPORAL RULES:
+1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
+2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <memories_to_consolidate>.
+3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
 
 ### SYNTHESIS PRIORITIES:
-1. Durable narrative/game state: relationships, agreements, goals, quests, locations, inventory, resources, injuries, rules, world facts, and permanent character changes.
-2. Current state and unresolved hooks: where people are, what they intend next, pending deadlines, promises, threats, mysteries, tasks, or hazards.
-3. Cause and effect: preserve why important state changed, but collapse repeated actions into their stable outcome.
-
-### COMPRESSION RULES:
-- Deduplicate anything already fully captured in <prior_context>.
-- Replace repeated micro-actions, dialogue loops, and transitional beats with one concise outcome.
-- Drop flavor, filler, and low-impact moment-to-moment detail unless it changes durable state.
-- Keep specific names, places, items, numbers, and constraints when they matter later.
-- If the memories conflict, keep the newest concrete state and omit obsolete wording.
+1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
+2. **Unresolved Hooks:** Where the characters are currently positioned, what they intend to do next, or pending immediate agreements.
+3. **Deduplication:** Omit transitional actions, low-impact micro-movements, and momentary dialogue loops.
 
 ### FORMAT:
 Write one dense third-person paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, or meta-commentary.`,
@@ -179,14 +181,14 @@ Summarize only the essential narrative progression and state changes from <passa
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
 ### TRACKING PRIORITIES:
-1. **Chronological Events & Actions:** What happened, who initiated it, and the immediate outcome.
-2. **Relationship & Power Dynamics:** Shifts in intimacy, dominant/submissive rules established, emotional vulnerability, or verbal agreements/promises.
-3. **Physical & Inventory State:** Specific clothing worn/removed, items bought/used (e.g., lube, collar, wine), specific locations, and current time of day.
+1. **Chronological Events & Actions:** Detailed step-by-step actions, precise clock times (e.g. "at 9:15 AM"), and relative time markers.
+2. **Relationship Rules & Power Dynamics:** Shifts in intimacy, dominant/submissive boundaries established, psychological vulnerability, or verbal agreements.
+3. **Conditional Environmental & Physical State:** Track environmental conditions (e.g., weather, rain, temperature) and physical stats (e.g., stamina, fatigue, physical performance limits) ONLY if they directly drive character behavior, impact their physical state, or establish narrative consequences. Omit ambient weather or inert background facts if they do not change character state.
 4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
 
 ### EXCLUSIONS:
 - Exclude internal monologue that doesn't lead to action.
-- Exclude repetitive environmental descriptions, conversational filler, and events already established in <prior_context>.
+- Exclude repetitive conversational filler and atmospheric descriptions that do not impact character behavior.
 
 ### FORMATTING:
 Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,

@@ -25,14 +25,14 @@ describe('promotion prompt guard', () => {
         const ctx = installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
-                    layers: [[{ text: 'older' }, { text: 'newer' }]],
+                    layers: [[{ text: 'older' }, { text: 'middle' }, { text: 'newer' }]],
                     summarizedUpTo: 4,
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
                 snippetsPerLayer: 1,
-                snippetsPerPromotion: 2,
+                snippetsPerPromotion: 3,
             },
         });
         ctx.chatId = 'chat-a';
@@ -64,7 +64,7 @@ describe('promotion prompt guard', () => {
         expect(ctx.chatMetadata.summaryception.layers[1]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1][0]).toMatchObject({
             text: 'merged',
-            mergedCount: 2,
+            mergedCount: 3,
         });
     });
 
@@ -185,11 +185,17 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[1]).toBeUndefined();
     });
 
-    it('uses two snippets as the defensive minimum for invalid promotion batch settings', async () => {
+    it('uses three snippets as the defensive minimum for invalid promotion batch settings', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
-                    layers: [[{ text: 'a '.repeat(2500) }, { text: 'b '.repeat(2500) }]],
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1800) },
+                            { text: 'b '.repeat(1800) },
+                            { text: 'c '.repeat(1800) },
+                        ],
+                    ],
                 }),
             },
             settings: {
@@ -209,7 +215,7 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[0]).toHaveLength(0);
         expect(getChatStore().layers[1][0]).toMatchObject({
             text: 'merged',
-            mergedCount: 2,
+            mergedCount: 3,
         });
     });
 
@@ -223,7 +229,7 @@ describe('promotion prompt guard', () => {
             settings: {
                 memoryTokenBudget: 6000,
                 snippetsPerLayer: 100,
-                snippetsPerPromotion: 2,
+                snippetsPerPromotion: 3,
             },
             getTokenCountAsync: async (text) =>
                 String(text || '')
@@ -251,7 +257,7 @@ describe('promotion prompt guard', () => {
             settings: {
                 memoryTokenBudget: 1000,
                 snippetsPerLayer: 100,
-                snippetsPerPromotion: 2,
+                snippetsPerPromotion: 3,
             },
             getTokenCountAsync: async (text) =>
                 String(text || '')

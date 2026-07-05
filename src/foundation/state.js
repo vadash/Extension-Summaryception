@@ -142,13 +142,14 @@ function isSettingValue(values, value) {
  */
 function normalizeVerbatimWindowSettings(settings) {
     settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
-    settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 10);
+    settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 12);
     if (settings.maxSummaryTurns < settings.minSummaryTurns) {
         settings.maxSummaryTurns = settings.minSummaryTurns;
     }
     settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, 16000, 1000);
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
+    settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 20);
 }
 
 /**

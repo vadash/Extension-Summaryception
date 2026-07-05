@@ -34,6 +34,7 @@ describe('constants', () => {
         expect(defaultSettings.minSummaryBudget).toBe(8000);
         expect(defaultSettings.verbatimTokenBudget).toBe(16000);
         expect(defaultSettings.memoryTokenBudget).toBe(10000);
+        expect(defaultSettings.snippetsPerPromotion).toBe(4);
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
         );
@@ -65,6 +66,10 @@ describe('constants', () => {
         expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'gamestate', 'narrative']);
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
+        expect(PROMPT_PRESETS.narrative).toContain('Conditional Environmental & Physical State');
+        expect(PROMPT_PRESETS.narrative).toContain(
+            'Omit ambient weather or inert background facts',
+        );
         expect(PROMPT_PRESETS.gamestate).toContain('{{story_txt}}');
     });
 
@@ -79,6 +84,8 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('{{context_str}}');
         expect(defaultSettings.promotionUserPrompt).toContain('{{story_txt}}');
         expect(defaultSettings.promotionUserPrompt).toContain('memories_to_consolidate');
+        expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
+        expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
     });
 
     it('strips common reasoning tokens by default', () => {
