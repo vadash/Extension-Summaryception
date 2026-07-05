@@ -177,4 +177,128 @@ describe('callSummarizer abort signal plumbing', () => {
             ),
         ).toBe(true);
     });
+
+    it('uses one primary probe after the same bucket exhausts retries', async () => {
+        vi.useFakeTimers();
+        mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue({
+            connectionSource: 'profile',
+            connectionProfileId: 'backup-profile',
+        });
+        mocks.sendSummarizerRequest.mockImplementation(
+            async (_settings, _system, _prompt, _signal, metadata) => {
+                if (metadata.useFallback) {
+                    return 'backup summary';
+                }
+                throw new Error('timeout');
+            },
+        );
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const firstRun = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+        });
+        await vi.runAllTimersAsync();
+        await expect(firstRun).resolves.toBe('backup summary');
+
+        const callsAfterFirstRun = mocks.sendSummarizerRequest.mock.calls.length;
+        const secondRun = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+        });
+        await expect(secondRun).resolves.toBe('backup summary');
+
+        const secondRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsAfterFirstRun);
+        const secondRunPrimaryCalls = secondRunCalls.filter((call) => !call[4]?.useFallback);
+        const secondRunFallbackCalls = secondRunCalls.filter((call) => call[4]?.useFallback);
+        expect(secondRunPrimaryCalls).toHaveLength(1);
+        expect(secondRunFallbackCalls).toHaveLength(1);
+    });
+
+    it('keeps Layer 0 and L1+ primary health buckets separate', async () => {
+        vi.useFakeTimers();
+        mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue({
+            connectionSource: 'profile',
+            connectionProfileId: 'backup-profile',
+        });
+        mocks.sendSummarizerRequest.mockImplementation(
+            async (_settings, _system, _prompt, _signal, metadata) => {
+                if (metadata.useFallback) {
+                    return 'backup summary';
+                }
+                throw new Error('timeout');
+            },
+        );
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const layer0Run = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+        });
+        await vi.runAllTimersAsync();
+        await expect(layer0Run).resolves.toBe('backup summary');
+
+        const callsAfterLayer0 = mocks.sendSummarizerRequest.mock.calls.length;
+        const promotionRun = callSummarizer('merged snippets', 'deep context', {
+            kind: 'promotion',
+            layerIndex: 0,
+            mergedSnippetCount: 3,
+        });
+        await vi.runAllTimersAsync();
+        await expect(promotionRun).resolves.toBe('backup summary');
+
+        const promotionCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsAfterLayer0);
+        const promotionPrimaryCalls = promotionCalls.filter((call) => !call[4]?.useFallback);
+        expect(promotionPrimaryCalls).toHaveLength(6);
+    });
+
+    it('clears an unhealthy bucket when the primary answers', async () => {
+        vi.useFakeTimers();
+        mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue({
+            connectionSource: 'profile',
+            connectionProfileId: 'backup-profile',
+        });
+        mocks.sendSummarizerRequest.mockImplementation(
+            async (_settings, _system, _prompt, _signal, metadata) => {
+                if (metadata.useFallback) {
+                    return 'backup summary';
+                }
+                throw new Error('timeout');
+            },
+        );
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const firstRun = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+        });
+        await vi.runAllTimersAsync();
+        await expect(firstRun).resolves.toBe('backup summary');
+
+        mocks.sendSummarizerRequest.mockResolvedValueOnce('primary recovered');
+        await expect(
+            callSummarizer('source passage', 'prior context', {
+                kind: 'layer0',
+            }),
+        ).resolves.toBe('primary recovered');
+
+        mocks.sendSummarizerRequest.mockImplementation(
+            async (_settings, _system, _prompt, _signal, metadata) => {
+                if (metadata.useFallback) {
+                    return 'backup summary';
+                }
+                throw new Error('timeout');
+            },
+        );
+
+        const callsBeforeFinalRun = mocks.sendSummarizerRequest.mock.calls.length;
+        const finalRun = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+        });
+        await vi.runAllTimersAsync();
+        await expect(finalRun).resolves.toBe('backup summary');
+
+        const finalRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsBeforeFinalRun);
+        const finalRunPrimaryCalls = finalRunCalls.filter((call) => !call[4]?.useFallback);
+        expect(finalRunPrimaryCalls).toHaveLength(6);
+    });
 });

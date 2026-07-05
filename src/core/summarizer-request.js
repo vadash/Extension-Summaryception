@@ -21,6 +21,11 @@ import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usa
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
 let currentAbortController = null;
+const PRIMARY_HEALTH_BUCKETS = {
+    layer0: 'layer0',
+    l1plus: 'l1plus',
+};
+const primaryRetryExhaustedBuckets = new Set();
 
 /**
  * Check whether an abort controller is active.
@@ -209,6 +214,20 @@ function formatPromptLogCount(count, singular) {
  * @returns {Promise<string>} Summary text, or '' on failure
  */
 async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata }) {
+    const healthBucket = getPrimaryHealthBucket(metadata);
+    const fallbackSettings = resolveFallbackSummarizerConnectionSettings(s, metadata);
+    const primaryMaxRetries =
+        fallbackSettings && primaryRetryExhaustedBuckets.has(healthBucket)
+            ? 0
+            : RETRY_CONFIG.maxRetries;
+
+    if (primaryMaxRetries === 0) {
+        debug(
+            `Primary summarizer previously exhausted retries for ${healthBucket}; ` +
+                'probing once before fallback.',
+        );
+    }
+
     const primary = await runSummarizerAttemptSeries({
         s,
         systemPrompt,
@@ -216,16 +235,21 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
         signal,
         metadata,
         routeLabel: 'primary',
+        maxRetries: primaryMaxRetries,
     });
 
     if (primary.status === 'success') {
+        primaryRetryExhaustedBuckets.delete(healthBucket);
         return primary.result;
     }
     if (primary.status === 'aborted') {
         return abortWithToast();
     }
 
-    const fallbackSettings = resolveFallbackSummarizerConnectionSettings(s, metadata);
+    if (primary.retryable && primary.retriesExhausted) {
+        primaryRetryExhaustedBuckets.add(healthBucket);
+    }
+
     if (primary.retryable && fallbackSettings) {
         info(
             `Primary summarizer failed after retryable errors; trying fallback ` +
@@ -238,6 +262,7 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
             signal,
             metadata: { ...metadata, useFallback: true },
             routeLabel: 'fallback',
+            maxRetries: RETRY_CONFIG.maxRetries,
         });
 
         if (fallback.status === 'success') {
@@ -257,6 +282,18 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
 }
 
 /**
+ * Split primary health tracking by prompt family so Layer 0 and L1+ failures
+ * do not influence each other.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @returns {string}
+ */
+function getPrimaryHealthBucket(metadata = {}) {
+    return metadata.kind === 'promotion'
+        ? PRIMARY_HEALTH_BUCKETS.l1plus
+        : PRIMARY_HEALTH_BUCKETS.layer0;
+}
+
+/**
  * Run retry attempts for one resolved connection route.
  * @param {object} p
  * @param {object} p.s - Settings
@@ -265,7 +302,8 @@ async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata
  * @param {AbortSignal} p.signal - Abort signal
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @param {string} p.routeLabel - Human-readable route label for trace logs
- * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false } | { status: 'failed', result: string, error: Error, retryable: boolean } | { status: 'aborted', result: string, error: Error, retryable: false }>}
+ * @param {number} p.maxRetries - Maximum retry count for this route
+ * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false }>}
  */
 async function runSummarizerAttemptSeries({
     s,
@@ -274,13 +312,20 @@ async function runSummarizerAttemptSeries({
     signal,
     metadata,
     routeLabel,
+    maxRetries,
 }) {
     /** @type {Error & { status?: number, response?: { status?: number } }} */
     let lastError = new Error('no error');
 
-    for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (signal.aborted) {
-            return { status: 'aborted', result: '', error: lastError, retryable: false };
+            return {
+                status: 'aborted',
+                result: '',
+                error: lastError,
+                retryable: false,
+                retriesExhausted: false,
+            };
         }
 
         const attemptResult = await executeSummarizerAttempt({
@@ -291,6 +336,7 @@ async function runSummarizerAttemptSeries({
             attempt,
             metadata,
             routeLabel,
+            maxRetries,
         });
 
         if (attemptResult.success) {
@@ -299,28 +345,42 @@ async function runSummarizerAttemptSeries({
                 result: attemptResult.result,
                 error: attemptResult.error,
                 retryable: false,
+                retriesExhausted: false,
             };
         }
 
         lastError = attemptResult.error;
 
         if (attemptResult.aborted) {
-            return { status: 'aborted', result: '', error: lastError, retryable: false };
+            return {
+                status: 'aborted',
+                result: '',
+                error: lastError,
+                retryable: false,
+                retriesExhausted: false,
+            };
         }
 
-        if (shouldStopRetrying(attemptResult, attempt)) {
+        if (shouldStopRetrying(attemptResult, attempt, maxRetries)) {
             return {
                 status: 'failed',
                 result: '',
                 error: lastError,
                 retryable: attemptResult.shouldRetry,
+                retriesExhausted: attemptResult.shouldRetry && attempt >= maxRetries,
             };
         }
 
-        await notifyRetryAndWait(lastError, attempt, signal);
+        await notifyRetryAndWait(lastError, attempt, signal, maxRetries);
     }
 
-    return { status: 'failed', result: '', error: lastError, retryable: true };
+    return {
+        status: 'failed',
+        result: '',
+        error: lastError,
+        retryable: true,
+        retriesExhausted: true,
+    };
 }
 
 /**
@@ -333,6 +393,7 @@ async function runSummarizerAttemptSeries({
  * @param {number} p.attempt - Zero-based attempt index
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @param {string} p.routeLabel - Human-readable route label for trace logs
+ * @param {number} p.maxRetries - Maximum retry count for this route
  * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
  */
 async function executeSummarizerAttempt({
@@ -343,6 +404,7 @@ async function executeSummarizerAttempt({
     attempt,
     metadata,
     routeLabel,
+    maxRetries,
 }) {
     trace(`  ${routeLabel} attempt ${attempt} starting...`);
     const startedAt = Date.now();
@@ -354,7 +416,7 @@ async function executeSummarizerAttempt({
 
     try {
         if (attempt > 0) {
-            debug(`${routeLabel} retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);
+            debug(`${routeLabel} retry attempt ${attempt}/${maxRetries}`);
         }
 
         await traceSummarizerRequest({ s, systemPrompt, prompt, metadata });
@@ -529,17 +591,22 @@ function buildAttemptFailure(error, shouldRetry) {
  * Decide whether retry processing should stop.
  * @param {{ shouldRetry: boolean }} attemptResult - Attempt result
  * @param {number} attempt - Zero-based attempt index
+ * @param {number} maxRetries - Maximum retry count for this route
  * @returns {boolean}
  */
-function shouldStopRetrying(attemptResult, attempt) {
+function shouldStopRetrying(attemptResult, attempt, maxRetries) {
     if (!attemptResult.shouldRetry) {
         trace('  ERROR IS NON-RETRYABLE, BREAKING');
         return true;
     }
 
-    if (attempt >= RETRY_CONFIG.maxRetries) {
+    if (attempt >= maxRetries) {
         trace('  MAX RETRIES EXHAUSTED');
-        logError(`All ${RETRY_CONFIG.maxRetries} retries exhausted.`);
+        if (maxRetries === 0) {
+            debug('Primary probe failed; trying fallback without additional retries.');
+        } else {
+            logError(`All ${maxRetries} retries exhausted.`);
+        }
         return true;
     }
 
@@ -598,12 +665,14 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
  * @param {Error} lastError - The error that triggered the retry
  * @param {number} attempt - Zero-based attempt index
  * @param {AbortSignal} signal
+ * @param {number} maxRetries - Maximum retry count for this route
  * @returns {Promise<void>}
  */
 async function notifyRetryAndWait(
     /** @type {Error & { status?: number, response?: { status?: number } }} */ lastError,
     attempt,
     signal,
+    maxRetries,
 ) {
     const delay = computeRetryDelay(lastError, attempt);
     const delaySec = (delay / 1000).toFixed(1);
@@ -615,7 +684,7 @@ async function notifyRetryAndWait(
     );
 
     toastr.warning(
-        `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${RETRY_CONFIG.maxRetries})`,
+        `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${maxRetries})`,
         'Summaryception',
         { timeOut: delay },
     );

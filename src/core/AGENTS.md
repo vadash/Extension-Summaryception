@@ -17,4 +17,5 @@ This directory houses the background worker, LLM connections, token counting, an
 - Pass summarizer `AbortSignals` to direct fetch adapters and Connection Manager profiles.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and streams MUST reach `data: [DONE]` before any text is accepted.
 - Summarizer calls use exponential backoff, up to 5 retries, spanning 2s-60s delays.
+- Primary retry-exhaustion health is tracked separately for Layer 0 calls and L1+ promotion calls; do not let one bucket force early fallback for the other.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
