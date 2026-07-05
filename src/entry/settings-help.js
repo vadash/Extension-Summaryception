@@ -463,10 +463,9 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_prompt_output_log_mode'),
             title: 'Log LLM Outputs',
-            short: 'Print full summarizer replies to the console.',
+            short: 'Print cleaned summarizer replies to the console.',
             controls: [controlFor('sc_prompt_output_log_mode')],
-            controlsText:
-                'Controls whether raw summarizer replies, cleaned summaries, and errors are logged.',
+            controlsText: 'Controls whether cleaned summarizer replies and errors are logged.',
             when: 'only when diagnosing provider output or cleanup behavior.',
             risk: 'the browser console may contain private chat text.',
         }),

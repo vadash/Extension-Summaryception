@@ -474,7 +474,6 @@ async function executeSummarizerAttempt({
             durationMs: Date.now() - startedAt,
             systemPrompt,
             prompt,
-            rawResult,
             cleanedResult,
             metadata,
             usage,
@@ -765,7 +764,6 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
  * @param {number} p.durationMs - Attempt duration
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - User prompt sent to the summarizer
- * @param {string} p.rawResult - Raw provider result
  * @param {string} p.cleanedResult - Cleaned summary text
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @param {import('./summarizer-usage.js').SummarizerTokenUsage | null} p.usage - Token usage
@@ -780,7 +778,6 @@ function logLlmAttemptTransaction({
     durationMs,
     systemPrompt,
     prompt,
-    rawResult,
     cleanedResult,
     metadata,
     usage,
@@ -821,7 +818,6 @@ function logLlmAttemptTransaction({
                         routeLabel,
                         attempt,
                         status,
-                        rawResult,
                         cleanedResult,
                         attemptError,
                     }),
@@ -873,27 +869,17 @@ function buildLlmInputLog({ label, routeLabel, attempt, systemPrompt, prompt }) 
  * @param {string} p.routeLabel
  * @param {number} p.attempt
  * @param {string} p.status
- * @param {string} p.rawResult
  * @param {string} p.cleanedResult
  * @param {Error | null} p.attemptError
  * @returns {object}
  */
-function buildLlmOutputLog({
-    label,
-    routeLabel,
-    attempt,
-    status,
-    rawResult,
-    cleanedResult,
-    attemptError,
-}) {
+function buildLlmOutputLog({ label, routeLabel, attempt, status, cleanedResult, attemptError }) {
     return {
         type: 'summaryception.llm.output.v1',
         label,
         route: routeLabel,
         attempt: attempt + 1,
         status,
-        rawResponse: rawResult || '',
         cleanedSummary: cleanedResult || '',
         error: serializeAttemptError(attemptError),
     };

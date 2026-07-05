@@ -123,7 +123,7 @@ describe('summarizer usage logging', () => {
         expect(getConsoleText()).not.toContain('summary text');
     });
 
-    it('logs full output without prompt content when output logging is enabled', async () => {
+    it('logs cleaned output without raw response or prompt content when output logging is enabled', async () => {
         installSillyTavernStub({
             settings: {
                 promptInputLogMode: false,
@@ -133,7 +133,9 @@ describe('summarizer usage logging', () => {
                 stripPatterns: [],
             },
         });
-        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+        mocks.sendSummarizerRequest.mockResolvedValue(
+            '<thinking>private provider trace</thinking>summary text',
+        );
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
         await callSummarizer('source passage', 'prior context', {
@@ -151,11 +153,12 @@ describe('summarizer usage logging', () => {
             route: 'primary',
             attempt: 1,
             status: 'success',
-            rawResponse: 'summary text',
             cleanedSummary: 'summary text',
             error: null,
         });
+        expect(outputLog).not.toHaveProperty('rawResponse');
         expect(getConsoleText()).not.toContain('CTX prior context STORY source passage');
+        expect(getConsoleText()).not.toContain('private provider trace');
     });
 
     it('logs both input and output for promotions when both toggles are enabled', async () => {
@@ -189,9 +192,9 @@ describe('summarizer usage logging', () => {
         });
         expect(findJsonLog('summaryception.llm.output.v1')).toMatchObject({
             label: 'promotion L1->L2 (2 snippets)',
-            rawResponse: 'summary text',
             cleanedSummary: 'summary text',
         });
+        expect(findJsonLog('summaryception.llm.output.v1')).not.toHaveProperty('rawResponse');
     });
 
     it('logs failed prompt and response attempts with error details', async () => {
@@ -222,13 +225,14 @@ describe('summarizer usage logging', () => {
         expect(findGroupTitleContaining('layer0 turns 4-5')).toContain('EMPTY');
         expect(findJsonLog('summaryception.llm.output.v1')).toMatchObject({
             status: 'empty',
-            rawResponse: '<thinking>only thoughts</thinking>',
             cleanedSummary: '',
             error: {
                 name: 'Error',
                 message: 'Empty response from summarizer',
             },
         });
+        expect(findJsonLog('summaryception.llm.output.v1')).not.toHaveProperty('rawResponse');
+        expect(getConsoleText()).not.toContain('only thoughts');
     });
 
     it('logs the final preprocessed input text passed to the provider', async () => {
