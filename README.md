@@ -304,6 +304,10 @@ If this saves your 500-turn adventure from amnesia, consider starring the repo. 
 
 You can switch branch in ST if you dont like future patches
 
+### v10
+
+UI tweaks, separate prompts for L0 / L1+
+
 ### v9
 
 This one is juicy
