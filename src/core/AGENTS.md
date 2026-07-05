@@ -5,6 +5,7 @@ This directory houses the background worker, LLM connections, token counting, an
 ## Memory & Layers
 - **Layer 0:** Turn summaries selected by the dynamic verbatim window. Overflow waits for `minSummaryTurns` and `minSummaryBudget`.
 - **Layers 1+:** Meta-summaries promoted from lower layers.
+- **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, and non-compressing promotion output must not be committed.
 - **Ghosting:** Ghosted messages are hidden from the LLM context using SillyTavern's native `/hide` command, but remain fully visible in the UI.
 
 ## Engine & Summarizer

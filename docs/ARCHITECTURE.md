@@ -13,8 +13,11 @@ Summaryception uses a single elastic execution engine (`SummarizerQueue`) for al
 
 ### The KISS Promotion Loop
 All modes use the same loop:
-`Re-evaluate state -> Promote if any layer is over limit -> Otherwise commit one Layer 0 batch -> Repeat`
-- Never start new Layer 0 work while any active layer exceeds its dynamic token quota or `snippetsPerLayer`.
+`Re-evaluate state -> Promote if any promotable layer is over limit -> Otherwise commit one Layer 0 batch -> Repeat`
+- A layer is promotable only when it exceeds its dynamic token quota or `snippetsPerLayer` and has at least `snippetsPerPromotion` snippets.
+- Underfilled layers, including a single oversized snippet, may temporarily exceed quota because promoting them would be lossy or impossible.
+- Promotions that do not reduce memory size are rejected and left uncommitted; debug logs show `memory=before->after` for promotion calls.
+- Never start new Layer 0 work while any promotable layer exceeds its dynamic token quota or `snippetsPerLayer`.
 - There is no "free" seed promotion. Empty destination layers are created by LLM-backed merge promotion.
 - Maximum Layer Depth is capped internally at 20.
 

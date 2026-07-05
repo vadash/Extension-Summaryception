@@ -17,7 +17,7 @@ beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     installBrowserRuntimeStub();
-    mocks.callSummarizer.mockResolvedValue('merged memory');
+    mocks.callSummarizer.mockResolvedValue('merged');
 });
 
 describe('promotion prompt guard', () => {
@@ -63,7 +63,152 @@ describe('promotion prompt guard', () => {
         expect(ctx.chatMetadata.summaryception.layers[0]).toHaveLength(0);
         expect(ctx.chatMetadata.summaryception.layers[1]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1][0]).toMatchObject({
-            text: 'merged memory',
+            text: 'merged',
+            mergedCount: 2,
+        });
+    });
+
+    it('does not promote one over-limit snippet because it cannot be merged', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'a '.repeat(5000) }]],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(getChatStore().layers[0]).toHaveLength(1);
+        expect(getChatStore().layers[1]).toBeUndefined();
+    });
+
+    it('does not promote two over-limit snippets when the configured batch size is three', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'a '.repeat(2500) }, { text: 'b '.repeat(2500) }]],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(getChatStore().layers[0]).toHaveLength(2);
+        expect(getChatStore().layers[1]).toBeUndefined();
+    });
+
+    it('promotes three over-limit snippets into the next layer', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1800) },
+                            { text: 'b '.repeat(1800) },
+                            { text: 'c '.repeat(1800) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(0);
+        expect(getChatStore().layers[1]).toHaveLength(1);
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            text: 'merged',
+            mergedCount: 3,
+        });
+    });
+
+    it('rejects promotion output that is not smaller than its source memory', async () => {
+        mocks.callSummarizer.mockResolvedValue('x '.repeat(3000));
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1000) },
+                            { text: 'b '.repeat(1000) },
+                            { text: 'c '.repeat(1000) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 1,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(3);
+        expect(getChatStore().layers[1]).toBeUndefined();
+    });
+
+    it('uses two snippets as the defensive minimum for invalid promotion batch settings', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'a '.repeat(2500) }, { text: 'b '.repeat(2500) }]],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 1,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(0);
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            text: 'merged',
             mergedCount: 2,
         });
     });
@@ -124,3 +269,10 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[21]).toHaveLength(1);
     });
 });
+
+function countWhitespaceTokens(text) {
+    return String(text || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+}

@@ -1,7 +1,7 @@
 import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
-import { debug, info } from '../foundation/logger.js';
+import { debug, info, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -15,6 +15,8 @@ import {
     isSameChatSnapshot,
 } from './summarizer-snapshot.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
+
+const MIN_PROMOTION_MERGE_COUNT = 2;
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.
@@ -109,11 +111,22 @@ async function countLayerTokens(snippets) {
 }
 
 function isLayerOverLimit(quota, settings) {
+    if (quota.count < getEffectivePromotionBatchSize(settings)) {
+        return false;
+    }
     return quota.tokens > quota.quota || quota.count > settings.snippetsPerLayer;
 }
 
 function canPromoteLayer(layerIndex) {
     return layerIndex < INTERNAL_MAX_LAYER_DEPTH - 1;
+}
+
+function getEffectivePromotionBatchSize(settings) {
+    const configured = Number(settings.snippetsPerPromotion);
+    if (!Number.isFinite(configured)) {
+        return MIN_PROMOTION_MERGE_COUNT;
+    }
+    return Math.max(MIN_PROMOTION_MERGE_COUNT, Math.round(configured));
 }
 
 /**
@@ -127,8 +140,9 @@ function canPromoteLayer(layerIndex) {
 async function mergeLayerSnippets({ layerIndex, s, quota }) {
     const store = getChatStore();
     const layer = store.layers[layerIndex] || [];
-    const toMerge = layer.slice(0, Math.max(1, s.snippetsPerPromotion));
-    if (toMerge.length === 0) {
+    const mergeCount = getEffectivePromotionBatchSize(s);
+    const toMerge = layer.slice(0, mergeCount);
+    if (toMerge.length < mergeCount) {
         return false;
     }
 
@@ -138,6 +152,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
     );
 
     const storyTxt = toMerge.map((sn) => sn.text).join(' ');
+    const memoryTokensBefore = await countTextTokens(storyTxt);
     const contextStr = buildFullContext(layerIndex + 1);
     const snapshot = {
         ...capturePromotionSnapshot(layerIndex),
@@ -160,6 +175,9 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
     if (!metaSummary) {
         return false;
     }
+    if (!(await isPromotionCompressed({ layerIndex, memoryTokensBefore, metaSummary }))) {
+        return false;
+    }
 
     const result = await commitWhenSafe({
         kind: 'promotion-merge',
@@ -171,6 +189,20 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
         await promoteOverflowLayers();
     }
     return result !== 'stale';
+}
+
+async function isPromotionCompressed({ layerIndex, memoryTokensBefore, metaSummary }) {
+    const memoryTokensAfter = await countTextTokens(metaSummary);
+    if (memoryTokensAfter.count < memoryTokensBefore.count) {
+        return true;
+    }
+
+    warn(
+        `Promotion L${layerIndex} rejected: memory did not compress ` +
+            `(${formatTokenValue(memoryTokensBefore.count, memoryTokensBefore.estimated)}->` +
+            `${formatTokenValue(memoryTokensAfter.count, memoryTokensAfter.estimated)} tokens).`,
+    );
+    return false;
 }
 
 /**
