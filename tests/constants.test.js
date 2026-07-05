@@ -43,6 +43,10 @@ describe('constants', () => {
 
     it('uses the Summaryception memory wrapper by default', () => {
         expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
+        expect(defaultSettings.injectionTemplate).toContain(
+            'higher-numbered <Lx> layers are older',
+        );
+        expect(defaultSettings.injectionTemplate).toContain('<L0> closest');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
     });
 

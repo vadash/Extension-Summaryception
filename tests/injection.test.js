@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installSillyTavernStub } from './test-helpers.js';
+import { installSillyTavernStub, makeSummaryStore } from './test-helpers.js';
 
 let consoleLogSpy;
 
@@ -17,6 +17,71 @@ function countTokens(text) {
     const trimmed = String(text || '').trim();
     return trimmed ? trimmed.split(/\s+/).length : 0;
 }
+
+describe('assembleSummaryBlock', () => {
+    it('returns an empty string when no layers contain snippets', async () => {
+        installSillyTavernStub({
+            metadata: { summaryception: makeSummaryStore() },
+            settings: {},
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+
+        expect(assembleSummaryBlock()).toBe('');
+    });
+
+    it('wraps non-empty layers deepest first and omits empty layers', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [{ text: 'layer zero A' }, { text: 'layer zero B' }],
+                        [],
+                        [{ text: 'layer two' }],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: 'BEGIN\n{{summary}}\nEND',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+
+        expect(assembleSummaryBlock()).toBe(
+            [
+                'BEGIN',
+                '<L2>',
+                'layer two',
+                '</L2>',
+                '',
+                '<L0>',
+                'layer zero A layer zero B',
+                '</L0>',
+                'END',
+            ].join('\n'),
+        );
+    });
+
+    it('preserves custom injection templates around the tagged layer block', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'recent summary' }]],
+                }),
+            },
+            settings: {
+                injectionTemplate: 'custom prefix\n{{summary}}\ncustom suffix',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+
+        expect(assembleSummaryBlock()).toBe(
+            ['custom prefix', '<L0>', 'recent summary', '</L0>', 'custom suffix'].join('\n'),
+        );
+    });
+});
 
 describe('injection diagnostics', () => {
     it('logs injection size in tokens', async () => {

@@ -22,33 +22,45 @@ export function assembleSummaryBlock() {
     const s = getSettings();
     const store = getChatStore();
 
-    if (!store.layers || store.layers.every((l) => !l || l.length === 0)) {
+    const layeredSummary = assembleLayerBlocks(store.layers);
+    if (!layeredSummary) {
         return '';
     }
 
-    const snippets = [];
+    return s.injectionTemplate.replace('{{summary}}', layeredSummary);
+}
 
-    for (let i = store.layers.length - 1; i >= 1; i--) {
-        const layer = store.layers[i];
-        if (!layer || layer.length === 0) {
-            continue;
-        }
-        for (const sn of layer) {
-            snippets.push(sn.text);
-        }
-    }
-
-    if (store.layers[0] && store.layers[0].length > 0) {
-        for (const sn of store.layers[0]) {
-            snippets.push(sn.text);
-        }
-    }
-
-    if (snippets.length === 0) {
+function assembleLayerBlocks(layers) {
+    if (!Array.isArray(layers)) {
         return '';
     }
 
-    return s.injectionTemplate.replace('{{summary}}', snippets.join(' '));
+    const blocks = [];
+    for (let i = layers.length - 1; i >= 0; i--) {
+        const block = formatLayerBlock(i, layers[i]);
+        if (block) {
+            blocks.push(block);
+        }
+    }
+
+    return blocks.join('\n\n');
+}
+
+function formatLayerBlock(layerIndex, layer) {
+    if (!Array.isArray(layer) || layer.length === 0) {
+        return '';
+    }
+
+    const text = layer
+        .map((snippet) => snippet.text)
+        .filter((snippetText) => snippetText)
+        .join(' ');
+
+    if (!text) {
+        return '';
+    }
+
+    return `<L${layerIndex}>\n${text}\n</L${layerIndex}>`;
 }
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────

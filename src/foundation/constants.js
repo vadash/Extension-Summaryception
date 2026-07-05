@@ -50,7 +50,7 @@ export const defaultSettings = Object.freeze({
     snippetsPerPromotion: 3,
     injectionTemplate:
         '<summaryception_memory>\n' +
-        'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
+        'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Memory is grouped by layer: higher-numbered <Lx> layers are older and more compressed, while lower-numbered layers are newer, with <L0> closest to the recent verbatim chat. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
         '{{summary}}\n' +
         '</summaryception_memory>',
 
