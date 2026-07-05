@@ -212,13 +212,6 @@
                     <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
                     <div class="sc-settings-grid sc-connection-grid">
                     <div class="sc-setting-row">
-                        <label for="sc_summarizer_response_length">
-                            <span>Layer 0 Response Length</span>
-                            <small>0 uses the preset or profile default. Use 4096 for providers that reject larger non-streaming limits.</small>
-                        </label>
-                        <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use preset default" />
-                    </div>
-                    <div class="sc-setting-row">
                         <label for="summaryception_connection_source">
                             <span>Layer 0 Source</span>
                         </label>
@@ -228,6 +221,13 @@
                             <option value="ollama">Ollama (Local)</option>
                             <option value="openai">OpenAI Compatible</option>
                         </select>
+                    </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_summarizer_response_length">
+                            <span>Layer 0 Response Length</span>
+                            <small>0 uses the preset or profile default. Use 4096 for providers that reject larger non-streaming limits.</small>
+                        </label>
+                        <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use preset default" />
                     </div>
                     </div>
                     <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
@@ -404,13 +404,10 @@
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-clock-rotate-left"></span>
-                            Retention
+                            Memory Mode
                         </h4>
                     </div>
                     <div class="sc-row sc-memory-mode-row">
-                        <label>
-                            <span>Memory Mode</span>
-                        </label>
                         <div class="sc-toggle-list sc-radio-group sc-radio-grid" role="radiogroup" aria-label="Memory Mode">
                             <label class="checkbox_label sc-toggle-row" for="sc_memory_mode_standard">
                                 <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
@@ -450,16 +447,6 @@
                         <span class="fa-solid fa-circle-info"></span>
                         <small>Custom changes only the injection placement, role, and chat depth; summarization cadence stays standard.</small>
                     </div>
-                    <div class="sc-toggle-list sc-settings-option-list">
-                        <label class="checkbox_label sc-toggle-row" for="sc_apply_regex_scripts">
-                            <span class="sc-toggle-icon fa-solid fa-code"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Apply Regex Scripts</span>
-                                <small class="sc-hint">Match the text seen by the RP model.</small>
-                            </span>
-                            <input type="checkbox" id="sc_apply_regex_scripts" />
-                        </label>
-                    </div>
                     <div id="sc_custom_memory_controls" class="sc-sub-panel sc-settings-grid" style="display: none;">
                         <div class="sc-setting-row">
                             <label for="sc_custom_memory_position">
@@ -487,6 +474,32 @@
                             </label>
                             <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
                         </div>
+                    </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-code"></span>
+                            Input Processing
+                        </h4>
+                    </div>
+                    <div class="sc-toggle-list">
+                        <label class="checkbox_label sc-toggle-row" for="sc_apply_regex_scripts">
+                            <span class="sc-toggle-icon fa-solid fa-code"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Apply Regex Scripts</span>
+                                <small class="sc-hint">Match the text seen by the RP model.</small>
+                            </span>
+                            <input type="checkbox" id="sc_apply_regex_scripts" />
+                        </label>
+                    </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-chart-pie"></span>
+                            Budgets
+                        </h4>
                     </div>
                     <div class="sc-settings-grid sc-budget-grid">
                     <div class="sc-row">
@@ -519,6 +532,16 @@
                             <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" />
                         </div>
                     </div>
+                    </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-list-ol"></span>
+                            Batching
+                        </h4>
+                    </div>
+                    <div class="sc-settings-grid sc-batching-grid">
                     <div class="sc-row">
                         <label for="sc_min_summary_turns">
                             <span>Minimum Summary Turns</span>

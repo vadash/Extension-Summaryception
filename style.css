@@ -240,18 +240,16 @@
 }
 .sc-connection-grid,
 .sc-budget-grid,
+.sc-batching-grid,
 .sc-layering-grid {
     margin-bottom: 7px;
 }
-.sc-settings-option-list {
-    margin: 7px 0;
-}
 .sc-radio-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(142px, 100%), 1fr));
+    grid-template-columns: 1fr;
 }
 .sc-radio-grid .sc-toggle-row {
-    min-height: 48px;
+    min-height: 42px;
 }
 .sc-settings label { font-weight: 600; }
 .sc-disabled {

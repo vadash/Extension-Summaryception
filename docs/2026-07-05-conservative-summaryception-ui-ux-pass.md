@@ -14,6 +14,8 @@ Reduce settings drawer bloat without changing summarization behavior, metadata s
 - Place Apply Regex Scripts with the summarization settings rather than diagnostics.
 - Reset leaves Debug Mode enabled so follow-up integration checks have logs available.
 - Show the Injection Preview token count in the Memory tab header.
+- Split Settings into clearer sections for Memory Mode, Input Processing, Budgets, Batching, and Layering.
+- Keep connection source selectors in the left column for both Layer 0 and Layer 1+ merge connections.
 
 ## Slider Behavior
 
