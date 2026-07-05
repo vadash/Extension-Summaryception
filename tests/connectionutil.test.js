@@ -101,6 +101,29 @@ describe('connection providers registry', () => {
         });
     });
 
+    it('applies a dynamic promotion cap when source memory tokens are known', async () => {
+        const generateRaw = installGenerateRaw();
+
+        await sendSummarizerRequest(
+            {
+                connectionSource: 'default',
+                summarizerResponseLength: 0,
+                mergeConnectionSource: 'inherit',
+            },
+            'system prompt',
+            'user prompt',
+            undefined,
+            { kind: 'promotion', memoryTokensBefore: 1000 },
+        );
+
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 450,
+        });
+    });
+
     it('maps merge model fields onto provider settings for promotion calls', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
@@ -122,6 +145,24 @@ describe('connection providers registry', () => {
             openaiKey: 'shared-key',
             openaiModel: 'smart-model',
             openaiMaxTokens: 300,
+        });
+    });
+
+    it('applies the promotion cap to OpenAI merge max tokens when unset', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'default',
+                mergeConnectionSource: 'openai',
+                mergeOpenaiModel: 'smart-model',
+                mergeOpenaiMaxTokens: 0,
+            },
+            { kind: 'promotion', memoryTokensBefore: 944 },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            openaiModel: 'smart-model',
+            openaiMaxTokens: 428,
         });
     });
 
@@ -260,6 +301,23 @@ describe('connection providers registry', () => {
             openaiKey: 'shared-key',
             openaiModel: 'backup-model',
             openaiMaxTokens: 300,
+        });
+    });
+
+    it('applies the promotion cap to fallback routes when source memory tokens are known', () => {
+        const fallback = resolveFallbackSummarizerConnectionSettings(
+            {
+                connectionSource: 'profile',
+                connectionProfileId: 'fast-profile',
+                fallbackConnectionSource: 'default',
+                fallbackSummarizerResponseLength: 512,
+            },
+            { kind: 'promotion', memoryTokensBefore: 944 },
+        );
+
+        expect(fallback).toMatchObject({
+            connectionSource: 'default',
+            summarizerResponseLength: 428,
         });
     });
 

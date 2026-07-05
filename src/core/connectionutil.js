@@ -172,7 +172,10 @@ function applyLayer0ResponseCap(settings, metadata = {}) {
         return settings;
     }
 
-    const cap = getLayer0ResponseTokenCap(settings);
+    const cap = getLayer0ResponseTokenCap(settings, metadata);
+    if (cap === null) {
+        return settings;
+    }
     if ((settings.connectionSource || 'default') === 'openai') {
         return {
             ...settings,

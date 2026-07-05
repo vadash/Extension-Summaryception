@@ -74,7 +74,7 @@ Compress only the essential narrative progression and state changes from <passag
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
 ### TARGET:
-Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
+Follow the runtime Layer 0 target length and forcefully reduce the passage. If the passage is event-heavy, preserve durable state over moment-by-moment replay.
 
 ### KEEP:
 1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
@@ -83,14 +83,15 @@ Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer 
 
 ### EXCLUSIONS:
 - Exclude internal monologue unless it creates lasting intent or concealment.
-- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, and atmosphere unless they change durable state.
+- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, scenery, and atmosphere unless they change durable state.
 - Collapse repeated intimate/action beats into outcomes, boundaries, tally/state changes, and immediate consequences.
+- When detail competes with brevity, keep future-continuity facts and discard scene replay.
 
 ### FORMATTING:
 Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
     promotionSystemPrompt:
-        'Role: layered memory synthesizer. Merge lower-layer memories into a smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail. Output only the summary text - no preamble, no commentary, no markdown.',
+        'Role: layered memory synthesizer. Merge lower-layer memories into a much smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail into cumulative state. Output only the summary text - no preamble, no commentary, no markdown.',
 
     promotionUserPrompt: `<player_name>
 {{player_name}}
@@ -104,7 +105,7 @@ Output one highly compressed chronological paragraph. Use semicolons only where 
 {{story_txt}}
 </memories_to_consolidate>
 
-Consolidate only the new information from <memories_to_consolidate> into a highly compressed continuation block.
+Consolidate only the new information from <memories_to_consolidate> into a highly compressed continuation block that follows the runtime Layer 1+ target length.
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
@@ -115,7 +116,8 @@ Consolidate only the new information from <memories_to_consolidate> into a highl
 ### SYNTHESIS PRIORITIES:
 1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
 2. **Unresolved Hooks:** Where the characters are currently positioned, what they intend to do next, or pending immediate agreements.
-3. **Deduplication:** Omit transitional actions, low-impact micro-movements, and momentary dialogue loops.
+3. **Deduplication:** Omit transitional actions, low-impact micro-movements, scene replay, and momentary dialogue loops.
+4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 
 ### FORMAT:
 Write one dense third-person paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, or meta-commentary.`,

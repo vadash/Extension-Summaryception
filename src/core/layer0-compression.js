@@ -2,15 +2,21 @@ import { defaultSettings } from '../foundation/constants.js';
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 400;
+const MIN_PROMOTION_TARGET_TOKENS = 120;
 const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
+const PROMOTION_TARGET_RATIO = 0.4;
 
 /**
- * Check whether a summarizer call should receive Layer 0 compression controls.
+ * Check whether a summarizer call should receive runtime compression controls.
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
  * @returns {boolean}
  */
 export function isLayer0CompressionCall(metadata = {}) {
-    return metadata.kind === 'layer0' || metadata.kind === 'regenerate';
+    return (
+        metadata.kind === 'layer0' ||
+        metadata.kind === 'regenerate' ||
+        metadata.kind === 'promotion'
+    );
 }
 
 /**
@@ -26,16 +32,21 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
 }
 
 /**
- * Compute the provider response cap for a Layer 0 summary.
+ * Compute the provider response cap for a summary or promotion.
  * @param {Partial<ExtensionSettings>} [settings]
- * @returns {number}
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {number|null}
  */
-export function getLayer0ResponseTokenCap(settings = {}) {
+export function getLayer0ResponseTokenCap(settings = {}, metadata = {}) {
+    if (metadata.kind === 'promotion') {
+        const target = getPromotionSummaryTokenTarget(metadata);
+        return target === null ? null : target + LAYER0_RESPONSE_TOKEN_BUFFER;
+    }
     return getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER;
 }
 
 /**
- * Add non-persisted Layer 0 output constraints to the final prompt.
+ * Add non-persisted compression constraints to the final prompt.
  * @param {string} prompt
  * @param {Partial<ExtensionSettings>} settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
@@ -44,6 +55,10 @@ export function getLayer0ResponseTokenCap(settings = {}) {
 export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
     if (!isLayer0CompressionCall(metadata)) {
         return prompt;
+    }
+
+    if (metadata.kind === 'promotion') {
+        return appendPromotionPromptConstraints(prompt, metadata);
     }
 
     const target = getLayer0SummaryTokenTarget(settings);
@@ -60,5 +75,45 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Omit repeated micro-actions, flavor dialogue, sensory detail, and transient atmosphere unless they create lasting state.\n' +
         'When detail competes with length, keep the fact needed for future continuity and drop the scene replay.\n' +
         '</summaryception_l0_constraints>'
+    );
+}
+
+/**
+ * Compute the target size for a Layer 1+ promotion from source memory size.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @returns {number|null}
+ */
+function getPromotionSummaryTokenTarget(metadata = {}) {
+    const sourceTokens = Number(metadata.memoryTokensBefore);
+    if (!Number.isFinite(sourceTokens) || sourceTokens <= 0) {
+        return null;
+    }
+    return Math.max(MIN_PROMOTION_TARGET_TOKENS, Math.round(sourceTokens * PROMOTION_TARGET_RATIO));
+}
+
+/**
+ * Add Layer 1+ promotion-specific consolidation constraints.
+ * @param {string} prompt
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @returns {string}
+ */
+function appendPromotionPromptConstraints(prompt, metadata = {}) {
+    const target = getPromotionSummaryTokenTarget(metadata);
+    const targetLine =
+        target === null
+            ? 'Target length: make the output significantly shorter than the combined input memories.\n'
+            : `Target length: at most about ${target} tokens, roughly 40% of the combined input memories.\n`;
+
+    return (
+        `${String(prompt || '').trimEnd()}\n\n` +
+        '<summaryception_promotion_constraints>\n' +
+        targetLine +
+        'Output exactly one dense paragraph with no heading, list, preamble, or markdown.\n' +
+        'Preserve only durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
+        'Preserve useful full date/time anchors already present in memory.\n' +
+        'Do not repeat or re-summarize events already established in prior context.\n' +
+        'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
+        'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +
+        '</summaryception_promotion_constraints>'
     );
 }

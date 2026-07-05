@@ -66,15 +66,15 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
         enabled: s.enabled,
     });
 
-    const promptConfig = resolveSummarizerPromptConfig(s, metadata);
+    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
+    const promptConfig = resolveSummarizerPromptConfig(s, usageMetadata);
     const prompt = buildSummarizerPrompt(
         promptConfig.userPromptTemplate,
         storyTxt,
         contextStr,
         s,
-        metadata,
+        usageMetadata,
     );
-    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
 
     currentAbortController = new AbortController();
 

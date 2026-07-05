@@ -92,13 +92,18 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(mocks.sendSummarizerRequest).toHaveBeenCalledWith(
             expect.any(Object),
             'PROMO_SYS',
-            'PROMO deep context MEMORY merged snippets',
+            expect.stringContaining('PROMO deep context MEMORY merged snippets'),
             expect.any(AbortSignal),
             expect.objectContaining({ kind: 'promotion' }),
         );
+        const prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
+        expect(prompt).toContain('<summaryception_promotion_constraints>');
+        expect(prompt).toContain('Target length: at most about 120 tokens');
+        expect(prompt).toContain('roughly 40% of the combined input memories');
+        expect(prompt).toContain('Deduplicate related events');
     });
 
-    it('adds Layer 0 compression constraints without changing promotion prompts', async () => {
+    it('adds runtime compression constraints to Layer 0 and promotion prompts', async () => {
         installSillyTavernStub({
             settings: {
                 layer0SummaryTokenTarget: 120,
@@ -131,9 +136,13 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(layer0Prompt).toContain('avoid minute tracking unless essential');
         expect(layer0Prompt).toContain('absolute date/time can be inferred');
         expect(layer0Prompt).toContain('future goals/plans');
-        expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toBe(
-            'PROMO deep context MEMORY merged snippets',
-        );
+
+        const promotionPrompt = mocks.sendSummarizerRequest.mock.calls[1][2];
+        expect(promotionPrompt).toContain('PROMO deep context MEMORY merged snippets');
+        expect(promotionPrompt).toContain('<summaryception_promotion_constraints>');
+        expect(promotionPrompt).toContain('Target length: at most about 120 tokens');
+        expect(promotionPrompt).toContain('Preserve useful full date/time anchors');
+        expect(promotionPrompt).toContain('Do not repeat or re-summarize events');
     });
 
     it('routes through fallback after primary retry exhaustion', async () => {

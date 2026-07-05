@@ -194,9 +194,15 @@ describe('summarizer usage logging', () => {
             label: 'promotion L1->L2 (2 snippets)',
             messages: [
                 { role: 'system', content: 'PROMO_SYS' },
-                { role: 'user', content: 'PROMO deep context STORY merged snippets' },
+                {
+                    role: 'user',
+                    content: expect.stringContaining('PROMO deep context STORY merged snippets'),
+                },
             ],
         });
+        expect(findJsonLog('summaryception.llm.input.v1').messages[1].content).toContain(
+            '<summaryception_promotion_constraints>',
+        );
         expect(findJsonLog('summaryception.llm.output.v1')).toMatchObject({
             label: 'promotion L1->L2 (2 snippets)',
             cleanedSummary: 'summary text',
@@ -332,6 +338,9 @@ describe('summarizer usage logging', () => {
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('PROMO_SYS');
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain(
             'PROMO deep context MEMORY merged snippets',
+        );
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain(
+            '<summaryception_promotion_constraints>',
         );
         expect(ctx.getTokenCountAsync.mock.calls[1][0]).not.toContain('L0_SYS');
 
