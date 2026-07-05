@@ -23,7 +23,7 @@ import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
 import { repairOrphanedMessages } from '../features/maintenance.js';
-import { updateUI, updateCustomPromptSlots } from './ui.js';
+import { updateUI, updateCustomPromptSlots, syncPayloadSchematic } from './ui.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -308,6 +308,7 @@ function syncSliderDisplays(sliders, changedKey, display) {
     }
     $(binding.id).val(s[binding.key]);
     $(binding.display).val(formatSliderChipValue(s[binding.key], $(binding.id)));
+    syncPayloadSchematic(s);
 }
 
 function syncRetentionSliderDisplays() {
@@ -332,6 +333,7 @@ function syncRetentionSliderDisplays() {
     $('#sc_max_summary_turns_val').val(
         formatSliderChipValue(s.maxSummaryTurns, $('#sc_max_summary_turns')),
     );
+    syncPayloadSchematic(s);
 }
 
 function formatSliderChipValue(value, slider) {

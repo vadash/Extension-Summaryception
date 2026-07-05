@@ -4,7 +4,7 @@ import { log } from '../foundation/logger.js';
 import { getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
-import { getCacheFriendlyPlan } from '../core/cache-planner.js';
+import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import {
@@ -77,11 +77,28 @@ function syncSettingsInputs(s) {
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
     $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
+    syncPayloadSchematic(s);
     syncMemoryModeControls(s);
 }
 
 function formatSliderChipValue(value) {
     return value % 1000 === 0 && value >= 1000 ? `${value / 1000}k` : String(value);
+}
+
+/**
+ * Sync read-only context payload budget labels.
+ * @param {ReturnType<typeof getSettings>} [s]
+ * @returns {void}
+ */
+export function syncPayloadSchematic(s = getSettings()) {
+    const isCache = s.memoryMode === MEMORY_MODES.CACHE;
+
+    $('#sc_payload_memory_budget').text(formatBudgetTokenLabel(s.memoryTokenBudget));
+    $('#sc_payload_verbatim_budget').text(formatBudgetTokenLabel(s.verbatimTokenBudget));
+    $('#sc_payload_tail_budget').text(
+        formatBudgetTokenLabel(getProtectedTailTokens(s.verbatimTokenBudget)),
+    );
+    $('#sc_payload_tail_part').css('display', isCache ? 'contents' : 'none');
 }
 
 /**

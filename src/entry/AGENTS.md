@@ -7,4 +7,5 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 - Prefer compact, theme-aware panels and Font Awesome icons over emoji headings.
 - Settings UI reloads should always land on the Status tab.
 - Keep budget/status visuals compact and read-only.
+- Status payload schematics derive from settings/runtime state; do not add save behavior there.
 - Slider value chips may show compact `k` values; always clamp them to the paired range min/max/step before saving the setting.
