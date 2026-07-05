@@ -74,7 +74,7 @@ Compress only the essential narrative progression and state changes from <passag
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
 ### TARGET:
-Aim for about 150 tokens. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
+Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
 
 ### KEEP:
 1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
@@ -110,6 +110,7 @@ Consolidate only the new information from <memories_to_consolidate> into a highl
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
 2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <memories_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
+4. **Temporal Anchors:** Preserve useful full date/time anchors already present in lower-layer memory (for example, Saturday Oct 19, 7PM). Do not reduce inferable absolute timing to vague relative timing; for future goals/plans, prefer full dates over bare weekdays when available.
 
 ### SYNTHESIS PRIORITIES:
 1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
@@ -141,7 +142,7 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile' | 'ollama' | 'openai'
-    summarizerResponseLength: 0, // 0 = use preset default; set lower if you get "max_tokens > 4096 must have stream=true" errors
+    summarizerResponseLength: 0, // 0 = Layer 0 target plus safety buffer at runtime
     connectionProfileId: '', // ID of selected ST Connection Profile
     ollamaUrl: 'http://localhost:11434',
     ollamaModel: '',
@@ -149,7 +150,7 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
     openaiUrl: '',
     openaiKey: '',
     openaiModel: '',
-    openaiMaxTokens: 0, // 0 = no limit (provider default)
+    openaiMaxTokens: 0, // 0 = Layer 0 target plus safety buffer at runtime
 
     // Optional Layer 1+ promotion merge connection. 'inherit' uses the Layer 0 connection above.
     mergeConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile' | 'ollama' | 'openai'
@@ -187,7 +188,7 @@ Compress only the essential narrative progression and state changes from <passag
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
 ### TARGET:
-Aim for about 150 tokens. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
+Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
 
 ### KEEP:
 1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.

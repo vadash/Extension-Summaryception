@@ -42,7 +42,6 @@ export function getSettings() {
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill);
-    ensureNarrativePromptCurrent(settings, promptBeforeBackfill);
     ensurePromptLogSettingsMigrated(settings, {
         legacyPromptLogMode,
         hadPromptInputLogMode,
@@ -184,37 +183,6 @@ function ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackf
         settings.promptPreset = 'custom';
         saveSettingsDebounced();
     }
-}
-
-/**
- * Move users who still have the old stock narrative prompt to the current preset text.
- * Custom prompts are protected by the preset flag and textarea auto-switch behavior.
- * @param {ExtensionSettings} settings
- * @param {string} promptBeforeBackfill
- * @returns {void}
- */
-function ensureNarrativePromptCurrent(settings, promptBeforeBackfill) {
-    if (settings.promptPreset !== 'narrative') {
-        return;
-    }
-    const currentPrompt = promptBeforeBackfill.trim();
-    if (!currentPrompt || currentPrompt === PROMPT_PRESETS.narrative.trim()) {
-        return;
-    }
-    if (!isLegacyNarrativePrompt(currentPrompt)) {
-        return;
-    }
-
-    settings.summarizerUserPrompt = PROMPT_PRESETS.narrative;
-    saveSettingsDebounced();
-}
-
-function isLegacyNarrativePrompt(prompt) {
-    return (
-        prompt.includes('Detailed step-by-step actions') &&
-        prompt.includes('Conditional Environmental & Physical State') &&
-        prompt.includes('Output a single, highly dense chronological paragraph')
-    );
 }
 
 /**

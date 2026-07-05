@@ -124,9 +124,13 @@ describe('callSummarizer abort signal plumbing', () => {
             mergedSnippetCount: 3,
         });
 
-        expect(mocks.sendSummarizerRequest.mock.calls[0][2]).toContain(
-            'Target length: at most about 120 tokens',
-        );
+        const layer0Prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
+        expect(layer0Prompt).toContain('Target length: at most about 120 tokens');
+        expect(layer0Prompt).toContain('Saturday Oct 19, 7PM');
+        expect(layer0Prompt).toContain('8AM or 7PM');
+        expect(layer0Prompt).toContain('avoid minute tracking unless essential');
+        expect(layer0Prompt).toContain('absolute date/time can be inferred');
+        expect(layer0Prompt).toContain('future goals/plans');
         expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toBe(
             'PROMO deep context MEMORY merged snippets',
         );

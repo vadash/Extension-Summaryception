@@ -70,7 +70,8 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
         expect(PROMPT_PRESETS.narrative).toContain('TARGET');
-        expect(PROMPT_PRESETS.narrative).toContain('about 150 tokens');
+        expect(PROMPT_PRESETS.narrative).toContain('runtime Layer 0 target length');
+        expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
         expect(PROMPT_PRESETS.narrative).toContain('durable state');
         expect(PROMPT_PRESETS.gamestate).toContain('{{story_txt}}');
     });
@@ -88,6 +89,9 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('memories_to_consolidate');
         expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
         expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
+        expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');
+        expect(defaultSettings.promotionUserPrompt).toContain('Saturday Oct 19, 7PM');
+        expect(defaultSettings.promotionUserPrompt).toContain('full dates over bare weekdays');
     });
 
     it('strips common reasoning tokens by default', () => {

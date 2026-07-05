@@ -99,22 +99,23 @@ describe('state.js', () => {
         });
     });
 
-    it('updates unmodified legacy narrative prompts to the current compressed preset', () => {
+    it('keeps existing narrative prompts untouched when settings are loaded', () => {
+        const legacyPrompt =
+            'Detailed step-by-step actions\n' +
+            'Conditional Environmental & Physical State\n' +
+            'Output a single, highly dense chronological paragraph';
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'narrative',
-                summarizerUserPrompt:
-                    'Detailed step-by-step actions\n' +
-                    'Conditional Environmental & Physical State\n' +
-                    'Output a single, highly dense chronological paragraph',
+                summarizerUserPrompt: legacyPrompt,
             },
         });
         ctx.saveSettingsDebounced = vi.fn();
 
         const settings = getSettings();
 
-        expect(settings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
-        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+        expect(settings.summarizerUserPrompt).toBe(legacyPrompt);
+        expect(ctx.saveSettingsDebounced).not.toHaveBeenCalled();
     });
 
     it('allows maximum summary turns up to twelve', () => {

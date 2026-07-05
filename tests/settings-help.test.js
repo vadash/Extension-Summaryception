@@ -87,6 +87,22 @@ describe('settings help metadata', () => {
         }
     });
 
+    it('documents Layer 0 output caps separately from merge and fallback provider defaults', () => {
+        expect(SETTINGS_HELP.layer0_response_length.detail).toContain(
+            '0 uses the Layer 0 target plus a safety buffer',
+        );
+        expect(SETTINGS_HELP.layer0_openai_max_tokens.detail).toContain(
+            '0 uses the Layer 0 target plus a safety buffer',
+        );
+        expect(SETTINGS_HELP.merge_openai_max_tokens.detail).toContain(
+            '0 leaves the provider default',
+        );
+        expect(SETTINGS_HELP.fallback_openai_max_tokens.detail).toContain(
+            '0 leaves the provider default',
+        );
+        expect(SETTINGS_HTML).toContain('placeholder="0 = target + buffer"');
+    });
+
     it('keeps tooltip placement inside the viewport and settings width', () => {
         const position = calculateHelpTooltipPosition({
             anchorRect: { left: 760, right: 780, top: 550, bottom: 570 },

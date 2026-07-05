@@ -53,6 +53,10 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         `Target length: at most about ${target} tokens.\n` +
         'Output exactly one dense paragraph with no heading, list, preamble, or markdown.\n' +
         'Preserve only durable chronology, relationship/state changes, plans, constraints, current position, and unresolved hooks.\n' +
+        'Include one full date/time anchor when present, e.g. Saturday Oct 19, 7PM.\n' +
+        'After that, use coarse hour labels like 8AM or 7PM; avoid minute tracking unless essential.\n' +
+        'Do not preserve only vague relative timing when absolute date/time can be inferred from context.\n' +
+        'For future goals/plans, prefer full dates over bare weekdays when available.\n' +
         'Omit repeated micro-actions, flavor dialogue, sensory detail, and transient atmosphere unless they create lasting state.\n' +
         'When detail competes with length, keep the fact needed for future continuity and drop the scene replay.\n' +
         '</summaryception_l0_constraints>'

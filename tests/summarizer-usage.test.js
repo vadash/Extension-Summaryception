@@ -123,6 +123,8 @@ describe('summarizer usage logging', () => {
             ],
         });
         expect(inputLog.messages[1].content).toContain('Target length: at most about 150 tokens');
+        expect(inputLog.messages[1].content).toContain('Saturday Oct 19, 7PM');
+        expect(inputLog.messages[1].content).toContain('8AM or 7PM');
         expect(outputLog).toBeNull();
         expect(getConsoleText()).not.toContain('summary text');
     });

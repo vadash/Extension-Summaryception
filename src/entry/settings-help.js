@@ -44,6 +44,7 @@ const CONNECTION_GROUPS = [
         openaiMaxTokensId: 'summaryception_openai_max_tokens',
         sourceRisk: 'a weak or misconfigured route makes every new summary worse.',
         responseDefault: '0 uses the Layer 0 target plus a safety buffer.',
+        openaiDefault: '0 uses the Layer 0 target plus a safety buffer.',
     },
     {
         key: 'merge',
@@ -60,6 +61,7 @@ const CONNECTION_GROUPS = [
         openaiMaxTokensId: 'summaryception_merge_openai_max_tokens',
         sourceRisk: 'a mismatched merge route can rewrite stable memory in a different style.',
         responseDefault: '0 uses the selected provider default.',
+        openaiDefault: '0 leaves the provider default.',
     },
     {
         key: 'fallback',
@@ -76,6 +78,7 @@ const CONNECTION_GROUPS = [
         openaiMaxTokensId: 'summaryception_fallback_openai_max_tokens',
         sourceRisk: 'it is ignored if it matches the primary route.',
         responseDefault: '0 uses the selected provider default.',
+        openaiDefault: '0 leaves the provider default.',
     },
 ];
 
@@ -691,7 +694,7 @@ function openaiMaxTokensHelp(group) {
             controls: [controlFor(group.openaiMaxTokensId)],
             controlsText: `Controls the max_tokens value for the ${group.route}`,
             when: 'if your provider needs an explicit output cap.',
-            risk: 'too low cuts off summaries; 0 leaves the provider default.',
+            risk: `too low cuts off summaries. ${group.openaiDefault}`,
         }),
     ];
 }
