@@ -32,3 +32,6 @@ coverage/
 # TypeScript build output
 *.tsbuildinfo
 .tsbuildinfo
+
+# MORE
+.claude/
