@@ -17,6 +17,7 @@
         "knip": "knip",
         "jscpd": "jscpd --config jscpd.json src",
         "repomix:source": "repomix --config repomix-source.json",
+        "repomix:tests": "repomix --config repomix-tests.json",
         "prepare": "husky"
     },
     "lint-staged": {
