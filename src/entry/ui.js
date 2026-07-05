@@ -16,6 +16,21 @@ import {
     updateSnippetTextAt,
 } from '../features/snippet-manager.js';
 
+const CUSTOM_PROMPT_SLOT_BINDINGS = [
+    {
+        manager: '#sc_custom_prompt_manager',
+        presetKey: 'promptPreset',
+        savedPromptsKey: 'savedCustomPrompts',
+        select: '#sc_custom_prompt_slot',
+    },
+    {
+        manager: '#sc_promotion_custom_prompt_manager',
+        presetKey: 'promotionPromptPreset',
+        savedPromptsKey: 'savedCustomPromotionPrompts',
+        select: '#sc_promotion_custom_prompt_slot',
+    },
+];
+
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
  * @returns {Promise<void>}
@@ -29,6 +44,7 @@ export async function updateUI() {
         syncEnabledContent(s);
 
         $('#sc_prompt_preset').val(s.promptPreset);
+        $('#sc_promotion_prompt_preset').val(s.promotionPromptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
         $('#sc_trace_mode').prop('checked', s.traceMode);
         $('#sc_prompt_input_log_mode').prop('checked', s.promptInputLogMode);
@@ -539,10 +555,16 @@ async function renderPreview() {
  */
 export function updateCustomPromptSlots() {
     const s = getSettings();
-    const select = $('#sc_custom_prompt_slot');
+    for (const binding of CUSTOM_PROMPT_SLOT_BINDINGS) {
+        updateCustomPromptSlot(binding, s);
+    }
+}
+
+function updateCustomPromptSlot(binding, settings) {
+    const select = $(binding.select);
     select.empty().append('<option value="">-- Load a saved prompt --</option>');
 
-    const prompts = s.savedCustomPrompts || {};
+    const prompts = settings[binding.savedPromptsKey] || {};
     const names = Object.keys(prompts).sort();
 
     for (const name of names) {
@@ -550,10 +572,10 @@ export function updateCustomPromptSlots() {
         select.append($('<option></option>').val(name).text(`${name}`).attr('title', preview));
     }
 
-    if (s.promptPreset === 'custom') {
-        $('#sc_custom_prompt_manager').show();
+    if (settings[binding.presetKey] === 'custom') {
+        $(binding.manager).show();
     } else {
-        $('#sc_custom_prompt_manager').hide();
+        $(binding.manager).hide();
     }
 }
 

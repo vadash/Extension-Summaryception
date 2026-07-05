@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installSillyTavernStub, makeContext, makeMessage } from './test-helpers.js';
-import { PROMPT_PRESETS, defaultSettings } from '../src/foundation/constants.js';
+import {
+    PROMOTION_PROMPT_PRESETS,
+    PROMPT_PRESETS,
+    defaultSettings,
+} from '../src/foundation/constants.js';
 import {
     calculateContiguousSummarizedUpTo,
     getChatStore,
@@ -51,6 +55,26 @@ describe('state.js', () => {
 
         expect(settings.promptPreset).toBe(preset);
         expect(settings.summarizerUserPrompt).toBe(saved);
+        expect(settings.promotionPromptPreset).toBe('narrative');
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+        ['', 'narrative', PROMOTION_PROMPT_PRESETS.narrative],
+        ['Merge only unresolved goals.', 'custom', 'Merge only unresolved goals.'],
+    ])('migrates a missing promotion prompt preset when loaded', (prompt, preset, saved) => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                promptPreset: 'narrative',
+                promotionUserPrompt: prompt,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.promotionPromptPreset).toBe(preset);
+        expect(settings.promotionUserPrompt).toBe(saved);
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
@@ -58,6 +82,7 @@ describe('state.js', () => {
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'gamestate',
+                promotionPromptPreset: 'narrative',
                 summarizerUserPrompt: 'Old game-state prompt text.',
             },
         });
@@ -68,6 +93,24 @@ describe('state.js', () => {
         expect(settings.promptPreset).toBe('custom');
         expect(settings.summarizerUserPrompt).toBe('Old game-state prompt text.');
         expect(settings.lastCustomPrompt).toBe('Old game-state prompt text.');
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it('normalizes removed promotion prompt presets to custom without rewriting prompt text', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                promptPreset: 'narrative',
+                promotionPromptPreset: 'oldmerge',
+                promotionUserPrompt: 'Old promotion prompt text.',
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.promotionPromptPreset).toBe('custom');
+        expect(settings.promotionUserPrompt).toBe('Old promotion prompt text.');
+        expect(settings.lastCustomPromotionPrompt).toBe('Old promotion prompt text.');
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
@@ -124,6 +167,7 @@ describe('state.js', () => {
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'narrative',
+                promotionPromptPreset: 'narrative',
                 summarizerUserPrompt: legacyPrompt,
             },
         });

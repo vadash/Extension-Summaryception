@@ -16,8 +16,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    globalThis.__summaryceptionRestoreDownloads?.();
     delete globalThis.document;
     delete globalThis.confirm;
+    delete globalThis.__summaryceptionDownloads;
+    delete globalThis.__summaryceptionRestoreDownloads;
 });
 
 describe('ui prompt/reset events', () => {
@@ -51,13 +54,40 @@ describe('ui prompt/reset events', () => {
         expect(mocks.updateUI).toHaveBeenCalledOnce();
     });
 
+    it('switches Layer 1+ user-prompt edits to custom so reset preserves them', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_promotion_user_prompt').val('Custom promotion prompt');
+        ui.trigger('input', '#sc_promotion_user_prompt');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            promotionPromptPreset: 'custom',
+            promotionUserPrompt: 'Custom promotion prompt',
+            lastCustomPromotionPrompt: 'Custom promotion prompt',
+        });
+
+        globalThis.confirm = vi.fn(() => true);
+        ui.trigger('click', '#sc_reset_defaults');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            promotionPromptPreset: 'custom',
+            promotionUserPrompt: 'Custom promotion prompt',
+            lastCustomPromotionPrompt: 'Custom promotion prompt',
+        });
+        expect(ctx.extensionSettings.summaryception.savedCustomPromotionPrompts).toEqual({});
+        expect(mocks.updateInjection).toHaveBeenCalledOnce();
+        expect(mocks.updateUI).toHaveBeenCalledOnce();
+    });
+
     it('switches Layer 0 system-prompt edits to custom', async () => {
         const settings = structuredClone(defaultSettings);
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness();
 
         ui.element('#sc_summarizer_system_prompt').val('Custom system prompt');
-        ui.trigger('change', '#sc_summarizer_system_prompt');
+        ui.trigger('input', '#sc_summarizer_system_prompt');
 
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promptPreset: 'custom',
@@ -66,6 +96,56 @@ describe('ui prompt/reset events', () => {
         });
         expect(ui.element('#sc_prompt_preset').getValue()).toBe('custom');
         expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();
+    });
+
+    it('switches Layer 1+ system-prompt edits to custom', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_promotion_system_prompt').val('Custom promotion system prompt');
+        ui.trigger('input', '#sc_promotion_system_prompt');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            promotionPromptPreset: 'custom',
+            promotionSystemPrompt: 'Custom promotion system prompt',
+            lastCustomPromotionPrompt: defaultSettings.promotionUserPrompt,
+        });
+        expect(ui.element('#sc_promotion_prompt_preset').getValue()).toBe('custom');
+        expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();
+    });
+
+    it('resets stock Layer 1+ prompts to defaults', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.promotionSystemPrompt = 'Stock-edited system';
+        settings.promotionUserPrompt = 'Stock-edited user';
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        globalThis.confirm = vi.fn(() => true);
+        ui.trigger('click', '#sc_reset_defaults');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            promotionPromptPreset: defaultSettings.promotionPromptPreset,
+            promotionSystemPrompt: defaultSettings.promotionSystemPrompt,
+            promotionUserPrompt: defaultSettings.promotionUserPrompt,
+        });
+    });
+
+    it('exports Layer 0 and Layer 1+ prompts with profile-specific filenames', async () => {
+        installDownloadStubs();
+        installSillyTavernStub({ settings: structuredClone(defaultSettings) });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_summarizer_user_prompt').val('Layer 0 custom prompt');
+        ui.trigger('click', '#sc_custom_prompt_export');
+        ui.element('#sc_promotion_user_prompt').val('Layer 1 custom prompt');
+        ui.trigger('click', '#sc_promotion_custom_prompt_export');
+
+        expect(globalThis.__summaryceptionDownloads).toEqual([
+            expect.stringContaining('summaryception_L0_summary_'),
+            expect.stringContaining('summaryception_L1_summary_'),
+        ]);
     });
 });
 
@@ -166,6 +246,26 @@ function createJQueryHarness() {
             return entry.handler.call(target, { type: eventName });
         },
     };
+}
+
+function installDownloadStubs() {
+    const downloads = [];
+    const originalCreateObjectURL = globalThis.URL.createObjectURL;
+    const originalRevokeObjectURL = globalThis.URL.revokeObjectURL;
+    globalThis.__summaryceptionDownloads = downloads;
+    globalThis.__summaryceptionRestoreDownloads = () => {
+        globalThis.URL.createObjectURL = originalCreateObjectURL;
+        globalThis.URL.revokeObjectURL = originalRevokeObjectURL;
+    };
+    globalThis.document = {
+        createElement: vi.fn(() => ({
+            click: vi.fn(function () {
+                downloads.push(this.download);
+            }),
+        })),
+    };
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:summaryception');
+    globalThis.URL.revokeObjectURL = vi.fn();
 }
 
 function createJQueryElement() {

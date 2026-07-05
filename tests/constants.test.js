@@ -4,7 +4,9 @@ import {
     LOG_PREFIX,
     defaultSettings,
     PROMPT_PRESETS,
+    PROMOTION_PROMPT_PRESETS,
     DEFAULT_PROMPT_PRESET,
+    DEFAULT_PROMOTION_PROMPT_PRESET,
     RETRY_CONFIG,
 } from '../src/foundation/constants.js';
 
@@ -76,10 +78,21 @@ describe('constants', () => {
         expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
     });
 
+    it('exposes every documented promotion prompt preset', () => {
+        expect(Object.keys(PROMOTION_PROMPT_PRESETS).sort()).toEqual(['custom', 'narrative']);
+        expect(PROMOTION_PROMPT_PRESETS.custom).toBeNull();
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{context_str}}');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('memories_to_consolidate');
+    });
+
     it('defaults to the narrative preset', () => {
         expect(DEFAULT_PROMPT_PRESET).toBe('narrative');
         expect(defaultSettings.promptPreset).toBe(DEFAULT_PROMPT_PRESET);
         expect(defaultSettings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
+        expect(DEFAULT_PROMOTION_PROMPT_PRESET).toBe('narrative');
+        expect(defaultSettings.promotionPromptPreset).toBe(DEFAULT_PROMOTION_PROMPT_PRESET);
+        expect(defaultSettings.promotionUserPrompt).toBe(PROMOTION_PROMPT_PRESETS.narrative);
     });
 
     it('provides separate Layer 1+ promotion prompts', () => {

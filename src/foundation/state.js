@@ -3,6 +3,7 @@ import {
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
+    PROMOTION_PROMPT_PRESETS,
     PROMPT_PRESETS,
     defaultSettings,
 } from './constants.js';
@@ -25,8 +26,11 @@ export function getSettings() {
     }
     const settings = extensionSettings[MODULE_NAME];
     const hadPromptPreset = Boolean(settings.promptPreset);
+    const hadPromotionPromptPreset = Boolean(settings.promotionPromptPreset);
     const promptBeforeBackfill =
         typeof settings.summarizerUserPrompt === 'string' ? settings.summarizerUserPrompt : '';
+    const promotionPromptBeforeBackfill =
+        typeof settings.promotionUserPrompt === 'string' ? settings.promotionUserPrompt : '';
     const legacyPromptLogMode = Boolean(settings.promptLogMode);
     const hadPromptInputLogMode = Object.hasOwn(settings, 'promptInputLogMode');
     const hadPromptOutputLogMode = Object.hasOwn(settings, 'promptOutputLogMode');
@@ -41,12 +45,30 @@ export function getSettings() {
     }
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
-    ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill);
-    ensurePromptLogSettingsMigrated(settings, {
+    const promptPresetMigrated = ensurePromptPresetMigrated(settings, {
+        hadPromptPreset,
+        lastCustomPromptKey: 'lastCustomPrompt',
+        presetKey: 'promptPreset',
+        presets: PROMPT_PRESETS,
+        promptBeforeBackfill,
+        userPromptKey: 'summarizerUserPrompt',
+    });
+    const promotionPromptPresetMigrated = ensurePromptPresetMigrated(settings, {
+        hadPromptPreset: hadPromotionPromptPreset,
+        lastCustomPromptKey: 'lastCustomPromotionPrompt',
+        presetKey: 'promotionPromptPreset',
+        presets: PROMOTION_PROMPT_PRESETS,
+        promptBeforeBackfill: promotionPromptBeforeBackfill,
+        userPromptKey: 'promotionUserPrompt',
+    });
+    const promptLogMigrated = ensurePromptLogSettingsMigrated(settings, {
         legacyPromptLogMode,
         hadPromptInputLogMode,
         hadPromptOutputLogMode,
     });
+    if (promptPresetMigrated || promotionPromptPresetMigrated || promptLogMigrated) {
+        saveSettingsDebounced();
+    }
     return settings;
 }
 
@@ -164,39 +186,53 @@ function normalizeVerbatimWindowSettings(settings) {
 /**
  * Migrate prompt presets for existing users: empty -> narrative, existing text -> custom.
  * @param {ExtensionSettings} settings
- * @param {boolean} hadPromptPreset
- * @param {string} promptBeforeBackfill
- * @returns {void}
+ * @param {object} config
+ * @param {boolean} config.hadPromptPreset
+ * @param {'lastCustomPrompt' | 'lastCustomPromotionPrompt'} config.lastCustomPromptKey
+ * @param {'promptPreset' | 'promotionPromptPreset'} config.presetKey
+ * @param {{ [key: string]: string | null }} config.presets
+ * @param {string} config.promptBeforeBackfill
+ * @param {'summarizerUserPrompt' | 'promotionUserPrompt'} config.userPromptKey
+ * @returns {boolean}
  */
-function ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill) {
-    if (hadPromptPreset && Object.hasOwn(PROMPT_PRESETS, settings.promptPreset)) {
-        return;
+function ensurePromptPresetMigrated(
+    settings,
+    {
+        hadPromptPreset,
+        lastCustomPromptKey,
+        presetKey,
+        presets,
+        promptBeforeBackfill,
+        userPromptKey,
+    },
+) {
+    if (hadPromptPreset && Object.hasOwn(presets, settings[presetKey])) {
+        return false;
     }
     const currentPrompt = promptBeforeBackfill.trim();
 
     if (!currentPrompt) {
-        settings.promptPreset = 'narrative';
-        settings.summarizerUserPrompt = PROMPT_PRESETS.narrative;
-        saveSettingsDebounced();
+        settings[presetKey] = 'narrative';
+        settings[userPromptKey] = presets.narrative || '';
     } else {
-        settings.promptPreset = 'custom';
-        settings.lastCustomPrompt = settings.summarizerUserPrompt || promptBeforeBackfill;
-        saveSettingsDebounced();
+        settings[presetKey] = 'custom';
+        settings[lastCustomPromptKey] = settings[userPromptKey] || promptBeforeBackfill;
     }
+    return true;
 }
 
 /**
  * Split the legacy combined prompt log setting into input/output toggles.
  * @param {ExtensionSettings} settings
  * @param {{ legacyPromptLogMode: boolean, hadPromptInputLogMode: boolean, hadPromptOutputLogMode: boolean }} state
- * @returns {void}
+ * @returns {boolean}
  */
 function ensurePromptLogSettingsMigrated(
     settings,
     { legacyPromptLogMode, hadPromptInputLogMode, hadPromptOutputLogMode },
 ) {
     if (!legacyPromptLogMode || (hadPromptInputLogMode && hadPromptOutputLogMode)) {
-        return;
+        return false;
     }
 
     if (!hadPromptInputLogMode) {
@@ -205,7 +241,7 @@ function ensurePromptLogSettingsMigrated(
     if (!hadPromptOutputLogMode) {
         settings.promptOutputLogMode = true;
     }
-    saveSettingsDebounced();
+    return true;
 }
 
 function clampInteger(value, min, max) {

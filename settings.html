@@ -807,6 +807,54 @@
                         </label>
                         <textarea id="sc_promotion_system_prompt" class="text_pole sc-textarea" rows="3"></textarea>
                     </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_promotion_prompt_preset">
+                            <span>Prompt Preset</span>
+                        </label>
+                        <select id="sc_promotion_prompt_preset" class="text_pole">
+                            <option value="narrative">Narrative State (Default)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div id="sc_promotion_custom_prompt_manager" class="sc-custom-prompt-manager" style="display: none;">
+                        <div class="sc-custom-prompt-row">
+                            <div class="sc-custom-prompt-slots">
+                                <label for="sc_promotion_custom_prompt_slot">
+                                    <span>Saved Custom Prompts</span>
+                                </label>
+                                <div class="sc-custom-prompt-slot-row">
+                                    <select id="sc_promotion_custom_prompt_slot" class="text_pole">
+                                        <option value="">-- Load a saved prompt --</option>
+                                    </select>
+                                    <button id="sc_promotion_custom_prompt_load" class="menu_button sc-icon-button" title="Load selected prompt">
+                                        <i class="fa-solid fa-folder-open"></i>
+                                    </button>
+                                    <button id="sc_promotion_custom_prompt_delete_slot" class="menu_button menu_button_danger sc-icon-button" title="Delete selected prompt">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="sc-custom-prompt-actions">
+                                <div class="sc-custom-prompt-save-row">
+                                    <input id="sc_promotion_custom_prompt_name" type="text" class="text_pole" placeholder="Prompt name" />
+                                    <button id="sc_promotion_custom_prompt_save" class="menu_button" title="Save current prompt">
+                                        <i class="fa-solid fa-floppy-disk"></i>
+                                        <span>Save</span>
+                                    </button>
+                                </div>
+                                <div class="sc-custom-prompt-io-row">
+                                    <button id="sc_promotion_custom_prompt_export" class="menu_button" title="Export current prompt as .txt">
+                                        <i class="fa-solid fa-file-export"></i>
+                                        <span>Export</span>
+                                    </button>
+                                    <button id="sc_promotion_custom_prompt_import" class="menu_button" title="Import prompt from .txt">
+                                        <i class="fa-solid fa-file-import"></i>
+                                        <span>Import</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="sc-row sc-prompt-primary">
                         <label for="sc_promotion_user_prompt">
                             <span>Promotion User Prompt</span>

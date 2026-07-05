@@ -123,6 +123,9 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
     promptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
     lastCustomPrompt: '', // Auto-saved when switching away from custom
+    promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
+    savedCustomPromotionPrompts: {}, // { name: promptText } — named custom promotion prompt slots
+    lastCustomPromotionPrompt: '', // Auto-saved when switching away from custom
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
 
     stripPatterns: [
@@ -172,41 +175,17 @@ Write one dense third-person paragraph. Never use second-person. Do not include 
 // ─── Prompt Presets ──────────────────────────────────────────────────
 
 export const PROMPT_PRESETS = {
-    narrative: `<player_name>
-{{player_name}}
-</player_name>
+    narrative: defaultSettings.summarizerUserPrompt,
+    custom: null, // Uses whatever is in the textarea
+};
 
-<prior_context>
-{{context_str}}
-</prior_context>
-
-<passage_in_question>
-{{story_txt}}
-</passage_in_question>
-
-Compress only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
-If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
-
-### TARGET:
-Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
-
-### KEEP:
-1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
-2. **State changes:** Relationship status, boundaries, agreements, physical/emotional condition, revealed secrets, constraints, resources, and plans.
-3. **Unresolved hooks:** Pending actions, next intended step, promises, deadlines, risks, or anything the next reply must remember.
-
-### EXCLUSIONS:
-- Exclude internal monologue unless it creates lasting intent or concealment.
-- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, and atmosphere unless they change durable state.
-- Collapse repeated intimate/action beats into outcomes, boundaries, tally/state changes, and immediate consequences.
-
-### FORMATTING:
-Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
-
+export const PROMOTION_PROMPT_PRESETS = {
+    narrative: defaultSettings.promotionUserPrompt,
     custom: null, // Uses whatever is in the textarea
 };
 
 export const DEFAULT_PROMPT_PRESET = 'narrative';
+export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
 
 // ─── Retry Configuration ─────────────────────────────────────────────
 

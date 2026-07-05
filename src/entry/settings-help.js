@@ -416,6 +416,43 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'promotion_prompt_preset',
+        basicHelp({
+            selector: selectorFor('sc_promotion_prompt_preset'),
+            title: 'Promotion Prompt Preset',
+            short: 'Choose the Layer 1+ merge user-prompt template.',
+            controls: [controlFor('sc_promotion_prompt_preset')],
+            controlsText: 'Controls which Layer 1+ promotion user prompt template is active.',
+            when: 'when switching between narrative promotion memory and your own custom prompt.',
+            risk: 'changing presets can change how deeper summaries preserve durable facts.',
+        }),
+    ],
+    [
+        'saved_custom_promotion_prompts',
+        basicHelp({
+            selector: selectorFor('sc_promotion_custom_prompt_slot'),
+            title: 'Saved Promotion Prompts',
+            short: 'Load one of your saved Layer 1+ custom prompts.',
+            controls: [controlFor('sc_promotion_custom_prompt_slot')],
+            controlsText:
+                'Controls which saved promotion prompt slot is selected for loading or deleting.',
+            when: 'when reusing a promotion prompt you previously saved.',
+            risk: 'loading the wrong slot replaces the current Layer 1+ user prompt text.',
+        }),
+    ],
+    [
+        'promotion_custom_prompt_name',
+        basicHelp({
+            selector: controlFor('sc_promotion_custom_prompt_name'),
+            title: 'Promotion Prompt Name',
+            short: 'Name used when saving the current promotion custom prompt.',
+            controls: [controlFor('sc_promotion_custom_prompt_name')],
+            controlsText: 'Controls the saved slot name for the current promotion custom prompt.',
+            when: 'before saving a reusable promotion prompt.',
+            risk: 'using an existing name overwrites that saved prompt.',
+        }),
+    ],
+    [
         'promotion_user_prompt',
         basicHelp({
             selector: selectorFor('sc_promotion_user_prompt'),

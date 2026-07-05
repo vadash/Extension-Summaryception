@@ -1,4 +1,9 @@
-import { MEMORY_MODES, PROMPT_PRESETS, defaultSettings } from '../foundation/constants.js';
+import {
+    MEMORY_MODES,
+    PROMOTION_PROMPT_PRESETS,
+    PROMPT_PRESETS,
+    defaultSettings,
+} from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
@@ -28,6 +33,53 @@ import {
     updateManualProgressToast,
 } from './ui-dialogs.js';
 
+const PROMPT_PROFILES = {
+    layer0: {
+        label: 'Layer 0',
+        exportName: 'L0_summary',
+        presetSelect: '#sc_prompt_preset',
+        customManager: '#sc_custom_prompt_manager',
+        customSlot: '#sc_custom_prompt_slot',
+        customName: '#sc_custom_prompt_name',
+        saveButton: '#sc_custom_prompt_save',
+        loadButton: '#sc_custom_prompt_load',
+        deleteButton: '#sc_custom_prompt_delete_slot',
+        exportButton: '#sc_custom_prompt_export',
+        importButton: '#sc_custom_prompt_import',
+        systemPrompt: '#sc_summarizer_system_prompt',
+        userPrompt: '#sc_summarizer_user_prompt',
+        presetKey: 'promptPreset',
+        savedPromptsKey: 'savedCustomPrompts',
+        lastCustomPromptKey: 'lastCustomPrompt',
+        systemPromptKey: 'summarizerSystemPrompt',
+        userPromptKey: 'summarizerUserPrompt',
+        presets: PROMPT_PRESETS,
+        defaultPreset: defaultSettings.promptPreset,
+    },
+    promotion: {
+        label: 'Layer 1+',
+        exportName: 'L1_summary',
+        presetSelect: '#sc_promotion_prompt_preset',
+        customManager: '#sc_promotion_custom_prompt_manager',
+        customSlot: '#sc_promotion_custom_prompt_slot',
+        customName: '#sc_promotion_custom_prompt_name',
+        saveButton: '#sc_promotion_custom_prompt_save',
+        loadButton: '#sc_promotion_custom_prompt_load',
+        deleteButton: '#sc_promotion_custom_prompt_delete_slot',
+        exportButton: '#sc_promotion_custom_prompt_export',
+        importButton: '#sc_promotion_custom_prompt_import',
+        systemPrompt: '#sc_promotion_system_prompt',
+        userPrompt: '#sc_promotion_user_prompt',
+        presetKey: 'promotionPromptPreset',
+        savedPromptsKey: 'savedCustomPromotionPrompts',
+        lastCustomPromptKey: 'lastCustomPromotionPrompt',
+        systemPromptKey: 'promotionSystemPrompt',
+        userPromptKey: 'promotionUserPrompt',
+        presets: PROMOTION_PROMPT_PRESETS,
+        defaultPreset: defaultSettings.promotionPromptPreset,
+    },
+};
+
 // Event bindings
 
 /**
@@ -40,8 +92,7 @@ export function bindUIEvents() {
     bindSliderHandlers();
     bindTextareaHandlers();
     bindClickHandlers();
-    bindPromptPresetHandlers();
-    bindCustomPromptHandlers();
+    bindPromptProfileHandlers();
 }
 
 /**
@@ -353,21 +404,13 @@ function formatSliderChipValue(value, slider) {
  * @returns {void}
  */
 function bindTextareaHandlers() {
-    /** @type {Array<{ id: string, key: 'injectionTemplate' | 'summarizerSystemPrompt' | 'promotionSystemPrompt' | 'promotionUserPrompt' }>} */
-    const textareas = [
-        { id: '#sc_injection_template', key: 'injectionTemplate' },
-        { id: '#sc_summarizer_system_prompt', key: 'summarizerSystemPrompt' },
-        { id: '#sc_promotion_system_prompt', key: 'promotionSystemPrompt' },
-        { id: '#sc_promotion_user_prompt', key: 'promotionUserPrompt' },
-    ];
+    /** @type {Array<{ id: string, key: 'injectionTemplate' }>} */
+    const textareas = [{ id: '#sc_injection_template', key: 'injectionTemplate' }];
 
     for (const ta of textareas) {
         $(document).on('change', ta.id, function () {
             const s = getSettings();
             s[ta.key] = $(this).val();
-            if (ta.key === 'summarizerSystemPrompt') {
-                switchLayer0PromptToCustom(s);
-            }
             saveSettings();
         });
     }
@@ -602,7 +645,7 @@ function onResetDefaults() {
         !confirm(
             'Reset all Advanced Settings to defaults?\n\n' +
                 'This will reset sliders, stock prompts, injection template, and strip patterns.\n' +
-                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom Layer 0 prompt.',
+                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom L0/L1+ prompts.',
         )
     ) {
         return;
@@ -614,10 +657,16 @@ function onResetDefaults() {
     const preservedCustomMemoryRole = s.customMemoryRole;
     const preservedCustomMemoryDepth = s.customMemoryDepth;
     const preserveCustomLayer0Prompt = s.promptPreset === 'custom';
+    const preserveCustomPromotionPrompt = s.promotionPromptPreset === 'custom';
     const preservedLayer0Prompt = {
         systemPrompt: s.summarizerSystemPrompt,
         userPrompt: s.summarizerUserPrompt,
         lastCustomPrompt: s.lastCustomPrompt || s.summarizerUserPrompt || '',
+    };
+    const preservedPromotionPrompt = {
+        systemPrompt: s.promotionSystemPrompt,
+        userPrompt: s.promotionUserPrompt,
+        lastCustomPrompt: s.lastCustomPromotionPrompt || s.promotionUserPrompt || '',
     };
 
     // Reset sliders
@@ -642,11 +691,21 @@ function onResetDefaults() {
     s.summarizerUserPrompt = preserveCustomLayer0Prompt
         ? preservedLayer0Prompt.userPrompt
         : defaultSettings.summarizerUserPrompt;
-    s.promotionSystemPrompt = defaultSettings.promotionSystemPrompt;
-    s.promotionUserPrompt = defaultSettings.promotionUserPrompt;
+    s.promotionSystemPrompt = preserveCustomPromotionPrompt
+        ? preservedPromotionPrompt.systemPrompt
+        : defaultSettings.promotionSystemPrompt;
+    s.promotionUserPrompt = preserveCustomPromotionPrompt
+        ? preservedPromotionPrompt.userPrompt
+        : defaultSettings.promotionUserPrompt;
     s.promptPreset = preserveCustomLayer0Prompt ? 'custom' : defaultSettings.promptPreset;
+    s.promotionPromptPreset = preserveCustomPromotionPrompt
+        ? 'custom'
+        : defaultSettings.promotionPromptPreset;
     if (preserveCustomLayer0Prompt) {
         s.lastCustomPrompt = preservedLayer0Prompt.lastCustomPrompt;
+    }
+    if (preserveCustomPromotionPrompt) {
+        s.lastCustomPromotionPrompt = preservedPromotionPrompt.lastCustomPrompt;
     }
     s.injectionTemplate = defaultSettings.injectionTemplate;
     s.stripPatterns = [...defaultSettings.stripPatterns];
@@ -722,107 +781,119 @@ function bindClickHandlers() {
 }
 
 /**
- * Bind handlers for the prompt preset dropdown and its auto-switch-to-custom behavior.
+ * Bind preset, custom slot, import/export, and edit handlers for prompt profiles.
  * @returns {void}
  */
-function bindPromptPresetHandlers() {
-    // Prompt Preset dropdown
-    $(document).on('change', '#sc_prompt_preset', function () {
+function bindPromptProfileHandlers() {
+    for (const profile of Object.values(PROMPT_PROFILES)) {
+        bindPromptPresetSelect(profile);
+        bindPromptTextarea(profile, profile.systemPrompt, profile.systemPromptKey, false);
+        bindPromptTextarea(profile, profile.userPrompt, profile.userPromptKey, true);
+        bindCustomPromptHandlers(profile);
+    }
+}
+
+function bindPromptPresetSelect(profile) {
+    $(document).on('change', profile.presetSelect, function () {
         const selected = String($(this).val());
-        if (!Object.hasOwn(PROMPT_PRESETS, selected)) {
-            $('#sc_prompt_preset').val(defaultSettings.promptPreset);
+        if (!Object.hasOwn(profile.presets, selected)) {
+            $(profile.presetSelect).val(profile.defaultPreset);
             return;
         }
 
         const s = getSettings();
-        const previousPreset = s.promptPreset;
+        const previousPreset = s[profile.presetKey];
 
         if (previousPreset === 'custom') {
-            s.lastCustomPrompt = s.summarizerUserPrompt || '';
-            debug('Auto-saved custom prompt before switching to', selected);
+            s[profile.lastCustomPromptKey] = s[profile.userPromptKey] || '';
+            debug(`Auto-saved ${profile.label} custom prompt before switching to`, selected);
         }
 
-        s.promptPreset = selected;
+        s[profile.presetKey] = selected;
 
         if (selected === 'custom') {
-            if (s.lastCustomPrompt) {
-                $('#sc_summarizer_user_prompt').val(s.lastCustomPrompt);
-                s.summarizerUserPrompt = s.lastCustomPrompt;
-                debug('Restored auto-saved custom prompt');
-            }
-            $('#sc_custom_prompt_manager').show();
+            restoreCustomPrompt(profile, s);
         } else {
-            const presetText = PROMPT_PRESETS[selected] || defaultSettings.summarizerUserPrompt;
-            $('#sc_summarizer_user_prompt').val(presetText);
-            s.summarizerUserPrompt = presetText;
-            $('#sc_custom_prompt_manager').hide();
+            const presetText = profile.presets[selected] || profile.presets[profile.defaultPreset];
+            $(profile.userPrompt).val(presetText);
+            s[profile.userPromptKey] = presetText;
+            $(profile.customManager).hide();
         }
 
         saveSettings();
         updateCustomPromptSlots();
     });
-
-    // Auto-switch to 'custom' when user manually edits the prompt textarea
-    $(document).on('input', '#sc_summarizer_user_prompt', function () {
-        const currentText = $(this).val();
-        const s = getSettings();
-
-        s.summarizerUserPrompt = currentText;
-
-        if (s.promptPreset !== 'custom') {
-            const presetText = PROMPT_PRESETS[s.promptPreset];
-            if (currentText !== presetText) {
-                switchLayer0PromptToCustom(s, currentText);
-            }
-        } else {
-            s.lastCustomPrompt = currentText;
-        }
-
-        saveSettings();
-    });
 }
 
-function switchLayer0PromptToCustom(settings, promptText = settings.summarizerUserPrompt || '') {
-    if (settings.promptPreset === 'custom') {
-        settings.lastCustomPrompt = promptText;
+function restoreCustomPrompt(profile, settings) {
+    if (settings[profile.lastCustomPromptKey]) {
+        $(profile.userPrompt).val(settings[profile.lastCustomPromptKey]);
+        settings[profile.userPromptKey] = settings[profile.lastCustomPromptKey];
+        debug(`Restored auto-saved ${profile.label} custom prompt`);
+    }
+    $(profile.customManager).show();
+}
+
+function bindPromptTextarea(profile, selector, settingKey, tracksUserPrompt) {
+    for (const eventName of ['input', 'change']) {
+        $(document).on(eventName, selector, function () {
+            const s = getSettings();
+            const currentText = $(this).val();
+            s[settingKey] = currentText;
+
+            const customText = tracksUserPrompt ? currentText : s[profile.userPromptKey] || '';
+            switchPromptProfileToCustom(profile, s, customText);
+            saveSettings();
+        });
+    }
+}
+
+function switchPromptProfileToCustom(
+    profile,
+    settings,
+    promptText = settings[profile.userPromptKey] || '',
+) {
+    if (settings[profile.presetKey] === 'custom') {
+        settings[profile.lastCustomPromptKey] = promptText;
         return;
     }
 
-    settings.promptPreset = 'custom';
-    settings.lastCustomPrompt = promptText;
-    $('#sc_prompt_preset').val('custom');
-    $('#sc_custom_prompt_manager').show();
+    settings[profile.presetKey] = 'custom';
+    settings[profile.lastCustomPromptKey] = promptText;
+    $(profile.presetSelect).val('custom');
+    $(profile.customManager).show();
     updateCustomPromptSlots();
 }
 
 /**
  * Bind handlers for custom prompt save/load/delete/export/import actions.
+ * @param {object} profile
  * @returns {void}
  */
-function bindCustomPromptHandlers() {
-    $(document).on('click', '#sc_custom_prompt_save', function () {
-        const name = $('#sc_custom_prompt_name').val().trim();
+function bindCustomPromptHandlers(profile) {
+    $(document).on('click', profile.saveButton, function () {
+        const name = String($(profile.customName).val()).trim();
         if (!name) {
             toastr.warning('Enter a name for the prompt.', 'Summaryception');
             return;
         }
 
         const s = getSettings();
-        if (!s.savedCustomPrompts) {
-            s.savedCustomPrompts = {};
+        if (!s[profile.savedPromptsKey]) {
+            s[profile.savedPromptsKey] = {};
         }
 
-        const promptText = $('#sc_summarizer_user_prompt').val();
-        if (!promptText.trim()) {
+        const promptText = $(profile.userPrompt).val();
+        if (!String(promptText).trim()) {
             toastr.warning('Prompt is empty - nothing to save.', 'Summaryception');
             return;
         }
 
-        const isOverwrite = s.savedCustomPrompts[name];
-        s.savedCustomPrompts[name] = promptText;
+        const isOverwrite = s[profile.savedPromptsKey][name];
+        s[profile.savedPromptsKey][name] = promptText;
         saveSettings();
 
-        $('#sc_custom_prompt_name').val('');
+        $(profile.customName).val('');
         updateCustomPromptSlots();
 
         toastr.success(`Prompt "${name}" ${isOverwrite ? 'updated' : 'saved'}.`, 'Summaryception', {
@@ -830,32 +901,33 @@ function bindCustomPromptHandlers() {
         });
     });
 
-    $(document).on('click', '#sc_custom_prompt_load', function () {
-        const name = $('#sc_custom_prompt_slot').val();
+    $(document).on('click', profile.loadButton, function () {
+        const name = $(profile.customSlot).val();
         if (!name) {
             toastr.warning('Select a saved prompt to load.', 'Summaryception');
             return;
         }
 
         const s = getSettings();
-        const promptText = s.savedCustomPrompts?.[name];
+        const promptText = s[profile.savedPromptsKey]?.[name];
         if (!promptText) {
             toastr.error(`Prompt "${name}" not found.`, 'Summaryception');
             return;
         }
 
-        $('#sc_summarizer_user_prompt').val(promptText);
-        s.summarizerUserPrompt = promptText;
-        s.lastCustomPrompt = promptText;
-        s.promptPreset = 'custom';
-        $('#sc_prompt_preset').val('custom');
+        $(profile.userPrompt).val(promptText);
+        s[profile.userPromptKey] = promptText;
+        s[profile.lastCustomPromptKey] = promptText;
+        s[profile.presetKey] = 'custom';
+        $(profile.presetSelect).val('custom');
+        $(profile.customManager).show();
         saveSettings();
 
         toastr.success(`Loaded prompt "${name}".`, 'Summaryception', { timeOut: 2000 });
     });
 
-    $(document).on('click', '#sc_custom_prompt_delete_slot', function () {
-        const name = $('#sc_custom_prompt_slot').val();
+    $(document).on('click', profile.deleteButton, function () {
+        const name = $(profile.customSlot).val();
         if (!name) {
             toastr.warning('Select a saved prompt to delete.', 'Summaryception');
             return;
@@ -866,8 +938,8 @@ function bindCustomPromptHandlers() {
         }
 
         const s = getSettings();
-        if (s.savedCustomPrompts) {
-            delete s.savedCustomPrompts[name];
+        if (s[profile.savedPromptsKey]) {
+            delete s[profile.savedPromptsKey][name];
             saveSettings();
         }
 
@@ -875,24 +947,30 @@ function bindCustomPromptHandlers() {
         toastr.info(`Prompt "${name}" deleted.`, 'Summaryception', { timeOut: 2000 });
     });
 
-    $(document).on('click', '#sc_custom_prompt_export', function () {
-        const promptText = $('#sc_summarizer_user_prompt').val();
-        if (!promptText.trim()) {
-            toastr.warning('Prompt is empty - nothing to export.', 'Summaryception');
-            return;
-        }
-
-        const blob = new Blob([promptText], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `summaryception_prompt_${Date.now()}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toastr.success('Prompt exported.', 'Summaryception', { timeOut: 2000 });
+    $(document).on('click', profile.exportButton, function () {
+        exportCustomPrompt(profile);
     });
 
-    $(document).on('click', '#sc_custom_prompt_import', triggerCustomPromptImport);
+    $(document).on('click', profile.importButton, function () {
+        triggerCustomPromptImport(profile);
+    });
+}
+
+function exportCustomPrompt(profile) {
+    const promptText = $(profile.userPrompt).val();
+    if (!String(promptText).trim()) {
+        toastr.warning('Prompt is empty - nothing to export.', 'Summaryception');
+        return;
+    }
+
+    const blob = new Blob([promptText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `summaryception_${profile.exportName}_${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toastr.success('Prompt exported.', 'Summaryception', { timeOut: 2000 });
 }
 
 /**
@@ -900,9 +978,10 @@ function bindCustomPromptHandlers() {
  *
  * Vanilla document.createElement is used for the ephemeral <input type="file">
  * because it never enters the live DOM - we read its files and discard it.
+ * @param {object} profile
  * @returns {void}
  */
-function triggerCustomPromptImport() {
+function triggerCustomPromptImport(profile) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.txt,.text';
@@ -920,12 +999,12 @@ function triggerCustomPromptImport() {
             }
 
             const s = getSettings();
-            $('#sc_summarizer_user_prompt').val(text);
-            s.summarizerUserPrompt = text;
-            s.lastCustomPrompt = text;
-            s.promptPreset = 'custom';
-            $('#sc_prompt_preset').val('custom');
-            $('#sc_custom_prompt_manager').show();
+            $(profile.userPrompt).val(text);
+            s[profile.userPromptKey] = text;
+            s[profile.lastCustomPromptKey] = text;
+            s[profile.presetKey] = 'custom';
+            $(profile.presetSelect).val('custom');
+            $(profile.customManager).show();
             saveSettings();
             updateCustomPromptSlots();
 
