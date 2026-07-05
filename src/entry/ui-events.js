@@ -212,14 +212,19 @@ function bindSliderHandlers() {
 
     for (const sl of sliders) {
         $(document).on('input', sl.id, function () {
-            const val = parseInt($(this).val(), 10);
+            const val = normalizeSliderValue($(this).val(), $(this));
             getSettings()[sl.key] = val;
             enforceRetentionConstraints(sl.key);
-            if (isRetentionSlider(sl.key)) {
-                syncRetentionSliderDisplays();
-            } else {
-                $(sl.display).text(val);
-            }
+            syncSliderDisplays(sliders, sl.key, sl.display);
+            saveSettings();
+            updateInjection();
+        });
+
+        $(document).on('change blur', sl.display, function () {
+            const val = normalizeSliderValue($(this).val(), $(sl.id));
+            getSettings()[sl.key] = val;
+            enforceRetentionConstraints(sl.key);
+            syncSliderDisplays(sliders, sl.key, sl.display);
             saveSettings();
             updateInjection();
         });
@@ -238,6 +243,28 @@ function isRetentionSlider(key) {
     ].includes(key);
 }
 
+/**
+ * Normalize a slider value to the paired range input's min, max, and step.
+ * @param {unknown} value
+ * @param {object} slider jQuery-wrapped range input
+ * @returns {number}
+ */
+function normalizeSliderValue(value, slider) {
+    const min = parseSliderAttr(slider, 'min', 0);
+    const max = parseSliderAttr(slider, 'max', min);
+    const step = parseSliderAttr(slider, 'step', 1);
+    const parsed = Number.parseFloat(String(value));
+    const base = Number.isFinite(parsed) ? parsed : min;
+    const clamped = Math.min(max, Math.max(min, base));
+    const snapped = min + Math.round((clamped - min) / step) * step;
+    return Math.round(Math.min(max, Math.max(min, snapped)));
+}
+
+function parseSliderAttr(slider, attr, fallback) {
+    const parsed = Number.parseFloat(String(slider.attr(attr)));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 function enforceRetentionConstraints(changedKey) {
     const s = getSettings();
     if (changedKey === 'maxSummaryTurns' && s.maxSummaryTurns < s.minSummaryTurns) {
@@ -248,18 +275,33 @@ function enforceRetentionConstraints(changedKey) {
     }
 }
 
+function syncSliderDisplays(sliders, changedKey, display) {
+    if (isRetentionSlider(changedKey)) {
+        syncRetentionSliderDisplays();
+        return;
+    }
+
+    const s = getSettings();
+    const binding = sliders.find((sl) => sl.display === display);
+    if (!binding) {
+        return;
+    }
+    $(binding.id).val(s[binding.key]);
+    $(binding.display).val(s[binding.key]);
+}
+
 function syncRetentionSliderDisplays() {
     const s = getSettings();
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
-    $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
+    $('#sc_verbatim_token_budget_val').val(s.verbatimTokenBudget);
     $('#sc_memory_token_budget').val(s.memoryTokenBudget);
-    $('#sc_memory_token_budget_val').text(s.memoryTokenBudget);
+    $('#sc_memory_token_budget_val').val(s.memoryTokenBudget);
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
-    $('#sc_min_summary_budget_val').text(s.minSummaryBudget);
+    $('#sc_min_summary_budget_val').val(s.minSummaryBudget);
     $('#sc_min_summary_turns').val(s.minSummaryTurns);
-    $('#sc_min_summary_turns_val').text(s.minSummaryTurns);
+    $('#sc_min_summary_turns_val').val(s.minSummaryTurns);
     $('#sc_max_summary_turns').val(s.maxSummaryTurns);
-    $('#sc_max_summary_turns_val').text(s.maxSummaryTurns);
+    $('#sc_max_summary_turns_val').val(s.maxSummaryTurns);
 }
 
 /**
@@ -582,7 +624,7 @@ function onResetDefaults() {
     s.summarizerResponseLength = defaultSettings.summarizerResponseLength;
 
     // Reset debug
-    s.debugMode = defaultSettings.debugMode;
+    s.debugMode = true;
     s.traceMode = defaultSettings.traceMode;
     s.promptLogMode = defaultSettings.promptLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;

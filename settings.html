@@ -32,11 +32,7 @@
                 </button>
                 <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="prompts">
                     <i class="fa-solid fa-pen-to-square"></i>
-                    <span>L0 Prompt</span>
-                </button>
-                <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="promotion-prompts">
-                    <i class="fa-solid fa-code-merge"></i>
-                    <span>L1+ Prompt</span>
+                    <span>Prompts</span>
                 </button>
                 <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="diagnostics">
                     <i class="fa-solid fa-screwdriver-wrench"></i>
@@ -211,6 +207,7 @@
                         </h4>
                     </div>
                     <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
+                    <div class="sc-settings-grid sc-connection-grid">
                     <div class="sc-setting-row">
                         <label for="sc_summarizer_response_length">
                             <span>Layer 0 Response Length</span>
@@ -228,6 +225,7 @@
                             <option value="ollama">Ollama (Local)</option>
                             <option value="openai">OpenAI Compatible</option>
                         </select>
+                    </div>
                     </div>
                     <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
                         <div class="sc-setting-row">
@@ -316,6 +314,7 @@
                         </h4>
                     </div>
                     <small class="sc-help-text">Optional smarter connection for promotion merges. Inherit keeps existing behavior.</small>
+                    <div class="sc-settings-grid sc-connection-grid">
                     <div class="sc-setting-row">
                         <label for="summaryception_merge_connection_source">
                             <span>Merge Source</span>
@@ -334,6 +333,7 @@
                             <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
                         </label>
                         <input id="sc_merge_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" />
+                    </div>
                     </div>
                     <div id="summaryception_merge_profile_settings" class="sc-sub-panel" style="display: none;">
                         <div class="sc-setting-row">
@@ -404,11 +404,11 @@
                             Retention
                         </h4>
                     </div>
-                    <div class="sc-row">
+                    <div class="sc-row sc-memory-mode-row">
                         <label>
                             <span>Memory Mode</span>
                         </label>
-                        <div class="sc-toggle-list sc-radio-group" role="radiogroup" aria-label="Memory Mode">
+                        <div class="sc-toggle-list sc-radio-group sc-radio-grid" role="radiogroup" aria-label="Memory Mode">
                             <label class="checkbox_label sc-toggle-row" for="sc_memory_mode_standard">
                                 <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
                                 <span class="sc-toggle-copy">
@@ -447,7 +447,17 @@
                         <span class="fa-solid fa-circle-info"></span>
                         <small>Custom changes only the injection placement, role, and chat depth; summarization cadence stays standard.</small>
                     </div>
-                    <div id="sc_custom_memory_controls" class="sc-sub-panel" style="display: none;">
+                    <div class="sc-toggle-list sc-settings-option-list">
+                        <label class="checkbox_label sc-toggle-row" for="sc_apply_regex_scripts">
+                            <span class="sc-toggle-icon fa-solid fa-code"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Apply Regex Scripts</span>
+                                <small class="sc-hint">Match the text seen by the RP model.</small>
+                            </span>
+                            <input type="checkbox" id="sc_apply_regex_scripts" />
+                        </label>
+                    </div>
+                    <div id="sc_custom_memory_controls" class="sc-sub-panel sc-settings-grid" style="display: none;">
                         <div class="sc-setting-row">
                             <label for="sc_custom_memory_position">
                                 <span>Memory Position</span>
@@ -475,6 +485,7 @@
                             <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
                         </div>
                     </div>
+                    <div class="sc-settings-grid sc-budget-grid">
                     <div class="sc-row">
                         <label for="sc_verbatim_token_budget">
                             <span>Verbatim Token Budget</span>
@@ -482,7 +493,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_verbatim_token_budget" min="4000" max="64000" step="1000" />
-                            <span id="sc_verbatim_token_budget_val" class="sc-val sc-val-wide">16000</span>
+                            <input id="sc_verbatim_token_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="4000" max="64000" step="1000" value="16000" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -492,7 +503,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" />
-                            <span id="sc_memory_token_budget_val" class="sc-val sc-val-wide">10000</span>
+                            <input id="sc_memory_token_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="4000" max="32000" step="1000" value="10000" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -502,7 +513,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_min_summary_budget" min="2000" max="16000" step="1000" />
-                            <span id="sc_min_summary_budget_val" class="sc-val sc-val-wide">8000</span>
+                            <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="number" min="2000" max="16000" step="1000" value="8000" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -512,7 +523,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_min_summary_turns" min="2" max="10" step="1" />
-                            <span id="sc_min_summary_turns_val" class="sc-val">3</span>
+                            <input id="sc_min_summary_turns_val" class="text_pole sc-val" type="number" min="2" max="10" step="1" value="3" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -522,8 +533,9 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_max_summary_turns" min="3" max="10" step="1" />
-                            <span id="sc_max_summary_turns_val" class="sc-val">8</span>
+                            <input id="sc_max_summary_turns_val" class="text_pole sc-val" type="number" min="3" max="10" step="1" value="8" />
                         </div>
+                    </div>
                     </div>
                 </section>
                 <section class="sc-section">
@@ -533,6 +545,7 @@
                             Layering
                         </h4>
                     </div>
+                    <div class="sc-settings-grid sc-layering-grid">
                     <div class="sc-row">
                         <label for="sc_snippets_per_layer">
                             <span>Max Memories per Layer</span>
@@ -540,7 +553,7 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_snippets_per_layer" min="3" max="100" step="1" />
-                            <span id="sc_snippets_per_layer_val" class="sc-val">20</span>
+                            <input id="sc_snippets_per_layer_val" class="text_pole sc-val" type="number" min="3" max="100" step="1" value="20" />
                         </div>
                     </div>
                     <div class="sc-row">
@@ -550,8 +563,9 @@
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_snippets_per_promotion" min="2" max="20" step="1" />
-                            <span id="sc_snippets_per_promotion_val" class="sc-val">2</span>
+                            <input id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="number" min="2" max="20" step="1" value="2" />
                         </div>
+                    </div>
                     </div>
                 </section>
             </div>
@@ -560,9 +574,21 @@
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-pen-to-square"></span>
-                            Layer 0 Prompt
+                            Prompts
                         </h4>
                     </div>
+                    <small class="sc-help-text">Edit Layer 0 summarization prompts and Layer 1+ promotion prompts.</small>
+                    <div class="sc-prompt-segment" role="tablist" aria-label="Prompt editor">
+                        <button class="sc-prompt-segment-button active" type="button" role="tab" aria-selected="true" data-sc-prompt-tab="layer0">
+                            <i class="fa-solid fa-layer-group"></i>
+                            <span>Layer 0</span>
+                        </button>
+                        <button class="sc-prompt-segment-button" type="button" role="tab" aria-selected="false" data-sc-prompt-tab="promotion">
+                            <i class="fa-solid fa-code-merge"></i>
+                            <span>Layer 1+</span>
+                        </button>
+                    </div>
+                    <div class="sc-prompt-pane active" role="tabpanel" data-sc-prompt-panel="layer0">
                     <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
                     <div class="sc-row sc-prompt-secondary">
                         <label for="sc_summarizer_system_prompt">
@@ -635,16 +661,8 @@
                         </label>
                         <textarea id="sc_injection_template" class="text_pole sc-textarea" rows="3"></textarea>
                     </div>
-                </section>
-            </div>
-            <div class="sc-tab-panel" role="tabpanel" data-sc-panel="promotion-prompts">
-                <section class="sc-section sc-prompt-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-code-merge"></span>
-                            Layer 1+ Promotion Prompt
-                        </h4>
                     </div>
+                    <div class="sc-prompt-pane" role="tabpanel" data-sc-prompt-panel="promotion" hidden>
                     <small class="sc-help-text">Used when consolidating lower-layer memories into deeper meta-summaries.</small>
                     <div class="sc-row sc-prompt-secondary">
                         <label for="sc_promotion_system_prompt">
@@ -663,6 +681,7 @@
                             </small>
                         </label>
                         <textarea id="sc_promotion_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
+                    </div>
                     </div>
                 </section>
             </div>
@@ -705,14 +724,6 @@
                                 <small class="sc-hint">Print copyable full summary prompts in the F12 console.</small>
                             </span>
                             <input type="checkbox" id="sc_prompt_log_mode" />
-                        </label>
-                        <label class="checkbox_label sc-toggle-row" for="sc_apply_regex_scripts">
-                            <span class="sc-toggle-icon fa-solid fa-code"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Apply Regex Scripts</span>
-                                <small class="sc-hint">Match the text seen by the RP model.</small>
-                            </span>
-                            <input type="checkbox" id="sc_apply_regex_scripts" />
                         </label>
                     </div>
                 </section>

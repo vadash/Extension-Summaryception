@@ -6,6 +6,7 @@ const SETTINGS_TAB_STORAGE_KEY = 'summaryception.activeSettingsTab';
  */
 export function initSettingsTabs() {
     activateSettingsTab('status');
+    activatePromptPane('layer0');
 
     $(document).on('click', '.sc-tab-button', function () {
         const tabName = String($(this).data('sc-tab') || '');
@@ -14,6 +15,14 @@ export function initSettingsTabs() {
         }
         activateSettingsTab(tabName);
         storeSettingsTab(tabName);
+    });
+
+    $(document).on('click', '.sc-prompt-segment-button', function () {
+        const paneName = String($(this).data('sc-prompt-tab') || '');
+        if (!paneName) {
+            return;
+        }
+        activatePromptPane(paneName);
     });
 }
 
@@ -45,5 +54,23 @@ function activateSettingsTab(tabName) {
     $('.sc-tab-button').removeClass('active').attr('aria-selected', 'false');
     targetButton.addClass('active').attr('aria-selected', 'true');
     $('.sc-tab-panel').removeClass('active').attr('hidden', true);
+    targetPanel.addClass('active').removeAttr('hidden');
+}
+
+/**
+ * Activate an internal prompt editor pane.
+ * @param {string} paneName
+ * @returns {void}
+ */
+function activatePromptPane(paneName) {
+    const targetButton = $(`.sc-prompt-segment-button[data-sc-prompt-tab="${paneName}"]`);
+    const targetPanel = $(`.sc-prompt-pane[data-sc-prompt-panel="${paneName}"]`);
+    if (!targetButton.length || !targetPanel.length) {
+        return;
+    }
+
+    $('.sc-prompt-segment-button').removeClass('active').attr('aria-selected', 'false');
+    targetButton.addClass('active').attr('aria-selected', 'true');
+    $('.sc-prompt-pane').removeClass('active').attr('hidden', true);
     targetPanel.addClass('active').removeAttr('hidden');
 }
