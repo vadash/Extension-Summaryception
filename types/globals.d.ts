@@ -55,9 +55,9 @@ interface ExtensionSettings {
     maxSummaryTurns: number;
     minSummaryBudget: number;
     verbatimTokenBudget: number;
+    memoryTokenBudget: number;
     snippetsPerLayer: number;
     snippetsPerPromotion: number;
-    maxLayers: number;
     injectionTemplate: string;
     summarizerSystemPrompt: string;
     summarizerUserPrompt: string;

@@ -50,6 +50,9 @@ export function makeSummarySettings(overrides = {}) {
         maxSummaryTurns: 5,
         minSummaryBudget: 6000,
         verbatimTokenBudget: 16000,
+        memoryTokenBudget: 10000,
+        snippetsPerLayer: 30,
+        snippetsPerPromotion: 3,
         ...overrides,
     };
 }

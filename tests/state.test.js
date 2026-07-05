@@ -21,6 +21,7 @@ describe('state.js', () => {
                 maxSummaryTurns: 7,
                 minSummaryBudget: 8000,
                 verbatimTokenBudget: 32000,
+                memoryTokenBudget: 12000,
             },
         });
 
@@ -34,6 +35,7 @@ describe('state.js', () => {
             maxSummaryTurns: 7,
             minSummaryBudget: 8000,
             verbatimTokenBudget: 32000,
+            memoryTokenBudget: 12000,
             mergeConnectionSource: 'inherit',
         });
     });
@@ -63,6 +65,7 @@ describe('state.js', () => {
                 maxSummaryTurns: 4,
                 minSummaryBudget: 6500,
                 verbatimTokenBudget: 6500,
+                memoryTokenBudget: 6500,
             },
         });
 
@@ -75,6 +78,7 @@ describe('state.js', () => {
             maxSummaryTurns: 9,
             minSummaryBudget: 7000,
             verbatimTokenBudget: 7000,
+            memoryTokenBudget: 7000,
         });
     });
 

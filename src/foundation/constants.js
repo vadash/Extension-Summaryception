@@ -31,6 +31,8 @@ export const EXTENSION_PROMPT_ROLES = Object.freeze({
     ASSISTANT: 2,
 });
 
+export const INTERNAL_MAX_LAYER_DEPTH = 20;
+
 // ─── Default Settings ────────────────────────────────────────────────
 
 export const defaultSettings = Object.freeze({
@@ -43,9 +45,9 @@ export const defaultSettings = Object.freeze({
     maxSummaryTurns: 8,
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
+    memoryTokenBudget: 10000,
     snippetsPerLayer: 30,
     snippetsPerPromotion: 3,
-    maxLayers: 5,
     injectionTemplate:
         '<summaryception_memory>\n' +
         'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +

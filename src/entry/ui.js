@@ -36,7 +36,7 @@ export async function updateUI() {
         syncConnectionInputs(s);
 
         await renderOverview(s, store);
-        await renderContextBudget(s, store);
+        await renderBudgetStatus(s, store);
         await renderCacheStatus(s, store);
         renderLayerStats(s, store);
         renderPreview();
@@ -60,6 +60,8 @@ function syncSettingsInputs(s) {
     $('#sc_custom_memory_depth').val(s.customMemoryDepth);
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
     $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
+    $('#sc_memory_token_budget').val(s.memoryTokenBudget);
+    $('#sc_memory_token_budget_val').text(s.memoryTokenBudget);
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
     $('#sc_min_summary_budget_val').text(s.minSummaryBudget);
     $('#sc_min_summary_turns').val(s.minSummaryTurns);
@@ -70,8 +72,6 @@ function syncSettingsInputs(s) {
     $('#sc_snippets_per_layer_val').text(s.snippetsPerLayer);
     $('#sc_snippets_per_promotion').val(s.snippetsPerPromotion);
     $('#sc_snippets_per_promotion_val').text(s.snippetsPerPromotion);
-    $('#sc_max_layers').val(s.maxLayers);
-    $('#sc_max_layers_val').text(s.maxLayers);
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
@@ -244,21 +244,54 @@ export function formatBudgetTokenLabel(count, estimated = false) {
     return formatTokenCount({ count: normalizeBudgetCount(count), estimated });
 }
 
-async function renderContextBudget(s, store) {
+async function renderBudgetStatus(s, store) {
+    await renderVerbatimBudget(s, store);
+    await renderMemoryBudget(s, store);
+}
+
+async function renderVerbatimBudget(s, store) {
     try {
-        const layers = await getLayerBudgetParts(store);
         const view = buildContextBudgetViewModel({
             budget: s.verbatimTokenBudget,
             verbatim: await getVerbatimBudgetPart(s, store),
+            layers: [],
+        });
+        renderBudgetView(view, {
+            total: '#sc_verbatim_budget_total',
+            bar: '#sc_verbatim_budget_bar',
+            legend: '#sc_verbatim_budget_legend',
+        });
+    } catch (e) {
+        log('Verbatim budget render error:', e);
+        clearBudgetView(
+            '#sc_verbatim_budget_total',
+            '#sc_verbatim_budget_bar',
+            '#sc_verbatim_budget_legend',
+        );
+    }
+}
+
+async function renderMemoryBudget(s, store) {
+    try {
+        const layers = await getLayerBudgetParts(store);
+        const view = buildContextBudgetViewModel({
+            budget: s.memoryTokenBudget,
+            verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
             layers,
             wrapper: await getWrapperBudgetPart(store, layers),
         });
-        renderContextBudgetView(view);
+        renderBudgetView(view, {
+            total: '#sc_memory_budget_total',
+            bar: '#sc_memory_budget_bar',
+            legend: '#sc_memory_budget_legend',
+        });
     } catch (e) {
-        log('Context budget render error:', e);
-        $('#sc_context_budget_total').text('Unavailable');
-        $('#sc_context_budget_bar').empty();
-        $('#sc_context_budget_legend').empty();
+        log('Memory budget render error:', e);
+        clearBudgetView(
+            '#sc_memory_budget_total',
+            '#sc_memory_budget_bar',
+            '#sc_memory_budget_legend',
+        );
     }
 }
 
@@ -336,10 +369,10 @@ async function getWrapperBudgetPart(store, layerParts) {
     };
 }
 
-function renderContextBudgetView(view) {
-    $('#sc_context_budget_total').text(getContextBudgetTotalText(view));
-    const bar = $('#sc_context_budget_bar').empty();
-    const legend = $('#sc_context_budget_legend').empty();
+function renderBudgetView(view, targets) {
+    $(targets.total).text(getContextBudgetTotalText(view));
+    const bar = $(targets.bar).empty();
+    const legend = $(targets.legend).empty();
 
     for (const segment of view.segments) {
         $('<div></div>')
@@ -351,6 +384,12 @@ function renderContextBudgetView(view) {
             .appendTo(bar);
         renderBudgetLegendItem(legend, segment);
     }
+}
+
+function clearBudgetView(totalSelector, barSelector, legendSelector) {
+    $(totalSelector).text('Unavailable');
+    $(barSelector).empty();
+    $(legendSelector).empty();
 }
 
 function renderBudgetLegendItem(legend, segment) {
@@ -417,7 +456,7 @@ function renderLayerStats(s, store) {
                 const label = i === 0 ? 'Layer 0 (turn summaries)' : `Layer ${i} (depth ${i} meta)`;
                 statsHtml += `<div class="sc-layer-stat">
                 <span class="sc-layer-label">${label}:</span>
-                <strong>${layer.length}</strong> / ${s.snippetsPerLayer} snippets
+                <strong>${layer.length}</strong> / ${s.snippetsPerLayer} memories
                 </div>`;
             }
         }

@@ -6,12 +6,7 @@ import { buildFullContext, buildPassageFromRangeWithStats } from './chatutils.js
 import { ghostMessagesInRange } from './ghosting.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
-import {
-    commitWhenSafe,
-    shouldStopPromptWork,
-    updateCommittedInjection,
-} from './summarizer-commit.js';
-import { maybePromoteLayer } from './summarizer-promotion.js';
+import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
 import {
     fingerprintSourceRange,
     fingerprintSummaryStore,
@@ -148,22 +143,9 @@ async function commitCacheFlush({ snapshot, drafts }) {
         chatSave: 'deferred',
     });
     await persistChatState({ chatSave: 'deferred' });
-    await promoteAfterCacheFlush();
 
     log(`Cache-friendly flush committed ${drafts.length} Layer 0 snippets.`);
     return true;
-}
-
-async function promoteAfterCacheFlush() {
-    if (shouldStopPromptWork()) {
-        log('Cache-friendly promotion deferred; prompt mutation guard is active.');
-        return;
-    }
-    try {
-        await maybePromoteLayer(0);
-    } catch (e) {
-        log('Cache-friendly promotion failed after flush:', e);
-    }
 }
 
 function isCacheFlushSnapshotValid(snapshot) {

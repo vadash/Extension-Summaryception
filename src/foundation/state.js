@@ -148,6 +148,7 @@ function normalizeVerbatimWindowSettings(settings) {
     }
     settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, 16000, 1000);
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
+    settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
 }
 
 /**

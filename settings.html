@@ -62,12 +62,21 @@
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-chart-pie"></span>
-                            Context Budget
+                            Verbatim Window
                         </h4>
-                        <span id="sc_context_budget_total" class="sc-context-total">0 / 0</span>
+                        <span id="sc_verbatim_budget_total" class="sc-context-total">0 / 0</span>
                     </div>
-                    <div id="sc_context_budget_bar" class="sc-context-bar" aria-label="Context token budget usage"></div>
-                    <div id="sc_context_budget_legend" class="sc-context-legend"></div>
+                    <div id="sc_verbatim_budget_bar" class="sc-context-bar" aria-label="Verbatim window token usage"></div>
+                    <div id="sc_verbatim_budget_legend" class="sc-context-legend"></div>
+                    <div class="sc-section-header sc-budget-subheader">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-layer-group"></span>
+                            Injected Memory
+                        </h4>
+                        <span id="sc_memory_budget_total" class="sc-context-total">0 / 0</span>
+                    </div>
+                    <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Injected memory token usage"></div>
+                    <div id="sc_memory_budget_legend" class="sc-context-legend"></div>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
@@ -473,6 +482,16 @@
                         </div>
                     </div>
                     <div class="sc-row">
+                        <label for="sc_memory_token_budget">
+                            <span>Injected Memory Budget</span>
+                            <small class="sc-hint">Promotion pressure target for committed memory.</small>
+                        </label>
+                        <div class="sc-slider-row">
+                            <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" />
+                            <span id="sc_memory_token_budget_val" class="sc-val sc-val-wide">10000</span>
+                        </div>
+                    </div>
+                    <div class="sc-row">
                         <label for="sc_min_summary_budget">
                             <span>Minimum Summary Budget</span>
                             <small id="sc_min_summary_budget_hint" class="sc-hint">Overflow passage tokens to collect before summarizing short batches.</small>
@@ -512,8 +531,8 @@
                     </div>
                     <div class="sc-row">
                         <label for="sc_snippets_per_layer">
-                            <span>Max Snippets per Layer</span>
-                            <small class="sc-hint">Overflow promotes older snippets into deeper layers.</small>
+                            <span>Max Memories per Layer</span>
+                            <small class="sc-hint">Count guard alongside injected-memory token pressure.</small>
                         </label>
                         <div class="sc-slider-row">
                             <input type="range" id="sc_snippets_per_layer" min="3" max="100" step="1" />
@@ -528,16 +547,6 @@
                         <div class="sc-slider-row">
                             <input type="range" id="sc_snippets_per_promotion" min="2" max="20" step="1" />
                             <span id="sc_snippets_per_promotion_val" class="sc-val">2</span>
-                        </div>
-                    </div>
-                    <div class="sc-row">
-                        <label for="sc_max_layers">
-                            <span>Maximum Layer Depth</span>
-                            <small class="sc-hint">Recursive summarization depth limit.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_max_layers" min="1" max="10" step="1" />
-                            <span id="sc_max_layers_val" class="sc-val">5</span>
                         </div>
                     </div>
                 </section>

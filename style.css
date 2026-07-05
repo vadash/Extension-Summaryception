@@ -154,6 +154,9 @@
     font-weight: 700;
     line-height: 1.2;
 }
+.sc-budget-subheader {
+    margin-top: 8px;
+}
 .sc-context-bar {
     display: flex;
     overflow: hidden;

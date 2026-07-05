@@ -171,12 +171,17 @@ function bindInputHelpers() {
  * @returns {void}
  */
 function bindSliderHandlers() {
-    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion' | 'maxLayers', display: string }>} */
+    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'memoryTokenBudget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion', display: string }>} */
     const sliders = [
         {
             id: '#sc_verbatim_token_budget',
             key: 'verbatimTokenBudget',
             display: '#sc_verbatim_token_budget_val',
+        },
+        {
+            id: '#sc_memory_token_budget',
+            key: 'memoryTokenBudget',
+            display: '#sc_memory_token_budget_val',
         },
         {
             id: '#sc_min_summary_budget',
@@ -203,7 +208,6 @@ function bindSliderHandlers() {
             key: 'snippetsPerPromotion',
             display: '#sc_snippets_per_promotion_val',
         },
-        { id: '#sc_max_layers', key: 'maxLayers', display: '#sc_max_layers_val' },
     ];
 
     for (const sl of sliders) {
@@ -227,6 +231,7 @@ function bindSliderHandlers() {
 function isRetentionSlider(key) {
     return [
         'verbatimTokenBudget',
+        'memoryTokenBudget',
         'minSummaryBudget',
         'minSummaryTurns',
         'maxSummaryTurns',
@@ -247,6 +252,8 @@ function syncRetentionSliderDisplays() {
     const s = getSettings();
     $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
     $('#sc_verbatim_token_budget_val').text(s.verbatimTokenBudget);
+    $('#sc_memory_token_budget').val(s.memoryTokenBudget);
+    $('#sc_memory_token_budget_val').text(s.memoryTokenBudget);
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
     $('#sc_min_summary_budget_val').text(s.minSummaryBudget);
     $('#sc_min_summary_turns').val(s.minSummaryTurns);
@@ -558,9 +565,9 @@ function onResetDefaults() {
     s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
     s.minSummaryBudget = defaultSettings.minSummaryBudget;
     s.verbatimTokenBudget = defaultSettings.verbatimTokenBudget;
+    s.memoryTokenBudget = defaultSettings.memoryTokenBudget;
     s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
     s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
-    s.maxLayers = defaultSettings.maxLayers;
 
     // Reset prompts
     s.summarizerSystemPrompt = defaultSettings.summarizerSystemPrompt;

@@ -1,3 +1,4 @@
+import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { log } from '../foundation/logger.js';
@@ -13,72 +14,129 @@ import {
     getChatIdentity,
     isSameChatSnapshot,
 } from './summarizer-snapshot.js';
+import { countTextTokens } from './token-count.js';
 
 /**
- * Promote a layer's snippets to the next layer if over the limit.
- * @param {number} layerIndex - The layer to evaluate
+ * Promote the shallowest over-limit layer at or after the requested layer.
+ * @param {number} layerIndex - First layer to evaluate
  * @returns {Promise<boolean>} True when promotion work applied or queued.
  */
-export async function maybePromoteLayer(layerIndex) {
+export async function maybePromoteLayer(layerIndex = 0) {
     const s = getSettings();
-    const store = getChatStore();
-
-    if (layerIndex >= s.maxLayers - 1) {
-        log(`Max layer depth (${s.maxLayers}) reached.`);
+    const candidate = await getNextPromotionCandidate(layerIndex, s);
+    if (!candidate) {
         return false;
     }
 
-    const layer = store.layers[layerIndex];
-    if (!layer || layer.length <= s.snippetsPerLayer) {
+    if (!canPromoteLayer(candidate.layerIndex)) {
+        log(`Internal layer depth cap (${INTERNAL_MAX_LAYER_DEPTH}) reached.`);
         return false;
     }
 
-    log(`Layer ${layerIndex}: ${layer.length} snippets > limit ${s.snippetsPerLayer} → promoting`);
-
-    if (!store.layers[layerIndex + 1]) {
-        store.layers[layerIndex + 1] = [];
-    }
-    const destLayer = store.layers[layerIndex + 1];
-
-    if (destLayer.length === 0) {
-        return await seedNextLayer({ layerIndex, s });
-    }
-
-    return await mergeLayerSnippets({ layerIndex, s });
+    return await mergeLayerSnippets({
+        layerIndex: candidate.layerIndex,
+        s,
+        quota: candidate.quota,
+    });
 }
 
 /**
- * Seed a new destination layer without an LLM call.
- * @param {object} p
- * @param {number} p.layerIndex
- * @param {object} p.s
+ * Check whether any promotable layer exceeds its dynamic quota or memory count.
+ * @param {number} startLayer
  * @returns {Promise<boolean>}
  */
-async function seedNextLayer({ layerIndex, s }) {
-    const snapshot = capturePromotionSnapshot(layerIndex);
-    const result = await commitWhenSafe({
-        kind: 'promotion-seed',
-        snapshot,
-        apply: async () => applySeedPromotion({ snapshot, layerIndex }),
-    });
+export async function hasPromotionOverflow(startLayer = 0) {
+    return Boolean(await getNextPromotionCandidate(startLayer, getSettings()));
+}
 
-    if (result === 'applied') {
-        await promoteOverflowLayers({ layerIndex, s });
+/**
+ * Build normalized token quotas for active non-empty layers.
+ * @param {SummaryceptionStore} store
+ * @param {ExtensionSettings} settings
+ * @returns {Promise<Array<{ layerIndex: number, quota: number, tokens: number, count: number }>>}
+ */
+export async function getLayerMemoryQuotas(store, settings) {
+    const active = getActiveLayers(store);
+    if (active.length === 0) {
+        return [];
     }
-    return result !== 'stale';
+
+    const totalWeight = active.reduce((sum, layer) => sum + layer.weight, 0);
+    const budget = Math.max(1, Number(settings.memoryTokenBudget) || 1);
+    const quotas = [];
+    for (const layer of active) {
+        const quota = Math.max(1, Math.floor((budget * layer.weight) / totalWeight));
+        quotas.push({
+            layerIndex: layer.layerIndex,
+            quota,
+            tokens: await countLayerTokens(layer.snippets),
+            count: layer.snippets.length,
+        });
+    }
+    return quotas;
+}
+
+async function getNextPromotionCandidate(startLayer, settings) {
+    const store = getChatStore();
+    const quotas = await getLayerMemoryQuotas(store, settings);
+    for (const quota of quotas) {
+        if (quota.layerIndex < startLayer) {
+            continue;
+        }
+        if (isLayerOverLimit(quota, settings)) {
+            return quota;
+        }
+    }
+    return null;
+}
+
+function getActiveLayers(store) {
+    const layers = Array.isArray(store.layers) ? store.layers : [];
+    const active = [];
+    for (let i = 0; i < layers.length; i++) {
+        const snippets = layers[i];
+        if (!Array.isArray(snippets) || snippets.length === 0) {
+            continue;
+        }
+        active.push({ layerIndex: i, snippets, weight: 1 / 2 ** i });
+    }
+    return active;
+}
+
+async function countLayerTokens(snippets) {
+    const text = snippets.map((snippet) => snippet.text).join(' ');
+    return (await countTextTokens(text)).count;
+}
+
+function isLayerOverLimit(quota, settings) {
+    return quota.tokens > quota.quota || quota.count > settings.snippetsPerLayer;
+}
+
+function canPromoteLayer(layerIndex) {
+    return layerIndex < INTERNAL_MAX_LAYER_DEPTH - 1;
 }
 
 /**
  * Merge snippets into the next layer using the summarizer.
  * @param {object} p
  * @param {number} p.layerIndex
- * @param {object} p.s
+ * @param {ExtensionSettings} p.s
+ * @param {number} p.quota
  * @returns {Promise<boolean>}
  */
-async function mergeLayerSnippets({ layerIndex, s }) {
+async function mergeLayerSnippets({ layerIndex, s, quota }) {
     const store = getChatStore();
     const layer = store.layers[layerIndex] || [];
-    const toMerge = layer.slice(0, s.snippetsPerPromotion);
+    const toMerge = layer.slice(0, Math.max(1, s.snippetsPerPromotion));
+    if (toMerge.length === 0) {
+        return false;
+    }
+
+    log(
+        `Layer ${layerIndex}: ${layer.length} memories exceed quota ` +
+            `${quota} tokens or count ${s.snippetsPerLayer}; promoting`,
+    );
+
     const storyTxt = toMerge.map((sn) => sn.text).join(' ');
     const contextStr = buildFullContext(layerIndex + 1);
     const snapshot = {
@@ -89,7 +147,7 @@ async function mergeLayerSnippets({ layerIndex, s }) {
     };
 
     toastr.info(
-        `Promoting ${toMerge.length} snippets: Layer ${layerIndex} → Layer ${layerIndex + 1}`,
+        `Promoting ${toMerge.length} memories: Layer ${layerIndex} -> Layer ${layerIndex + 1}`,
         'Summaryception',
         { timeOut: 3000, progressBar: true },
     );
@@ -106,16 +164,11 @@ async function mergeLayerSnippets({ layerIndex, s }) {
     const result = await commitWhenSafe({
         kind: 'promotion-merge',
         snapshot,
-        apply: async () =>
-            applyMergePromotion({
-                snapshot,
-                layerIndex,
-                metaSummary,
-            }),
+        apply: async () => applyMergePromotion({ snapshot, layerIndex, metaSummary }),
     });
 
     if (result === 'applied') {
-        await promoteOverflowLayers({ layerIndex, s });
+        await promoteOverflowLayers();
     }
     return result !== 'stale';
 }
@@ -135,47 +188,6 @@ function capturePromotionSnapshot(layerIndex) {
         layerIndex,
         summaryStoreFingerprint: fingerprintSummaryStore(store),
     };
-}
-
-/**
- * Apply a no-LLM seed promotion after validating the source layers.
- * @param {object} p
- * @param {object} p.snapshot
- * @param {number} p.layerIndex
- * @returns {Promise<boolean>}
- */
-async function applySeedPromotion({ snapshot, layerIndex }) {
-    if (!isPromotionSnapshotValid(snapshot)) {
-        return false;
-    }
-
-    const store = getChatStore();
-    const layer = store.layers[layerIndex] || [];
-    const destLayer = store.layers[layerIndex + 1] || [];
-    const seed = layer.shift();
-
-    if (!seed) {
-        return false;
-    }
-
-    seed.promoted = true;
-    seed.seedFromLayer = layerIndex;
-    destLayer.push(seed);
-    store.layers[layerIndex + 1] = destLayer;
-
-    await savePromotionCommit();
-
-    log(
-        `Seeded Layer ${layerIndex + 1} with oldest snippet from Layer ${layerIndex} (no LLM call)`,
-    );
-
-    toastr.info(
-        `Seeded Layer ${layerIndex + 1} from Layer ${layerIndex} (free promotion)`,
-        'Summaryception',
-        { timeOut: 2000 },
-    );
-
-    return true;
 }
 
 /**
@@ -209,7 +221,7 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
     store.layers[layerIndex + 1] = destLayer;
 
     await savePromotionCommit();
-    log(`Layer ${layerIndex + 1} now has ${destLayer.length} snippets`);
+    log(`Layer ${layerIndex + 1} now has ${destLayer.length} memories`);
 
     return true;
 }
@@ -239,25 +251,16 @@ async function savePromotionCommit() {
 }
 
 /**
- * Continue promotion while source or destination layers remain over their limits.
- * @param {object} p
- * @param {number} p.layerIndex
- * @param {object} p.s
+ * Continue promotion while any shallow layer remains over its limit.
  * @returns {Promise<void>}
  */
-async function promoteOverflowLayers({ layerIndex, s }) {
+async function promoteOverflowLayers() {
     if (isPromptMutationFrozen()) {
         return;
     }
 
-    const store = getChatStore();
-    const layer = store.layers[layerIndex] || [];
-    const destLayer = store.layers[layerIndex + 1] || [];
-
-    if (layer.length > s.snippetsPerLayer) {
-        await maybePromoteLayer(layerIndex);
-    }
-    if (destLayer.length > s.snippetsPerLayer) {
-        await maybePromoteLayer(layerIndex + 1);
+    const promoted = await maybePromoteLayer(0);
+    if (promoted && !isPromptMutationFrozen()) {
+        await promoteOverflowLayers();
     }
 }

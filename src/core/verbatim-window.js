@@ -18,7 +18,7 @@ import { countMessageTokens } from './token-count.js';
  * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
- * @property {'budget' | 'max' | 'repair' | 'none'} reason
+ * @property {'budget' | 'max' | 'force' | 'repair' | 'none'} reason
  * @property {number} overflowCount - Total eligible assistant turns outside the verbatim window.
  * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
  * @property {number} visibleTurnCount
@@ -42,9 +42,15 @@ import { countMessageTokens } from './token-count.js';
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
  * @param {VerbatimWindowSettings} settings
+ * @param {{ ignoreReadiness?: boolean }} [opts]
  * @returns {Promise<Layer0OverflowPlan>}
  */
-export async function getLayer0OverflowPlan(chat, store, settings) {
+export async function getLayer0OverflowPlan(
+    chat,
+    store,
+    settings,
+    { ignoreReadiness = false } = {},
+) {
     const visibleTurns = getVisibleAssistantTurns(chat);
     const eligibleTurns = visibleTurns.filter((turn) => turn.index > store.summarizedUpTo);
     const budget = await getTokenBudgetBoundary(chat, settings);
@@ -56,6 +62,18 @@ export async function getLayer0OverflowPlan(chat, store, settings) {
     if (candidateTurns.length >= settings.maxSummaryTurns) {
         return buildPlan(
             'max',
+            visibleTurns,
+            eligibleTurns,
+            overflowTurns,
+            candidateTurns,
+            budget,
+            summaryStats,
+        );
+    }
+
+    if (ignoreReadiness && candidateTurns.length > 0) {
+        return buildPlan(
+            'force',
             visibleTurns,
             eligibleTurns,
             overflowTurns,

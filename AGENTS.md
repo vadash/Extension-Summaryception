@@ -49,7 +49,8 @@ Layer data lives in `chatMetadata[MODULE_NAME]`.
 - `persistChatState()` saves metadata immediately; deferred chat-file saves must be flushed at worker/manual boundaries, not unload.
 - Background summarization is coalesced through one self-draining worker.
 - `SummarizerQueue` owns background worker state; `summarizer.js` remains the runtime facade.
-- `summarizer-auto.js` and `summarizer-manual.js` own orchestration; entry UI owns manual progress/outcome toasts.
+- `summarizer-engine.js` owns Auto, Force, Slop, Cache execution; strategy wrappers only select boundaries and labels.
+- Injected memory promotion pressure uses `memoryTokenBudget`; keep Maximum Layer Depth hidden behind the internal cap.
 - Prompt-affecting commits/effects are queued during foreground generation.
 - Summarizer calls use exponential backoff, 5 retries, 2s-60s.
 - Layer 0 uses the base summarizer connection; `promotion` calls may use the Layer 1+ merge override.

@@ -146,6 +146,36 @@ describe('getLayer0OverflowPlan', () => {
         );
     });
 
+    it('lets force mode summarize overflow below minimum readiness', async () => {
+        const chat = [
+            makeMessage({ isUser: true, mes: 'u0', name: 'Player' }),
+            makeMessage({ mes: 'a1' }),
+            makeMessage({ isUser: true, mes: 'u2', name: 'Player' }),
+            makeMessage({ mes: 'a3' }),
+        ];
+        installSillyTavernStub({
+            chat,
+            getTokenCountAsync: async (text) => String(text || '').length,
+        });
+        const { getLayer0OverflowPlan } = await import('../src/core/verbatim-window.js');
+        const settings = {
+            minSummaryTurns: 3,
+            maxSummaryTurns: 8,
+            minSummaryBudget: 16000,
+            verbatimTokenBudget: 24,
+            applyRegexScripts: false,
+        };
+
+        const normal = await getLayer0OverflowPlan(chat, { summarizedUpTo: -1 }, settings);
+        const force = await getLayer0OverflowPlan(chat, { summarizedUpTo: -1 }, settings, {
+            ignoreReadiness: true,
+        });
+
+        expect(normal.reason).toBe('none');
+        expect(force.reason).toBe('force');
+        expect(force.batchTurns.map((turn) => turn.index)).toEqual([1]);
+    });
+
     it('uses the shared prompt-depth calculation for regex scripts', async () => {
         const chat = [
             makeMessage({ mes: 'old' }),

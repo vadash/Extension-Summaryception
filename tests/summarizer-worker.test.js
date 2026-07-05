@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
     summarizeBatchFromTurns: vi.fn(),
     summarizeOneBatchFromTurns: vi.fn(),
     maybePromoteLayer: vi.fn(),
+    hasPromotionOverflow: vi.fn(),
+    getCacheFriendlyPlan: vi.fn(),
+    summarizeCacheFlush: vi.fn(),
     flushPendingChatSave: vi.fn(),
 }));
 
@@ -21,6 +24,15 @@ vi.mock('../src/core/summarizer-batch.js', () => ({
 
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     maybePromoteLayer: mocks.maybePromoteLayer,
+    hasPromotionOverflow: mocks.hasPromotionOverflow,
+}));
+
+vi.mock('../src/core/cache-planner.js', () => ({
+    getCacheFriendlyPlan: mocks.getCacheFriendlyPlan,
+}));
+
+vi.mock('../src/core/summarizer-cache.js', () => ({
+    summarizeCacheFlush: mocks.summarizeCacheFlush,
 }));
 
 vi.mock('../src/core/persist-state.js', () => ({
@@ -31,6 +43,9 @@ beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     mocks.flushPendingChatSave.mockResolvedValue(undefined);
+    mocks.hasPromotionOverflow.mockResolvedValue(false);
+    mocks.getCacheFriendlyPlan.mockResolvedValue({ reason: 'none', chunks: [] });
+    mocks.summarizeCacheFlush.mockResolvedValue('applied');
     installBrowserRuntimeStub();
 });
 
@@ -106,12 +121,46 @@ describe('requestSummarization', () => {
         expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
         expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
     });
+
+    it('routes custom memory through the standard automatic engine path', async () => {
+        const ctx = installWorkerContext({
+            chat: makeLongMessages(4),
+            settings: workerSettings({ memoryMode: 'custom' }),
+        });
+        mockGhostingSummaries(ctx);
+
+        const { requestSummarization } = await import('../src/core/summarizer.js');
+        await requestSummarization({ reason: 'new-message', mode: 'auto' });
+
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalled();
+        expect(mocks.getCacheFriendlyPlan).not.toHaveBeenCalled();
+    });
+
+    it('routes cache memory through the shared cache and promotion cycle', async () => {
+        installWorkerContext({
+            settings: workerSettings({ memoryMode: 'cache' }),
+        });
+        mocks.getCacheFriendlyPlan.mockResolvedValueOnce({
+            reason: 'ready',
+            liveTokens: 5000,
+            cacheBudget: 4000,
+            protectedTailTokens: 1000,
+            estimatedFlushTokens: 3000,
+            chunks: [{ startIdx: 0, endIdx: 0, assistantTurnCount: 1 }],
+        });
+
+        const { requestSummarization } = await import('../src/core/summarizer.js');
+        await requestSummarization({ reason: 'new-message', mode: 'auto' });
+
+        expect(mocks.summarizeCacheFlush).toHaveBeenCalledTimes(1);
+        expect(mocks.maybePromoteLayer).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('runCatchup', () => {
     it('requests a reload after a catch-up batch commits', async () => {
         const ctx = installWorkerContext();
-        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async (turns) => {
+        mocks.summarizeBatchFromTurns.mockImplementationOnce(async (turns) => {
             ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
             return true;
         });
@@ -128,7 +177,7 @@ describe('runCatchup', () => {
         const onStart = vi.fn();
         const onProgress = vi.fn();
 
-        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async (turns) => {
+        mocks.summarizeBatchFromTurns.mockImplementationOnce(async (turns) => {
             ctx.chatMetadata.summaryception.summarizedUpTo = turns[turns.length - 1].index;
             return true;
         });
@@ -153,12 +202,12 @@ describe('runCatchup', () => {
         const outcome = await runCatchup([], 1, { signal: controller.signal });
 
         expect(outcome.cancelled).toBe(true);
-        expect(mocks.summarizeOneBatchFromTurns).not.toHaveBeenCalled();
+        expect(mocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
     });
 
     it('does not request a reload when catch-up totally fails', async () => {
         installWorkerContext();
-        mocks.summarizeOneBatchFromTurns.mockResolvedValue(false);
+        mocks.summarizeBatchFromTurns.mockResolvedValue(false);
 
         const { runCatchup } = await import('../src/core/summarizer.js');
         const outcome = await runCatchup([], 1);
@@ -169,7 +218,7 @@ describe('runCatchup', () => {
 
     it('defers final promotion when the prompt guard activates during catch-up', async () => {
         installWorkerContext();
-        mocks.summarizeOneBatchFromTurns.mockImplementationOnce(async () => {
+        mocks.summarizeBatchFromTurns.mockImplementationOnce(async () => {
             const { beginForegroundGeneration } = await import('../src/core/summarizer-commit.js');
             beginForegroundGeneration();
             return true;
@@ -178,7 +227,7 @@ describe('runCatchup', () => {
         const { runCatchup } = await import('../src/core/summarizer.js');
         await runCatchup([], 1);
 
-        expect(mocks.summarizeOneBatchFromTurns).toHaveBeenCalledTimes(1);
+        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
         expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
     });
 });

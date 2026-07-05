@@ -33,10 +33,11 @@ describe('constants', () => {
         );
         expect(defaultSettings.minSummaryBudget).toBe(8000);
         expect(defaultSettings.verbatimTokenBudget).toBe(16000);
+        expect(defaultSettings.memoryTokenBudget).toBe(10000);
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
         );
-        expect(defaultSettings.maxLayers).toBeGreaterThanOrEqual(1);
+        expect(defaultSettings.maxLayers).toBeUndefined();
         expect(defaultSettings.promptLogMode).toBe(false);
     });
 

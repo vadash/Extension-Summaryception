@@ -1,0 +1,414 @@
+import { MEMORY_MODES } from '../foundation/constants.js';
+import { getChat } from '../foundation/context.js';
+import { getChatStore, getSettings } from '../foundation/state.js';
+import { log, trace } from '../foundation/logger.js';
+import { getCacheFriendlyPlan } from './cache-planner.js';
+import { summarizeCacheFlush } from './summarizer-cache.js';
+import { summarizeBatchFromTurns } from './summarizer-batch.js';
+import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
+import { getLayer0OverflowPlan } from './verbatim-window.js';
+import { getSlopBreakerPlan } from './slop-breaker.js';
+import { flushPendingChatSave } from './persist-state.js';
+import { recoverStalePromptFreeze, shouldStopPromptWork } from './summarizer-commit.js';
+
+export const ELASTIC_STRATEGIES = Object.freeze({
+    AUTO: 'AUTO',
+    FORCE: 'FORCE',
+    SLOP: 'SLOP',
+    CACHE: 'CACHE',
+});
+
+/**
+ * @typedef {object} ManualRunOutcome
+ * @property {boolean} cancelled
+ * @property {boolean} blocked
+ * @property {number} completed
+ * @property {number} failed
+ * @property {number} totalBatches
+ * @property {boolean} fullyCommitted
+ * @property {boolean} shouldReload
+ * @property {boolean} failureLimitReached
+ */
+
+/**
+ * @typedef {object} ManualRunProgress
+ * @property {number} completed
+ * @property {number} failed
+ * @property {number} totalBatches
+ * @property {string} label
+ * @property {string} title
+ */
+
+/**
+ * Run one automatic elastic summarization action.
+ * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
+ * @param {{ refreshUi?: () => void, showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [opts]
+ * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
+ */
+export async function runElasticAutoCycle(queue, { refreshUi, showAutoBacklogNotice } = {}) {
+    await recoverStalePromptFreeze('auto worker', { refreshUi });
+
+    if (shouldStopPromptWork()) {
+        queue.setPhase('paused');
+        return 'blocked';
+    }
+
+    const s = getSettings();
+    if (!s.enabled) {
+        queue.setPhase('paused');
+        return 'idle';
+    }
+
+    if (s.memoryMode === MEMORY_MODES.CACHE) {
+        return await runElasticCacheCycle(queue, s);
+    }
+
+    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
+    logOverflowPlan(plan, s);
+
+    if (plan.reason !== 'none') {
+        queue.setPhase('layer0');
+        return await processLayer0Plan(plan, s, { showAutoBacklogNotice });
+    }
+
+    queue.setPhase('promoting');
+    return await processPromotionCycle();
+}
+
+/**
+ * Run Force Summarize or Slop Breaker through the shared engine.
+ * @param {object} deps
+ * @param {import('./summarizer-queue.js').SummarizerQueue} deps.queue
+ * @param {() => void} deps.refreshUi
+ * @param {'FORCE' | 'SLOP'} strategy
+ * @param {{ signal?: AbortSignal, onStart?: (progress: ManualRunProgress) => void, onProgress?: (progress: ManualRunProgress) => void }} [options]
+ * @returns {Promise<ManualRunOutcome>}
+ */
+export async function runElasticManual(deps, strategy, options = {}) {
+    if (!(await prepareManualRun(deps, `manual ${strategy.toLowerCase()}`))) {
+        return createManualRunOutcome({ blocked: true });
+    }
+
+    const task = await buildManualTask(strategy, options);
+    if (!task) {
+        return createManualRunOutcome();
+    }
+
+    const outcome = await executeManualTask(deps, task);
+    const normalized = await normalizeManualMemory(outcome);
+    deps.refreshUi();
+    return {
+        ...outcome,
+        blocked: outcome.blocked || normalized === 'blocked',
+        fullyCommitted: isManualRunComplete(outcome, task) && normalized === 'normalized',
+        shouldReload: isManualRunComplete(outcome, task) && normalized === 'normalized',
+    };
+}
+
+async function runElasticCacheCycle(queue, s) {
+    const plan = await getCacheFriendlyPlan(getChat(), getChatStore(), s);
+    logCachePlan(plan);
+
+    if (plan.reason !== 'ready') {
+        return 'idle';
+    }
+
+    queue.setPhase('layer0');
+    const result = await summarizeCacheFlush(plan);
+    if (shouldStopPromptWork()) {
+        return 'blocked';
+    }
+    if (result === 'failed' || result === 'stale') {
+        return 'failed';
+    }
+
+    queue.setPhase('promoting');
+    const promotionResult = await processPromotionCycle();
+    return promotionResult === 'idle' ? 'processed' : promotionResult;
+}
+
+/**
+ * Process one Layer 0 plan.
+ * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
+ * @param {ExtensionSettings} s
+ * @param {{ showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [opts]
+ * @returns {Promise<'processed' | 'blocked' | 'failed'>}
+ */
+async function processLayer0Plan(plan, s, { showAutoBacklogNotice } = {}) {
+    const backlogThreshold = s.maxSummaryTurns * 2;
+    if (plan.eligibleTurns.length > backlogThreshold) {
+        showAutoBacklogNotice?.(plan);
+    }
+
+    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
+    const success = await summarizeBatchFromTurns(turns, {
+        showToasts: false,
+        catchExceptions: true,
+    });
+
+    if (!success) {
+        log('Batch failed, stopping summarization cycle to avoid retry loop.');
+        return 'failed';
+    }
+    if (shouldStopPromptWork()) {
+        return 'blocked';
+    }
+    return 'processed';
+}
+
+async function processPromotionCycle() {
+    const hadOverflow = await hasPromotionOverflow(0);
+    const promoted = await maybePromoteLayer(0);
+    if (shouldStopPromptWork()) {
+        return 'blocked';
+    }
+    if (promoted) {
+        return 'processed';
+    }
+    return hadOverflow ? 'failed' : 'idle';
+}
+
+async function buildManualTask(strategy, options) {
+    if (strategy === ELASTIC_STRATEGIES.SLOP) {
+        return buildSlopTask(options);
+    }
+    return await buildForceTask(options);
+}
+
+async function buildForceTask(options) {
+    const initialPlan = await getForcePlan();
+    if (!initialPlan) {
+        return null;
+    }
+
+    return {
+        kind: ELASTIC_STRATEGIES.FORCE,
+        totalBatches: estimateForceBatches(initialPlan),
+        label: 'Processing',
+        title: 'Summaryception Catch-Up',
+        options,
+        targetIndex: initialPlan.tokenBoundaryIndex,
+        getBatch: getForcePlan,
+        isBatchReady: (batch) => Boolean(batch),
+        processBatch: processForceBatch,
+    };
+}
+
+function buildSlopTask(options) {
+    const initialPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
+    if (initialPlan.reason !== 'ready') {
+        return null;
+    }
+
+    const targetIndex = initialPlan.targetIndex;
+    return {
+        kind: ELASTIC_STRATEGIES.SLOP,
+        totalBatches: initialPlan.totalBatches,
+        label: 'Breaking slop',
+        title: 'Summaryception Slop Breaker',
+        options,
+        targetIndex,
+        getBatch: () =>
+            getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), { targetIndex }),
+        isBatchReady: (batch) => batch?.reason === 'ready',
+        processBatch: processSlopBatch,
+    };
+}
+
+async function executeManualTask(deps, task) {
+    const outcome = createManualRunOutcome({ totalBatches: task.totalBatches });
+    let consecutiveFailures = 0;
+
+    task.options.onStart?.(createProgress(outcome, task));
+    deps.queue.setSummarizing(true);
+
+    try {
+        while (!isCancelled(task.options.signal)) {
+            const batch = await task.getBatch();
+            if (!task.isBatchReady(batch)) {
+                break;
+            }
+
+            const result = await task.processBatch(batch);
+            updateManualOutcome({ outcome, result });
+            consecutiveFailures = result.success && result.committed ? 0 : consecutiveFailures;
+            if (shouldStopManualLoop(outcome, result, task.options.signal, deps.queue)) {
+                break;
+            }
+            if (!result.success) {
+                consecutiveFailures++;
+                outcome.failureLimitReached = consecutiveFailures >= 3;
+                if (outcome.failureLimitReached) {
+                    break;
+                }
+            }
+
+            task.options.onProgress?.(createProgress(outcome, task));
+            await sleep(200);
+        }
+
+        if (isCancelled(task.options.signal)) {
+            outcome.cancelled = true;
+        }
+        return outcome;
+    } finally {
+        deps.queue.setSummarizing(false);
+        await flushPendingChatSave();
+    }
+}
+
+function updateManualOutcome({ outcome, result }) {
+    if (result.success && result.committed) {
+        outcome.completed++;
+        if (shouldStopPromptWork()) {
+            outcome.blocked = true;
+        }
+    } else if (result.success) {
+        outcome.blocked = true;
+    } else {
+        outcome.failed++;
+    }
+}
+
+function shouldStopManualLoop(outcome, result, signal, queue) {
+    if (result.done || outcome.blocked) {
+        return true;
+    }
+    if (isCancelled(signal) || !queue.getIsSummarizing()) {
+        outcome.cancelled = true;
+        return true;
+    }
+    return false;
+}
+
+async function processForceBatch(plan) {
+    trace('Processing force batch via elastic engine');
+    const beforeIndex = getChatStore().summarizedUpTo;
+    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
+    const success = await summarizeBatchFromTurns(turns, { catchExceptions: true });
+    return {
+        success,
+        committed: success && getChatStore().summarizedUpTo > beforeIndex,
+    };
+}
+
+async function processSlopBatch(plan) {
+    const success = await summarizeBatchFromTurns(plan.batchTurns, {
+        catchExceptions: true,
+        sourceEndIdx: plan.sourceEndIdx,
+    });
+    const afterIndex = getChatStore().summarizedUpTo;
+    return {
+        success,
+        committed: success && afterIndex >= plan.sourceEndIdx,
+        done: afterIndex >= plan.targetIndex,
+    };
+}
+
+async function getForcePlan() {
+    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getSettings(), {
+        ignoreReadiness: true,
+    });
+
+    trace(`Current visible turns: ${plan.visibleTurnCount}, plan reason: ${plan.reason}`);
+    return plan.reason === 'none' ? null : plan;
+}
+
+function estimateForceBatches(plan) {
+    const batchLimit = Math.max(1, getSettings().maxSummaryTurns);
+    const readyTurns = plan.batchTurns.length + plan.softOverflowCount;
+    return Math.max(1, Math.ceil(readyTurns / batchLimit));
+}
+
+async function normalizeManualMemory(outcome) {
+    if (outcome.cancelled || outcome.blocked || outcome.completed === 0) {
+        return 'skipped';
+    }
+    if (shouldStopPromptWork()) {
+        log('Manual promotion deferred; prompt mutation guard is active.');
+        return 'blocked';
+    }
+    return await normalizePromotions();
+}
+
+async function normalizePromotions() {
+    let failures = 0;
+    while (await hasPromotionOverflow(0)) {
+        const promoted = await maybePromoteLayer(0);
+        if (shouldStopPromptWork()) {
+            return 'blocked';
+        }
+        if (promoted) {
+            failures = 0;
+        } else {
+            failures++;
+            if (failures >= 3) {
+                return 'failed';
+            }
+        }
+    }
+    return 'normalized';
+}
+
+function isManualRunComplete(outcome, task) {
+    if (outcome.cancelled || outcome.blocked || outcome.failed > 0 || outcome.completed === 0) {
+        return false;
+    }
+    if (task.kind === ELASTIC_STRATEGIES.SLOP) {
+        return getChatStore().summarizedUpTo >= task.targetIndex;
+    }
+    return true;
+}
+
+async function prepareManualRun(deps, recoverReason) {
+    await recoverStalePromptFreeze(recoverReason, { refreshUi: deps.refreshUi });
+    return !shouldStopPromptWork();
+}
+
+function createManualRunOutcome(overrides = {}) {
+    return {
+        cancelled: false,
+        blocked: false,
+        completed: 0,
+        failed: 0,
+        totalBatches: 0,
+        fullyCommitted: false,
+        shouldReload: false,
+        failureLimitReached: false,
+        ...overrides,
+    };
+}
+
+function createProgress(outcome, task) {
+    return {
+        completed: outcome.completed,
+        failed: outcome.failed,
+        totalBatches: outcome.totalBatches,
+        label: task.label,
+        title: task.title,
+    };
+}
+
+function isCancelled(signal) {
+    return Boolean(signal?.aborted);
+}
+
+async function sleep(ms) {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logOverflowPlan(plan, s) {
+    log(
+        `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
+            `verbatim budget: ${plan.budgetStats.finalTokens}/${s.verbatimTokenBudget} tokens, ` +
+            `summary budget: ${plan.summaryStats.finalTokens}/${s.minSummaryBudget} tokens`,
+    );
+}
+
+function logCachePlan(plan) {
+    log(
+        `Cache mode live tokens: ${plan.liveTokens}/${plan.cacheBudget}, ` +
+            `protected tail: ${plan.protectedTailTokens}, ` +
+            `flush: ${plan.estimatedFlushTokens}, chunks: ${plan.chunks.length}`,
+    );
+}
