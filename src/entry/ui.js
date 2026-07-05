@@ -3,7 +3,7 @@ import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
-import { countTextTokens } from '../core/token-count.js';
+import { countTextTokens, formatTokenValue } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -285,12 +285,7 @@ export function buildContextBudgetViewModel({ budget, verbatim, layers, wrapper 
  * @returns {string}
  */
 export function formatBudgetTokenLabel(count, estimated = false) {
-    const normalized = normalizeBudgetCount(count);
-    const prefix = estimated ? '~' : '';
-    if (normalized >= 1000) {
-        return `${prefix}${Math.round(normalized / 1000)}k`;
-    }
-    return `${prefix}${normalized}`;
+    return formatTokenValue(normalizeBudgetCount(count), estimated);
 }
 
 async function renderBudgetStatus(s, store) {

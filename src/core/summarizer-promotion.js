@@ -14,7 +14,7 @@ import {
     getChatIdentity,
     isSameChatSnapshot,
 } from './summarizer-snapshot.js';
-import { countTextTokens } from './token-count.js';
+import { countTextTokens, formatTokenValue } from './token-count.js';
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.
@@ -134,7 +134,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota }) {
 
     log(
         `Layer ${layerIndex}: ${layer.length} memories exceed quota ` +
-            `${quota} tokens or count ${s.snippetsPerLayer}; promoting`,
+            `${formatTokenValue(quota)} tokens or count ${s.snippetsPerLayer}; promoting`,
     );
 
     const storyTxt = toMerge.map((sn) => sn.text).join(' ');

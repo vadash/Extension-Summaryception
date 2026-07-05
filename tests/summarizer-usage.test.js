@@ -152,7 +152,11 @@ describe('summarizer usage logging', () => {
                 stripPatterns: [],
             },
         });
-        ctx.getTokenCountAsync = vi.fn().mockResolvedValueOnce(14).mockResolvedValueOnce(5);
+        ctx.getTokenCountAsync = vi
+            .fn()
+            .mockResolvedValueOnce(6)
+            .mockResolvedValueOnce(14)
+            .mockResolvedValueOnce(5);
         mocks.sendSummarizerRequest.mockResolvedValue('merged summary');
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
@@ -162,17 +166,40 @@ describe('summarizer usage logging', () => {
             mergedSnippetCount: 2,
         });
 
-        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(2);
-        expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('PROMO_SYS');
-        expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain(
+        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(3);
+        expect(ctx.getTokenCountAsync.mock.calls[0][0]).toBe('merged snippets');
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('PROMO_SYS');
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain(
             'PROMO deep context MEMORY merged snippets',
         );
-        expect(ctx.getTokenCountAsync.mock.calls[0][0]).not.toContain('L0_SYS');
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).not.toContain('L0_SYS');
 
         const usageLog = consoleLogSpy.mock.calls.find((call) =>
             call[1]?.includes('LLM call promotion L1'),
         );
+        expect(usageLog?.[1]).toContain('memory=6->5');
         expect(usageLog?.[1]).toContain('tokens prompt=14 completion=5 total=19');
+    });
+
+    it('formats large logged token counts with a compact k suffix', async () => {
+        installDebugContext();
+
+        const { recordSummarizerUsage } = await import('../src/core/summarizer-usage.js');
+        recordSummarizerUsage({
+            metadata: {
+                kind: 'layer0',
+                sourceRange: [0, 1],
+                assistantTurnCount: 1,
+            },
+            promptTokens: 8377,
+            completionTokens: 1234567,
+            totalTokens: 1242944,
+        });
+
+        const usageLog = consoleLogSpy.mock.calls.find((call) =>
+            call[1]?.includes('LLM call layer0 turns 0-1'),
+        );
+        expect(usageLog?.[1]).toContain('tokens prompt=8k completion=1234k total=1242k');
     });
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {

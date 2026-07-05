@@ -71,7 +71,7 @@ export function formatTokenCount(tokenCount) {
     if (!tokenCount || !Number.isFinite(tokenCount.count)) {
         return '?';
     }
-    return `${tokenCount.estimated ? '~' : ''}${tokenCount.count}`;
+    return formatTokenValue(tokenCount.count, tokenCount.estimated);
 }
 
 /**
@@ -84,7 +84,26 @@ export function formatTokenValue(count, estimated = false) {
     if (typeof count !== 'number' || !Number.isFinite(count)) {
         return '?';
     }
-    return `${estimated ? '~' : ''}${count}`;
+    return `${estimated ? '~' : ''}${formatCompactTokenCount(count)}`;
+}
+
+/**
+ * Format token counts compactly for logs and status surfaces.
+ * @param {number} count - Token count
+ * @returns {string}
+ */
+export function formatCompactTokenCount(count) {
+    if (typeof count !== 'number' || !Number.isFinite(count)) {
+        return '?';
+    }
+
+    const normalized = Math.trunc(count);
+    const sign = normalized < 0 ? '-' : '';
+    const absolute = Math.abs(normalized);
+    if (absolute >= 1000) {
+        return `${sign}${Math.floor(absolute / 1000)}k`;
+    }
+    return `${normalized}`;
 }
 
 /**

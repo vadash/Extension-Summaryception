@@ -142,6 +142,7 @@ describe('context budget view model', () => {
 
         expect(formatBudgetTokenLabel(950, true)).toBe('~950');
         expect(formatBudgetTokenLabel(1000, true)).toBe('~1k');
+        expect(formatBudgetTokenLabel(1234567)).toBe('1234k');
         expect(formatBudgetTokenLabel(1356092)).toBe('1356k');
         expect(view.totalLabel).toBe('~1k / 10k');
         expect(view.segments[0].estimated).toBe(true);

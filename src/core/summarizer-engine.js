@@ -9,6 +9,7 @@ import { getLayer0OverflowPlan } from './verbatim-window.js';
 import { getSlopBreakerPlan } from './slop-breaker.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { recoverStalePromptFreeze, shouldStopPromptWork } from './summarizer-commit.js';
+import { formatTokenValue } from './token-count.js';
 
 export const ELASTIC_STRATEGIES = Object.freeze({
     AUTO: 'AUTO',
@@ -427,15 +428,19 @@ async function sleep(ms) {
 function logOverflowPlan(plan, s) {
     log(
         `Visible assistant turns: ${plan.visibleTurnCount}, max batch: ${s.maxSummaryTurns}, ` +
-            `verbatim budget: ${plan.budgetStats.finalTokens}/${s.verbatimTokenBudget} tokens, ` +
-            `summary budget: ${plan.summaryStats.finalTokens}/${s.minSummaryBudget} tokens`,
+            `verbatim budget: ${formatTokenValue(plan.budgetStats.finalTokens)}/` +
+            `${formatTokenValue(s.verbatimTokenBudget)} tokens, ` +
+            `summary budget: ${formatTokenValue(plan.summaryStats.finalTokens)}/` +
+            `${formatTokenValue(s.minSummaryBudget)} tokens`,
     );
 }
 
 function logCachePlan(plan) {
     log(
-        `Cache mode live tokens: ${plan.liveTokens}/${plan.cacheBudget}, ` +
-            `protected tail: ${plan.protectedTailTokens}, ` +
-            `flush: ${plan.estimatedFlushTokens}, batch: ${plan.batchTurns.length}`,
+        `Cache mode live tokens: ${formatTokenValue(plan.liveTokens)}/` +
+            `${formatTokenValue(plan.cacheBudget)}, ` +
+            `protected tail: ${formatTokenValue(plan.protectedTailTokens)}, ` +
+            `flush: ${formatTokenValue(plan.estimatedFlushTokens)}, ` +
+            `batch: ${plan.batchTurns.length}`,
     );
 }

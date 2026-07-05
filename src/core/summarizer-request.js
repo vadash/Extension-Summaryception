@@ -52,6 +52,7 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
 
     const promptConfig = resolveSummarizerPromptConfig(s, metadata);
     const prompt = buildSummarizerPrompt(promptConfig.userPromptTemplate, storyTxt, contextStr);
+    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
     logSummarizerPrompt({ s, systemPrompt: promptConfig.systemPrompt, prompt, metadata });
 
     currentAbortController = new AbortController();
@@ -62,11 +63,30 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
             systemPrompt: promptConfig.systemPrompt,
             prompt,
             signal: currentAbortController.signal,
-            metadata,
+            metadata: usageMetadata,
         });
     } finally {
         currentAbortController = null;
     }
+}
+
+/**
+ * Add usage-only details that should not affect prompt labels or routing.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {string} storyTxt - Source text being summarized
+ * @returns {Promise<import('./summarizer-usage.js').SummarizerCallMetadata>}
+ */
+async function buildUsageMetadata(metadata = {}, storyTxt = '') {
+    if (metadata.kind !== 'promotion') {
+        return metadata;
+    }
+
+    const memoryTokens = await countTextTokens(storyTxt || '');
+    return {
+        ...metadata,
+        memoryTokensBefore: memoryTokens.count,
+        memoryTokensBeforeEstimated: memoryTokens.estimated,
+    };
 }
 
 /**

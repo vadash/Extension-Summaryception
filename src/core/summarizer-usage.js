@@ -13,6 +13,8 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {PassageRegexStats} [regexStats] - Passage regex stats
  * @property {number} [layerIndex] - Source layer for promotion calls
  * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
+ * @property {number} [memoryTokensBefore] - Source memory size before promotion
+ * @property {boolean} [memoryTokensBeforeEstimated] - Whether memoryTokensBefore was estimated
  * @property {boolean} [useFallback] - Whether this call is routed through fallback
  */
 
@@ -225,7 +227,9 @@ function detachEndedRun(run) {
 function formatCallUsageLine(entry) {
     const callNumber = entry.callNumber > 0 ? `#${entry.callNumber} ` : '';
     const stats = formatRegexStats(entry.metadata?.regexStats);
-    const statsPart = stats ? `${stats}; ` : '';
+    const memoryStats = formatPromotionMemoryStats(entry);
+    const statsParts = [stats, memoryStats].filter(Boolean);
+    const statsPart = statsParts.length > 0 ? `${statsParts.join('; ')}; ` : '';
     return (
         `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
         `${statsPart}tokens prompt=${formatUsageTokenCount(
@@ -238,6 +242,24 @@ function formatCallUsageLine(entry) {
         )} ` +
         `total=${formatUsageTokenCount(entry.totalTokens, isTotalEstimated(entry))}`
     );
+}
+
+/**
+ * Format memory compression stats for a promotion call log.
+ * @param {SummarizerUsageEntry} entry - Usage entry
+ * @returns {string}
+ */
+function formatPromotionMemoryStats(entry) {
+    if (entry.metadata?.kind !== 'promotion') {
+        return '';
+    }
+    if (typeof entry.metadata.memoryTokensBefore !== 'number') {
+        return '';
+    }
+    return `memory=${formatUsageTokenCount(
+        entry.metadata.memoryTokensBefore,
+        entry.metadata.memoryTokensBeforeEstimated,
+    )}->${formatUsageTokenCount(entry.completionTokens, entry.completionTokensEstimated)}`;
 }
 
 /**
