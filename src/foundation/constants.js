@@ -43,6 +43,7 @@ export const defaultSettings = Object.freeze({
     customMemoryDepth: 0,
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
+    layer0SummaryTokenTarget: 150,
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,
@@ -55,7 +56,7 @@ export const defaultSettings = Object.freeze({
         '</summaryception_memory>',
 
     summarizerSystemPrompt:
-        'Role: precise narrative-state tracker. Output only the summary line — no preamble, no commentary, no markdown.',
+        'Role: aggressive narrative-state compressor. Output only the summary line — no preamble, no commentary, no markdown.',
 
     summarizerUserPrompt: `<player_name>
 {{player_name}}
@@ -69,21 +70,24 @@ export const defaultSettings = Object.freeze({
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
+Compress only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
-### TRACKING PRIORITIES:
-1. **Chronological Events & Actions:** Detailed step-by-step actions, precise clock times (e.g. "at 9:15 AM"), and relative time markers.
-2. **Relationship Rules & Power Dynamics:** Shifts in intimacy, dominant/submissive boundaries established, psychological vulnerability, or verbal agreements.
-3. **Conditional Environmental & Physical State:** Track environmental conditions (e.g., weather, rain, temperature) and physical stats (e.g., stamina, fatigue, physical performance limits) ONLY if they directly drive character behavior, impact their physical state, or establish narrative consequences. Omit ambient weather or inert background facts if they do not change character state.
-4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
+### TARGET:
+Aim for about 150 tokens. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
+
+### KEEP:
+1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
+2. **State changes:** Relationship status, boundaries, agreements, physical/emotional condition, revealed secrets, constraints, resources, and plans.
+3. **Unresolved hooks:** Pending actions, next intended step, promises, deadlines, risks, or anything the next reply must remember.
 
 ### EXCLUSIONS:
-- Exclude internal monologue that doesn't lead to action.
-- Exclude repetitive conversational filler and atmospheric descriptions that do not impact character behavior.
+- Exclude internal monologue unless it creates lasting intent or concealment.
+- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, and atmosphere unless they change durable state.
+- Collapse repeated intimate/action beats into outcomes, boundaries, tally/state changes, and immediate consequences.
 
 ### FORMATTING:
-Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
+Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
     promotionSystemPrompt:
         'Role: layered memory synthesizer. Merge lower-layer memories into a smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail. Output only the summary text - no preamble, no commentary, no markdown.',
@@ -179,21 +183,24 @@ export const PROMPT_PRESETS = {
 {{story_txt}}
 </passage_in_question>
 
-Summarize only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
+Compress only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
-### TRACKING PRIORITIES:
-1. **Chronological Events & Actions:** Detailed step-by-step actions, precise clock times (e.g. "at 9:15 AM"), and relative time markers.
-2. **Relationship Rules & Power Dynamics:** Shifts in intimacy, dominant/submissive boundaries established, psychological vulnerability, or verbal agreements.
-3. **Conditional Environmental & Physical State:** Track environmental conditions (e.g., weather, rain, temperature) and physical stats (e.g., stamina, fatigue, physical performance limits) ONLY if they directly drive character behavior, impact their physical state, or establish narrative consequences. Omit ambient weather or inert background facts if they do not change character state.
-4. **Unresolved Tensions:** Pending actions, anticipation, or immediate next steps (e.g., "waiting for alarm", "package arriving Wednesday").
+### TARGET:
+Aim for about 150 tokens. If the passage is event-heavy, prefer durable state over moment-by-moment replay.
+
+### KEEP:
+1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
+2. **State changes:** Relationship status, boundaries, agreements, physical/emotional condition, revealed secrets, constraints, resources, and plans.
+3. **Unresolved hooks:** Pending actions, next intended step, promises, deadlines, risks, or anything the next reply must remember.
 
 ### EXCLUSIONS:
-- Exclude internal monologue that doesn't lead to action.
-- Exclude repetitive conversational filler and atmospheric descriptions that do not impact character behavior.
+- Exclude internal monologue unless it creates lasting intent or concealment.
+- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, and atmosphere unless they change durable state.
+- Collapse repeated intimate/action beats into outcomes, boundaries, tally/state changes, and immediate consequences.
 
 ### FORMATTING:
-Output a single, highly dense chronological paragraph separated by semicolons. Use clear, active phrasing. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
+Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
 
     gamestate: `<player_name>
 {{player_name}}

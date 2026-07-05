@@ -170,7 +170,7 @@ function bindInputHelpers() {
  * @returns {void}
  */
 function bindSliderHandlers() {
-    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'memoryTokenBudget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion', display: string }>} */
+    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'memoryTokenBudget' | 'layer0SummaryTokenTarget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion', display: string }>} */
     const sliders = [
         {
             id: '#sc_verbatim_token_budget',
@@ -181,6 +181,11 @@ function bindSliderHandlers() {
             id: '#sc_memory_token_budget',
             key: 'memoryTokenBudget',
             display: '#sc_memory_token_budget_val',
+        },
+        {
+            id: '#sc_layer0_summary_token_target',
+            key: 'layer0SummaryTokenTarget',
+            display: '#sc_layer0_summary_token_target_val',
         },
         {
             id: '#sc_min_summary_budget',
@@ -611,6 +616,7 @@ function onResetDefaults() {
     s.minSummaryBudget = defaultSettings.minSummaryBudget;
     s.verbatimTokenBudget = defaultSettings.verbatimTokenBudget;
     s.memoryTokenBudget = defaultSettings.memoryTokenBudget;
+    s.layer0SummaryTokenTarget = defaultSettings.layer0SummaryTokenTarget;
     s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
     s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
 

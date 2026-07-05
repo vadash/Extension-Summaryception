@@ -12,6 +12,7 @@ import { ConnectionError } from './connection-error.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
 import { error as logError, warn } from '../foundation/logger.js';
 import { DefaultProvider } from './connection-default.js';
+import { getLayer0ResponseTokenCap, isLayer0CompressionCall } from './layer0-compression.js';
 import { OllamaProvider, fetchOllamaModels } from './connection-ollama.js';
 import { OpenAIProvider, testOpenAIConnection } from './connection-openai.js';
 import { ProfileProvider } from './connection-profile.js';
@@ -105,11 +106,10 @@ export function getConnectionDisplayName(settings) {
  * @returns {ExtensionSettings}
  */
 export function resolveSummarizerConnectionSettings(settings, metadata = {}) {
-    if (metadata.useFallback) {
-        return resolveFallbackSummarizerConnectionSettings(settings, metadata) || settings;
-    }
-
-    return resolvePrimarySummarizerConnectionSettings(settings, metadata);
+    const resolved = metadata.useFallback
+        ? resolveFallbackSummarizerConnectionSettings(settings, metadata) || settings
+        : resolvePrimarySummarizerConnectionSettings(settings, metadata);
+    return applyLayer0ResponseCap(resolved, metadata);
 }
 
 /**
@@ -156,7 +156,42 @@ export function resolveFallbackSummarizerConnectionSettings(settings, metadata =
         openaiMaxTokens: settings.fallbackOpenaiMaxTokens || 0,
     };
 
-    return isSameConnectionRoute(primary, fallback) ? null : fallback;
+    return isSameConnectionRoute(primary, fallback)
+        ? null
+        : applyLayer0ResponseCap(fallback, metadata);
+}
+
+/**
+ * Apply the Layer 0 semantic target as a provider output cap.
+ * @param {ExtensionSettings} settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {ExtensionSettings}
+ */
+function applyLayer0ResponseCap(settings, metadata = {}) {
+    if (!isLayer0CompressionCall(metadata)) {
+        return settings;
+    }
+
+    const cap = getLayer0ResponseTokenCap(settings);
+    if ((settings.connectionSource || 'default') === 'openai') {
+        return {
+            ...settings,
+            openaiMaxTokens: chooseLowerPositiveCap(settings.openaiMaxTokens, cap),
+        };
+    }
+
+    return {
+        ...settings,
+        summarizerResponseLength: chooseLowerPositiveCap(settings.summarizerResponseLength, cap),
+    };
+}
+
+function chooseLowerPositiveCap(configured, fallbackCap) {
+    const parsed = Number(configured);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return fallbackCap;
+    }
+    return Math.min(Math.round(parsed), fallbackCap);
 }
 
 /**

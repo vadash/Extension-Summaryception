@@ -76,6 +76,7 @@ describe('state.js', () => {
                 customMemoryDepth: 10001,
                 minSummaryTurns: 9,
                 maxSummaryTurns: 4,
+                layer0SummaryTokenTarget: 47,
                 minSummaryBudget: 6500,
                 verbatimTokenBudget: 6500,
                 memoryTokenBudget: 6500,
@@ -90,11 +91,30 @@ describe('state.js', () => {
             customMemoryDepth: 10000,
             minSummaryTurns: 9,
             maxSummaryTurns: 9,
+            layer0SummaryTokenTarget: 80,
             minSummaryBudget: 7000,
             verbatimTokenBudget: 7000,
             memoryTokenBudget: 7000,
             snippetsPerPromotion: 3,
         });
+    });
+
+    it('updates unmodified legacy narrative prompts to the current compressed preset', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                promptPreset: 'narrative',
+                summarizerUserPrompt:
+                    'Detailed step-by-step actions\n' +
+                    'Conditional Environmental & Physical State\n' +
+                    'Output a single, highly dense chronological paragraph',
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
     it('allows maximum summary turns up to twelve', () => {

@@ -98,6 +98,40 @@ describe('callSummarizer abort signal plumbing', () => {
         );
     });
 
+    it('adds Layer 0 compression constraints without changing promotion prompts', async () => {
+        installSillyTavernStub({
+            settings: {
+                layer0SummaryTokenTarget: 120,
+                summarizerSystemPrompt: 'L0_SYS',
+                summarizerUserPrompt: 'CUSTOM {{context_str}} STORY {{story_txt}}',
+                promotionSystemPrompt: 'PROMO_SYS',
+                promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceRange: [0, 1],
+            assistantTurnCount: 1,
+        });
+        await callSummarizer('merged snippets', 'deep context', {
+            kind: 'promotion',
+            layerIndex: 0,
+            mergedSnippetCount: 3,
+        });
+
+        expect(mocks.sendSummarizerRequest.mock.calls[0][2]).toContain(
+            'Target length: at most about 120 tokens',
+        );
+        expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toBe(
+            'PROMO deep context MEMORY merged snippets',
+        );
+    });
+
     it('routes through fallback after primary retry exhaustion', async () => {
         vi.useFakeTimers();
         mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue({

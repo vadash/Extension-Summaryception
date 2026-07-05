@@ -12,6 +12,7 @@ export const OllamaProvider = {
             settings.ollamaModel,
             systemPrompt,
             userPrompt,
+            settings.summarizerResponseLength,
             signal,
         );
     },
@@ -29,10 +30,11 @@ export const OllamaProvider = {
  * @param {string} model - The model name
  * @param {string} systemPrompt - The system prompt
  * @param {string} userPrompt - The user prompt
+ * @param {number|AbortSignal} [maxTokens] - Optional max generated tokens
  * @param {AbortSignal} [signal] - Optional request abort signal
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaOllama(url, model, systemPrompt, userPrompt, signal) {
+export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTokens = 0, signal) {
     if (!url) {
         throw new ConnectionError(
             'Ollama URL is not configured. Please set it in Summaryception settings.',
@@ -46,8 +48,15 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, signal
         );
     }
 
+    const requestSignal = isAbortSignal(maxTokens) ? maxTokens : signal;
+    const tokenLimit = isAbortSignal(maxTokens) ? 0 : Number(maxTokens) || 0;
     const baseUrl = url.replace(/\/+$/, '');
     const targetUrl = `${baseUrl}/api/chat`;
+    const options = { temperature: 0.3 };
+    if (tokenLimit && tokenLimit > 0) {
+        options.num_predict = Math.round(tokenLimit);
+    }
+
     const body = JSON.stringify({
         model: model,
         messages: [
@@ -55,12 +64,16 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, signal
             { role: 'user', content: userPrompt },
         ],
         stream: false,
-        options: { temperature: 0.3 },
+        options,
     });
 
     let response;
     try {
-        response = await fetchWithProxyFallback(targetUrl, { method: 'POST', body, signal });
+        response = await fetchWithProxyFallback(targetUrl, {
+            method: 'POST',
+            body,
+            signal: requestSignal,
+        });
     } catch (e) {
         if (/** @type {{ name?: string }} */ (e)?.name === 'AbortError') {
             throw e;
@@ -90,6 +103,14 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, signal
     }
 
     return data.message.content;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is AbortSignal}
+ */
+function isAbortSignal(value) {
+    return Boolean(value && typeof value === 'object' && 'aborted' in value);
 }
 
 /**

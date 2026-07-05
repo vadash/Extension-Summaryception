@@ -21,6 +21,7 @@ import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/r
 import { cleanSummarizerOutput } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
+import { appendLayer0PromptConstraints } from './layer0-compression.js';
 
 let currentAbortController = null;
 const PRIMARY_HEALTH_BUCKETS = {
@@ -66,7 +67,13 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     });
 
     const promptConfig = resolveSummarizerPromptConfig(s, metadata);
-    const prompt = buildSummarizerPrompt(promptConfig.userPromptTemplate, storyTxt, contextStr);
+    const prompt = buildSummarizerPrompt(
+        promptConfig.userPromptTemplate,
+        storyTxt,
+        contextStr,
+        s,
+        metadata,
+    );
     const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
 
     currentAbortController = new AbortController();
@@ -150,13 +157,16 @@ function getStringSetting(value, fallback) {
  * @param {string} template - User prompt template
  * @param {string} storyTxt - Story text
  * @param {string} contextStr - Context text
+ * @param {ExtensionSettings} settings - Active settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @returns {string}
  */
-function buildSummarizerPrompt(template, storyTxt, contextStr) {
-    return template
+function buildSummarizerPrompt(template, storyTxt, contextStr, settings, metadata) {
+    const prompt = template
         .replace('{{player_name}}', getPlayerName())
         .replace('{{context_str}}', contextStr || '(none yet)')
         .replace('{{story_txt}}', storyTxt);
+    return appendLayer0PromptConstraints(prompt, settings, metadata);
 }
 
 /**

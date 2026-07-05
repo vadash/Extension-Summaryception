@@ -43,7 +43,7 @@ const CONNECTION_GROUPS = [
         openaiModelId: 'summaryception_openai_model',
         openaiMaxTokensId: 'summaryception_openai_max_tokens',
         sourceRisk: 'a weak or misconfigured route makes every new summary worse.',
-        responseDefault: '0 uses the preset or selected profile default.',
+        responseDefault: '0 uses the Layer 0 target plus a safety buffer.',
     },
     {
         key: 'merge',
@@ -153,6 +153,22 @@ const HELP_ENTRIES = [
             higher: 'keeps more detailed memory before promotion pressure rises.',
             lower: 'promotes and compresses memory sooner.',
             defaultText: '10k.',
+        }),
+    ],
+    [
+        'layer0_summary_token_target',
+        sliderHelp({
+            selector: selectorFor('sc_layer0_summary_token_target'),
+            title: 'Layer 0 Target Tokens',
+            short: 'Target size for each raw-chat summary.',
+            controls: [
+                controlFor('sc_layer0_summary_token_target'),
+                controlFor('sc_layer0_summary_token_target_val'),
+            ],
+            meaning: 'Target size for one Layer 0 summary before it is injected as memory.',
+            higher: 'keeps more detail in each Layer 0 snippet.',
+            lower: 'compresses each snippet harder and leaves more memory budget.',
+            defaultText: '150.',
         }),
     ],
     [

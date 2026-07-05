@@ -116,9 +116,13 @@ describe('summarizer usage logging', () => {
             attempt: 1,
             messages: [
                 { role: 'system', content: 'SYS' },
-                { role: 'user', content: 'CTX prior context STORY source passage' },
+                {
+                    role: 'user',
+                    content: expect.stringContaining('CTX prior context STORY source passage'),
+                },
             ],
         });
+        expect(inputLog.messages[1].content).toContain('Target length: at most about 150 tokens');
         expect(outputLog).toBeNull();
         expect(getConsoleText()).not.toContain('summary text');
     });

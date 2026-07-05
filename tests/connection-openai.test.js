@@ -117,6 +117,18 @@ describe('sendViaOpenAI streaming', () => {
         );
     });
 
+    it('passes max_tokens when configured', async () => {
+        const response = makeStreamResponse([{ value: sseEvent('done') }, { value: sseDone() }]);
+        stubFetch(response);
+
+        await sendTestRequest({ maxTokens: 180 });
+
+        const body = JSON.parse(
+            /** @type {string} */ (/** @type {any} */ (globalThis.fetch).mock.calls[0][1].body),
+        );
+        expect(body.max_tokens).toBe(180);
+    });
+
     it.each([
         [
             'long',

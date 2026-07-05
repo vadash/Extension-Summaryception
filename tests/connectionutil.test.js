@@ -148,7 +148,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('leaves non-promotion calls on the Layer 0 connection', () => {
+    it('keeps lower explicit Layer 0 response caps', () => {
         const settings = {
             connectionSource: 'default',
             summarizerResponseLength: 64,
@@ -156,7 +156,65 @@ describe('connection providers registry', () => {
             mergeConnectionProfileId: 'smart-profile',
         };
 
-        expect(resolveSummarizerConnectionSettings(settings, { kind: 'layer0' })).toBe(settings);
+        expect(resolveSummarizerConnectionSettings(settings, { kind: 'layer0' })).toMatchObject({
+            connectionSource: 'default',
+            summarizerResponseLength: 64,
+        });
+    });
+
+    it('applies the default Layer 0 target cap when response length is unset', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'default',
+                summarizerResponseLength: 0,
+                layer0SummaryTokenTarget: 150,
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'default',
+            summarizerResponseLength: 200,
+        });
+    });
+
+    it('passes the Layer 0 target cap to the default provider', async () => {
+        const generateRaw = installGenerateRaw();
+
+        await sendSummarizerRequest(
+            {
+                connectionSource: 'default',
+                summarizerResponseLength: 0,
+                layer0SummaryTokenTarget: 150,
+            },
+            'system prompt',
+            'user prompt',
+            undefined,
+            { kind: 'layer0' },
+        );
+
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 200,
+        });
+    });
+
+    it('applies the Layer 0 target cap to OpenAI max tokens', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'openai',
+                openaiMaxTokens: 0,
+                layer0SummaryTokenTarget: 120,
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            openaiMaxTokens: 170,
+        });
     });
 
     it('resolves a distinct fallback route for Layer 0 calls', () => {
@@ -167,6 +225,7 @@ describe('connection providers registry', () => {
                 fallbackConnectionSource: 'profile',
                 fallbackConnectionProfileId: 'backup-profile',
                 fallbackSummarizerResponseLength: 512,
+                layer0SummaryTokenTarget: 150,
             },
             { kind: 'layer0' },
         );
@@ -174,7 +233,7 @@ describe('connection providers registry', () => {
         expect(fallback).toMatchObject({
             connectionSource: 'profile',
             connectionProfileId: 'backup-profile',
-            summarizerResponseLength: 512,
+            summarizerResponseLength: 200,
         });
     });
 
@@ -190,6 +249,7 @@ describe('connection providers registry', () => {
                 openaiKey: 'shared-key',
                 fallbackOpenaiModel: 'backup-model',
                 fallbackOpenaiMaxTokens: 300,
+                layer0SummaryTokenTarget: 150,
             },
             { kind: 'promotion' },
         );

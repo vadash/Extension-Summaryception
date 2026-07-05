@@ -53,6 +53,7 @@ interface ExtensionSettings {
     customMemoryDepth: number;
     minSummaryTurns: number;
     maxSummaryTurns: number;
+    layer0SummaryTokenTarget: number;
     minSummaryBudget: number;
     verbatimTokenBudget: number;
     memoryTokenBudget: number;

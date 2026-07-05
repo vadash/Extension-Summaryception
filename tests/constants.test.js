@@ -28,6 +28,7 @@ describe('constants', () => {
         expect(defaultSettings.customMemoryDepth).toBe(0);
         expect(defaultSettings.minSummaryTurns).toBe(3);
         expect(defaultSettings.maxSummaryTurns).toBe(8);
+        expect(defaultSettings.layer0SummaryTokenTarget).toBe(150);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
             defaultSettings.minSummaryTurns,
         );
@@ -68,10 +69,9 @@ describe('constants', () => {
         expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'gamestate', 'narrative']);
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
-        expect(PROMPT_PRESETS.narrative).toContain('Conditional Environmental & Physical State');
-        expect(PROMPT_PRESETS.narrative).toContain(
-            'Omit ambient weather or inert background facts',
-        );
+        expect(PROMPT_PRESETS.narrative).toContain('TARGET');
+        expect(PROMPT_PRESETS.narrative).toContain('about 150 tokens');
+        expect(PROMPT_PRESETS.narrative).toContain('durable state');
         expect(PROMPT_PRESETS.gamestate).toContain('{{story_txt}}');
     });
 

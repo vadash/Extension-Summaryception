@@ -248,7 +248,7 @@
                     <div class="sc-setting-row">
                         <label for="sc_summarizer_response_length">
                             <span>Layer 0 Response Length</span>
-                            <small>0 uses the preset or profile default. Use 4096 for providers that reject larger non-streaming limits.</small>
+                            <small>0 uses the Layer 0 target plus a safety buffer. Lower values override that cap.</small>
                         </label>
                         <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use preset default" />
                     </div>
@@ -634,6 +634,16 @@
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" />
                                     <input id="sc_memory_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="10k" />
+                                </div>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_layer0_summary_token_target">
+                                    <span>Layer 0 Target Tokens</span>
+                                    <small class="sc-hint">Target size for each raw-chat summary.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_layer0_summary_token_target" min="80" max="400" step="10" />
+                                    <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="number" min="80" max="400" step="10" value="150" />
                                 </div>
                             </div>
                             <div class="sc-row">

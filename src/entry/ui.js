@@ -65,6 +65,8 @@ function syncSettingsInputs(s) {
     $('#sc_verbatim_token_budget_val').val(formatSliderChipValue(s.verbatimTokenBudget));
     $('#sc_memory_token_budget').val(s.memoryTokenBudget);
     $('#sc_memory_token_budget_val').val(formatSliderChipValue(s.memoryTokenBudget));
+    $('#sc_layer0_summary_token_target').val(s.layer0SummaryTokenTarget);
+    $('#sc_layer0_summary_token_target_val').val(s.layer0SummaryTokenTarget);
     $('#sc_min_summary_budget').val(s.minSummaryBudget);
     $('#sc_min_summary_budget_val').val(formatSliderChipValue(s.minSummaryBudget));
     $('#sc_min_summary_turns').val(s.minSummaryTurns);

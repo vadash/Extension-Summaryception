@@ -4,6 +4,7 @@ This directory houses the background worker, LLM connections, token counting, an
 
 ## Memory & Layers
 - **Layer 0:** Turn summaries selected by the dynamic verbatim window. Overflow waits for `minSummaryTurns` and `minSummaryBudget`.
+- **Layer 0 compression:** Keep L0 prompt constraints and provider output caps routed through `layer0-compression.js`; custom prompts and regeneration still need the runtime L0 constraints.
 - **Layers 1+:** Meta-summaries promoted from lower layers.
 - **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, and non-compressing promotion output must not be committed.
 - **Regex:** Apply SillyTavern regex scripts only while rendering chat passages into Layer 0 or regeneration source text; promotion inputs are synthetic memory and must not be regexed.

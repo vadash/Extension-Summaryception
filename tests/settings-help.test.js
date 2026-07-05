@@ -7,6 +7,7 @@ const SETTINGS_HTML = readFileSync(new URL('../settings.html', import.meta.url),
 const SLIDER_HELP_KEYS = [
     'verbatim_token_budget',
     'memory_token_budget',
+    'layer0_summary_token_target',
     'min_summary_budget',
     'min_summary_turns',
     'max_summary_turns',

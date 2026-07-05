@@ -70,6 +70,33 @@ describe('sendViaOllama', () => {
             expect.objectContaining({ signal: controller.signal }),
         );
     });
+
+    it('passes max tokens as Ollama num_predict', async () => {
+        stubJsonResponse({ message: { content: 'summary text' } });
+
+        await sendViaOllama(
+            'http://localhost:11434/',
+            'llama3',
+            'system prompt',
+            'user prompt',
+            180,
+        );
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+            '/proxy/http://localhost:11434/api/chat',
+            expect.objectContaining({
+                body: JSON.stringify({
+                    model: 'llama3',
+                    messages: [
+                        { role: 'system', content: 'system prompt' },
+                        { role: 'user', content: 'user prompt' },
+                    ],
+                    stream: false,
+                    options: { temperature: 0.3, num_predict: 180 },
+                }),
+            }),
+        );
+    });
 });
 
 describe('fetchOllamaModels', () => {
