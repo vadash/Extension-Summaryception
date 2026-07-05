@@ -120,7 +120,7 @@ Consolidate only the new information from <memories_to_consolidate> into a highl
 ### FORMAT:
 Write one dense third-person paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, or meta-commentary.`,
 
-    promptPreset: 'narrative', // 'narrative' | 'gamestate' | 'custom'
+    promptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
     lastCustomPrompt: '', // Auto-saved when switching away from custom
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
@@ -202,26 +202,6 @@ Follow the runtime Layer 0 target length. If the passage is event-heavy, prefer 
 
 ### FORMATTING:
 Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
-
-    gamestate: `<player_name>
-{{player_name}}
-</player_name>
-
-<prior_context>
-{{context_str}}
-</prior_context>
-
-<passage_in_question>
-{{story_txt}}
-</passage_in_question>
-
-Summarize only the necessary elements from the passage_in_question to coherently continue the prior_context.
-
-Focus on: story progression, plot points, plans, tasks, quests; location changes and current location (reference by name); location interactables encountered, used, or discovered; significant changes to player, NPCs, locations, world, or setting.
-
-Exclude anything insubstantial, fluff, atmospheric details, or events already covered in Prior Context.
-Skip any passages that are empty, unclear, or lack significant content.
-Write in short phrases, no more than 20; output must be a single line:`,
 
     custom: null, // Uses whatever is in the textarea
 };

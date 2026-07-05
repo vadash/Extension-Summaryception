@@ -348,7 +348,7 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 0 user-prompt template.',
             controls: [controlFor('sc_prompt_preset')],
             controlsText: 'Controls which Layer 0 user prompt template is active.',
-            when: 'when switching between narrative memory, game-state memory, or your own custom prompt.',
+            when: 'when switching between narrative memory and your own custom prompt.',
             risk: 'changing presets can change what future summaries preserve.',
         }),
     ],

@@ -162,25 +162,25 @@ function normalizeVerbatimWindowSettings(settings) {
 }
 
 /**
- * Migrate prompt presets for existing users: empty/old-default -> narrative, custom -> 'custom'.
+ * Migrate prompt presets for existing users: empty -> narrative, existing text -> custom.
  * @param {ExtensionSettings} settings
  * @param {boolean} hadPromptPreset
  * @param {string} promptBeforeBackfill
  * @returns {void}
  */
 function ensurePromptPresetMigrated(settings, hadPromptPreset, promptBeforeBackfill) {
-    if (hadPromptPreset) {
+    if (hadPromptPreset && Object.hasOwn(PROMPT_PRESETS, settings.promptPreset)) {
         return;
     }
     const currentPrompt = promptBeforeBackfill.trim();
-    const gameStatePrompt = PROMPT_PRESETS.gamestate.trim();
 
-    if (!currentPrompt || currentPrompt === gameStatePrompt) {
+    if (!currentPrompt) {
         settings.promptPreset = 'narrative';
         settings.summarizerUserPrompt = PROMPT_PRESETS.narrative;
         saveSettingsDebounced();
     } else {
         settings.promptPreset = 'custom';
+        settings.lastCustomPrompt = settings.summarizerUserPrompt || promptBeforeBackfill;
         saveSettingsDebounced();
     }
 }

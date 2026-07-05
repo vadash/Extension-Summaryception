@@ -66,14 +66,14 @@ describe('constants', () => {
     });
 
     it('exposes every documented prompt preset', () => {
-        expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'gamestate', 'narrative']);
+        expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'narrative']);
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
         expect(PROMPT_PRESETS.narrative).toContain('TARGET');
         expect(PROMPT_PRESETS.narrative).toContain('runtime Layer 0 target length');
         expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
         expect(PROMPT_PRESETS.narrative).toContain('durable state');
-        expect(PROMPT_PRESETS.gamestate).toContain('{{story_txt}}');
+        expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
     });
 
     it('defaults to the narrative preset', () => {

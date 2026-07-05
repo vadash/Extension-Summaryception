@@ -363,7 +363,11 @@ function bindTextareaHandlers() {
 
     for (const ta of textareas) {
         $(document).on('change', ta.id, function () {
-            getSettings()[ta.key] = $(this).val();
+            const s = getSettings();
+            s[ta.key] = $(this).val();
+            if (ta.key === 'summarizerSystemPrompt') {
+                switchLayer0PromptToCustom(s);
+            }
             saveSettings();
         });
     }
@@ -597,35 +601,53 @@ function onResetDefaults() {
     if (
         !confirm(
             'Reset all Advanced Settings to defaults?\n\n' +
-                'This will reset sliders, prompts, injection template, and strip patterns.\n' +
-                'It will NOT clear your summary memory or connection settings.',
+                'This will reset sliders, stock prompts, injection template, and strip patterns.\n' +
+                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom Layer 0 prompt.',
         )
     ) {
         return;
     }
 
     const s = getSettings();
+    const preservedMemoryMode = s.memoryMode;
+    const preservedCustomMemoryPosition = s.customMemoryPosition;
+    const preservedCustomMemoryRole = s.customMemoryRole;
+    const preservedCustomMemoryDepth = s.customMemoryDepth;
+    const preserveCustomLayer0Prompt = s.promptPreset === 'custom';
+    const preservedLayer0Prompt = {
+        systemPrompt: s.summarizerSystemPrompt,
+        userPrompt: s.summarizerUserPrompt,
+        lastCustomPrompt: s.lastCustomPrompt || s.summarizerUserPrompt || '',
+    };
 
     // Reset sliders
-    s.memoryMode = defaultSettings.memoryMode;
-    s.customMemoryPosition = defaultSettings.customMemoryPosition;
-    s.customMemoryRole = defaultSettings.customMemoryRole;
-    s.customMemoryDepth = defaultSettings.customMemoryDepth;
+    s.memoryMode = preservedMemoryMode;
+    s.customMemoryPosition = preservedCustomMemoryPosition;
+    s.customMemoryRole = preservedCustomMemoryRole;
+    s.customMemoryDepth = preservedCustomMemoryDepth;
     s.minSummaryTurns = defaultSettings.minSummaryTurns;
     s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
     s.minSummaryBudget = defaultSettings.minSummaryBudget;
-    s.verbatimTokenBudget = defaultSettings.verbatimTokenBudget;
+    s.verbatimTokenBudget =
+        preservedMemoryMode === MEMORY_MODES.CACHE ? 32000 : defaultSettings.verbatimTokenBudget;
     s.memoryTokenBudget = defaultSettings.memoryTokenBudget;
     s.layer0SummaryTokenTarget = defaultSettings.layer0SummaryTokenTarget;
     s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
     s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
 
     // Reset prompts
-    s.summarizerSystemPrompt = defaultSettings.summarizerSystemPrompt;
-    s.summarizerUserPrompt = defaultSettings.summarizerUserPrompt;
+    s.summarizerSystemPrompt = preserveCustomLayer0Prompt
+        ? preservedLayer0Prompt.systemPrompt
+        : defaultSettings.summarizerSystemPrompt;
+    s.summarizerUserPrompt = preserveCustomLayer0Prompt
+        ? preservedLayer0Prompt.userPrompt
+        : defaultSettings.summarizerUserPrompt;
     s.promotionSystemPrompt = defaultSettings.promotionSystemPrompt;
     s.promotionUserPrompt = defaultSettings.promotionUserPrompt;
-    s.promptPreset = defaultSettings.promptPreset;
+    s.promptPreset = preserveCustomLayer0Prompt ? 'custom' : defaultSettings.promptPreset;
+    if (preserveCustomLayer0Prompt) {
+        s.lastCustomPrompt = preservedLayer0Prompt.lastCustomPrompt;
+    }
     s.injectionTemplate = defaultSettings.injectionTemplate;
     s.stripPatterns = [...defaultSettings.stripPatterns];
     s.summarizerResponseLength = defaultSettings.summarizerResponseLength;
@@ -643,7 +665,7 @@ function onResetDefaults() {
     updateUI();
 
     toastr.success(
-        'Advanced settings reset to defaults. Connection settings and summary memory were preserved.',
+        'Advanced settings reset to defaults. Memory mode, connection settings, and summary memory were preserved.',
         'Summaryception',
         { timeOut: 4000 },
     );
@@ -706,7 +728,12 @@ function bindClickHandlers() {
 function bindPromptPresetHandlers() {
     // Prompt Preset dropdown
     $(document).on('change', '#sc_prompt_preset', function () {
-        const selected = $(this).val();
+        const selected = String($(this).val());
+        if (!Object.hasOwn(PROMPT_PRESETS, selected)) {
+            $('#sc_prompt_preset').val(defaultSettings.promptPreset);
+            return;
+        }
+
         const s = getSettings();
         const previousPreset = s.promptPreset;
 
@@ -725,7 +752,7 @@ function bindPromptPresetHandlers() {
             }
             $('#sc_custom_prompt_manager').show();
         } else {
-            const presetText = PROMPT_PRESETS[selected];
+            const presetText = PROMPT_PRESETS[selected] || defaultSettings.summarizerUserPrompt;
             $('#sc_summarizer_user_prompt').val(presetText);
             s.summarizerUserPrompt = presetText;
             $('#sc_custom_prompt_manager').hide();
@@ -745,11 +772,7 @@ function bindPromptPresetHandlers() {
         if (s.promptPreset !== 'custom') {
             const presetText = PROMPT_PRESETS[s.promptPreset];
             if (currentText !== presetText) {
-                s.promptPreset = 'custom';
-                s.lastCustomPrompt = currentText;
-                $('#sc_prompt_preset').val('custom');
-                $('#sc_custom_prompt_manager').show();
-                updateCustomPromptSlots();
+                switchLayer0PromptToCustom(s, currentText);
             }
         } else {
             s.lastCustomPrompt = currentText;
@@ -757,6 +780,19 @@ function bindPromptPresetHandlers() {
 
         saveSettings();
     });
+}
+
+function switchLayer0PromptToCustom(settings, promptText = settings.summarizerUserPrompt || '') {
+    if (settings.promptPreset === 'custom') {
+        settings.lastCustomPrompt = promptText;
+        return;
+    }
+
+    settings.promptPreset = 'custom';
+    settings.lastCustomPrompt = promptText;
+    $('#sc_prompt_preset').val('custom');
+    $('#sc_custom_prompt_manager').show();
+    updateCustomPromptSlots();
 }
 
 /**

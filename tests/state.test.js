@@ -41,9 +41,9 @@ describe('state.js', () => {
     });
 
     it.each([
-        ['old default', PROMPT_PRESETS.gamestate, 'narrative', PROMPT_PRESETS.narrative],
-        ['custom', 'Summarize only named locations.', 'custom', 'Summarize only named locations.'],
-    ])('migrates an %s prompt preset when settings are loaded', (_label, prompt, preset, saved) => {
+        ['', 'narrative', PROMPT_PRESETS.narrative],
+        ['Summarize only named locations.', 'custom', 'Summarize only named locations.'],
+    ])('migrates a missing prompt preset when loaded', (prompt, preset, saved) => {
         const ctx = installSillyTavernStub({ settings: { summarizerUserPrompt: prompt } });
         ctx.saveSettingsDebounced = vi.fn();
 
@@ -51,6 +51,23 @@ describe('state.js', () => {
 
         expect(settings.promptPreset).toBe(preset);
         expect(settings.summarizerUserPrompt).toBe(saved);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it('normalizes removed prompt presets to custom without rewriting prompt text', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                promptPreset: 'gamestate',
+                summarizerUserPrompt: 'Old game-state prompt text.',
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.promptPreset).toBe('custom');
+        expect(settings.summarizerUserPrompt).toBe('Old game-state prompt text.');
+        expect(settings.lastCustomPrompt).toBe('Old game-state prompt text.');
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 

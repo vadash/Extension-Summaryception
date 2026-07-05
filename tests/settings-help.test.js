@@ -87,6 +87,14 @@ describe('settings help metadata', () => {
         }
     });
 
+    it('keeps Prompt Preset limited to narrative and custom choices', () => {
+        expect(SETTINGS_HTML).toContain('<option value="narrative">Narrative State (Default)');
+        expect(SETTINGS_HTML).toContain('<option value="custom">Custom</option>');
+        expect(SETTINGS_HTML).not.toContain('value="gamestate"');
+        expect(SETTINGS_HTML).not.toContain('Game State');
+        expect(SETTINGS_HELP.prompt_preset.detail).not.toContain('game-state');
+    });
+
     it('documents Layer 0 output caps separately from merge and fallback provider defaults', () => {
         expect(SETTINGS_HELP.layer0_response_length.detail).toContain(
             '0 uses the Layer 0 target plus a safety buffer',
