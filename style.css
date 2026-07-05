@@ -134,6 +134,60 @@
     opacity: 0.68;
 }
 .sc-help-text { margin: -2px 0 7px; }
+.sc-help-target { position: relative; }
+.sc-help-icon {
+    display: inline-block;
+    margin-left: 4px;
+    color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 58%, transparent);
+    cursor: help;
+    font-size: 0.78em;
+    line-height: 1;
+    opacity: 0.72;
+    vertical-align: baseline;
+}
+.sc-help-target:hover .sc-help-icon,
+.sc-help-target:focus-within .sc-help-icon {
+    color: var(--sc-accent);
+    opacity: 1;
+}
+.sc-help-row-hint {
+    margin: -3px 0 5px;
+}
+.sc-help-tooltip {
+    position: fixed;
+    z-index: 10001;
+    display: none;
+    width: min(320px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+    padding: 8px 9px;
+    border: 1px solid var(--sc-border);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--sc-field) 94%, black);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
+    color: var(--SmartThemeBodyColor, #ddd);
+    font-size: 0.8em;
+    line-height: 1.34;
+    pointer-events: none;
+}
+.sc-help-tooltip-title {
+    margin-bottom: 3px;
+    color: var(--SmartThemeBodyColor, #fff);
+    font-weight: 700;
+}
+.sc-help-tooltip-body {
+    color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 86%, transparent);
+}
+.sc-sr-only {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
 .sc-hint code,
 .sc-note code {
     padding: 1px 4px;

@@ -7,6 +7,7 @@ import { countTextTokens, formatTokenValue } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock } from '../features/injection.js';
+import { SETTINGS_HELP } from './settings-help.js';
 import {
     deleteSnippetAt,
     getSnippetRegenerationTarget,
@@ -204,9 +205,7 @@ function syncMemoryModeControls(s) {
     $('#sc_cache_status_section').toggle(isCache);
     $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', false);
     $('#sc_min_summary_turns, #sc_max_summary_turns').closest('.sc-row').removeClass('sc-disabled');
-    $('#sc_min_summary_budget_hint').text(
-        'Overflow passage tokens to collect before summarizing short batches.',
-    );
+    $('#sc_min_summary_budget_hint').text(SETTINGS_HELP.min_summary_budget.short);
 }
 
 function getGhostedCount() {

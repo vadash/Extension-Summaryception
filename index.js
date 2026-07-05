@@ -20,6 +20,7 @@ import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
+import { initSettingsHelp } from './src/entry/settings-help.js';
 import { initSettingsTabs } from './src/entry/ui-tabs.js';
 import { showAutoBacklogNotice } from './src/entry/ui-dialogs.js';
 import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
@@ -49,6 +50,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     );
     $('#extensions_settings2').append(html);
 
+    initSettingsHelp();
     bindUIEvents();
     initSettingsTabs();
     initConnectionUI();

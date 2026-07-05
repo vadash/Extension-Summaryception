@@ -4,6 +4,7 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 
 ## UI Guidelines
 - Keep HTML control IDs stable.
+- Root `settings.html` and `style.css` are the SillyTavern-rendered UI assets; `src/entry/` modules should annotate or bind that DOM only after the template is appended.
 - Prefer compact, theme-aware panels and Font Awesome icons over emoji headings.
 - Settings UI reloads should always land on the Status tab.
 - Keep budget/status visuals compact and read-only.
