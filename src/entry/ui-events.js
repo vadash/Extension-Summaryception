@@ -22,7 +22,6 @@ import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
-import { repairOrphanedMessages } from '../features/maintenance.js';
 import { updateUI, updateCustomPromptSlots, syncPayloadSchematic } from './ui.js';
 import {
     clearManualProgressToast,
@@ -366,44 +365,6 @@ function bindTextareaHandlers() {
 }
 
 /**
- * Scan chat for stuck-hidden (orphaned) messages and unhide them.
- * @returns {Promise<void>}
- */
-async function onRepairOrphans() {
-    const progressToast = toastr.info(
-        'Scanning for orphaned messages...',
-        'Summaryception - Repair',
-        { timeOut: 0, extendedTimeOut: 0, tapToDismiss: false },
-    );
-
-    const result = await repairOrphanedMessages({
-        onProgress: (repaired) => updateRepairProgress(progressToast, repaired),
-    });
-
-    toastr.clear(progressToast);
-
-    if (result.status === 'repaired') {
-        updateUI();
-        toastr.success(
-            `Repaired ${result.repaired} orphaned messages. They are now visible to the summarizer again.`,
-            'Summaryception',
-            { timeOut: 5000 },
-        );
-    } else {
-        toastr.info('No orphaned messages found.', 'Summaryception', { timeOut: 3000 });
-    }
-}
-
-function updateRepairProgress(progressToast, repaired) {
-    if (repaired % 5 !== 0) {
-        return;
-    }
-    $(progressToast)
-        .find('.toast-message')
-        .text(`Repairing: found ${repaired} orphaned messages...`);
-}
-
-/**
  * Abort a manual summarization run from its progress toast.
  * @param {AbortController} controller
  * @returns {void}
@@ -685,8 +646,6 @@ function onResetDefaults() {
  * @returns {void}
  */
 function bindClickHandlers() {
-    $(document).on('click', '#sc_repair', onRepairOrphans);
-
     $(document).on('click', '#sc_clear_memory', async function () {
         if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) {
             return;

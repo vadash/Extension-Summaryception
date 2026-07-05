@@ -11,6 +11,7 @@ import {
     resetCatchupDismissed,
 } from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
+import { repairOrphanedMessages } from '../features/maintenance.js';
 import { updateUI } from './ui.js';
 
 // ─── Event Handlers ──────────────────────────────────────────────────
@@ -97,6 +98,7 @@ export function onGenerationEnded() {
 async function reconcileLoadedChatState() {
     getChatStore();
     await repairIfBranched();
+    await repairOrphanedMessages();
     updateInjection();
     await repairMissingGhostingForSummaries();
 }

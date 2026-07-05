@@ -101,6 +101,9 @@
     border-radius: var(--sc-radius);
     background: var(--sc-surface);
 }
+.sc-enable-section {
+    margin-top: 6px;
+}
 .sc-section-header,
 .sc-field-header {
     display: flex;
@@ -161,9 +164,9 @@
     line-height: 1.2;
 }
 .sc-payload-rail {
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 4px;
     margin-bottom: 7px;
 }
@@ -172,6 +175,7 @@
 }
 .sc-payload-part {
     display: grid;
+    flex: 1 1 112px;
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto auto;
     align-items: center;
@@ -202,6 +206,7 @@
     font-size: 0.9em;
 }
 .sc-payload-part-source {
+    flex-basis: 126px;
     background: color-mix(in srgb, var(--sc-field) 80%, black);
 }
 .sc-payload-tail {
@@ -211,6 +216,7 @@
     color: var(--sc-warning);
 }
 .sc-payload-arrow {
+    flex: 0 0 auto;
     align-self: center;
     color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 44%, transparent);
     font-size: 0.74em;
@@ -763,9 +769,6 @@
     .sc-tuning-grid,
     .sc-settings-grid {
         grid-template-columns: 1fr;
-    }
-    .sc-payload-rail {
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     }
     .sc-snippet { grid-template-columns: minmax(0, 1fr) auto auto; }
     .sc-snippet-meta { grid-column: 1 / -1; max-width: none; }

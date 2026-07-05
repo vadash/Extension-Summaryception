@@ -8,6 +8,19 @@
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content">
+            <section class="sc-section sc-enable-section">
+                <div class="sc-toggle-list">
+                    <label class="checkbox_label sc-toggle-row" for="sc_enabled">
+                        <span class="sc-toggle-icon fa-solid fa-circle-check"></span>
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Enable Summaryception</span>
+                            <small class="sc-hint">Inject committed summary memory into the active chat.</small>
+                        </span>
+                        <input type="checkbox" id="sc_enabled" />
+                    </label>
+                </div>
+            </section>
+            <div id="sc_enabled_content">
             <div class="sc-console-header" aria-label="Summaryception status">
                 <span id="sc_status_enabled" class="sc-console-value">Disabled</span>
                 <span class="sc-status-separator" aria-hidden="true">·</span>
@@ -110,24 +123,6 @@
                     <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Injected memory token usage"></div>
                     <div id="sc_memory_budget_legend" class="sc-context-legend"></div>
                 </section>
-                <section class="sc-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-toggle-on"></span>
-                            Runtime
-                        </h4>
-                    </div>
-                    <div class="sc-toggle-list">
-                        <label class="checkbox_label sc-toggle-row" for="sc_enabled">
-                            <span class="sc-toggle-icon fa-solid fa-circle-check"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Enable Summaryception</span>
-                                <small class="sc-hint">Inject committed summary memory into the active chat.</small>
-                            </span>
-                            <input type="checkbox" id="sc_enabled" />
-                        </label>
-                    </div>
-                </section>
                 <section id="sc_cache_status_section" class="sc-section" style="display: none;">
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
@@ -153,7 +148,7 @@
                             <strong id="sc_cache_flush_tokens">0</strong>
                         </div>
                         <div class="sc-status-item">
-                            <span class="sc-status-label">Ready State</span>
+                            <span class="sc-status-label">Ready</span>
                             <strong id="sc_cache_ready_state">Within cache budget</strong>
                         </div>
                     </div>
@@ -177,10 +172,6 @@
                         <button id="sc_stop_summarize" class="menu_button menu_button_danger">
                             <i class="fa-solid fa-stop"></i>
                             <span>Stop</span>
-                        </button>
-                        <button id="sc_repair" class="menu_button">
-                            <i class="fa-solid fa-wrench"></i>
-                            <span>Repair</span>
                         </button>
                     </div>
                     <div id="sc_manual_cache_warning" class="sc-note" style="display: none;">
@@ -795,6 +786,7 @@
                         </button>
                     </div>
                 </section>
+            </div>
             </div>
         </div>
     </div>

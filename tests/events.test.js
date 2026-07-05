@@ -37,6 +37,9 @@ describe('loaded chat reconciliation', () => {
         vi.doMock('../src/features/injection.js', () => ({
             updateInjection: vi.fn(() => order.push('injection')),
         }));
+        vi.doMock('../src/features/maintenance.js', () => ({
+            repairOrphanedMessages: vi.fn(async () => order.push('orphans')),
+        }));
         vi.doMock('../src/entry/ui.js', () => ({
             updateUI: vi.fn(() => order.push('ui')),
         }));
@@ -44,7 +47,7 @@ describe('loaded chat reconciliation', () => {
         const { onAppReady } = await import('../src/entry/events.js');
         await onAppReady();
 
-        expect(order[0]).toBe('injection');
+        expect(order.slice(0, 2)).toEqual(['orphans', 'injection']);
         expect(slash).toHaveBeenCalledTimes(1);
         expect(slash).toHaveBeenCalledWith('/hide 0-1', { showOutput: false });
         expect(ctx.chat[0].extra.sc_ghosted).toBe(true);
@@ -57,6 +60,7 @@ describe('loaded chat reconciliation', () => {
         vi.useFakeTimers();
         const repairIfBranched = vi.fn(async () => {});
         const repairMissingGhostingForSummaries = vi.fn(async () => false);
+        const repairOrphanedMessages = vi.fn(async () => ({ status: 'none', repaired: 0 }));
         installSillyTavernStub({
             chat: [],
             metadata: { summaryception: makeSummaryStore() },
@@ -65,6 +69,9 @@ describe('loaded chat reconciliation', () => {
         vi.doMock('../src/core/ghosting-reconcile.js', () => ({
             repairIfBranched,
             repairMissingGhostingForSummaries,
+        }));
+        vi.doMock('../src/features/maintenance.js', () => ({
+            repairOrphanedMessages,
         }));
         vi.doMock('../src/features/injection.js', () => ({
             updateInjection: vi.fn(),
@@ -83,6 +90,7 @@ describe('loaded chat reconciliation', () => {
         await Promise.resolve();
 
         expect(repairIfBranched).toHaveBeenCalledTimes(1);
+        expect(repairOrphanedMessages).toHaveBeenCalledTimes(1);
         expect(repairMissingGhostingForSummaries).toHaveBeenCalledTimes(1);
     });
 });

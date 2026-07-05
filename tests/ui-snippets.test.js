@@ -76,7 +76,7 @@ describe('context budget view model', () => {
 
         expect(view.used).toBe(8000);
         expect(view.overage).toBe(0);
-        expect(view.totalLabel).toBe('8000 / 16000');
+        expect(view.totalLabel).toBe('8k / 16k');
         expect(view.segments.map(segmentSummary)).toEqual([
             ['Verbatim Window', 'verbatim', 8000],
             ['Free Space', 'free', 8000],
@@ -140,8 +140,10 @@ describe('context budget view model', () => {
             layers: [],
         });
 
-        expect(formatBudgetTokenLabel(1000, true)).toBe('~1000');
-        expect(view.totalLabel).toBe('~1000 / 10000');
+        expect(formatBudgetTokenLabel(950, true)).toBe('~950');
+        expect(formatBudgetTokenLabel(1000, true)).toBe('~1k');
+        expect(formatBudgetTokenLabel(1356092)).toBe('1356k');
+        expect(view.totalLabel).toBe('~1k / 10k');
         expect(view.segments[0].estimated).toBe(true);
     });
 });

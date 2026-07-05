@@ -3,7 +3,7 @@ import { getChat } from '../foundation/context.js';
 import { log } from '../foundation/logger.js';
 import { getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
-import { countTextTokens, formatTokenCount } from '../core/token-count.js';
+import { countTextTokens } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -25,6 +25,7 @@ export async function updateUI() {
         const store = getChatStore();
 
         syncSettingsInputs(s);
+        syncEnabledContent(s);
 
         $('#sc_prompt_preset').val(s.promptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
@@ -83,6 +84,10 @@ function syncSettingsInputs(s) {
 
 function formatSliderChipValue(value) {
     return value % 1000 === 0 && value >= 1000 ? `${value / 1000}k` : String(value);
+}
+
+function syncEnabledContent(s) {
+    $('#sc_enabled_content').toggle(Boolean(s.enabled));
 }
 
 /**
@@ -262,7 +267,12 @@ export function buildContextBudgetViewModel({ budget, verbatim, layers, wrapper 
  * @returns {string}
  */
 export function formatBudgetTokenLabel(count, estimated = false) {
-    return formatTokenCount({ count: normalizeBudgetCount(count), estimated });
+    const normalized = normalizeBudgetCount(count);
+    const prefix = estimated ? '~' : '';
+    if (normalized >= 1000) {
+        return `${prefix}${Math.round(normalized / 1000)}k`;
+    }
+    return `${prefix}${normalized}`;
 }
 
 async function renderBudgetStatus(s, store) {
@@ -336,12 +346,12 @@ async function renderCacheStatus(s, store) {
 
 function getCacheReadyStateText(plan) {
     if (plan.reason === 'ready') {
-        return `Ready: ${plan.batchTurns.length} / ${plan.overflowCount} turns`;
+        return `${plan.batchTurns.length} / ${plan.overflowCount}`;
     }
     if (plan.tokenBudgetExceeded) {
-        return 'Waiting for a flushable assistant turn';
+        return 'Waiting';
     }
-    return 'Within cache budget';
+    return 'Within budget';
 }
 
 async function getVerbatimBudgetPart(s, store) {
