@@ -4,7 +4,7 @@ node_modules/
 # Generated reports
 report/
 jscpd-badge.svg
-repomix-output*
+repomix-*.md
 
 # Environment files (secrets)
 .env

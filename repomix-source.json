@@ -1,13 +1,11 @@
 {
     "$schema": "https://repomix.com/schemas/latest/schema.json",
-    "input": {
-        "maxFileSize": 500000
-    },
+    "input": { "maxFileSize": 500000 },
     "output": {
-        "filePath": "repomix-output.md",
+        "filePath": "repomix-source.md",
         "style": "markdown",
         "filePathStyle": "cwd-relative",
-        "headerText": "Summaryception implementation context for AI review. Includes extension runtime files, source modules, tests, type globals, and project automation. Excludes docs, lockfiles, generated reports, and Repomix output.",
+        "headerText": "Summaryception source modules and project automation. Includes extension root files, src modules, types, scripts, config, and project docs. Excludes tests, docs, lockfiles, generated reports, and Repomix output.",
         "fileSummary": true,
         "directoryStructure": true,
         "files": true,
@@ -17,11 +15,7 @@
         "showLineNumbers": false,
         "topFilesLength": 10,
         "tokenCountTree": true,
-        "git": {
-            "sortByChanges": true,
-            "includeDiffs": false,
-            "includeLogs": false
-        }
+        "git": { "sortByChanges": true, "includeDiffs": false, "includeLogs": false }
     },
     "include": [
         "index.js",
@@ -29,7 +23,6 @@
         "settings.html",
         "style.css",
         "src/**/*.js",
-        "tests/**/*.js",
         "types/**/*.d.ts",
         "scripts/**/*.js",
         "eslint.config.js",
@@ -37,8 +30,10 @@
         "tsconfig.json",
         "knip.json",
         "jscpd.json",
-        "repomix.config.json",
+        "repomix-source.json",
+        "repomix-tests.json",
         "package.json",
+        "AGENTS.md",
         ".prettierrc.json",
         ".prettierignore",
         ".github/workflows/**/*.yml",
@@ -55,13 +50,9 @@
             "package-lock.json",
             "coverage/**",
             "report/**",
-            "repomix-output*"
+            "repomix-*"
         ]
     },
-    "security": {
-        "enableSecurityCheck": true
-    },
-    "tokenCount": {
-        "encoding": "o200k_base"
-    }
+    "security": { "enableSecurityCheck": true },
+    "tokenCount": { "encoding": "o200k_base" }
 }

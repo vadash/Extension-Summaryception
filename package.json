@@ -16,7 +16,7 @@
         "format:check": "prettier --check .",
         "knip": "knip",
         "jscpd": "jscpd --config jscpd.json src",
-        "repomix": "repomix",
+        "repomix:source": "repomix --config repomix-source.json",
         "prepare": "husky"
     },
     "lint-staged": {

@@ -25,7 +25,8 @@ run_check() {
 }
 
 run_check tsc npx tsc --noEmit --pretty false || exit 1
-run_check repomix npm run repomix || exit 1
+run_check repomix-source npm run repomix:source || exit 1
+run_check repomix-tests npx repomix --config repomix-tests.json || exit 1
 run_check lint-staged npx lint-staged --verbose || exit 1
 run_check tests npm test || exit 1
 
