@@ -68,6 +68,19 @@ describe('callSummarizer abort signal plumbing', () => {
         );
     });
 
+    it('preserves Layer 0 dual-track structural markers in the cleaned result', async () => {
+        const summary = '[NARRATIVE]\nScene summary.\n\n[STATE]\nlocation: dock';
+        mocks.sendSummarizerRequest.mockResolvedValue(summary);
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await expect(
+            callSummarizer('source passage', 'prior context', {
+                kind: 'layer0',
+            }),
+        ).resolves.toBe(summary);
+    });
+
     it('uses promotion prompts for promotion calls', async () => {
         installSillyTavernStub({
             settings: {
@@ -102,6 +115,20 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(prompt).toContain('Target length: at most about 120 tokens');
         expect(prompt).toContain('roughly 40% of the combined input memories');
         expect(prompt).toContain('Deduplicate related events');
+    });
+
+    it('strips dual-track structural markers from promotion output only', async () => {
+        mocks.sendSummarizerRequest.mockResolvedValue('[NARRATIVE]\nMerged summary.\n[STATE]');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await expect(
+            callSummarizer('merged snippets', 'deep context', {
+                kind: 'promotion',
+                layerIndex: 0,
+                mergedSnippetCount: 3,
+            }),
+        ).resolves.toBe('Merged summary.');
     });
 
     it('adds runtime compression constraints to Layer 0 and promotion prompts', async () => {

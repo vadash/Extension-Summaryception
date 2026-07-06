@@ -37,6 +37,18 @@ describe('cleanSummarizerOutput', () => {
         expect(cleanSummarizerOutput(raw)).toBe('Final answer.');
     });
 
+    it('preserves dual-track structural markers by default', () => {
+        const raw = '[NARRATIVE]\nScene summary.\n\n[STATE]\nlocation: dock';
+        expect(cleanSummarizerOutput(raw)).toBe(raw);
+    });
+
+    it('strips dual-track structural markers only when requested', () => {
+        const raw = '[NARRATIVE]\nMerged summary.\n[STATE]';
+        expect(cleanSummarizerOutput(raw, { stripStructuralMarkers: true })).toBe(
+            'Merged summary.',
+        );
+    });
+
     it('removes multiple reasoning-tag variants', () => {
         const raw = [
             '<reasoning>scratch</reasoning>',

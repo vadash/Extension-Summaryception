@@ -37,6 +37,46 @@ describe('summarizer-state', () => {
         });
     });
 
+    it('recovers a trailing state block when structural markers were stripped', () => {
+        const parsed = parseSnippet(
+            [
+                'They reached the tower and secured the door.',
+                'location: tower',
+                'characters: Alice: alert, Bob: injured',
+                'hooks: open gate',
+            ].join('\n'),
+        );
+
+        expect(parsed).toEqual({
+            narrative: 'They reached the tower and secured the door.',
+            state: {
+                location: 'tower',
+                characters: 'Alice: alert, Bob: injured',
+                hooks: 'open gate',
+            },
+        });
+    });
+
+    it('recovers a single known state line after narrative text', () => {
+        const parsed = parseSnippet('They reached the dock.\nlocation: dock');
+
+        expect(parsed).toEqual({
+            narrative: 'They reached the dock.',
+            state: {
+                location: 'dock',
+            },
+        });
+    });
+
+    it('does not treat dialogue-only legacy text as implicit state', () => {
+        const text = 'Alice: Hold the door.\nBob: I have it.';
+
+        expect(parseSnippet(text)).toEqual({
+            narrative: text,
+            state: {},
+        });
+    });
+
     it('captures malformed state lines as capped unclassified notes', () => {
         const parsed = parseSnippet(
             [

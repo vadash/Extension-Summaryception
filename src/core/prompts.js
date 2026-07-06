@@ -10,9 +10,10 @@ const VISIBLE_CHARACTER_REGEX = /\S/gu;
  * from the summarizer output. Uses configurable patterns plus
  * regex for common reasoning block formats.
  * @param {string} raw - The raw summarizer response
+ * @param {{ stripStructuralMarkers?: boolean }} [options] - Optional cleanup controls
  * @returns {string} Cleaned text
  */
-export function cleanSummarizerOutput(raw) {
+export function cleanSummarizerOutput(raw, options = {}) {
     let text = raw;
 
     const s = getSettings();
@@ -44,9 +45,10 @@ export function cleanSummarizerOutput(raw) {
         }
     }
 
-    // Strip dual-track structural markers from promotion output
-    text = text.replace(/^\s*\[NARRATIVE\]\s*$/gim, '');
-    text = text.replace(/^\s*\[STATE\]\s*$/gim, '');
+    if (options.stripStructuralMarkers) {
+        text = text.replace(/^\s*\[NARRATIVE\]\s*$/gim, '');
+        text = text.replace(/^\s*\[STATE\]\s*$/gim, '');
+    }
 
     // Clean up leftover whitespace
     text = text.replace(/\n{3,}/g, '\n').trim();

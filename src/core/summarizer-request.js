@@ -488,7 +488,9 @@ async function executeSummarizerAttempt({
 
         trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
 
-        cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
+        cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), {
+            stripStructuralMarkers: metadata.kind === 'promotion',
+        });
         const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, s);
         if (chinesePolicyResult.error) {
             attemptError = chinesePolicyResult.error;

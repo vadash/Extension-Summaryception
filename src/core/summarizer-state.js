@@ -37,6 +37,7 @@ const KEY_ALIASES = Object.freeze({
     counts: 'counters',
     score: 'counters',
 });
+const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
 
 /**
  * Parse a stored snippet into narrative prose and structured state.
@@ -50,13 +51,18 @@ export function parseSnippet(text) {
     }
 
     const lines = source.split(/\r?\n/);
-    const stateStart = findHeaderLine(lines, STATE_HEADER_RE);
+    const explicitStateStart = findHeaderLine(lines, STATE_HEADER_RE);
+    const stateStart =
+        explicitStateStart === -1 ? findImplicitStateBoundary(lines) : explicitStateStart;
     if (stateStart === -1) {
         return { narrative: stripNarrativeHeader(source), state: {} };
     }
 
     const narrativeLines = extractNarrativeLines(lines, stateStart);
-    const stateLines = extractStateLines(lines, stateStart);
+    const stateLines =
+        explicitStateStart === -1
+            ? extractImplicitStateLines(lines, stateStart)
+            : extractExplicitStateLines(lines, stateStart);
     return {
         narrative: stripNarrativeHeader(narrativeLines.join('\n').trim()),
         state: parseStateLines(stateLines),
@@ -145,6 +151,49 @@ function findHeaderLine(lines, regex) {
     return lines.findIndex((line) => regex.test(line));
 }
 
+function findImplicitStateBoundary(lines) {
+    let boundary = -1;
+    let matchCount = 0;
+    let recognizedCount = 0;
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const trimmed = lines[i].trim();
+        if (!trimmed) {
+            continue;
+        }
+
+        const match = trimmed.match(STATE_LINE_RE);
+        if (!match) {
+            break;
+        }
+
+        boundary = i;
+        matchCount++;
+        if (isCanonicalStateKey(match[1])) {
+            recognizedCount++;
+        }
+    }
+
+    if (!isPlausibleImplicitStateBlock({ boundary, matchCount, recognizedCount })) {
+        return -1;
+    }
+    return boundary;
+}
+
+function isPlausibleImplicitStateBlock({ boundary, matchCount, recognizedCount }) {
+    if (boundary === -1 || matchCount === 0 || recognizedCount === 0) {
+        return false;
+    }
+    if (matchCount >= 2) {
+        return true;
+    }
+    return boundary > 0 && recognizedCount > 0;
+}
+
+function isCanonicalStateKey(rawKey) {
+    return CANONICAL_STATE_KEYS.has(normalizeKey(rawKey));
+}
+
 function extractNarrativeLines(lines, stateStart) {
     const narrativeStart = findHeaderLine(lines, NARRATIVE_HEADER_RE);
     if (narrativeStart !== -1 && narrativeStart < stateStart) {
@@ -153,11 +202,15 @@ function extractNarrativeLines(lines, stateStart) {
     return lines.slice(0, stateStart);
 }
 
-function extractStateLines(lines, stateStart) {
+function extractExplicitStateLines(lines, stateStart) {
     const end = lines.findIndex(
         (line, index) => index > stateStart && ANY_SECTION_HEADER_RE.test(line),
     );
     return lines.slice(stateStart + 1, end === -1 ? undefined : end);
+}
+
+function extractImplicitStateLines(lines, stateStart) {
+    return lines.slice(stateStart);
 }
 
 function parseStateLines(lines) {
