@@ -12,6 +12,7 @@ function setStripPatterns(patterns) {
 }
 
 import {
+    applyChineseOutputPolicy,
     cleanSummarizerOutput,
     getChineseIdeographStats,
     stripChineseIdeographs,
@@ -92,4 +93,41 @@ it('counts Chinese ideographs against visible non-whitespace characters', () => 
 
 it('strips Chinese ideographs without removing Latin text', () => {
     expect(stripChineseIdeographs('alpha 漢字 beta')).toBe('alpha  beta');
+});
+
+describe('applyChineseOutputPolicy', () => {
+    it('does nothing when stripping is disabled', () => {
+        expect(
+            applyChineseOutputPolicy('漢字 summary', {
+                stripChineseIdeographs: false,
+            }),
+        ).toEqual({
+            text: '漢字 summary',
+            error: null,
+            percent: null,
+        });
+    });
+
+    it('rejects output above ten percent Chinese ideographs as retryable', () => {
+        const result = applyChineseOutputPolicy('漢字漢字漢字 ok', {
+            stripChineseIdeographs: true,
+        });
+
+        expect(result.text).toBe('');
+        expect(result.percent).toBe('75.0');
+        expect(result.error?.message).toBe('CN ideograph ratio 75.0% exceeds 10%');
+        expect(result.error?.retryable).toBe(true);
+    });
+
+    it('strips Chinese ideographs at exactly ten percent', () => {
+        expect(
+            applyChineseOutputPolicy('漢abcdefghi', {
+                stripChineseIdeographs: true,
+            }),
+        ).toEqual({
+            text: 'abcdefghi',
+            error: null,
+            percent: null,
+        });
+    });
 });

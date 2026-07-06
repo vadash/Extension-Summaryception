@@ -45,7 +45,7 @@ describe('constants', () => {
         expect(defaultSettings.promptInputLogMode).toBe(false);
         expect(defaultSettings.promptOutputLogMode).toBe(false);
         expect(defaultSettings.promptLogMode).toBe(false);
-        expect(defaultSettings.stripChineseIdeographs).toBe(false);
+        expect(defaultSettings.stripChineseIdeographs).toBe(true);
     });
 
     it('uses the Summaryception memory wrapper by default', () => {

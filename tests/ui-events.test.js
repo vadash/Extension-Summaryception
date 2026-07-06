@@ -126,6 +126,18 @@ describe('ui prompt/reset events', () => {
         });
     });
 
+    it('resets Chinese output policy to the enabled default', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.stripChineseIdeographs = false;
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        globalThis.confirm = vi.fn(() => true);
+        ui.trigger('click', '#sc_reset_defaults');
+
+        expect(ctx.extensionSettings.summaryception.stripChineseIdeographs).toBe(true);
+    });
+
     it('exports Layer 0 and Layer 1+ prompts with profile-specific filenames', async () => {
         installDownloadStubs();
         installSillyTavernStub({ settings: structuredClone(defaultSettings) });

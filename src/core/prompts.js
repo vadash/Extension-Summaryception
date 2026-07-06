@@ -57,6 +57,34 @@ export function cleanSummarizerOutput(raw, options = {}) {
 }
 
 /**
+ * Strip or reject Han-heavy summarizer output when enabled.
+ * @param {string} cleanedResult - Output after standard artifact cleanup
+ * @param {Partial<ExtensionSettings>} settings - Active settings
+ * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null, percent: string | null }}
+ */
+export function applyChineseOutputPolicy(cleanedResult, settings = {}) {
+    if (!settings.stripChineseIdeographs) {
+        return { text: cleanedResult, error: null, percent: null };
+    }
+
+    const stats = getChineseIdeographStats(cleanedResult);
+    if (stats.chineseIdeographs > 0 && stats.ratio > 0.1) {
+        const percent = (stats.ratio * 100).toFixed(1);
+        const error = /** @type {Error & { retryable?: boolean }} */ (
+            new Error(`CN ideograph ratio ${percent}% exceeds 10%`)
+        );
+        error.retryable = true;
+        return { text: '', error, percent };
+    }
+
+    return {
+        text: cleanWhitespace(stripChineseIdeographs(cleanedResult)),
+        error: null,
+        percent: null,
+    };
+}
+
+/**
  * Count Han ideographs and visible characters in text.
  * @param {string} text - Text to inspect
  * @returns {{ chineseIdeographs: number, visibleCharacters: number, ratio: number }}
@@ -79,6 +107,12 @@ export function getChineseIdeographStats(text) {
  */
 export function stripChineseIdeographs(text) {
     return String(text || '').replace(CHINESE_IDEOGRAPH_REGEX, '');
+}
+
+function cleanWhitespace(text) {
+    return String(text || '')
+        .replace(/\n{3,}/g, '\n')
+        .trim();
 }
 
 function countMatches(text, regex) {
