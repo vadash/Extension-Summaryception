@@ -16,6 +16,9 @@ import {
     regenerateSnippetAt,
     updateSnippetTextAt,
 } from '../features/snippet-manager.js';
+import { syncDataSettingElements } from './ui-bind.js';
+
+const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [data-sc-setting]';
 
 const CUSTOM_PROMPT_SLOT_BINDINGS = [
     {
@@ -134,38 +137,16 @@ export function syncPayloadSchematic(s = getSettings()) {
  * @returns {void}
  */
 function syncConnectionInputs(s) {
+    syncDataSettingElements(CONNECTION_DATA_SETTING_SELECTOR, s);
     $('#summaryception_connection_source').val(s.connectionSource || 'default');
     $('#summaryception_connection_profile').val(s.connectionProfileId);
-    $(
-        '#summaryception_ollama_url, ' +
-            '#summaryception_merge_ollama_url, ' +
-            '#summaryception_fallback_ollama_url',
-    ).val(s.ollamaUrl);
     $('#summaryception_ollama_model').val(s.ollamaModel);
-    $(
-        '#summaryception_openai_url, ' +
-            '#summaryception_merge_openai_url, ' +
-            '#summaryception_fallback_openai_url',
-    ).val(s.openaiUrl);
-    $(
-        '#summaryception_openai_key, ' +
-            '#summaryception_merge_openai_key, ' +
-            '#summaryception_fallback_openai_key',
-    ).val(s.openaiKey);
-    $('#summaryception_openai_model').val(s.openaiModel);
-    $('#summaryception_openai_max_tokens').val(s.openaiMaxTokens || 0);
     $('#summaryception_merge_connection_source').val(s.mergeConnectionSource || 'inherit');
     $('#summaryception_merge_connection_profile').val(s.mergeConnectionProfileId);
     $('#summaryception_merge_ollama_model').val(s.mergeOllamaModel);
-    $('#summaryception_merge_openai_model').val(s.mergeOpenaiModel);
-    $('#summaryception_merge_openai_max_tokens').val(s.mergeOpenaiMaxTokens || 0);
-    $('#sc_merge_summarizer_response_length').val(s.mergeSummarizerResponseLength || 0);
     $('#summaryception_fallback_connection_source').val(s.fallbackConnectionSource || 'disabled');
     $('#summaryception_fallback_connection_profile').val(s.fallbackConnectionProfileId);
     $('#summaryception_fallback_ollama_model').val(s.fallbackOllamaModel);
-    $('#summaryception_fallback_openai_model').val(s.fallbackOpenaiModel);
-    $('#summaryception_fallback_openai_max_tokens').val(s.fallbackOpenaiMaxTokens || 0);
-    $('#sc_fallback_summarizer_response_length').val(s.fallbackSummarizerResponseLength || 0);
 }
 
 async function renderOverview(s, store) {

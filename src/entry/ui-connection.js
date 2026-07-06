@@ -6,27 +6,11 @@ import {
     populateProfileDropdown,
 } from '../core/connectionutil.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
-import { bindElementSetting, readIntegerOrZero, readString, readTrimmedString } from './ui-bind.js';
+import { bindDataSettingElements, bindElementSetting, readString } from './ui-bind.js';
 
 // Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
 
-const STRING_INPUT_IDS_BY_KEY = Object.freeze({
-    ollamaUrl: [
-        'summaryception_ollama_url',
-        'summaryception_merge_ollama_url',
-        'summaryception_fallback_ollama_url',
-    ],
-    openaiUrl: [
-        'summaryception_openai_url',
-        'summaryception_merge_openai_url',
-        'summaryception_fallback_openai_url',
-    ],
-    openaiKey: [
-        'summaryception_openai_key',
-        'summaryception_merge_openai_key',
-        'summaryception_fallback_openai_key',
-    ],
-});
+const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [data-sc-setting]';
 
 const CONNECTION_ROUTE_BINDINGS = Object.freeze([
     {
@@ -52,57 +36,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         profileId: 'summaryception_fallback_connection_profile',
         profileKey: 'fallbackConnectionProfileId',
         updatePanels: updateFallbackConnectionSubPanels,
-    },
-]);
-
-const CONNECTION_STRING_INPUTS = Object.freeze([
-    {
-        elementId: 'summaryception_ollama_url',
-        key: 'ollamaUrl',
-        fallback: 'http://localhost:11434',
-    },
-    { elementId: 'summaryception_openai_url', key: 'openaiUrl', fallback: '' },
-    { elementId: 'summaryception_openai_key', key: 'openaiKey', fallback: '' },
-    { elementId: 'summaryception_openai_model', key: 'openaiModel', fallback: '' },
-    {
-        elementId: 'summaryception_merge_ollama_url',
-        key: 'ollamaUrl',
-        fallback: 'http://localhost:11434',
-    },
-    { elementId: 'summaryception_merge_openai_url', key: 'openaiUrl', fallback: '' },
-    { elementId: 'summaryception_merge_openai_key', key: 'openaiKey', fallback: '' },
-    { elementId: 'summaryception_merge_openai_model', key: 'mergeOpenaiModel', fallback: '' },
-    {
-        elementId: 'summaryception_fallback_ollama_url',
-        key: 'ollamaUrl',
-        fallback: 'http://localhost:11434',
-    },
-    { elementId: 'summaryception_fallback_openai_url', key: 'openaiUrl', fallback: '' },
-    { elementId: 'summaryception_fallback_openai_key', key: 'openaiKey', fallback: '' },
-    { elementId: 'summaryception_fallback_openai_model', key: 'fallbackOpenaiModel', fallback: '' },
-]);
-
-const CONNECTION_NUMBER_INPUTS = Object.freeze([
-    { elementId: 'summaryception_openai_max_tokens', key: 'openaiMaxTokens', fallback: 0 },
-    {
-        elementId: 'summaryception_merge_openai_max_tokens',
-        key: 'mergeOpenaiMaxTokens',
-        fallback: 0,
-    },
-    {
-        elementId: 'sc_merge_summarizer_response_length',
-        key: 'mergeSummarizerResponseLength',
-        fallback: 0,
-    },
-    {
-        elementId: 'summaryception_fallback_openai_max_tokens',
-        key: 'fallbackOpenaiMaxTokens',
-        fallback: 0,
-    },
-    {
-        elementId: 'sc_fallback_summarizer_response_length',
-        key: 'fallbackSummarizerResponseLength',
-        fallback: 0,
     },
 ]);
 
@@ -170,68 +103,34 @@ function bindConnectionProfile(settings, binding) {
 }
 
 function bindConnectionInputs() {
-    for (const binding of CONNECTION_STRING_INPUTS) {
-        bindConnectionStringInput(binding);
-    }
-    for (const binding of CONNECTION_NUMBER_INPUTS) {
-        bindConnectionParsedInput(binding);
-    }
-}
-
-/**
- * Bind an `<input>` element to a string settings key.
- * @param {{ elementId: string, key: string, fallback: string }} binding
- * @returns {void}
- */
-function bindConnectionStringInput({ elementId, key, fallback }) {
-    const $el = $('#' + elementId);
-    if (!$el.length) {
-        return;
-    }
-    const settings = getSettings();
-    $el.val(settings[key] || fallback);
-    bindElementSetting($el, {
+    bindDataSettingElements(CONNECTION_DATA_SETTING_SELECTOR, {
         eventName: 'input',
-        key,
-        read: readTrimmedString,
-        beforeSave: (_settings, value) => syncSharedStringInputs(key, String(value), elementId),
+        beforeSave: syncMatchingConnectionInputs,
     });
 }
 
 /**
- * Bind a numeric `<input>` element to a number settings key.
- * @param {{ elementId: string, key: string, fallback: number }} binding
+ * Keep duplicate controls with the same saved connection setting visually in sync.
+ * @param {ReturnType<typeof getSettings>} _settings
+ * @param {unknown} value
+ * @param {object} $source
  * @returns {void}
  */
-function bindConnectionParsedInput({ elementId, key, fallback }) {
-    const $el = $('#' + elementId);
-    if (!$el.length) {
+function syncMatchingConnectionInputs(_settings, value, $source) {
+    const key = String($source.attr('data-sc-setting') ?? '');
+    if (!key) {
         return;
     }
-    const settings = getSettings();
-    $el.val(String(settings[key] || fallback));
-    bindElementSetting($el, {
-        eventName: 'input',
-        key,
-        read: readIntegerOrZero,
-    });
-}
-
-/**
- * Keep duplicate shared endpoint controls visually in sync.
- * @param {string} key
- * @param {string} value
- * @param {string} sourceElementId
- * @returns {void}
- */
-function syncSharedStringInputs(key, value, sourceElementId) {
-    const ids =
-        /** @type {Partial<Record<string, string[]>>} */ (STRING_INPUT_IDS_BY_KEY)[key] || [];
-    for (const id of ids) {
-        if (id !== sourceElementId) {
-            $('#' + id).val(value);
+    const sourceElement = $source[0];
+    $(CONNECTION_DATA_SETTING_SELECTOR).each(function () {
+        if (this === sourceElement) {
+            return;
         }
-    }
+        const $element = $(this);
+        if ($element.attr('data-sc-setting') === key) {
+            $element.val(String(value));
+        }
+    });
 }
 
 function bindOllamaModelDropdowns(settings) {
