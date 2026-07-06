@@ -9,7 +9,7 @@ import {
 import { setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
-import { buildMemoryInjection } from '../core/chatutils.js';
+import { buildEffectiveMemoryText } from '../core/memory-budget.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 
@@ -22,13 +22,7 @@ import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 export function assembleSummaryBlock() {
     const s = getSettings();
     const store = getChatStore();
-
-    const memory = buildMemoryInjection(store.layers);
-    if (!memory) {
-        return '';
-    }
-
-    return s.injectionTemplate.replace('{{summary}}', memory);
+    return buildEffectiveMemoryText(store.layers, s);
 }
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────

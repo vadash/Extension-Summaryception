@@ -1,7 +1,9 @@
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { compileGlobalState, parseSnippet } from './summarizer-state.js';
+import { buildMemoryInjection } from './memory-injection.js';
 import { countMessageTokens } from './token-count.js';
+
+export { buildMemoryInjection } from './memory-injection.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
@@ -193,57 +195,9 @@ export function buildFullContext(downToLayer = 0) {
     return memory || '(none yet)';
 }
 
-/**
- * Build clean dual-track memory from summary layers.
- * @param {Array<Array<{ text: string }>>} layers
- * @returns {string}
- */
-export function buildMemoryInjection(layers) {
-    if (!Array.isArray(layers)) {
-        return '';
-    }
-
-    const state = compileGlobalState(layers);
-    const narratives = collectNarratives(layers);
-    if (Object.keys(state).length === 0 && narratives.length === 0) {
-        return '';
-    }
-
-    const parts = [];
-    if (Object.keys(state).length > 0) {
-        parts.push('[CURRENT STATE]');
-        for (const [key, value] of Object.entries(state)) {
-            parts.push(`${key}: ${value}`);
-        }
-        parts.push('');
-    }
-    if (narratives.length > 0) {
-        parts.push('[CHRONOLOGY]');
-        parts.push(narratives.join(' '));
-    }
-    return parts.join('\n');
-}
-
 function getLayersAtOrAbove(layers, downToLayer) {
     if (!Array.isArray(layers)) {
         return [];
     }
     return layers.slice(Math.max(0, downToLayer));
-}
-
-function collectNarratives(layers) {
-    const narratives = [];
-    for (let i = layers.length - 1; i >= 0; i--) {
-        const layer = layers[i];
-        if (!layer || layer.length === 0) {
-            continue;
-        }
-        for (const sn of layer) {
-            const { narrative } = parseSnippet(sn.text);
-            if (narrative) {
-                narratives.push(narrative);
-            }
-        }
-    }
-    return narratives;
 }

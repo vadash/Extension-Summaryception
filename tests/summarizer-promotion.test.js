@@ -160,6 +160,78 @@ describe('promotion prompt guard', () => {
         });
     });
 
+    it('does not promote for token pressure when raw snippets exceed budget but injection fits', async () => {
+        const repeatedState = 'safe '.repeat(1800);
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: `[NARRATIVE]\none\n\n[STATE]\nlocation: ${repeatedState}`,
+                            },
+                            {
+                                text: `[NARRATIVE]\ntwo\n\n[STATE]\nlocation: ${repeatedState}`,
+                            },
+                            {
+                                text: `[NARRATIVE]\nthree\n\n[STATE]\nlocation: ${repeatedState}`,
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(getChatStore().layers[0]).toHaveLength(3);
+        expect(getChatStore().layers[1]).toBeUndefined();
+    });
+
+    it('still promotes when snippet count exceeds the layer limit', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        Array.from({ length: 11 }, (_value, index) => ({
+                            text: `memory ${index}`,
+                        })),
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+                memoryTokenBudget: 32000,
+                snippetsPerLayer: 10,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(8);
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            text: 'merged',
+            mergedCount: 3,
+        });
+    });
+
     it('sends only narratives to promotion and stores code-merged state', async () => {
         mocks.callSummarizer.mockResolvedValue('Merged narrative.');
         installSillyTavernStub({
@@ -255,6 +327,39 @@ describe('promotion prompt guard', () => {
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
         expect(getChatStore().layers[0]).toHaveLength(11);
+        expect(getChatStore().layers[1]).toBeUndefined();
+    });
+
+    it('rejects promotion when the hypothetical injection does not shrink', async () => {
+        const repeatedState = 'same '.repeat(1000);
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: `[STATE]\nlocation: ${repeatedState}` },
+                            { text: `[STATE]\nlocation: ${repeatedState}` },
+                            { text: `[STATE]\nlocation: ${repeatedState}` },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+                memoryTokenBudget: 32000,
+                snippetsPerLayer: 2,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(getChatStore().layers[0]).toHaveLength(3);
         expect(getChatStore().layers[1]).toBeUndefined();
     });
 

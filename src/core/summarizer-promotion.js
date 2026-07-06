@@ -3,6 +3,7 @@ import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
+import { getEffectiveMemoryUsage } from './memory-budget.js';
 import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -58,7 +59,7 @@ export async function hasPromotionOverflow(startLayer = 0) {
  * Build normalized token quotas for active non-empty layers.
  * @param {SummaryceptionStore} store
  * @param {ExtensionSettings} settings
- * @returns {Promise<Array<{ layerIndex: number, quota: number, tokens: number, count: number }>>}
+ * @returns {Promise<Array<{ layerIndex: number, quota: number, tokens: number, count: number, totalTokens: number, tokenBudgetExceeded: boolean }>>}
  */
 export async function getLayerMemoryQuotas(store, settings) {
     const active = getActiveLayers(store);
@@ -66,6 +67,8 @@ export async function getLayerMemoryQuotas(store, settings) {
         return [];
     }
 
+    const usage = await getEffectiveMemoryUsage(store.layers, settings);
+    const chronologyTokens = getChronologyTokensByLayer(usage.layers);
     const totalWeight = active.reduce((sum, layer) => sum + layer.weight, 0);
     const budget = Math.max(1, Number(settings.memoryTokenBudget) || 1);
     const quotas = [];
@@ -74,8 +77,10 @@ export async function getLayerMemoryQuotas(store, settings) {
         quotas.push({
             layerIndex: layer.layerIndex,
             quota,
-            tokens: await countLayerTokens(layer.snippets),
+            tokens: chronologyTokens.get(layer.layerIndex) || 0,
             count: layer.snippets.length,
+            totalTokens: usage.total.count,
+            tokenBudgetExceeded: usage.total.count > budget,
         });
     }
     return quotas;
@@ -108,16 +113,22 @@ function getActiveLayers(store) {
     return active;
 }
 
-async function countLayerTokens(snippets) {
-    const text = snippets.map((snippet) => snippet.text).join(' ');
-    return (await countTextTokens(text)).count;
+function getChronologyTokensByLayer(layerParts) {
+    const tokens = new Map();
+    for (const part of layerParts) {
+        tokens.set(part.layerIndex, part.count);
+    }
+    return tokens;
 }
 
 function isLayerOverLimit(quota, settings) {
     if (quota.count < getEffectivePromotionBatchSize(settings)) {
         return false;
     }
-    return quota.tokens > quota.quota || quota.count > settings.snippetsPerLayer;
+    if (quota.count > settings.snippetsPerLayer) {
+        return true;
+    }
+    return quota.tokenBudgetExceeded && quota.tokens > quota.quota;
 }
 
 function canPromoteLayer(layerIndex) {
@@ -195,7 +206,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     if (!metaSummary) {
         return false;
     }
-    if (!(await isPromotionCompressed({ layerIndex, memoryTokensBefore, metaSummary }))) {
+    if (!(await isPromotionCompressed({ layerIndex, mergeCount, metaSummary, settings: s }))) {
         return false;
     }
 
@@ -215,18 +226,47 @@ function combinePromotedMemory(narrative, serializedState) {
     return [narrative, serializedState].filter(Boolean).join('\n\n').trim();
 }
 
-async function isPromotionCompressed({ layerIndex, memoryTokensBefore, metaSummary }) {
-    const memoryTokensAfter = await countTextTokens(metaSummary);
-    if (memoryTokensAfter.count < memoryTokensBefore.count) {
+async function isPromotionCompressed({ layerIndex, mergeCount, metaSummary, settings }) {
+    const store = getChatStore();
+    const memoryTokensBefore = await getEffectiveMemoryUsage(store.layers, settings);
+    const nextLayers = buildHypotheticalPromotionLayers(
+        store.layers,
+        layerIndex,
+        mergeCount,
+        metaSummary,
+    );
+    const memoryTokensAfter = await getEffectiveMemoryUsage(nextLayers, settings);
+    if (memoryTokensAfter.total.count < memoryTokensBefore.total.count) {
         return true;
     }
 
     warn(
         `Promotion L${layerIndex} rejected: memory did not compress ` +
-            `(${formatTokenValue(memoryTokensBefore.count, memoryTokensBefore.estimated)}->` +
-            `${formatTokenValue(memoryTokensAfter.count, memoryTokensAfter.estimated)} tokens).`,
+            `(${formatTokenValue(
+                memoryTokensBefore.total.count,
+                memoryTokensBefore.total.estimated,
+            )}->` +
+            `${formatTokenValue(
+                memoryTokensAfter.total.count,
+                memoryTokensAfter.total.estimated,
+            )} tokens).`,
     );
     return false;
+}
+
+function buildHypotheticalPromotionLayers(layers, layerIndex, mergeCount, metaSummary) {
+    const sourceLayers = Array.isArray(layers) ? layers : [];
+    const nextLayers = sourceLayers.map((layer) => (Array.isArray(layer) ? [...layer] : layer));
+    const sourceLayer = Array.isArray(nextLayers[layerIndex]) ? [...nextLayers[layerIndex]] : [];
+    const destLayer = Array.isArray(nextLayers[layerIndex + 1])
+        ? [...nextLayers[layerIndex + 1]]
+        : [];
+
+    sourceLayer.splice(0, mergeCount);
+    destLayer.push({ text: metaSummary });
+    nextLayers[layerIndex] = sourceLayer;
+    nextLayers[layerIndex + 1] = destLayer;
+    return nextLayers;
 }
 
 /**

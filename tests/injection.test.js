@@ -89,6 +89,49 @@ describe('assembleSummaryBlock', () => {
             ['custom prefix', '[CHRONOLOGY]', 'recent summary', 'custom suffix'].join('\n'),
         );
     });
+
+    it('counts effective memory as the assembled injection with merged state', async () => {
+        const layers = [
+            [
+                {
+                    text: '[NARRATIVE]\nfirst\n\n[STATE]\nlocation: ' + 'dock '.repeat(12),
+                },
+                {
+                    text: '[NARRATIVE]\nsecond\n\n[STATE]\nlocation: ' + 'tower '.repeat(12),
+                },
+                {
+                    text:
+                        '[NARRATIVE]\nthird\n\n[STATE]\nhooks: resolved\nlocation: ' +
+                        'tower '.repeat(12),
+                },
+            ],
+        ];
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({ layers }),
+            },
+            settings: {
+                injectionTemplate: 'BEGIN\n{{summary}}\nEND',
+            },
+            getTokenCountAsync: async (text) => countTokens(text),
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+        const { getEffectiveMemoryUsage } = await import('../src/core/memory-budget.js');
+        const { countTextTokens } = await import('../src/core/token-count.js');
+
+        const assembled = assembleSummaryBlock();
+        const usage = await getEffectiveMemoryUsage(layers, {
+            injectionTemplate: 'BEGIN\n{{summary}}\nEND',
+        });
+        const assembledTokens = await countTextTokens(assembled);
+        const rawSnippetTokens = countTokens(layers[0].map((snippet) => snippet.text).join(' '));
+
+        expect(usage.total).toEqual(assembledTokens);
+        expect(usage.total.count).toBeLessThan(rawSnippetTokens);
+        expect(assembled).toContain('[CURRENT STATE]\nlocation: tower');
+        expect(assembled).not.toContain('hooks: resolved');
+    });
 });
 
 describe('injection diagnostics', () => {

@@ -6,6 +6,7 @@ import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
 import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
+import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import { SETTINGS_HELP } from './settings-help.js';
 import {
@@ -336,12 +337,11 @@ async function renderVerbatimBudget(s, store) {
 
 async function renderMemoryBudget(s, store) {
     try {
-        const layers = await getLayerBudgetParts(store);
+        const usage = await getEffectiveMemoryUsage(store.layers, s);
         const view = buildContextBudgetViewModel({
             budget: s.memoryTokenBudget,
             verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
-            layers,
-            wrapper: await getWrapperBudgetPart(store, layers),
+            layers: orderMemoryBudgetParts(usage.parts),
         });
         renderBudgetView(view, {
             total: '#sc_memory_budget_total',
@@ -396,40 +396,21 @@ async function getVerbatimBudgetPart(s, store) {
     };
 }
 
-async function getLayerBudgetParts(store) {
-    const layers = Array.isArray(store.layers) ? store.layers : [];
-    const parts = [];
-    for (let i = 0; i < layers.length; i++) {
-        const layer = layers[i];
-        if (!Array.isArray(layer) || layer.length === 0) {
-            continue;
-        }
-        const text = layer.map((snippet) => snippet.text).join(' ');
-        const tokens = await countTextTokens(text);
-        parts.push({
-            label: `Layer ${i}`,
-            kind: i === 0 ? 'layer0' : 'layer',
-            count: tokens.count,
-            estimated: tokens.estimated,
-        });
-    }
-    return parts;
+function orderMemoryBudgetParts(parts) {
+    return [...parts].sort((a, b) => getMemoryBudgetPartOrder(a) - getMemoryBudgetPartOrder(b));
 }
 
-async function getWrapperBudgetPart(store, layerParts) {
-    if (!store.layers?.some((layer) => Array.isArray(layer) && layer.length > 0)) {
-        return null;
+function getMemoryBudgetPartOrder(part) {
+    if (part.kind === 'state') {
+        return -1;
     }
-
-    const fullTokens = await countTextTokens(assembleSummaryBlock());
-    const layerTotal = layerParts.reduce((sum, part) => sum + part.count, 0);
-    const wrapperCount = Math.max(0, fullTokens.count - layerTotal);
-    return {
-        label: 'Memory Wrapper',
-        kind: 'wrapper',
-        count: wrapperCount,
-        estimated: fullTokens.estimated || layerParts.some((part) => part.estimated),
-    };
+    if (part.kind === 'wrapper') {
+        return Number.MAX_SAFE_INTEGER;
+    }
+    if (Number.isInteger(part.layerIndex)) {
+        return part.layerIndex;
+    }
+    return Number.MAX_SAFE_INTEGER - 1;
 }
 
 function renderBudgetView(view, targets) {

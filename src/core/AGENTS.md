@@ -8,6 +8,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - **Cache mode:** Keep prompt shape stable as `Prompt | frozen memory | growing live chat`; the verbatim budget is 32k, with a 4k-8k protected live tail before older unghosted chat flushes in capped L0 batches.
 - **Runtime compression controls:** Keep L0/regeneration and promotion prompt constraints plus provider output caps routed through `layer0-compression.js`; custom prompts still need these non-persisted runtime constraints.
 - **Layers 1+:** Meta-summaries promoted from lower layers.
+- **Memory budget:** `memoryTokenBudget` tracks the assembled Summaryception injection size; use `memory-budget.js`/`memory-injection.js` instead of raw snippet text when changing budget UI or promotion pressure.
 - **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, non-compressing promotion output must not be committed, empty destination layers are created only by LLM-backed merge promotion, and maximum depth is capped at 20.
 - **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text to the LLM and merge `[STATE]` data with `mergeStates()` in code.
 - **Regex:** Apply SillyTavern regex scripts only while rendering chat passages into Layer 0 or regeneration source text; promotion inputs are synthetic memory and must not be regexed.

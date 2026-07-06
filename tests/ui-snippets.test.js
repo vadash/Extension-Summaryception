@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { getEffectiveMemoryUsage } from '../src/core/memory-budget.js';
 import {
     buildContextBudgetViewModel,
     buildSnippetBrowserViewModel,
     formatBudgetTokenLabel,
     getSnippetBrowserRowKey,
 } from '../src/entry/ui.js';
+import { installSillyTavernStub, makeSummaryStore, countTokens } from './test-helpers.js';
 
 describe('snippet browser view model', () => {
     it('marks an empty store as empty', () => {
@@ -146,6 +148,48 @@ describe('context budget view model', () => {
         expect(formatBudgetTokenLabel(1356092)).toBe('1356k');
         expect(view.totalLabel).toBe('~1k / 10k');
         expect(view.segments[0].estimated).toBe(true);
+    });
+
+    it('can render memory usage from effective injection parts instead of raw snippets', async () => {
+        const layers = [
+            [
+                {
+                    text: '[NARRATIVE]\nalpha\n\n[STATE]\nlocation: ' + 'dock '.repeat(20),
+                },
+                {
+                    text: '[NARRATIVE]\nbeta\n\n[STATE]\nlocation: ' + 'tower '.repeat(20),
+                },
+                {
+                    text: '[NARRATIVE]\ngamma\n\n[STATE]\nlocation: ' + 'tower '.repeat(20),
+                },
+            ],
+        ];
+        const settings = {
+            memoryTokenBudget: 200,
+            injectionTemplate: 'WRAP\n{{summary}}\nEND',
+        };
+        installSillyTavernStub({
+            metadata: { summaryception: makeSummaryStore({ layers }) },
+            settings,
+            getTokenCountAsync: async (text) => countTokens(text),
+        });
+
+        const usage = await getEffectiveMemoryUsage(layers, settings);
+        const view = buildContextBudgetViewModel({
+            budget: settings.memoryTokenBudget,
+            verbatim: budgetPart('Live Chat', 'verbatim', 0),
+            layers: usage.parts,
+        });
+        const rawSnippetTokens = countTokens(layers[0].map((snippet) => snippet.text).join(' '));
+
+        expect(view.used).toBe(usage.total.count);
+        expect(view.used).toBeLessThan(rawSnippetTokens);
+        expect(view.segments.map((segment) => segment.label)).toEqual([
+            'State',
+            'Layer 0',
+            'Wrapper',
+            'Free Space',
+        ]);
     });
 });
 
