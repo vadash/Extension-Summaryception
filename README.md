@@ -130,6 +130,11 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
+- **v11:** CN output filter (CN models love to add non EN symbols to output) and Dual-Track Architecture test.
+Separate each summary into two tracks:
+1. **Narrative track** -- free-form prose describing what happened (events, actions, dialogue outcomes)
+2. **State track** -- a compact structured block of current durable facts (location, character states, relationships, inventory, unresolved hooks, counters)
+On promotion, the state track is **merged by overwrite** (new values replace old), while the narrative track is **compressed by summarization**. This eliminates the root cause: the LLM no longer needs to guess which parts of prose are state vs events.
 - **v10:** UI & prompt update. Redesigned the settings panel to be cleaner and more compact for ST sidebars. Added completely separate, customizable prompt editors for Layer 0 (recent turns) and Layer 1+ (deep memory merges).
 Refactor debug logging. Add summarizer fallback connection.
 - **v9:** The Elastic & Cache update.
@@ -155,3 +160,13 @@ Built out of frustration with context limits and love for long-form roleplay.
 If this saves your 500-turn adventure from amnesia, consider starring the repo.
 
 **License:** AGPL-3.0
+
+## new UI (v11+)
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f1fda4c0-282e-4bbf-8924-98755fb461e0" width="180" alt="1" />
+  <img src="https://github.com/user-attachments/assets/988a1227-7c43-4512-8256-67e8a98a8689" width="180" alt="2" />
+  <img src="https://github.com/user-attachments/assets/515f7249-6b29-402f-9979-120e9cbfd336" width="180" alt="3" />
+  <img src="https://github.com/user-attachments/assets/cd7a255c-4d52-4082-9e62-af6c40798a0a" width="180" alt="4" />
+  <img src="https://github.com/user-attachments/assets/88f5de03-4414-4b7d-8b1a-3bfa60b5d3f8" width="180" alt="5" />
+</p>
