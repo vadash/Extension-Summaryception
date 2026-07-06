@@ -8,6 +8,7 @@ import {
     hasActiveAbortController,
     hasFrozenPromptMutations,
     maybeSummarizeTurns,
+    recoverStalePromptFreeze,
     resetCatchupDismissed,
 } from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
@@ -19,6 +20,7 @@ import { updateUI } from './ui.js';
 let reconcileTimer = null;
 let reconcilePromise = null;
 let reconcileQueued = false;
+let promptFreezeRecoveryBound = false;
 
 /**
  *
@@ -44,6 +46,7 @@ export function onMessageReceived(messageIndex) {
  */
 export function onChatChanged() {
     debug('Chat changed.');
+    recoverPromptFreeze('chat change');
     resetCatchupDismissed();
     scheduleLoadedChatReconciliation();
 }
@@ -54,6 +57,20 @@ export function onChatChanged() {
  */
 export async function onAppReady() {
     await runSerializedReconciliation();
+}
+
+/**
+ * Bind browser lifecycle cleanup for prompt mutation freezes.
+ * @returns {void}
+ */
+export function bindPromptFreezeRecoveryEvents() {
+    const win = globalThis.window;
+    if (promptFreezeRecoveryBound || !win || typeof win.addEventListener !== 'function') {
+        return;
+    }
+
+    win.addEventListener('beforeunload', onBeforeUnload);
+    promptFreezeRecoveryBound = true;
 }
 
 /**
@@ -93,6 +110,16 @@ export function onGenerationEnded() {
             updateInjection();
             updateUI();
         });
+}
+
+function onBeforeUnload() {
+    recoverPromptFreeze('page unload');
+}
+
+function recoverPromptFreeze(reason) {
+    void recoverStalePromptFreeze(reason, { refreshUi: updateUI }).catch((error) => {
+        warn('Error while recovering foreground generation freeze:', error);
+    });
 }
 
 /**

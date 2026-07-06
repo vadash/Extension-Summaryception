@@ -1,4 +1,4 @@
-import { compileGlobalState, parseSnippet } from './summarizer-state.js';
+import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
 
 /**
  * @typedef {object} MemoryInjectionParts
@@ -41,11 +41,7 @@ function buildCurrentStateText(layers) {
         return '';
     }
 
-    const parts = ['[CURRENT STATE]'];
-    for (const [key, value] of Object.entries(state)) {
-        parts.push(`${key}: ${value}`);
-    }
-    return parts.join('\n');
+    return serializeState(state).replace(/^\[STATE\]/, '[CURRENT STATE]');
 }
 
 function collectChronologyParts(layers) {

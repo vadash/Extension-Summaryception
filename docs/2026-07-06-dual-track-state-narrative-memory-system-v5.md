@@ -1,7 +1,7 @@
 # Spec v5: Dual-Track State + Narrative Memory System
 
 ## Problem
-The current system treats all summary content as homogeneous prose. Any recurring data point (tally, location, equipment, relationship status, character state) gets re-narrated on every promotion cycle because the LLM cannot distinguish "durable state that should be overwritten" from "narrative events that should be appended." This is generic -- it will happen with ANY RP type (ERP, slice-of-life, sci-fi, etc.).
+The current system treats all summary content as homogeneous prose. Any recurring data point (tally, location, equipment, relationship status, character state) gets re-narrated on every promotion cycle because the LLM cannot distinguish "durable state that should be overwritten" from "narrative events that should be appended." This is generic -- it can happen with any roleplay style, including slice-of-life, sci-fi, political, horror, or adventure chats.
 
 ## Solution: Dual-Track Architecture
 
@@ -51,6 +51,19 @@ flowchart TB
 8. **Bounded unclassified notes** -- malformed state lines are capped and deduplicated to prevent a new source of bloat
 9. **Consistent merge logic** -- `compileGlobalState` and promotion merge use the same `mergeStates` function
 10. **Clean serialization** -- empty/nullify values are omitted from output, never written as empty keys
+11. **State pruning at the code boundary** -- merged list-like state entries marked closed, resolved, historical, or inactive are stripped before prompt injection
+12. **Counter caps** -- long counter lists are bounded in `mergeStates` so advanced cycles cannot grow indefinitely through repeated state carry-forward
+13. **Output hardening** -- `serializeState` escapes raw double quotes, and `[CURRENT STATE]` injection reuses the same serializer path
+
+## Final Validation Pass
+
+An extended July 06 run validated the dual-track format across 17 consecutive Layer 0 summarization cycles. The model preserved explicit `[NARRATIVE]` and `[STATE]` markers, kept the canonical keys stable (`location`, `characters`, `dynamics`, `hooks`, `inventory`, `counters`), and maintained complex counters and relationship dynamics without key drift.
+
+The production pass adds three hardening changes before finalizing the feature:
+
+1. **State bloat control:** `mergeStates` prunes stale list entries and caps long counter-style state before the merged state is serialized or injected.
+2. **Stale freeze cleanup:** chat changes and `beforeunload` now trigger best-effort recovery of stale foreground prompt freezes.
+3. **Quote safety:** serialized state values escape raw double quotes so custom wrappers and structured templates cannot be broken by unescaped state text.
 
 ## Implementation Plan
 
@@ -152,12 +165,14 @@ export function parseSnippet(text) -> { narrative: string, state: Record<string,
  * If a value is "none"/"empty"/"null"/"cleared"/"resolved", remove the key entirely.
  * Omitted keys are preserved (not deleted).
  * unclassified_notes is treated as append-only with deduplication and cap.
+ * list-like counters/hooks/inventory entries are pruned/capped when they carry stale markers.
  */
 export function mergeStates(states: Array<Record<string,string>>) -> Record<string,string>
 
 /**
  * Serialize a state object back to [STATE] block format.
  * Omits empty values and nullify-values from output.
+ * Escapes raw double quotes before writing state back to memory or prompt injection.
  */
 export function serializeState(state: Record<string,string>) -> string
 
@@ -318,7 +333,8 @@ function serializeState(state) {
         // Skip empty values and nullify-values (they should have been deleted in merge,
         // but this is a defensive guard for direct serialize calls)
         if (trimmed && !NULLIFY_VALUES.has(trimmed.toLowerCase())) {
-            lines.push(`${key}: ${trimmed}`);
+            const sanitized = trimmed.replace(/(^|[^\\])"/g, '$1\\"');
+            lines.push(`${key}: ${sanitized}`);
         }
     }
     return lines.length > 0 ? `[STATE]\n${lines.join('\n')}` : '';
@@ -465,6 +481,8 @@ Existing summaries have no `[STATE]` block. The parser handles this:
 | `src/core/summarizer-request.js` | Minor: pass narrative-only input to promotion calls |
 | `src/core/chatutils.js` | New `buildMemoryInjection()` with clean state + chronology format |
 | `src/core/summarizer.js` | Use new `buildMemoryInjection()` for live prompt context |
+| `src/entry/events.js` | Recover stale prompt freezes during chat changes and browser unload cleanup |
+| `index.js` | Register lifecycle cleanup during extension initialization |
 | `src/entry/ui.js` | Keep preset UI, add help text, remove auto-save behavior |
 | `src/entry/ui-events.js` | Simplify preset handling, remove auto-save migration |
 | `src/entry/settings.html` | Add help text for custom prompt format requirement |
@@ -475,6 +493,9 @@ Existing summaries have no `[STATE]` block. The parser handles this:
 - **Key fragmentation prevention:** `KEY_ALIASES` map normalizes synonyms (`place`, `current_location`, `room` all become `location`). Emergent keys not in the alias table are preserved as-is.
 - **Unclassified notes handling:** Malformed state lines are collected into `unclassified_notes` with a hard cap of 3 entries. During merge, unclassified notes are appended (not overwritten) and deduplicated, preventing both data loss and bloat.
 - **Clean serialization:** `serializeState` filters out empty values and nullify-values, so the stored `[STATE]` block never contains dead keys.
+- **State pruning:** `mergeStates` removes stale list entries and caps long counter lists before either promotion storage or current-state injection.
+- **Quote safety:** `[CURRENT STATE]` is built through `serializeState`, so stored state and live prompt injection share quote escaping behavior.
+- **Lifecycle cleanup:** chat-change and unload recovery release stale foreground freezes instead of waiting for the next manual or automatic summarization pass.
 - **Consistent merge logic:** `compileGlobalState` uses the same `mergeStates` function as promotion, ensuring identical dedup/nullify/cap behavior in both paths.
 - **Token budget:** Single compiled state block + continuous prose is MORE token-efficient than raw snippet-per-snippet injection.
 - **Backward compatibility:** Existing chats without state blocks parse to `{ narrative, state: {} }`. System self-heals within one promotion cycle.

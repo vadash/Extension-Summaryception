@@ -10,7 +10,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - **Layers 1+:** Meta-summaries promoted from lower layers.
 - **Memory budget:** `memoryTokenBudget` tracks the assembled Summaryception injection size; use `memory-budget.js`/`memory-injection.js` instead of raw snippet text when changing budget UI or promotion pressure.
 - **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, non-compressing promotion output must not be committed, empty destination layers are created only by LLM-backed merge promotion, and maximum depth is capped at 20.
-- **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text to the LLM and merge `[STATE]` data with `mergeStates()` in code.
+- **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text to the LLM and merge `[STATE]` data with `mergeStates()` in code. Build current-state prompt output through `serializeState()` so escaping and pruning stay centralized.
 - **Regex:** Apply SillyTavern regex scripts only while rendering chat passages into Layer 0 or regeneration source text; promotion inputs are synthetic memory and must not be regexed.
 - **Ghosting:** Ghosted messages are hidden from the LLM context using SillyTavern's native `/hide` command, but remain fully visible in the UI; batching builds contiguous `/hide` and `/unhide` ranges after filtering user, system, empty, and already hidden messages, with ownership tracked by `sc_ghosted` and `ghostedIndices`.
 

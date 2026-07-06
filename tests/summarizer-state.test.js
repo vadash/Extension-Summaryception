@@ -129,6 +129,14 @@ describe('summarizer-state', () => {
         ).toBe(['[STATE]', 'location: dock', 'counters: lock: 2'].join('\n'));
     });
 
+    it('escapes raw double quotes when serializing state values', () => {
+        expect(
+            serializeState({
+                hooks: 'caption "ready", note \\"already escaped\\"',
+            }),
+        ).toBe(['[STATE]', 'hooks: caption \\"ready\\", note \\"already escaped\\"'].join('\n'));
+    });
+
     it('strips balanced pseudo-object braces from serialized state values', () => {
         expect(
             serializeState({
@@ -140,6 +148,40 @@ describe('summarizer-state', () => {
                 '\n',
             ),
         );
+    });
+
+    it('prunes stale list entries and caps long counter lists during merge', () => {
+        const counters = Array.from({ length: 10 }, (_value, index) => `count${index}: ${index}`);
+
+        expect(
+            mergeStates([
+                {
+                    counters: [
+                        'old tally: 1',
+                        'current tally: 2',
+                        'previous score: 3',
+                        'active score: 4',
+                    ].join('; '),
+                    inventory: 'badge; expired pass; map; closed case; lantern',
+                },
+                { counters: counters.join('; ') },
+            ]),
+        ).toEqual({
+            counters: counters.slice(2).join('; '),
+            inventory: 'badge; map; lantern',
+        });
+    });
+
+    it('preserves prior state when pruning removes every incoming list entry', () => {
+        expect(
+            mergeStates([
+                { inventory: 'badge; map', counters: 'active score: 4' },
+                { inventory: 'expired pass; closed case', counters: 'old tally: 1' },
+            ]),
+        ).toEqual({
+            inventory: 'badge; map',
+            counters: 'active score: 4',
+        });
     });
 
     it('compiles global state oldest to newest across layers', () => {

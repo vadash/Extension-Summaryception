@@ -25,6 +25,7 @@ import { initSettingsTabs } from './src/entry/ui-tabs.js';
 import { showAutoBacklogNotice } from './src/entry/ui-dialogs.js';
 import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
 import {
+    bindPromptFreezeRecoveryEvents,
     onChatChanged,
     onAppReady,
     onGenerationEnded,
@@ -52,6 +53,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
 
     initSettingsHelp();
     bindUIEvents();
+    bindPromptFreezeRecoveryEvents();
     initSettingsTabs();
     initConnectionUI();
 
