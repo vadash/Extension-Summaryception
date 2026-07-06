@@ -24,6 +24,55 @@ afterEach(() => {
 });
 
 describe('ui prompt/reset events', () => {
+    it('saves simple checkbox settings through shared bindings', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_debug_mode').prop('checked', true);
+        ui.trigger('change', '#sc_debug_mode');
+
+        expect(ctx.extensionSettings.summaryception.debugMode).toBe(true);
+    });
+
+    it('saves numeric response length through shared bindings', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_summarizer_response_length').val('256');
+        ui.trigger('input', '#sc_summarizer_response_length');
+
+        expect(ctx.extensionSettings.summaryception.summarizerResponseLength).toBe(256);
+    });
+
+    it('parses strip patterns through shared bindings', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_strip_patterns').val('  <thinking>  \n\n</thinking>\n  ');
+        ui.trigger('change', '#sc_strip_patterns');
+
+        expect(ctx.extensionSettings.summaryception.stripPatterns).toEqual([
+            '<thinking>',
+            '</thinking>',
+        ]);
+    });
+
+    it('refreshes injection and UI after custom memory depth changes', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_custom_memory_depth').val('99999');
+        ui.trigger('change', '#sc_custom_memory_depth');
+
+        expect(ctx.extensionSettings.summaryception.customMemoryDepth).toBe(10000);
+        expect(mocks.updateInjection).toHaveBeenCalledOnce();
+        expect(mocks.updateUI).toHaveBeenCalledOnce();
+    });
+
     it('switches Layer 0 user-prompt edits to custom so reset preserves them', async () => {
         const settings = structuredClone(defaultSettings);
         settings.memoryMode = MEMORY_MODES.CACHE;
@@ -224,7 +273,9 @@ function createJQueryHarness() {
 
     const documentWrapper = {
         on(eventName, selector, handler) {
-            handlers.push({ eventName, selector, handler });
+            for (const name of String(eventName).split(/\s+/).filter(Boolean)) {
+                handlers.push({ eventName: name, selector, handler });
+            }
             return documentWrapper;
         },
     };

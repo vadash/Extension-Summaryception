@@ -37,6 +37,7 @@ import {
     showSlopBreakerOutcome,
     updateManualProgressToast,
 } from './ui-dialogs.js';
+import { bindDocumentSetting, readChecked, readIntegerOrZero, readString } from './ui-bind.js';
 
 const PROMPT_PROFILES = {
     layer0: {
@@ -115,35 +116,24 @@ function bindToggleHandlers() {
         }
     });
 
-    $(document).on('change', '#sc_debug_mode', function () {
-        getSettings().debugMode = $(this).prop('checked');
-        saveSettings();
-    });
+    /** @type {Array<{ selector: string, key: string }>} */
+    const toggles = [
+        { selector: '#sc_debug_mode', key: 'debugMode' },
+        { selector: '#sc_trace_mode', key: 'traceMode' },
+        { selector: '#sc_prompt_input_log_mode', key: 'promptInputLogMode' },
+        { selector: '#sc_prompt_output_log_mode', key: 'promptOutputLogMode' },
+        { selector: '#sc_apply_regex_scripts', key: 'applyRegexScripts' },
+        { selector: '#sc_strip_chinese_ideographs', key: 'stripChineseIdeographs' },
+    ];
 
-    $(document).on('change', '#sc_trace_mode', function () {
-        getSettings().traceMode = $(this).prop('checked');
-        saveSettings();
-    });
-
-    $(document).on('change', '#sc_prompt_input_log_mode', function () {
-        getSettings().promptInputLogMode = $(this).prop('checked');
-        saveSettings();
-    });
-
-    $(document).on('change', '#sc_prompt_output_log_mode', function () {
-        getSettings().promptOutputLogMode = $(this).prop('checked');
-        saveSettings();
-    });
-
-    $(document).on('change', '#sc_apply_regex_scripts', function () {
-        getSettings().applyRegexScripts = $(this).prop('checked');
-        saveSettings();
-    });
-
-    $(document).on('change', '#sc_strip_chinese_ideographs', function () {
-        getSettings().stripChineseIdeographs = $(this).prop('checked');
-        saveSettings();
-    });
+    for (const toggle of toggles) {
+        bindDocumentSetting({
+            eventName: 'change',
+            selector: toggle.selector,
+            key: toggle.key,
+            read: readChecked,
+        });
+    }
 }
 
 /**
@@ -165,26 +155,39 @@ function bindMemoryModeHandlers() {
         updateUI();
     });
 
-    $(document).on('change', '#sc_custom_memory_position', function () {
-        getSettings().customMemoryPosition = String($(this).val());
-        saveSettings();
-        updateInjection();
-        updateUI();
-    });
+    /** @type {Array<{ eventName: string, selector: string, key: string, read: (source: object) => unknown }>} */
+    const customPlacementBindings = [
+        {
+            eventName: 'change',
+            selector: '#sc_custom_memory_position',
+            key: 'customMemoryPosition',
+            read: readString,
+        },
+        {
+            eventName: 'change',
+            selector: '#sc_custom_memory_role',
+            key: 'customMemoryRole',
+            read: readString,
+        },
+        {
+            eventName: 'input change',
+            selector: '#sc_custom_memory_depth',
+            key: 'customMemoryDepth',
+            read: ($element) => clampNumberInput($element.val(), 0, 10000),
+        },
+    ];
 
-    $(document).on('change', '#sc_custom_memory_role', function () {
-        getSettings().customMemoryRole = String($(this).val());
-        saveSettings();
-        updateInjection();
-        updateUI();
-    });
+    for (const binding of customPlacementBindings) {
+        bindDocumentSetting({
+            ...binding,
+            afterSave: refreshCustomMemoryPlacement,
+        });
+    }
+}
 
-    $(document).on('input change', '#sc_custom_memory_depth', function () {
-        getSettings().customMemoryDepth = clampNumberInput($(this).val(), 0, 10000);
-        saveSettings();
-        updateInjection();
-        updateUI();
-    });
+function refreshCustomMemoryPlacement() {
+    updateInjection();
+    updateUI();
 }
 
 function requestAutoSummaryRefresh(reason) {
@@ -208,20 +211,26 @@ function clampNumberInput(value, min, max) {
  * @returns {void}
  */
 function bindInputHelpers() {
-    $(document).on('input', '#sc_summarizer_response_length', function () {
-        getSettings().summarizerResponseLength = parseInt($(this).val(), 10) || 0;
-        saveSettings();
+    bindDocumentSetting({
+        eventName: 'input',
+        selector: '#sc_summarizer_response_length',
+        key: 'summarizerResponseLength',
+        read: readIntegerOrZero,
     });
 
-    $(document).on('change', '#sc_strip_patterns', function () {
-        const lines = $(this)
-            .val()
-            .split('\n')
-            .map((l) => l.trim())
-            .filter((l) => l.length > 0);
-        getSettings().stripPatterns = lines;
-        saveSettings();
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_strip_patterns',
+        key: 'stripPatterns',
+        read: readStripPatterns,
     });
+}
+
+function readStripPatterns($element) {
+    return readString($element)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
 }
 
 /**
@@ -416,10 +425,11 @@ function bindTextareaHandlers() {
     const textareas = [{ id: '#sc_injection_template', key: 'injectionTemplate' }];
 
     for (const ta of textareas) {
-        $(document).on('change', ta.id, function () {
-            const s = getSettings();
-            s[ta.key] = $(this).val();
-            saveSettings();
+        bindDocumentSetting({
+            eventName: 'change',
+            selector: ta.id,
+            key: ta.key,
+            read: readString,
         });
     }
 }

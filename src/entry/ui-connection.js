@@ -6,6 +6,7 @@ import {
     populateProfileDropdown,
 } from '../core/connectionutil.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
+import { bindElementSetting, readIntegerOrZero, readString, readTrimmedString } from './ui-bind.js';
 
 // Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
 
@@ -27,6 +28,90 @@ const STRING_INPUT_IDS_BY_KEY = Object.freeze({
     ],
 });
 
+const CONNECTION_ROUTE_BINDINGS = Object.freeze([
+    {
+        sourceId: 'summaryception_connection_source',
+        sourceKey: 'connectionSource',
+        sourceFallback: 'default',
+        profileId: 'summaryception_connection_profile',
+        profileKey: 'connectionProfileId',
+        updatePanels: updateConnectionSubPanels,
+    },
+    {
+        sourceId: 'summaryception_merge_connection_source',
+        sourceKey: 'mergeConnectionSource',
+        sourceFallback: 'inherit',
+        profileId: 'summaryception_merge_connection_profile',
+        profileKey: 'mergeConnectionProfileId',
+        updatePanels: updateMergeConnectionSubPanels,
+    },
+    {
+        sourceId: 'summaryception_fallback_connection_source',
+        sourceKey: 'fallbackConnectionSource',
+        sourceFallback: 'disabled',
+        profileId: 'summaryception_fallback_connection_profile',
+        profileKey: 'fallbackConnectionProfileId',
+        updatePanels: updateFallbackConnectionSubPanels,
+    },
+]);
+
+const CONNECTION_STRING_INPUTS = Object.freeze([
+    {
+        elementId: 'summaryception_ollama_url',
+        key: 'ollamaUrl',
+        fallback: 'http://localhost:11434',
+    },
+    { elementId: 'summaryception_openai_url', key: 'openaiUrl', fallback: '' },
+    { elementId: 'summaryception_openai_key', key: 'openaiKey', fallback: '' },
+    { elementId: 'summaryception_openai_model', key: 'openaiModel', fallback: '' },
+    {
+        elementId: 'summaryception_merge_ollama_url',
+        key: 'ollamaUrl',
+        fallback: 'http://localhost:11434',
+    },
+    { elementId: 'summaryception_merge_openai_url', key: 'openaiUrl', fallback: '' },
+    { elementId: 'summaryception_merge_openai_key', key: 'openaiKey', fallback: '' },
+    { elementId: 'summaryception_merge_openai_model', key: 'mergeOpenaiModel', fallback: '' },
+    {
+        elementId: 'summaryception_fallback_ollama_url',
+        key: 'ollamaUrl',
+        fallback: 'http://localhost:11434',
+    },
+    { elementId: 'summaryception_fallback_openai_url', key: 'openaiUrl', fallback: '' },
+    { elementId: 'summaryception_fallback_openai_key', key: 'openaiKey', fallback: '' },
+    { elementId: 'summaryception_fallback_openai_model', key: 'fallbackOpenaiModel', fallback: '' },
+]);
+
+const CONNECTION_NUMBER_INPUTS = Object.freeze([
+    { elementId: 'summaryception_openai_max_tokens', key: 'openaiMaxTokens', fallback: 0 },
+    {
+        elementId: 'summaryception_merge_openai_max_tokens',
+        key: 'mergeOpenaiMaxTokens',
+        fallback: 0,
+    },
+    {
+        elementId: 'sc_merge_summarizer_response_length',
+        key: 'mergeSummarizerResponseLength',
+        fallback: 0,
+    },
+    {
+        elementId: 'summaryception_fallback_openai_max_tokens',
+        key: 'fallbackOpenaiMaxTokens',
+        fallback: 0,
+    },
+    {
+        elementId: 'sc_fallback_summarizer_response_length',
+        key: 'fallbackSummarizerResponseLength',
+        fallback: 0,
+    },
+]);
+
+const OLLAMA_MODEL_DROPDOWNS = Object.freeze([
+    { elementId: 'summaryception_ollama_model', key: 'ollamaModel' },
+    { elementId: 'summaryception_merge_ollama_model', key: 'mergeOllamaModel' },
+    { elementId: 'summaryception_fallback_ollama_model', key: 'fallbackOllamaModel' },
+]);
+
 /**
  * Initialize connection settings panel: bind inputs/selects and set initial visibility.
  * @returns {void}
@@ -34,227 +119,107 @@ const STRING_INPUT_IDS_BY_KEY = Object.freeze({
 export function initConnectionUI() {
     const settings = getSettings();
 
-    bindConnectionSource(settings);
-    bindConnectionProfile(settings);
-    bindConnectionStringInput('summaryception_ollama_url', 'ollamaUrl', 'http://localhost:11434');
-    bindOllamaModelDropdown(settings, 'summaryception_ollama_model', 'ollamaModel');
+    bindConnectionRoutes(settings);
+    bindConnectionInputs();
+    bindOllamaModelDropdowns(settings);
     bindConnectionButton('summaryception_ollama_refresh', refreshOllamaModels);
-    bindConnectionStringInput('summaryception_openai_url', 'openaiUrl', '');
-    bindConnectionStringInput('summaryception_openai_key', 'openaiKey', '');
-    bindConnectionStringInput('summaryception_openai_model', 'openaiModel', '');
-    bindConnectionParsedInput('summaryception_openai_max_tokens', 'openaiMaxTokens', 0);
     bindConnectionButton('summaryception_openai_test', testOpenAIConnectionHandler);
-    bindMergeConnectionSource(settings);
-    bindMergeConnectionProfile(settings);
-    bindFallbackConnectionSource(settings);
-    bindFallbackConnectionProfile(settings);
-    bindConnectionStringInput(
-        'summaryception_merge_ollama_url',
-        'ollamaUrl',
-        'http://localhost:11434',
-    );
-    bindOllamaModelDropdown(settings, 'summaryception_merge_ollama_model', 'mergeOllamaModel');
     bindConnectionButton('summaryception_merge_ollama_refresh', refreshOllamaModels);
-    bindConnectionStringInput('summaryception_merge_openai_url', 'openaiUrl', '');
-    bindConnectionStringInput('summaryception_merge_openai_key', 'openaiKey', '');
-    bindConnectionStringInput('summaryception_merge_openai_model', 'mergeOpenaiModel', '');
-    bindConnectionParsedInput('summaryception_merge_openai_max_tokens', 'mergeOpenaiMaxTokens', 0);
-    bindConnectionParsedInput(
-        'sc_merge_summarizer_response_length',
-        'mergeSummarizerResponseLength',
-        0,
-    );
-    bindConnectionStringInput(
-        'summaryception_fallback_ollama_url',
-        'ollamaUrl',
-        'http://localhost:11434',
-    );
-    bindOllamaModelDropdown(
-        settings,
-        'summaryception_fallback_ollama_model',
-        'fallbackOllamaModel',
-    );
     bindConnectionButton('summaryception_fallback_ollama_refresh', refreshOllamaModels);
-    bindConnectionStringInput('summaryception_fallback_openai_url', 'openaiUrl', '');
-    bindConnectionStringInput('summaryception_fallback_openai_key', 'openaiKey', '');
-    bindConnectionStringInput('summaryception_fallback_openai_model', 'fallbackOpenaiModel', '');
-    bindConnectionParsedInput(
-        'summaryception_fallback_openai_max_tokens',
-        'fallbackOpenaiMaxTokens',
-        0,
-    );
-    bindConnectionParsedInput(
-        'sc_fallback_summarizer_response_length',
-        'fallbackSummarizerResponseLength',
-        0,
-    );
 
     updateConnectionSubPanels(settings.connectionSource || 'default');
     updateMergeConnectionSubPanels(settings.mergeConnectionSource || 'inherit');
     updateFallbackConnectionSubPanels(settings.fallbackConnectionSource || 'disabled');
 }
 
-/**
- * Bind the connection source dropdown.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindConnectionSource(settings) {
-    const $sourceSelect = $('#summaryception_connection_source');
+function bindConnectionRoutes(settings) {
+    for (const binding of CONNECTION_ROUTE_BINDINGS) {
+        bindConnectionSource(settings, binding);
+        bindConnectionProfile(settings, binding);
+    }
+}
+
+function bindConnectionSource(settings, binding) {
+    const $sourceSelect = $('#' + binding.sourceId);
     if (!$sourceSelect.length) {
         return;
     }
-    $sourceSelect.val(settings.connectionSource || 'default');
-    $sourceSelect.on('change', () => {
-        settings.connectionSource = $sourceSelect.val();
-        saveSettings();
-        updateConnectionSubPanels($sourceSelect.val());
+    $sourceSelect.val(settings[binding.sourceKey] || binding.sourceFallback);
+    bindElementSetting($sourceSelect, {
+        eventName: 'change',
+        key: binding.sourceKey,
+        read: readString,
+        afterSave: (_settings, value) => binding.updatePanels(String(value)),
     });
 }
 
-/**
- * Bind the connection profile dropdown with fallback population.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindConnectionProfile(settings) {
-    const $profileSelect = $('#summaryception_connection_profile');
+function bindConnectionProfile(settings, binding) {
+    const $profileSelect = $('#' + binding.profileId);
     if (!$profileSelect.length) {
         return;
     }
-    const populated = populateProfileDropdown($profileSelect[0], settings.connectionProfileId);
+    const populated = populateProfileDropdown($profileSelect[0], settings[binding.profileKey]);
     if (!populated) {
-        fetchProfilesFallback($profileSelect, settings.connectionProfileId);
+        fetchProfilesFallback($profileSelect, settings[binding.profileKey]);
     }
-    $profileSelect.on('change', () => {
-        settings.connectionProfileId = $profileSelect.val();
-        saveSettings();
+    bindElementSetting($profileSelect, {
+        eventName: 'change',
+        key: binding.profileKey,
+        read: readString,
     });
 }
 
-/**
- * Bind the Layer 1+ merge connection source dropdown.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindMergeConnectionSource(settings) {
-    const $sourceSelect = $('#summaryception_merge_connection_source');
-    if (!$sourceSelect.length) {
-        return;
+function bindConnectionInputs() {
+    for (const binding of CONNECTION_STRING_INPUTS) {
+        bindConnectionStringInput(binding);
     }
-    $sourceSelect.val(settings.mergeConnectionSource || 'inherit');
-    $sourceSelect.on('change', () => {
-        settings.mergeConnectionSource = $sourceSelect.val();
-        saveSettings();
-        updateMergeConnectionSubPanels($sourceSelect.val());
-    });
-}
-
-/**
- * Bind the Layer 1+ merge connection profile dropdown.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindMergeConnectionProfile(settings) {
-    const $profileSelect = $('#summaryception_merge_connection_profile');
-    if (!$profileSelect.length) {
-        return;
+    for (const binding of CONNECTION_NUMBER_INPUTS) {
+        bindConnectionParsedInput(binding);
     }
-    const populated = populateProfileDropdown($profileSelect[0], settings.mergeConnectionProfileId);
-    if (!populated) {
-        fetchProfilesFallback($profileSelect, settings.mergeConnectionProfileId);
-    }
-    $profileSelect.on('change', () => {
-        settings.mergeConnectionProfileId = $profileSelect.val();
-        saveSettings();
-    });
-}
-
-/**
- * Bind the fallback connection source dropdown.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindFallbackConnectionSource(settings) {
-    const $sourceSelect = $('#summaryception_fallback_connection_source');
-    if (!$sourceSelect.length) {
-        return;
-    }
-    $sourceSelect.val(settings.fallbackConnectionSource || 'disabled');
-    $sourceSelect.on('change', () => {
-        settings.fallbackConnectionSource = $sourceSelect.val();
-        saveSettings();
-        updateFallbackConnectionSubPanels($sourceSelect.val());
-    });
-}
-
-/**
- * Bind the fallback connection profile dropdown.
- * @param {ReturnType<typeof getSettings>} settings
- * @returns {void}
- */
-function bindFallbackConnectionProfile(settings) {
-    const $profileSelect = $('#summaryception_fallback_connection_profile');
-    if (!$profileSelect.length) {
-        return;
-    }
-    const populated = populateProfileDropdown(
-        $profileSelect[0],
-        settings.fallbackConnectionProfileId,
-    );
-    if (!populated) {
-        fetchProfilesFallback($profileSelect, settings.fallbackConnectionProfileId);
-    }
-    $profileSelect.on('change', () => {
-        settings.fallbackConnectionProfileId = $profileSelect.val();
-        saveSettings();
-    });
 }
 
 /**
  * Bind an `<input>` element to a string settings key.
- * @param {string} elementId
- * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel' | 'mergeOpenaiModel' | 'fallbackOpenaiModel'} key
- * @param {string} [fallback]
+ * @param {{ elementId: string, key: string, fallback: string }} binding
  * @returns {void}
  */
-function bindConnectionStringInput(elementId, key, fallback) {
+function bindConnectionStringInput({ elementId, key, fallback }) {
     const $el = $('#' + elementId);
     if (!$el.length) {
         return;
     }
     const settings = getSettings();
     $el.val(settings[key] || fallback);
-    $el.on('input', () => {
-        settings[key] = ($el.val() || '').trim();
-        syncSharedStringInputs(key, settings[key], elementId);
-        saveSettings();
+    bindElementSetting($el, {
+        eventName: 'input',
+        key,
+        read: readTrimmedString,
+        beforeSave: (_settings, value) => syncSharedStringInputs(key, String(value), elementId),
     });
 }
 
 /**
  * Bind a numeric `<input>` element to a number settings key.
- * @param {string} elementId
- * @param {'openaiMaxTokens' | 'mergeOpenaiMaxTokens' | 'mergeSummarizerResponseLength' | 'fallbackOpenaiMaxTokens' | 'fallbackSummarizerResponseLength'} key
- * @param {number} [fallback]
+ * @param {{ elementId: string, key: string, fallback: number }} binding
  * @returns {void}
  */
-function bindConnectionParsedInput(elementId, key, fallback) {
+function bindConnectionParsedInput({ elementId, key, fallback }) {
     const $el = $('#' + elementId);
     if (!$el.length) {
         return;
     }
     const settings = getSettings();
     $el.val(String(settings[key] || fallback));
-    $el.on('input', () => {
-        settings[key] = parseInt($el.val(), 10) || 0;
-        saveSettings();
+    bindElementSetting($el, {
+        eventName: 'input',
+        key,
+        read: readIntegerOrZero,
     });
 }
 
 /**
  * Keep duplicate shared endpoint controls visually in sync.
- * @param {'ollamaUrl' | 'openaiUrl' | 'openaiKey' | 'openaiModel' | 'mergeOpenaiModel' | 'fallbackOpenaiModel'} key
+ * @param {string} key
  * @param {string} value
  * @param {string} sourceElementId
  * @returns {void}
@@ -269,22 +234,28 @@ function syncSharedStringInputs(key, value, sourceElementId) {
     }
 }
 
+function bindOllamaModelDropdowns(settings) {
+    for (const binding of OLLAMA_MODEL_DROPDOWNS) {
+        bindOllamaModelDropdown(settings, binding);
+    }
+}
+
 /**
  * Populate the Ollama model dropdown and bind its change handler.
  * @param {ReturnType<typeof getSettings>} settings
- * @param {string} elementId
- * @param {'ollamaModel' | 'mergeOllamaModel' | 'fallbackOllamaModel'} key
+ * @param {{ elementId: string, key: string }} binding
  * @returns {void}
  */
-function bindOllamaModelDropdown(settings, elementId, key) {
+function bindOllamaModelDropdown(settings, { elementId, key }) {
     const $ollamaModel = $('#' + elementId);
     if (!$ollamaModel.length) {
         return;
     }
     populateOllamaModelDropdown($ollamaModel, settings.ollamaModelsCache || [], settings[key]);
-    $ollamaModel.on('change', () => {
-        settings[key] = $ollamaModel.val();
-        saveSettings();
+    bindElementSetting($ollamaModel, {
+        eventName: 'change',
+        key,
+        read: readString,
     });
 }
 
