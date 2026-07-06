@@ -33,6 +33,7 @@ import {
     buildPassageFromRange,
     buildPassageFromRangeWithStats,
     buildFullContext,
+    buildMemoryInjection,
 } from '../src/core/chatutils.js';
 
 describe('getAssistantTurns', () => {
@@ -221,7 +222,36 @@ describe('buildFullContext', () => {
         const mod = await import('../src/core/chatutils.js');
         expect(mod.buildFullContext(0)).toContain('tip 1');
         expect(mod.buildFullContext(0)).toContain('meta 1');
-        expect(mod.buildFullContext(1)).toBe('meta 1');
+        expect(mod.buildFullContext(1)).toBe('[CHRONOLOGY]\nmeta 1');
         vi.doUnmock('../src/foundation/state.js');
+    });
+});
+
+describe('buildMemoryInjection', () => {
+    it('compiles current state and narrative chronology deepest first', () => {
+        const memory = buildMemoryInjection([
+            [
+                {
+                    text: '[NARRATIVE]\nRecent scene.\n\n[STATE]\nlocation: bridge\nhooks: escape',
+                },
+            ],
+            [
+                {
+                    text: '[NARRATIVE]\nOlder scene.\n\n[STATE]\nplace: tower\ninventory: key',
+                },
+            ],
+        ]);
+
+        expect(memory).toBe(
+            [
+                '[CURRENT STATE]',
+                'location: bridge',
+                'inventory: key',
+                'hooks: escape',
+                '',
+                '[CHRONOLOGY]',
+                'Older scene. Recent scene.',
+            ].join('\n'),
+        );
     });
 });

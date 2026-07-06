@@ -66,10 +66,8 @@ interface ExtensionSettings {
     promotionUserPrompt: string;
     promptPreset: string;
     savedCustomPrompts: Record<string, string>;
-    lastCustomPrompt: string;
     promotionPromptPreset: string;
     savedCustomPromotionPrompts: Record<string, string>;
-    lastCustomPromotionPrompt: string;
     applyRegexScripts: boolean;
     stripPatterns: string[];
     debugMode: boolean;

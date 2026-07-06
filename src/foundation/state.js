@@ -47,7 +47,6 @@ export function getSettings() {
     normalizeVerbatimWindowSettings(settings);
     const promptPresetMigrated = ensurePromptPresetMigrated(settings, {
         hadPromptPreset,
-        lastCustomPromptKey: 'lastCustomPrompt',
         presetKey: 'promptPreset',
         presets: PROMPT_PRESETS,
         promptBeforeBackfill,
@@ -55,7 +54,6 @@ export function getSettings() {
     });
     const promotionPromptPresetMigrated = ensurePromptPresetMigrated(settings, {
         hadPromptPreset: hadPromotionPromptPreset,
-        lastCustomPromptKey: 'lastCustomPromotionPrompt',
         presetKey: 'promotionPromptPreset',
         presets: PROMOTION_PROMPT_PRESETS,
         promptBeforeBackfill: promotionPromptBeforeBackfill,
@@ -188,7 +186,6 @@ function normalizeVerbatimWindowSettings(settings) {
  * @param {ExtensionSettings} settings
  * @param {object} config
  * @param {boolean} config.hadPromptPreset
- * @param {'lastCustomPrompt' | 'lastCustomPromotionPrompt'} config.lastCustomPromptKey
  * @param {'promptPreset' | 'promotionPromptPreset'} config.presetKey
  * @param {{ [key: string]: string | null }} config.presets
  * @param {string} config.promptBeforeBackfill
@@ -197,14 +194,7 @@ function normalizeVerbatimWindowSettings(settings) {
  */
 function ensurePromptPresetMigrated(
     settings,
-    {
-        hadPromptPreset,
-        lastCustomPromptKey,
-        presetKey,
-        presets,
-        promptBeforeBackfill,
-        userPromptKey,
-    },
+    { hadPromptPreset, presetKey, presets, promptBeforeBackfill, userPromptKey },
 ) {
     if (hadPromptPreset && Object.hasOwn(presets, settings[presetKey])) {
         return false;
@@ -216,7 +206,6 @@ function ensurePromptPresetMigrated(
         settings[userPromptKey] = presets.narrative || '';
     } else {
         settings[presetKey] = 'custom';
-        settings[lastCustomPromptKey] = settings[userPromptKey] || promptBeforeBackfill;
     }
     return true;
 }

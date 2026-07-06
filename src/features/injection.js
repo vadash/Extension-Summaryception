@@ -9,6 +9,7 @@ import {
 import { setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
+import { buildMemoryInjection } from '../core/chatutils.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 
@@ -22,45 +23,12 @@ export function assembleSummaryBlock() {
     const s = getSettings();
     const store = getChatStore();
 
-    const layeredSummary = assembleLayerBlocks(store.layers);
-    if (!layeredSummary) {
+    const memory = buildMemoryInjection(store.layers);
+    if (!memory) {
         return '';
     }
 
-    return s.injectionTemplate.replace('{{summary}}', layeredSummary);
-}
-
-function assembleLayerBlocks(layers) {
-    if (!Array.isArray(layers)) {
-        return '';
-    }
-
-    const blocks = [];
-    for (let i = layers.length - 1; i >= 0; i--) {
-        const block = formatLayerBlock(i, layers[i]);
-        if (block) {
-            blocks.push(block);
-        }
-    }
-
-    return blocks.join('\n\n');
-}
-
-function formatLayerBlock(layerIndex, layer) {
-    if (!Array.isArray(layer) || layer.length === 0) {
-        return '';
-    }
-
-    const text = layer
-        .map((snippet) => snippet.text)
-        .filter((snippetText) => snippetText)
-        .join(' ');
-
-    if (!text) {
-        return '';
-    }
-
-    return `<L${layerIndex}>\n${text}\n</L${layerIndex}>`;
+    return s.injectionTemplate.replace('{{summary}}', memory);
 }
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────

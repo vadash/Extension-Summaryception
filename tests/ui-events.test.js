@@ -37,7 +37,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promptPreset: 'custom',
             summarizerUserPrompt: 'Custom narrative prompt',
-            lastCustomPrompt: 'Custom narrative prompt',
         });
 
         globalThis.confirm = vi.fn(() => true);
@@ -46,7 +45,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promptPreset: 'custom',
             summarizerUserPrompt: 'Custom narrative prompt',
-            lastCustomPrompt: 'Custom narrative prompt',
             memoryMode: MEMORY_MODES.CACHE,
             verbatimTokenBudget: 32000,
         });
@@ -65,7 +63,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promotionPromptPreset: 'custom',
             promotionUserPrompt: 'Custom promotion prompt',
-            lastCustomPromotionPrompt: 'Custom promotion prompt',
         });
 
         globalThis.confirm = vi.fn(() => true);
@@ -74,7 +71,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promotionPromptPreset: 'custom',
             promotionUserPrompt: 'Custom promotion prompt',
-            lastCustomPromotionPrompt: 'Custom promotion prompt',
         });
         expect(ctx.extensionSettings.summaryception.savedCustomPromotionPrompts).toEqual({});
         expect(mocks.updateInjection).toHaveBeenCalledOnce();
@@ -92,7 +88,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promptPreset: 'custom',
             summarizerSystemPrompt: 'Custom system prompt',
-            lastCustomPrompt: defaultSettings.summarizerUserPrompt,
         });
         expect(ui.element('#sc_prompt_preset').getValue()).toBe('custom');
         expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();
@@ -109,7 +104,6 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             promotionPromptPreset: 'custom',
             promotionSystemPrompt: 'Custom promotion system prompt',
-            lastCustomPromotionPrompt: defaultSettings.promotionUserPrompt,
         });
         expect(ui.element('#sc_promotion_prompt_preset').getValue()).toBe('custom');
         expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();

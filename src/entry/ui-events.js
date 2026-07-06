@@ -5,7 +5,7 @@ import {
     defaultSettings,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
-import { debug, error, warn } from '../foundation/logger.js';
+import { error, warn } from '../foundation/logger.js';
 import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
 import {
@@ -50,7 +50,6 @@ const PROMPT_PROFILES = {
         userPrompt: '#sc_summarizer_user_prompt',
         presetKey: 'promptPreset',
         savedPromptsKey: 'savedCustomPrompts',
-        lastCustomPromptKey: 'lastCustomPrompt',
         systemPromptKey: 'summarizerSystemPrompt',
         userPromptKey: 'summarizerUserPrompt',
         presets: PROMPT_PRESETS,
@@ -72,7 +71,6 @@ const PROMPT_PROFILES = {
         userPrompt: '#sc_promotion_user_prompt',
         presetKey: 'promotionPromptPreset',
         savedPromptsKey: 'savedCustomPromotionPrompts',
-        lastCustomPromptKey: 'lastCustomPromotionPrompt',
         systemPromptKey: 'promotionSystemPrompt',
         userPromptKey: 'promotionUserPrompt',
         presets: PROMOTION_PROMPT_PRESETS,
@@ -661,12 +659,10 @@ function onResetDefaults() {
     const preservedLayer0Prompt = {
         systemPrompt: s.summarizerSystemPrompt,
         userPrompt: s.summarizerUserPrompt,
-        lastCustomPrompt: s.lastCustomPrompt || s.summarizerUserPrompt || '',
     };
     const preservedPromotionPrompt = {
         systemPrompt: s.promotionSystemPrompt,
         userPrompt: s.promotionUserPrompt,
-        lastCustomPrompt: s.lastCustomPromotionPrompt || s.promotionUserPrompt || '',
     };
 
     // Reset sliders
@@ -701,12 +697,6 @@ function onResetDefaults() {
     s.promotionPromptPreset = preserveCustomPromotionPrompt
         ? 'custom'
         : defaultSettings.promotionPromptPreset;
-    if (preserveCustomLayer0Prompt) {
-        s.lastCustomPrompt = preservedLayer0Prompt.lastCustomPrompt;
-    }
-    if (preserveCustomPromotionPrompt) {
-        s.lastCustomPromotionPrompt = preservedPromotionPrompt.lastCustomPrompt;
-    }
     s.injectionTemplate = defaultSettings.injectionTemplate;
     s.stripPatterns = [...defaultSettings.stripPatterns];
     s.summarizerResponseLength = defaultSettings.summarizerResponseLength;
@@ -787,8 +777,8 @@ function bindClickHandlers() {
 function bindPromptProfileHandlers() {
     for (const profile of Object.values(PROMPT_PROFILES)) {
         bindPromptPresetSelect(profile);
-        bindPromptTextarea(profile, profile.systemPrompt, profile.systemPromptKey, false);
-        bindPromptTextarea(profile, profile.userPrompt, profile.userPromptKey, true);
+        bindPromptTextarea(profile, profile.systemPrompt, profile.systemPromptKey);
+        bindPromptTextarea(profile, profile.userPrompt, profile.userPromptKey);
         bindCustomPromptHandlers(profile);
     }
 }
@@ -802,17 +792,11 @@ function bindPromptPresetSelect(profile) {
         }
 
         const s = getSettings();
-        const previousPreset = s[profile.presetKey];
-
-        if (previousPreset === 'custom') {
-            s[profile.lastCustomPromptKey] = s[profile.userPromptKey] || '';
-            debug(`Auto-saved ${profile.label} custom prompt before switching to`, selected);
-        }
 
         s[profile.presetKey] = selected;
 
         if (selected === 'custom') {
-            restoreCustomPrompt(profile, s);
+            $(profile.customManager).show();
         } else {
             const presetText = profile.presets[selected] || profile.presets[profile.defaultPreset];
             $(profile.userPrompt).val(presetText);
@@ -825,41 +809,25 @@ function bindPromptPresetSelect(profile) {
     });
 }
 
-function restoreCustomPrompt(profile, settings) {
-    if (settings[profile.lastCustomPromptKey]) {
-        $(profile.userPrompt).val(settings[profile.lastCustomPromptKey]);
-        settings[profile.userPromptKey] = settings[profile.lastCustomPromptKey];
-        debug(`Restored auto-saved ${profile.label} custom prompt`);
-    }
-    $(profile.customManager).show();
-}
-
-function bindPromptTextarea(profile, selector, settingKey, tracksUserPrompt) {
+function bindPromptTextarea(profile, selector, settingKey) {
     for (const eventName of ['input', 'change']) {
         $(document).on(eventName, selector, function () {
             const s = getSettings();
             const currentText = $(this).val();
             s[settingKey] = currentText;
 
-            const customText = tracksUserPrompt ? currentText : s[profile.userPromptKey] || '';
-            switchPromptProfileToCustom(profile, s, customText);
+            switchPromptProfileToCustom(profile, s);
             saveSettings();
         });
     }
 }
 
-function switchPromptProfileToCustom(
-    profile,
-    settings,
-    promptText = settings[profile.userPromptKey] || '',
-) {
+function switchPromptProfileToCustom(profile, settings) {
     if (settings[profile.presetKey] === 'custom') {
-        settings[profile.lastCustomPromptKey] = promptText;
         return;
     }
 
     settings[profile.presetKey] = 'custom';
-    settings[profile.lastCustomPromptKey] = promptText;
     $(profile.presetSelect).val('custom');
     $(profile.customManager).show();
     updateCustomPromptSlots();
@@ -917,7 +885,6 @@ function bindCustomPromptHandlers(profile) {
 
         $(profile.userPrompt).val(promptText);
         s[profile.userPromptKey] = promptText;
-        s[profile.lastCustomPromptKey] = promptText;
         s[profile.presetKey] = 'custom';
         $(profile.presetSelect).val('custom');
         $(profile.customManager).show();
@@ -1001,7 +968,6 @@ function triggerCustomPromptImport(profile) {
             const s = getSettings();
             $(profile.userPrompt).val(text);
             s[profile.userPromptKey] = text;
-            s[profile.lastCustomPromptKey] = text;
             s[profile.presetKey] = 'custom';
             $(profile.presetSelect).val('custom');
             $(profile.customManager).show();

@@ -102,6 +102,10 @@ async function buildUsageMetadata(metadata = {}, storyTxt = '') {
         return metadata;
     }
 
+    if (Number.isFinite(Number(metadata.memoryTokensBefore))) {
+        return metadata;
+    }
+
     const memoryTokens = await countTextTokens(storyTxt || '');
     return {
         ...metadata,

@@ -3,6 +3,7 @@ import { getContext } from '../foundation/context.js';
 import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
+import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
     commitWhenSafe,
@@ -150,13 +151,20 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         return false;
     }
 
-    const storyTxt = toMerge.map((sn) => sn.text).join(' ');
-    const memoryTokensBefore = await countTextTokens(storyTxt);
+    const sourceMemoryText = toMerge.map((sn) => sn.text).join(' ');
+    const parsed = toMerge.map((sn) => parseSnippet(sn.text));
+    const storyTxt = parsed
+        .map((snippet) => snippet.narrative)
+        .filter(Boolean)
+        .join('\n\n---\n\n');
+    const mergedState = mergeStates(parsed.map((snippet) => snippet.state));
+    const serializedState = serializeState(mergedState);
+    const memoryTokensBefore = await countTextTokens(sourceMemoryText);
     const contextStr = buildFullContext(layerIndex + 1);
     const snapshot = {
         ...capturePromotionSnapshot(layerIndex),
         mergeCount: toMerge.length,
-        storyTxt,
+        storyTxt: sourceMemoryText,
         contextStr,
     };
 
@@ -166,16 +174,24 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         { timeOut: 3000, progressBar: true },
     );
 
-    const metaSummary = await callSummarizer(storyTxt, contextStr, {
-        kind: 'promotion',
-        layerIndex,
-        mergedSnippetCount: toMerge.length,
-        overflowLayerIndex: layerIndex,
-        overflowMemoryCount: layerCount,
-        overflowMemoryLimit: s.snippetsPerLayer,
-        overflowTokens: layerTokens,
-        overflowTokenQuota: quota,
-    });
+    const metaNarrative = storyTxt
+        ? await callSummarizer(storyTxt, contextStr, {
+              kind: 'promotion',
+              layerIndex,
+              mergedSnippetCount: toMerge.length,
+              memoryTokensBefore: memoryTokensBefore.count,
+              memoryTokensBeforeEstimated: memoryTokensBefore.estimated,
+              overflowLayerIndex: layerIndex,
+              overflowMemoryCount: layerCount,
+              overflowMemoryLimit: s.snippetsPerLayer,
+              overflowTokens: layerTokens,
+              overflowTokenQuota: quota,
+          })
+        : '';
+    if (storyTxt && !metaNarrative) {
+        return false;
+    }
+    const metaSummary = combinePromotedMemory(metaNarrative, serializedState);
     if (!metaSummary) {
         return false;
     }
@@ -193,6 +209,10 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         await promoteOverflowLayers();
     }
     return result !== 'stale';
+}
+
+function combinePromotedMemory(narrative, serializedState) {
+    return [narrative, serializedState].filter(Boolean).join('\n\n').trim();
 }
 
 async function isPromotionCompressed({ layerIndex, memoryTokensBefore, metaSummary }) {

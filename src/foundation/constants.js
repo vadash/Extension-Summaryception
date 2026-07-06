@@ -51,12 +51,12 @@ export const defaultSettings = Object.freeze({
     snippetsPerPromotion: 4,
     injectionTemplate:
         '<summaryception_memory>\n' +
-        'This is condensed continuity memory from older chat turns that may be hidden from the live prompt. Use it as factual background for prior events, relationships, locations, goals, unresolved threads, and character state. Memory is grouped by layer: higher-numbered <Lx> layers are older and more compressed, while lower-numbered layers are newer, with <L0> closest to the recent verbatim chat. Recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
+        'This is condensed continuity memory from older chat turns. The [CURRENT STATE] block contains active durable facts. The [CHRONOLOGY] section contains older narrative. Use both as factual background; recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
         '{{summary}}\n' +
         '</summaryception_memory>',
 
     summarizerSystemPrompt:
-        'Role: aggressive narrative-state compressor. Output only the summary line — no preamble, no commentary, no markdown.',
+        'Role: narrative-state dual compressor. Output a [NARRATIVE] paragraph and a [STATE] key-value block. No preamble, no commentary.',
 
     summarizerUserPrompt: `<player_name>
 {{player_name}}
@@ -70,28 +70,31 @@ export const defaultSettings = Object.freeze({
 {{story_txt}}
 </passage_in_question>
 
-Compress only the essential narrative progression and state changes from <passage_in_question> to coherently continue <prior_context>.
+Compress only the essential narrative progression and changed durable state from <passage_in_question> to coherently continue <prior_context>.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 
-### TARGET:
-Follow the runtime Layer 0 target length and forcefully reduce the passage. If the passage is event-heavy, preserve durable state over moment-by-moment replay.
+Output exactly two sections:
 
-### KEEP:
-1. **Durable chronology:** Major actions, time jumps, location changes, decisions, commitments, and current position.
-2. **State changes:** Relationship status, boundaries, agreements, physical/emotional condition, revealed secrets, constraints, resources, and plans.
-3. **Unresolved hooks:** Pending actions, next intended step, promises, deadlines, risks, or anything the next reply must remember.
+[NARRATIVE]
+<one dense chronological prose paragraph covering events, actions, and outcomes>
 
-### EXCLUSIONS:
-- Exclude internal monologue unless it creates lasting intent or concealment.
-- Exclude repeated micro-actions, sensory detail, banter, flavor dialogue, scenery, and atmosphere unless they change durable state.
-- Collapse repeated intimate/action beats into outcomes, boundaries, tally/state changes, and immediate consequences.
-- When detail competes with brevity, keep future-continuity facts and discard scene replay.
+[STATE]
+Extract only durable state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
+Omit unchanged state. Omission means the previous value is preserved.
+To delete a resolved or emptied variable, write: key: none
 
-### FORMATTING:
-Output one highly compressed chronological paragraph. Use semicolons only where useful. Do not include introductory preamble, markdown code blocks, or meta-commentary.`,
+Common keys (use what is relevant, invent new ones if needed):
+- location: <current place>
+- characters: <name: brief status, ...>
+- inventory: <active items/equipment>
+- dynamics: <relationship/power state>
+- hooks: <unresolved plans/threats>
+- counters: <name: value, ...>
+
+Do not narrate events inside [STATE]. Only current facts. If nothing changed, output [STATE] with no keys below it.`,
 
     promotionSystemPrompt:
-        'Role: layered memory synthesizer. Merge lower-layer memories into a much smaller, durable continuity summary. Preserve lasting facts, current state, unresolved hooks, and cause/effect; deduplicate repeated beats and generalize moment-to-moment detail into cumulative state. Output only the summary text - no preamble, no commentary, no markdown.',
+        'Role: dual-track memory synthesizer. Summarize narrative prose only. State blocks are merged separately in code. Output only the narrative paragraph - no preamble, no commentary, no markdown.',
 
     promotionUserPrompt: `<player_name>
 {{player_name}}
@@ -101,15 +104,15 @@ Output one highly compressed chronological paragraph. Use semicolons only where 
 {{context_str}}
 </prior_context>
 
-<memories_to_consolidate>
+<narratives_to_consolidate>
 {{story_txt}}
-</memories_to_consolidate>
+</narratives_to_consolidate>
 
-Consolidate only the new information from <memories_to_consolidate> into a highly compressed continuation block that follows the runtime Layer 1+ target length.
+Consolidate only the NEW events from <narratives_to_consolidate> into a highly compressed continuation that follows the runtime Layer 1+ target length.
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
-2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <memories_to_consolidate>.
+2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <narratives_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
 4. **Temporal Anchors:** Preserve useful full date/time anchors already present in lower-layer memory (for example, Saturday Oct 19, 7PM). Do not reduce inferable absolute timing to vague relative timing; for future goals/plans, prefer full dates over bare weekdays when available.
 
@@ -120,14 +123,12 @@ Consolidate only the new information from <memories_to_consolidate> into a highl
 4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 
 ### FORMAT:
-Write one dense third-person paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, or meta-commentary.`,
+Write one dense third-person narrative paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, [NARRATIVE], [STATE], or meta-commentary.`,
 
     promptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots
-    lastCustomPrompt: '', // Auto-saved when switching away from custom
     promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPromotionPrompts: {}, // { name: promptText } — named custom promotion prompt slots
-    lastCustomPromotionPrompt: '', // Auto-saved when switching away from custom
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
 
     stripPatterns: [

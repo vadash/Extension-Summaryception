@@ -30,14 +30,23 @@ describe('assembleSummaryBlock', () => {
         expect(assembleSummaryBlock()).toBe('');
     });
 
-    it('wraps non-empty layers deepest first and omits empty layers', async () => {
+    it('wraps clean memory deepest first and omits empty layers', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
                     layers: [
-                        [{ text: 'layer zero A' }, { text: 'layer zero B' }],
+                        [
+                            {
+                                text: '[NARRATIVE]\nlayer zero A\n\n[STATE]\nlocation: dock',
+                            },
+                            { text: 'layer zero B' },
+                        ],
                         [],
-                        [{ text: 'layer two' }],
+                        [
+                            {
+                                text: '[NARRATIVE]\nlayer two\n\n[STATE]\nplace: tower\nhooks: open gate',
+                            },
+                        ],
                     ],
                 }),
             },
@@ -51,13 +60,12 @@ describe('assembleSummaryBlock', () => {
         expect(assembleSummaryBlock()).toBe(
             [
                 'BEGIN',
-                '<L2>',
-                'layer two',
-                '</L2>',
+                '[CURRENT STATE]',
+                'location: dock',
+                'hooks: open gate',
                 '',
-                '<L0>',
-                'layer zero A layer zero B',
-                '</L0>',
+                '[CHRONOLOGY]',
+                'layer two layer zero A layer zero B',
                 'END',
             ].join('\n'),
         );
@@ -78,7 +86,7 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
 
         expect(assembleSummaryBlock()).toBe(
-            ['custom prefix', '<L0>', 'recent summary', '</L0>', 'custom suffix'].join('\n'),
+            ['custom prefix', '[CHRONOLOGY]', 'recent summary', 'custom suffix'].join('\n'),
         );
     });
 });

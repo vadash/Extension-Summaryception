@@ -153,6 +153,56 @@ describe('promotion prompt guard', () => {
         });
     });
 
+    it('sends only narratives to promotion and stores code-merged state', async () => {
+        mocks.callSummarizer.mockResolvedValue('Merged narrative.');
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: '[NARRATIVE]\nFirst event.\n\n[STATE]\nlocation: tower\nhooks: open gate',
+                            },
+                            {
+                                text: '[NARRATIVE]\nSecond event.\n\n[STATE]\nplace: dock\ninventory: key',
+                            },
+                            {
+                                text: '[NARRATIVE]\nThird event.\n\n[STATE]\nhooks: resolved\ncounters: score 2',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 1,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledWith(
+            ['First event.', 'Second event.', 'Third event.'].join('\n\n---\n\n'),
+            expect.any(String),
+            expect.objectContaining({ kind: 'promotion', memoryTokensBefore: expect.any(Number) }),
+        );
+        expect(getChatStore().layers[1][0].text).toBe(
+            [
+                'Merged narrative.',
+                '',
+                '[STATE]',
+                'location: dock',
+                'inventory: key',
+                'counters: score 2',
+            ].join('\n'),
+        );
+    });
+
     it('rejects promotion output that is not smaller than its source memory', async () => {
         mocks.callSummarizer.mockResolvedValue('x '.repeat(3000));
         installSillyTavernStub({

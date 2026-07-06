@@ -92,7 +92,7 @@ describe('state.js', () => {
 
         expect(settings.promptPreset).toBe('custom');
         expect(settings.summarizerUserPrompt).toBe('Old game-state prompt text.');
-        expect(settings.lastCustomPrompt).toBe('Old game-state prompt text.');
+        expect(settings.lastCustomPrompt).toBeUndefined();
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
@@ -110,7 +110,7 @@ describe('state.js', () => {
 
         expect(settings.promotionPromptPreset).toBe('custom');
         expect(settings.promotionUserPrompt).toBe('Old promotion prompt text.');
-        expect(settings.lastCustomPromotionPrompt).toBe('Old promotion prompt text.');
+        expect(settings.lastCustomPromotionPrompt).toBeUndefined();
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 

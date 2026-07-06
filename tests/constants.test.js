@@ -49,10 +49,8 @@ describe('constants', () => {
 
     it('uses the Summaryception memory wrapper by default', () => {
         expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
-        expect(defaultSettings.injectionTemplate).toContain(
-            'higher-numbered <Lx> layers are older',
-        );
-        expect(defaultSettings.injectionTemplate).toContain('<L0> closest');
+        expect(defaultSettings.injectionTemplate).toContain('[CURRENT STATE]');
+        expect(defaultSettings.injectionTemplate).toContain('[CHRONOLOGY]');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
     });
 
@@ -71,10 +69,10 @@ describe('constants', () => {
         expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'narrative']);
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
-        expect(PROMPT_PRESETS.narrative).toContain('TARGET');
-        expect(PROMPT_PRESETS.narrative).toContain('runtime Layer 0 target length');
+        expect(PROMPT_PRESETS.narrative).toContain('[NARRATIVE]');
+        expect(PROMPT_PRESETS.narrative).toContain('[STATE]');
         expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
-        expect(PROMPT_PRESETS.narrative).toContain('durable state');
+        expect(PROMPT_PRESETS.narrative).toContain('CHANGED or became newly relevant');
         expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
     });
 
@@ -83,7 +81,9 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.custom).toBeNull();
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{context_str}}');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('memories_to_consolidate');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('narratives_to_consolidate');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do not include');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('[STATE]');
     });
 
     it('defaults to the narrative preset', () => {
@@ -99,7 +99,7 @@ describe('constants', () => {
         expect(defaultSettings.promotionSystemPrompt).toContain('memory synthesizer');
         expect(defaultSettings.promotionUserPrompt).toContain('{{context_str}}');
         expect(defaultSettings.promotionUserPrompt).toContain('{{story_txt}}');
-        expect(defaultSettings.promotionUserPrompt).toContain('memories_to_consolidate');
+        expect(defaultSettings.promotionUserPrompt).toContain('narratives_to_consolidate');
         expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
         expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
         expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');

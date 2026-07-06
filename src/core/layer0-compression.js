@@ -66,8 +66,10 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_l0_constraints>\n' +
         `Target length: at most about ${target} tokens.\n` +
-        'Output exactly one dense paragraph with no heading, list, preamble, or markdown.\n' +
-        'Preserve only durable chronology, relationship/state changes, plans, constraints, current position, and unresolved hooks.\n' +
+        'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
+        '[NARRATIVE] must be one dense paragraph covering only durable chronology and outcomes.\n' +
+        '[STATE] must contain only changed or newly relevant current facts as key: value lines; omit unchanged facts.\n' +
+        'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
         'Include one full date/time anchor when present, e.g. Saturday Oct 19, 7PM.\n' +
         'After that, use coarse hour labels like 8AM or 7PM; avoid minute tracking unless essential.\n' +
         'Do not preserve only vague relative timing when absolute date/time can be inferred from context.\n' +
