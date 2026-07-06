@@ -4,17 +4,20 @@ This directory houses the background worker, LLM connections, token counting, an
 
 ## Memory & Layers
 - **Layer 0:** Turn summaries selected by the dynamic verbatim window. Overflow waits for `minSummaryTurns` and `minSummaryBudget`.
+- **Auto/Force/Slop/Cache:** Auto respects the live-tail window and readiness minimums; Force uses the same boundary but ignores minimum readiness; Slop cuts completed live exchanges through the latest assistant message; Cache delays the first L0 batch until the cache live-window threshold is exceeded.
+- **Cache mode:** Keep prompt shape stable as `Prompt | frozen memory | growing live chat`; the verbatim budget is 32k, with a 4k-8k protected live tail before older unghosted chat flushes in capped L0 batches.
 - **Runtime compression controls:** Keep L0/regeneration and promotion prompt constraints plus provider output caps routed through `layer0-compression.js`; custom prompts still need these non-persisted runtime constraints.
 - **Layers 1+:** Meta-summaries promoted from lower layers.
-- **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, and non-compressing promotion output must not be committed.
+- **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, non-compressing promotion output must not be committed, empty destination layers are created only by LLM-backed merge promotion, and maximum depth is capped at 20.
 - **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text to the LLM and merge `[STATE]` data with `mergeStates()` in code.
 - **Regex:** Apply SillyTavern regex scripts only while rendering chat passages into Layer 0 or regeneration source text; promotion inputs are synthetic memory and must not be regexed.
-- **Ghosting:** Ghosted messages are hidden from the LLM context using SillyTavern's native `/hide` command, but remain fully visible in the UI.
+- **Ghosting:** Ghosted messages are hidden from the LLM context using SillyTavern's native `/hide` command, but remain fully visible in the UI; batching builds contiguous `/hide` and `/unhide` ranges after filtering user, system, empty, and already hidden messages, with ownership tracked by `sc_ghosted` and `ghostedIndices`.
 
 ## Engine & Summarizer
 - `summarizer-engine.js` owns the Auto, Force, Slop, and Cache execution loops.
 - Background summarization is coalesced through a single self-draining worker (`SummarizerQueue`).
-- Prompt-affecting commits/effects must be queued during SillyTavern foreground generation to avoid race conditions.
+- Prompt-affecting commits/effects must be queued during SillyTavern foreground generation; pending commits flush on generation end with injection updates and deferred ghosting.
+- If chat changes while a summarizer request is in flight, mark the queue dirty and recompute after the current batch rather than starting parallel work.
 
 ## LLM Connections
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.

@@ -5,6 +5,7 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 ## UI Guidelines
 - Keep HTML control IDs stable.
 - Root `settings.html` and `style.css` are the SillyTavern-rendered UI assets; `src/entry/` modules should annotate or bind that DOM only after the template is appended.
+- Settings tabs are intentionally scoped: Status for overview/actions, Memory for layer stats/injection preview/import-export/snippet browsing, Settings for connection/retention/budget/layering controls, Prompts for L0 and L1+ prompt presets, and Tools for diagnostics/reset/clear memory.
 - Prefer compact, theme-aware panels and Font Awesome icons over emoji headings.
 - Settings UI reloads should always land on the Status tab.
 - Keep budget/status visuals compact and read-only.
@@ -12,3 +13,8 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 - Display token counts compactly with lowercase `k` in status/budget surfaces.
 - Status payload schematics derive from settings/runtime state; do not add save behavior there.
 - Slider value chips may show compact `k` values; always clamp them to the paired range min/max/step before saving the setting.
+- Range sliders save live on `input`; paired numeric chips save on `change`/blur, accept compact values such as `12k`, and must enforce min/max summary-turn constraints in the UI.
+- `settings-help.js` owns metadata-driven help and the shared hover/focus tooltip; it may annotate controls after render, but must not rename HTML IDs or saved setting keys.
+- The shared help tooltip is appended to `<body>` and positioned from viewport rectangles so SillyTavern sidebar scrolling cannot clip or offset it.
+- The snippet browser uses a keyed jQuery renderer to preserve scroll/focus/edit state during background refreshes; skip rows with a focused `.sc-snippet-edit`.
+- Manual Force Summarize and Slop Breaker flows show persistent cancelable progress toasts, and successful commits force a browser reload to rebuild SillyTavern prompt state cleanly.
