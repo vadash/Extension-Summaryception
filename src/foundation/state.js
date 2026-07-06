@@ -88,6 +88,7 @@ export function getChatStore() {
             layers: [],
             summarizedUpTo: -1,
             ghostedIndices: [],
+            mutationEpoch: 0,
         };
     }
     return normalizeChatStore(chatMetadata[MODULE_NAME]);
@@ -99,6 +100,25 @@ export function getChatStore() {
 export async function saveChatStore() {
     getChatStore();
     await saveMetadata();
+}
+
+/**
+ * Get the current summary-layer mutation epoch.
+ * @param {SummaryceptionStore} store
+ * @returns {number}
+ */
+export function getSummaryStoreMutationEpoch(store) {
+    return normalizeMutationEpoch(store?.mutationEpoch);
+}
+
+/**
+ * Advance the summary-layer mutation epoch after changing stored snippets.
+ * @param {SummaryceptionStore} store
+ * @returns {number}
+ */
+export function bumpSummaryStoreMutationEpoch(store) {
+    store.mutationEpoch = getSummaryStoreMutationEpoch(store) + 1;
+    return store.mutationEpoch;
 }
 
 /**
@@ -132,6 +152,7 @@ function normalizeChatStore(store) {
     store.layers = normalizeLayers(store.layers);
     store.summarizedUpTo = normalizeSummarizedUpTo(store.summarizedUpTo);
     store.ghostedIndices = normalizeGhostedIndices(store.ghostedIndices);
+    store.mutationEpoch = normalizeMutationEpoch(store.mutationEpoch);
     return store;
 }
 
@@ -299,6 +320,18 @@ function normalizeSummarizedUpTo(value) {
         return -1;
     }
     return Math.max(-1, value);
+}
+
+/**
+ * Normalize the summary-layer mutation epoch.
+ * @param {unknown} value
+ * @returns {number}
+ */
+function normalizeMutationEpoch(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+        return 0;
+    }
+    return Math.max(0, value);
 }
 
 /**

@@ -18,6 +18,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - `summarizer-engine.js` owns the Auto, Force, Slop, and Cache execution loops.
 - Background summarization is coalesced through a single self-draining worker (`SummarizerQueue`).
 - Prompt-affecting commits/effects must be queued during SillyTavern foreground generation; pending commits flush on generation end with injection updates and deferred ghosting.
+- In-flight summary/promotion commits validate `store.mutationEpoch`; any code that changes `store.layers` or snippet fields must call `bumpSummaryStoreMutationEpoch()`.
 - If chat changes while a summarizer request is in flight, mark the queue dirty and recompute after the current batch rather than starting parallel work.
 
 ## LLM Connections

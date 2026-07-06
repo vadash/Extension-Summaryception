@@ -43,6 +43,7 @@ interface SummaryceptionStore {
     layers: SummaryceptionSnippet[][];
     summarizedUpTo: number;
     ghostedIndices: number[];
+    mutationEpoch: number;
 }
 
 interface ExtensionSettings {

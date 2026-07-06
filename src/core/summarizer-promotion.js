@@ -1,6 +1,11 @@
 import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
-import { getSettings, getChatStore, saveChatStore } from '../foundation/state.js';
+import {
+    bumpSummaryStoreMutationEpoch,
+    getSettings,
+    getChatStore,
+    saveChatStore,
+} from '../foundation/state.js';
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { getEffectiveMemoryUsage } from './memory-budget.js';
@@ -12,8 +17,8 @@ import {
     updateCommittedInjection,
 } from './summarizer-commit.js';
 import {
-    fingerprintSummaryStore,
     getChatIdentity,
+    getSummaryStoreSnapshotEpoch,
     isSameChatSnapshot,
 } from './summarizer-snapshot.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
@@ -282,7 +287,7 @@ function capturePromotionSnapshot(layerIndex) {
         chatId: getChatIdentity(ctx),
         chatRef: ctx.chat,
         layerIndex,
-        summaryStoreFingerprint: fingerprintSummaryStore(store),
+        summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
     };
 }
 
@@ -315,6 +320,7 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
         timestamp: Date.now(),
     });
     store.layers[layerIndex + 1] = destLayer;
+    bumpSummaryStoreMutationEpoch(store);
 
     await savePromotionCommit();
 
@@ -333,7 +339,7 @@ function isPromotionSnapshotValid(snapshot) {
     if (!isSameChatSnapshot(snapshot, ctx)) {
         return false;
     }
-    return fingerprintSummaryStore(store) === snapshot.summaryStoreFingerprint;
+    return getSummaryStoreSnapshotEpoch(store) === snapshot.summaryStoreEpoch;
 }
 
 /**

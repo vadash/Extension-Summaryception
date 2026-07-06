@@ -1,6 +1,7 @@
 import { getChat } from '../foundation/context.js';
 import { debug } from '../foundation/logger.js';
 import {
+    bumpSummaryStoreMutationEpoch,
     calculateContiguousSummarizedUpTo,
     getChatStore,
     saveChatStore,
@@ -50,9 +51,12 @@ export async function repairIfBranched() {
         `Branch detected! summarizedUpTo (${oldSummarizedUpTo}) >= chat length (${chatLength}). Repairing...`,
     );
 
-    trimLayer0PastBranch(store, chatLength);
+    const removed = trimLayer0PastBranch(store, chatLength);
     store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
     store.ghostedIndices = store.ghostedIndices.filter((idx) => idx < chatLength);
+    if (removed > 0) {
+        bumpSummaryStoreMutationEpoch(store);
+    }
 
     await saveChatStore();
 
@@ -70,11 +74,11 @@ export async function repairIfBranched() {
  * Remove Layer 0 snippets that point beyond the current chat length.
  * @param {object} store
  * @param {number} chatLength
- * @returns {void}
+ * @returns {number}
  */
 function trimLayer0PastBranch(store, chatLength) {
     if (!store.layers[0]) {
-        return;
+        return 0;
     }
 
     const before = store.layers[0].length;
@@ -89,6 +93,7 @@ function trimLayer0PastBranch(store, chatLength) {
     if (removed > 0) {
         debug(`Removed ${removed} Layer 0 snippets that referenced turns beyond branch point`);
     }
+    return removed;
 }
 
 /**

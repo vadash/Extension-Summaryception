@@ -1,5 +1,6 @@
 import { getChat } from '../foundation/context.js';
 import {
+    bumpSummaryStoreMutationEpoch,
     calculateContiguousSummarizedUpTo,
     getChatStore,
     saveChatStore,
@@ -61,7 +62,8 @@ export function getSnippetRegenerationTarget(layerIndex, snippetIndex) {
  * @returns {Promise<{ status: 'updated' | 'missing' | 'empty' | 'unchanged' }>}
  */
 export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
-    const snippet = getSnippetAt(getChatStore(), layerIndex, snippetIndex);
+    const store = getChatStore();
+    const snippet = getSnippetAt(store, layerIndex, snippetIndex);
     if (!snippet) {
         return { status: 'missing' };
     }
@@ -75,6 +77,7 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
     }
 
     snippet.text = newText;
+    bumpSummaryStoreMutationEpoch(store);
     await saveSnippetStore();
     return { status: 'updated' };
 }
@@ -94,6 +97,7 @@ export async function deleteSnippetAt(layerIndex, snippetIndex) {
 
     const removed = layer[snippetIndex];
     layer.splice(snippetIndex, 1);
+    bumpSummaryStoreMutationEpoch(store);
 
     if (layerIndex === 0) {
         store.summarizedUpTo = calculateContiguousSummarizedUpTo(store);
@@ -161,6 +165,7 @@ async function regenerateSnippetWithTarget(target) {
     target.snippet.text = newSummary;
     target.snippet.timestamp = Date.now();
     target.snippet.regenerated = true;
+    bumpSummaryStoreMutationEpoch(getChatStore());
 
     await saveSnippetStore();
     return { status: 'regenerated', range: target.range };

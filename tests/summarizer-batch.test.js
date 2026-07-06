@@ -106,6 +106,7 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
     it('discards a result when summary layers change', async () => {
         await runStaleCase((ctx) => {
             ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
+            ctx.chatMetadata.summaryception.mutationEpoch++;
         });
     });
 
@@ -158,6 +159,7 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         await summarizeBatchFromTurns([{ index: 0, mes: 'source turn' }]);
 
         ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
+        ctx.chatMetadata.summaryception.mutationEpoch++;
         await endForegroundGeneration();
 
         const store = ctx.chatMetadata.summaryception;

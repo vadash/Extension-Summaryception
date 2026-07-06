@@ -1,7 +1,7 @@
 import { MODULE_NAME } from '../foundation/constants.js';
 import { getChatMetadata } from '../foundation/context.js';
 import { error, info } from '../foundation/logger.js';
-import { getChatStore } from '../foundation/state.js';
+import { bumpSummaryStoreMutationEpoch, getChatStore } from '../foundation/state.js';
 import { unghostAllMessages } from '../core/ghosting.js';
 import { persistAndRefresh } from './persist.js';
 
@@ -29,6 +29,7 @@ export async function clearSummaryceptionMemory(
     store.layers.length = 0;
     store.summarizedUpTo = -1;
     store.ghostedIndices = [];
+    bumpSummaryStoreMutationEpoch(store);
 
     const chatMetadata = getChatMetadata();
     chatMetadata[MODULE_NAME] = store;

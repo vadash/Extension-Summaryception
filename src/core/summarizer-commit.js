@@ -11,7 +11,7 @@ import { getContext } from '../foundation/context.js';
  * @property {number} summarizedUpTo - Store cursor captured before the request.
  * @property {[number, number]} sourceRange - Source chat index range.
  * @property {string} sourceFingerprint - Fingerprint of source messages.
- * @property {string} summaryStoreFingerprint - Fingerprint of summary layers.
+ * @property {number} summaryStoreEpoch - Summary-layer mutation epoch.
  * @property {string} passageText - Request passage text.
  * @property {import('./chatutils.js').PassageRegexStats} passageStats - Passage regex stats.
  * @property {string} contextText - Request context text.

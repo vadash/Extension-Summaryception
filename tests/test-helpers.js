@@ -63,6 +63,7 @@ export function makeSummaryStore(overrides = {}) {
         layers: [],
         summarizedUpTo: -1,
         ghostedIndices: [],
+        mutationEpoch: 0,
         ...overrides,
     };
 }

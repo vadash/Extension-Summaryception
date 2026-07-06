@@ -1,3 +1,5 @@
+import { getSummaryStoreMutationEpoch } from '../foundation/state.js';
+
 /**
  * Get a best-effort stable identity for the active chat.
  * @param {object} ctx
@@ -50,24 +52,12 @@ export function fingerprintSourceRange(chat, startIdx, endIdx) {
 }
 
 /**
- * Fingerprint summary layers without including ghosting metadata.
+ * Get the summary-layer mutation epoch used by in-flight summarization snapshots.
  * @param {SummaryceptionStore} store
- * @returns {string}
+ * @returns {number}
  */
-export function fingerprintSummaryStore(store) {
-    const layers = Array.isArray(store.layers) ? store.layers : [];
-    return JSON.stringify(
-        layers.map((layer) =>
-            (layer || []).map((snippet) => ({
-                text: snippet.text,
-                turnRange: snippet.turnRange,
-                fromLayer: snippet.fromLayer,
-                mergedCount: snippet.mergedCount,
-                promoted: snippet.promoted,
-                seedFromLayer: snippet.seedFromLayer,
-            })),
-        ),
-    );
+export function getSummaryStoreSnapshotEpoch(store) {
+    return getSummaryStoreMutationEpoch(store);
 }
 
 /**

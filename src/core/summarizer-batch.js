@@ -1,5 +1,5 @@
 import { getContext, getChat } from '../foundation/context.js';
-import { getChatStore, saveChatStore } from '../foundation/state.js';
+import { bumpSummaryStoreMutationEpoch, getChatStore, saveChatStore } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
@@ -9,8 +9,8 @@ import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
     fingerprintSourceRange,
-    fingerprintSummaryStore,
     getChatIdentity,
+    getSummaryStoreSnapshotEpoch,
     isSameChatSnapshot,
 } from './summarizer-snapshot.js';
 
@@ -233,7 +233,7 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
         summarizedUpTo: store.summarizedUpTo,
         sourceRange: [passageStart, endIdx],
         sourceFingerprint: fingerprintSourceRange(chat, passageStart, endIdx),
-        summaryStoreFingerprint: fingerprintSummaryStore(store),
+        summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
         passageText: passage.text,
         passageStats: passage.stats,
         contextText,
@@ -264,6 +264,7 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     });
 
     store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
+    bumpSummaryStoreMutationEpoch(store);
     trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
     await saveChatStore();
@@ -301,7 +302,7 @@ function isLayer0SnapshotValid(snapshot) {
     if (fingerprintSourceRange(ctx.chat, startIdx, endIdx) !== snapshot.sourceFingerprint) {
         return false;
     }
-    return fingerprintSummaryStore(store) === snapshot.summaryStoreFingerprint;
+    return getSummaryStoreSnapshotEpoch(store) === snapshot.summaryStoreEpoch;
 }
 
 /**

@@ -6,8 +6,10 @@ import {
     defaultSettings,
 } from '../src/foundation/constants.js';
 import {
+    bumpSummaryStoreMutationEpoch,
     calculateContiguousSummarizedUpTo,
     getChatStore,
+    getSummaryStoreMutationEpoch,
     getPlayerName,
     getSettings,
 } from '../src/foundation/state.js';
@@ -220,10 +222,11 @@ describe('state.js', () => {
             layers: [],
             summarizedUpTo: -1,
             ghostedIndices: [],
+            mutationEpoch: 0,
         });
     });
 
-    it('creates ghostedIndices lazily if an older save omits it', () => {
+    it('creates ghostedIndices and mutationEpoch lazily if an older save omits them', () => {
         const ctx = makeContext({
             chat: [makeMessage()],
             metadata: { summaryception: { layers: [], summarizedUpTo: -1 } },
@@ -232,6 +235,18 @@ describe('state.js', () => {
         globalThis.SillyTavern = { getContext: () => ctx };
 
         expect(getChatStore().ghostedIndices).toEqual([]);
+        expect(getChatStore().mutationEpoch).toBe(0);
+    });
+
+    it('normalizes and bumps the summary mutation epoch', () => {
+        installSillyTavernStub({
+            metadata: { summaryception: { layers: [], summarizedUpTo: -1, mutationEpoch: 2.5 } },
+        });
+        const store = getChatStore();
+
+        expect(getSummaryStoreMutationEpoch(store)).toBe(0);
+        expect(bumpSummaryStoreMutationEpoch(store)).toBe(1);
+        expect(store.mutationEpoch).toBe(1);
     });
 
     it.each([

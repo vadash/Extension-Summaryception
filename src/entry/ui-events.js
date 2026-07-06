@@ -6,7 +6,12 @@ import {
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { error, warn } from '../foundation/logger.js';
-import { getSettings, saveSettings, getChatStore } from '../foundation/state.js';
+import {
+    bumpSummaryStoreMutationEpoch,
+    getSettings,
+    saveSettings,
+    getChatStore,
+} from '../foundation/state.js';
 import { ghostMessagesUpTo, unghostAllMessages } from '../core/ghosting.js';
 import {
     abortSummarization,
@@ -620,6 +625,7 @@ function triggerImport() {
             store.layers = data.layers;
             store.summarizedUpTo = data.summarizedUpTo ?? -1;
             store.ghostedIndices = data.ghostedIndices || [];
+            bumpSummaryStoreMutationEpoch(store);
 
             if (store.summarizedUpTo >= 0) {
                 await ghostMessagesUpTo(store.summarizedUpTo, { showProgress: true });
