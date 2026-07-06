@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installSillyTavernStub, makeContext } from './test-helpers.js';
-import * as contextFacade from '../src/foundation/context.js';
+
+vi.unmock('../src/foundation/context.js');
+
+let contextFacade;
+
+beforeAll(async () => {
+    contextFacade = await import('../src/foundation/context.js');
+});
 
 beforeEach(() => {
     delete globalThis.SillyTavern;

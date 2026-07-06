@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => {
     vi.resetModules();
-    vi.doMock('../src/foundation/context.js', () => ({
-        getRequestHeaders: () => ({}),
-    }));
-    vi.doMock('../src/foundation/logger.js', () => ({
-        error: vi.fn(),
-        warn: vi.fn(),
-    }));
+    globalThis.summaryceptionFoundationMocks.context.getRequestHeaders.mockImplementation(
+        () => ({}),
+    );
+    globalThis.summaryceptionFoundationMocks.logger.error.mockImplementation(() => {});
+    globalThis.summaryceptionFoundationMocks.logger.warn.mockImplementation(() => {});
     vi.doMock('../src/foundation/state.js', () => ({
         getSettings: () => ({}),
         saveSettings: vi.fn(),

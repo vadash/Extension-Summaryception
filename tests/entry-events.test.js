@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
     getChat: vi.fn(() => []),
     getChatStore: vi.fn(() => ({ layers: [] })),
     repairIfBranched: vi.fn(async () => {}),
@@ -18,16 +15,6 @@ const mocks = vi.hoisted(() => ({
     updateInjection: vi.fn(),
     repairOrphanedMessages: vi.fn(async () => {}),
     updateUI: vi.fn(),
-}));
-
-vi.mock('../src/foundation/context.js', () => ({
-    getChat: mocks.getChat,
-}));
-
-vi.mock('../src/foundation/logger.js', () => ({
-    debug: mocks.debug,
-    info: mocks.info,
-    warn: mocks.warn,
 }));
 
 vi.mock('../src/foundation/state.js', () => ({
@@ -66,6 +53,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     delete globalThis.window;
+    globalThis.summaryceptionFoundationMocks.context.getChat.mockImplementation(mocks.getChat);
 });
 
 afterEach(() => {

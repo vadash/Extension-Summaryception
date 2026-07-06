@@ -17,9 +17,9 @@ async function loadPersistState({
     saveChatStore = vi.fn(async () => {}),
     warn = vi.fn(),
 } = {}) {
-    vi.doMock('../src/foundation/context.js', () => ({ saveChat }));
     vi.doMock('../src/foundation/state.js', () => ({ saveChatStore }));
-    vi.doMock('../src/foundation/logger.js', () => ({ warn }));
+    globalThis.summaryceptionFoundationMocks.context.saveChat.mockImplementation(saveChat);
+    globalThis.summaryceptionFoundationMocks.logger.warn.mockImplementation(warn);
 
     const mod = await import('../src/core/persist-state.js');
     return { ...mod, saveChat, saveChatStore, warn };

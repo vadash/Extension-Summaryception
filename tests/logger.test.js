@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+
+vi.unmock('../src/foundation/context.js');
+vi.unmock('../src/foundation/logger.js');
 
 const debugSettings = {
     debugMode: true,
@@ -17,6 +20,32 @@ const quietSettings = {
 
 let activeSettings = { ...quietSettings };
 
+let debug;
+let error;
+let info;
+let isPromptInputLogEnabled;
+let isPromptLogEnabled;
+let isPromptOutputLogEnabled;
+let log;
+let trace;
+let warn;
+let debugVisibleTurns;
+
+beforeAll(async () => {
+    ({
+        debug,
+        error,
+        info,
+        isPromptInputLogEnabled,
+        isPromptLogEnabled,
+        isPromptOutputLogEnabled,
+        log,
+        trace,
+        warn,
+        debugVisibleTurns,
+    } = await import('../src/foundation/logger.js'));
+});
+
 beforeEach(() => {
     vi.clearAllMocks();
     activeSettings = { ...quietSettings };
@@ -28,19 +57,6 @@ beforeEach(() => {
         }),
     };
 });
-
-import {
-    debug,
-    error,
-    info,
-    isPromptInputLogEnabled,
-    isPromptLogEnabled,
-    isPromptOutputLogEnabled,
-    log,
-    trace,
-    warn,
-    debugVisibleTurns,
-} from '../src/foundation/logger.js';
 
 describe('logger', () => {
     let out;

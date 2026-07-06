@@ -7,6 +7,7 @@ export default defineConfig({
         isolate: true,
 
         // Test naming conventions + inclusion.
+        setupFiles: ['tests/setup.js'],
         include: ['tests/**/*.test.js'],
         exclude: ['node_modules/**', 'dist/**', 'report/**'],
 
