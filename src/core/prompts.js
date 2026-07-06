@@ -41,6 +41,10 @@ export function cleanSummarizerOutput(raw) {
         }
     }
 
+    // Strip dual-track structural markers from promotion output
+    text = text.replace(/^\s*\[NARRATIVE\]\s*$/gim, '');
+    text = text.replace(/^\s*\[STATE\]\s*$/gim, '');
+
     // Clean up leftover whitespace
     text = text.replace(/\n{3,}/g, '\n').trim();
 

@@ -193,7 +193,7 @@ export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
 // ─── Retry Configuration ─────────────────────────────────────────────
 
 export const RETRY_CONFIG = {
-    maxRetries: 5,
+    maxRetries: 3,
     baseDelay: 2000,
     maxDelay: 60000,
     backoffMultiplier: 2,

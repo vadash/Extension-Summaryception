@@ -154,9 +154,9 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     const sourceMemoryText = toMerge.map((sn) => sn.text).join(' ');
     const parsed = toMerge.map((sn) => parseSnippet(sn.text));
     const storyTxt = parsed
-        .map((snippet) => snippet.narrative)
+        .map((snippet) => snippet.narrative.trim())
         .filter(Boolean)
-        .join('\n\n---\n\n');
+        .join('\n\n');
     const mergedState = mergeStates(parsed.map((snippet) => snippet.state));
     const serializedState = serializeState(mergedState);
     const memoryTokensBefore = await countTextTokens(sourceMemoryText);

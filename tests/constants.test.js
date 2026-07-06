@@ -55,7 +55,7 @@ describe('constants', () => {
     });
 
     it('configures exponential-backoff retry within 2s..60s bounds', () => {
-        expect(RETRY_CONFIG.maxRetries).toBe(5);
+        expect(RETRY_CONFIG.maxRetries).toBe(3);
         expect(RETRY_CONFIG.baseDelay).toBeLessThanOrEqual(RETRY_CONFIG.maxDelay);
         expect(RETRY_CONFIG.maxDelay).toBe(60000);
         expect(RETRY_CONFIG.backoffMultiplier).toBeGreaterThan(1);

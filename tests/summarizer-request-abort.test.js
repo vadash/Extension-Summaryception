@@ -295,7 +295,7 @@ describe('callSummarizer abort signal plumbing', () => {
 
         const promotionCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsAfterLayer0);
         const promotionPrimaryCalls = promotionCalls.filter((call) => !call[4]?.useFallback);
-        expect(promotionPrimaryCalls).toHaveLength(6);
+        expect(promotionPrimaryCalls).toHaveLength(4);
     });
 
     it('clears an unhealthy bucket when the primary answers', async () => {
@@ -346,6 +346,6 @@ describe('callSummarizer abort signal plumbing', () => {
 
         const finalRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsBeforeFinalRun);
         const finalRunPrimaryCalls = finalRunCalls.filter((call) => !call[4]?.useFallback);
-        expect(finalRunPrimaryCalls).toHaveLength(6);
+        expect(finalRunPrimaryCalls).toHaveLength(4);
     });
 });

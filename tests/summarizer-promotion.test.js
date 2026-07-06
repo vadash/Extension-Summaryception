@@ -187,7 +187,7 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(true);
 
         expect(mocks.callSummarizer).toHaveBeenCalledWith(
-            ['First event.', 'Second event.', 'Third event.'].join('\n\n---\n\n'),
+            ['First event.', 'Second event.', 'Third event.'].join('\n\n'),
             expect.any(String),
             expect.objectContaining({ kind: 'promotion', memoryTokensBefore: expect.any(Number) }),
         );

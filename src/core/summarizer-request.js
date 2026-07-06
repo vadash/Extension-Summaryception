@@ -232,69 +232,100 @@ function formatPromptLogCount(count, singular) {
 async function runSummarizerAttempts({ s, systemPrompt, prompt, signal, metadata }) {
     const healthBucket = getPrimaryHealthBucket(metadata);
     const fallbackSettings = resolveFallbackSummarizerConnectionSettings(s, metadata);
-    const primaryMaxRetries =
-        fallbackSettings && primaryRetryExhaustedBuckets.has(healthBucket)
-            ? 0
-            : RETRY_CONFIG.maxRetries;
 
-    if (primaryMaxRetries === 0) {
-        debug(
-            `Primary summarizer previously exhausted retries for ${healthBucket}; ` +
-                'probing once before fallback.',
-        );
-    }
+    while (true) {
+        if (signal.aborted) {
+            return abortWithToast();
+        }
 
-    const primary = await runSummarizerAttemptSeries({
-        s,
-        systemPrompt,
-        prompt,
-        signal,
-        metadata,
-        routeLabel: 'primary',
-        maxRetries: primaryMaxRetries,
-    });
+        const primaryMaxRetries =
+            fallbackSettings && primaryRetryExhaustedBuckets.has(healthBucket)
+                ? 0
+                : RETRY_CONFIG.maxRetries;
 
-    if (primary.status === 'success') {
-        primaryRetryExhaustedBuckets.delete(healthBucket);
-        return primary.result;
-    }
-    if (primary.status === 'aborted') {
-        return abortWithToast();
-    }
+        if (primaryMaxRetries === 0) {
+            debug(
+                `Primary summarizer previously exhausted retries for ${healthBucket}; ` +
+                    'probing once before fallback.',
+            );
+        }
 
-    if (primary.retryable && primary.retriesExhausted) {
-        primaryRetryExhaustedBuckets.add(healthBucket);
-    }
-
-    if (primary.retryable && fallbackSettings) {
-        info(
-            `Primary summarizer failed after retryable errors; trying fallback ` +
-                `(${fallbackSettings.connectionSource}).`,
-        );
-        const fallback = await runSummarizerAttemptSeries({
+        const primary = await runSummarizerAttemptSeries({
             s,
             systemPrompt,
             prompt,
             signal,
-            metadata: { ...metadata, useFallback: true },
-            routeLabel: 'fallback',
-            maxRetries: RETRY_CONFIG.maxRetries,
+            metadata,
+            routeLabel: 'primary',
+            maxRetries: primaryMaxRetries,
         });
 
-        if (fallback.status === 'success') {
-            return fallback.result;
+        if (primary.status === 'success') {
+            primaryRetryExhaustedBuckets.delete(healthBucket);
+            return primary.result;
         }
-        if (fallback.status === 'aborted') {
+        if (primary.status === 'aborted') {
             return abortWithToast();
         }
-        return failSummarization(fallback.error, {
-            retriesExhausted: fallback.retryable,
-        });
-    }
 
-    return failSummarization(primary.error, {
-        retriesExhausted: primary.retryable,
-    });
+        if (primary.retryable && primary.retriesExhausted) {
+            primaryRetryExhaustedBuckets.add(healthBucket);
+        }
+
+        if (primary.retryable && fallbackSettings) {
+            info(
+                `Primary summarizer failed after retryable errors; trying fallback ` +
+                    `(${fallbackSettings.connectionSource}).`,
+            );
+            const fallback = await runSummarizerAttemptSeries({
+                s,
+                systemPrompt,
+                prompt,
+                signal,
+                metadata: { ...metadata, useFallback: true },
+                routeLabel: 'fallback',
+                maxRetries: RETRY_CONFIG.maxRetries,
+            });
+
+            if (fallback.status === 'success') {
+                return fallback.result;
+            }
+            if (fallback.status === 'aborted') {
+                return abortWithToast();
+            }
+            info(
+                `Both primary and fallback exhausted for ${healthBucket}; ` +
+                    'resetting health state and retrying.',
+            );
+            primaryRetryExhaustedBuckets.delete(healthBucket);
+            continue;
+        }
+
+        if (!primary.retryable) {
+            return failSummarization(primary.error, {
+                retriesExhausted: false,
+            });
+        }
+
+        // Primary exhausted, no fallback configured — loop and retry
+        primaryRetryExhaustedBuckets.delete(healthBucket);
+        continue;
+    }
+}
+
+/**
+ * Compute timeout for a specific attempt based on call type and attempt index.
+ * L0 (user-facing) gets more patience; L1+ (background promotion) gets less.
+ * @param {object} metadata - Call metadata
+ * @param {number} attempt - Zero-based attempt index
+ * @returns {number} Timeout in milliseconds
+ */
+function computeAttemptTimeoutMs(metadata = {}, attempt) {
+    const isPromotion = metadata.kind === 'promotion';
+    if (!isPromotion) {
+        return attempt === 0 ? 120000 : 90000;
+    }
+    return attempt === 0 ? 90000 : 60000;
 }
 
 /**
@@ -344,6 +375,7 @@ async function runSummarizerAttemptSeries({
             };
         }
 
+        const timeoutMs = computeAttemptTimeoutMs(metadata, attempt);
         const attemptResult = await executeSummarizerAttempt({
             s,
             systemPrompt,
@@ -353,6 +385,7 @@ async function runSummarizerAttemptSeries({
             metadata,
             routeLabel,
             maxRetries,
+            timeoutMs,
         });
 
         if (attemptResult.success) {
@@ -410,6 +443,7 @@ async function runSummarizerAttemptSeries({
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @param {string} p.routeLabel - Human-readable route label for trace logs
  * @param {number} p.maxRetries - Maximum retry count for this route
+ * @param {number} p.timeoutMs - Timeout in milliseconds for this attempt
  * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
  */
 async function executeSummarizerAttempt({
@@ -421,6 +455,7 @@ async function executeSummarizerAttempt({
     metadata,
     routeLabel,
     maxRetries,
+    timeoutMs,
 }) {
     trace(`  ${routeLabel} attempt ${attempt} starting...`);
     const startedAt = Date.now();
@@ -436,7 +471,7 @@ async function executeSummarizerAttempt({
 
         await traceSummarizerRequest({ s, systemPrompt, prompt, metadata });
 
-        const abortContext = createAttemptAbortContext(signal, 120000);
+        const abortContext = createAttemptAbortContext(signal, timeoutMs);
 
         try {
             rawResult = await Promise.race([
@@ -652,7 +687,7 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
         }
 
         timer = setTimeout(() => {
-            const error = new ConnectionError('Request timed out after 120s', {
+            const error = new ConnectionError(`Request timed out after ${timeoutMs / 1000}s`, {
                 retryable: true,
             });
             reject(error);
