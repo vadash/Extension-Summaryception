@@ -1,4 +1,4 @@
-import { getPromptDepthsByChatIndex } from './chatutils.js';
+import { findLastMessage, getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
@@ -130,12 +130,15 @@ async function collectLiveTokenData(chat, startIdx, settings) {
     const indexTokens = new Map();
     const promptDepths = getPromptDepthsByChatIndex(chat);
 
-    for (let i = startIdx; i < chat.length; i++) {
-        const message = chat[i];
+    if (startIdx >= chat.length) {
+        return { stats, indexTokens };
+    }
+
+    for (const { index, message } of iterateChatRange(chat, startIdx, chat.length - 1)) {
         if (isPromptVisibleLiveMessage(message)) {
-            const counted = await countLiveMessage(message, promptDepths.get(i), settings);
+            const counted = await countLiveMessage(message, promptDepths.get(index), settings);
             addBudgetStats(stats, counted);
-            indexTokens.set(i, counted.finalTokens);
+            indexTokens.set(index, counted.finalTokens);
         }
     }
 
@@ -161,26 +164,20 @@ async function countLiveMessage(message, depth, settings) {
 }
 
 function isAssistantTriggered(chat, startIdx) {
-    for (let i = chat.length - 1; i >= startIdx; i--) {
-        const message = chat[i];
-        if (!isPromptVisibleLiveMessage(message)) {
-            continue;
-        }
-        return !message.is_user;
-    }
-    return false;
+    const latest = findLastMessage(chat, chat.length - 1, isPromptVisibleLiveMessage, startIdx);
+    return latest ? !latest.message.is_user : false;
 }
 
 function getProtectedTailStart(chat, startIdx, liveData, protectedTailTokens) {
     let total = 0;
-    for (let i = chat.length - 1; i >= startIdx; i--) {
-        const finalTokens = liveData.indexTokens.get(i);
+    for (const { index } of iterateChatRange(chat, chat.length - 1, startIdx)) {
+        const finalTokens = liveData.indexTokens.get(index);
         if (typeof finalTokens !== 'number') {
             continue;
         }
         total += finalTokens;
         if (total >= protectedTailTokens) {
-            return i;
+            return index;
         }
     }
     return startIdx;
@@ -188,10 +185,13 @@ function getProtectedTailStart(chat, startIdx, liveData, protectedTailTokens) {
 
 function getLiveAssistantTurns(chat, startIdx, endIdx) {
     const turns = [];
-    for (let i = Math.max(0, startIdx); i <= endIdx; i++) {
-        const message = chat[i];
+    if (endIdx < startIdx) {
+        return turns;
+    }
+
+    for (const { index, message } of iterateChatRange(chat, startIdx, endIdx)) {
         if (isPromptVisibleLiveMessage(message) && !message.is_user) {
-            turns.push({ index: i, mes: message.mes, name: message.name || 'Assistant' });
+            turns.push({ index, mes: message.mes, name: message.name || 'Assistant' });
         }
     }
     return turns;

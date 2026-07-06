@@ -15,6 +15,81 @@ export { buildMemoryInjection } from './memory-injection.js';
  */
 
 /**
+ * @typedef {object} IndexedChatMessage
+ * @property {number} index - Chat index for the message.
+ * @property {ChatMessage} message - Message at the index.
+ */
+
+/**
+ * Find the latest message at or before a start index that matches a predicate.
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
+ * @param {number} startIndex - Index to begin searching from
+ * @param {(message: ChatMessage, index: number) => boolean} predicate - Match predicate
+ * @param {number} [minIndex] - Lowest index to inspect
+ * @returns {IndexedChatMessage|null} Matching message, or null
+ */
+export function findLastMessage(chat, startIndex, predicate, minIndex = 0) {
+    if (!Number.isFinite(startIndex) || !Number.isFinite(minIndex) || startIndex < minIndex) {
+        return null;
+    }
+
+    for (const entry of iterateChatRange(chat, startIndex, minIndex)) {
+        if (predicate(entry.message, entry.index)) {
+            return entry;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Iterate an inclusive chat range, forward or backward, clamped to existing indices.
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
+ * @param {number} startIndex - Requested start index
+ * @param {number} endIndex - Requested end index
+ * @returns {IterableIterator<IndexedChatMessage>} Indexed messages in traversal order
+ */
+export function* iterateChatRange(chat, startIndex, endIndex) {
+    if (!Array.isArray(chat) || chat.length === 0) {
+        return;
+    }
+    if (!Number.isFinite(startIndex) || !Number.isFinite(endIndex)) {
+        return;
+    }
+
+    if (startIndex <= endIndex) {
+        yield* iterateForwardChatRange(chat, startIndex, endIndex);
+        return;
+    }
+
+    yield* iterateBackwardChatRange(chat, startIndex, endIndex);
+}
+
+function* iterateForwardChatRange(chat, startIndex, endIndex) {
+    const start = Math.max(0, Math.trunc(startIndex));
+    const end = Math.min(chat.length - 1, Math.trunc(endIndex));
+    if (start > end) {
+        return;
+    }
+
+    for (let i = start; i <= end; i++) {
+        yield { index: i, message: chat[i] };
+    }
+}
+
+function* iterateBackwardChatRange(chat, startIndex, endIndex) {
+    const start = Math.min(chat.length - 1, Math.trunc(startIndex));
+    const end = Math.max(0, Math.trunc(endIndex));
+    if (start < end) {
+        return;
+    }
+
+    for (let i = start; i >= end; i--) {
+        yield { index: i, message: chat[i] };
+    }
+}
+
+/**
  * Extract all assistant turns from the chat.
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @returns {AssistantTurn[]} Assistant turns

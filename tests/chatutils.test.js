@@ -28,13 +28,62 @@ beforeEach(() => {
 import { getSettings } from '../src/foundation/state.js';
 import { applyRegexToMessage } from '../src/core/regex-proxy.js';
 import {
+    findLastMessage,
     getAssistantTurns,
     getVisibleAssistantTurns,
+    iterateChatRange,
     buildPassageFromRange,
     buildPassageFromRangeWithStats,
     buildFullContext,
     buildMemoryInjection,
 } from '../src/core/chatutils.js';
+
+describe('iterateChatRange', () => {
+    it('walks a clamped forward range', () => {
+        const chat = Array.from({ length: 4 }, (_value, index) => makeMessage({ mes: `${index}` }));
+
+        expect([...iterateChatRange(chat, -3, 2)].map((entry) => entry.index)).toEqual([0, 1, 2]);
+    });
+
+    it('walks a clamped backward range', () => {
+        const chat = Array.from({ length: 4 }, (_value, index) => makeMessage({ mes: `${index}` }));
+
+        expect([...iterateChatRange(chat, 99, 1)].map((entry) => entry.index)).toEqual([3, 2, 1]);
+    });
+
+    it('returns no entries for empty or non-overlapping ranges', () => {
+        const chat = [makeMessage({ mes: 'only' })];
+
+        expect([...iterateChatRange([], 0, 1)]).toEqual([]);
+        expect([...iterateChatRange(chat, -5, -1)]).toEqual([]);
+        expect([...iterateChatRange(chat, 5, 6)]).toEqual([]);
+    });
+});
+
+describe('findLastMessage', () => {
+    it('finds the latest matching message at or before the start index', () => {
+        const chat = [
+            makeMessage({ isUser: true, mes: 'u0' }),
+            makeMessage({ mes: 'a1' }),
+            makeMessage({ isUser: true, mes: 'u2' }),
+        ];
+
+        const result = findLastMessage(chat, chat.length - 1, (message) => !message.is_user);
+
+        expect(result).toMatchObject({ index: 1, message: chat[1] });
+    });
+
+    it('honors the lower search bound', () => {
+        const chat = [
+            makeMessage({ mes: 'a0' }),
+            makeMessage({ isUser: true, mes: 'u1' }),
+            makeMessage({ mes: 'a2' }),
+        ];
+
+        expect(findLastMessage(chat, 1, (message) => !message.is_user, 1)).toBeNull();
+        expect(findLastMessage(chat, -1, () => true)).toBeNull();
+    });
+});
 
 describe('getAssistantTurns', () => {
     it('returns only assistant messages, preserving their chat index', () => {

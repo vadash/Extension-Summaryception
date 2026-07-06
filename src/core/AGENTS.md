@@ -23,6 +23,7 @@ This directory houses the background worker, LLM connections, token counting, an
 
 ## LLM Connections
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.
+- Merge/fallback routes inherit shared endpoint credentials from base settings, but provider-specific tunables such as profile IDs, model names, and token caps reset to route defaults unless prefixed overrides are set.
 - Pass summarizer `AbortSignals` to direct fetch adapters and Connection Manager profiles.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and streams MUST reach `data: [DONE]` before any text is accepted.
 - Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays.

@@ -3,6 +3,7 @@ import {
     getConnectionDisplayName,
     providers,
     resolveFallbackSummarizerConnectionSettings,
+    resolvePrimarySummarizerConnectionSettings,
     resolveSummarizerConnectionSettings,
     sendSummarizerRequest,
     testSummarizerConnection,
@@ -145,6 +146,54 @@ describe('connection providers registry', () => {
             openaiKey: 'shared-key',
             openaiModel: 'smart-model',
             openaiMaxTokens: 300,
+        });
+    });
+
+    it('does not inherit primary provider tunables when merge fields are unset', () => {
+        const effective = resolvePrimarySummarizerConnectionSettings(
+            {
+                connectionSource: 'openai',
+                summarizerResponseLength: 64,
+                connectionProfileId: 'fast-profile',
+                ollamaUrl: 'http://localhost:11434',
+                ollamaModel: 'fast-ollama',
+                openaiUrl: 'https://example.test/v1',
+                openaiKey: 'shared-key',
+                openaiModel: 'cheap-model',
+                openaiMaxTokens: 100,
+                mergeConnectionSource: 'openai',
+            },
+            { kind: 'promotion' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            summarizerResponseLength: 0,
+            connectionProfileId: '',
+            ollamaUrl: 'http://localhost:11434',
+            ollamaModel: '',
+            openaiUrl: 'https://example.test/v1',
+            openaiKey: 'shared-key',
+            openaiModel: '',
+            openaiMaxTokens: 0,
+        });
+    });
+
+    it('maps future prefixed route fields dynamically', () => {
+        const effective = resolvePrimarySummarizerConnectionSettings(
+            {
+                connectionSource: 'default',
+                mergeConnectionSource: 'openai',
+                mergeAnthropicModel: 'claude-test',
+                mergeClaudeThinkingBudget: 4096,
+            },
+            { kind: 'promotion' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            anthropicModel: 'claude-test',
+            claudeThinkingBudget: 4096,
         });
     });
 

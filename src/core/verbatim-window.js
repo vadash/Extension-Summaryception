@@ -1,4 +1,4 @@
-import { getAssistantTurns, getPromptDepthsByChatIndex } from './chatutils.js';
+import { getAssistantTurns, getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
@@ -137,18 +137,17 @@ async function getTokenBudgetBoundary(chat, settings) {
     let exceeded = false;
 
     const promptDepths = getPromptDepthsByChatIndex(chat);
-    for (let i = chat.length - 1; i >= 0; i--) {
-        const message = chat[i];
+    for (const { index, message } of iterateChatRange(chat, chat.length - 1, 0)) {
         if (!isPromptVisibleMessage(message)) {
             continue;
         }
 
-        const counted = await countBudgetMessage(message, promptDepths.get(i), settings);
+        const counted = await countBudgetMessage(message, promptDepths.get(index), settings);
         addBudgetStats(stats, counted);
         totalTokens += counted.finalTokens;
         if (!exceeded && totalTokens > settings.verbatimTokenBudget) {
             exceeded = true;
-            boundaryIndex = i;
+            boundaryIndex = index;
         }
     }
 
@@ -169,12 +168,15 @@ async function countRangeTokens(chat, startIdx, endIdx, settings) {
     const stats = createBudgetStats();
     const promptDepths = getPromptDepthsByChatIndex(chat);
 
-    for (let i = startIdx; i <= endIdx; i++) {
-        const message = chat[i];
+    if (endIdx < startIdx) {
+        return stats;
+    }
+
+    for (const { index, message } of iterateChatRange(chat, startIdx, endIdx)) {
         if (!isPassageCountableMessage(message)) {
             continue;
         }
-        addBudgetStats(stats, await countBudgetMessage(message, promptDepths.get(i), settings));
+        addBudgetStats(stats, await countBudgetMessage(message, promptDepths.get(index), settings));
     }
 
     return stats;

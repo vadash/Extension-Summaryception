@@ -30,6 +30,14 @@ export const providers = Object.freeze({
     openai: OpenAIProvider,
 });
 
+const ROUTE_SETTING_DEFAULTS = Object.freeze({
+    summarizerResponseLength: 0,
+    connectionProfileId: '',
+    ollamaModel: '',
+    openaiModel: '',
+    openaiMaxTokens: 0,
+});
+
 /**
  * Send a summarization request using the configured connection.
  * @param {ExtensionSettings} settings - The extension settings containing connection config
@@ -123,15 +131,7 @@ export function resolvePrimarySummarizerConnectionSettings(settings, metadata = 
         return settings;
     }
 
-    return {
-        ...settings,
-        connectionSource: settings.mergeConnectionSource,
-        summarizerResponseLength: settings.mergeSummarizerResponseLength || 0,
-        connectionProfileId: settings.mergeConnectionProfileId || '',
-        ollamaModel: settings.mergeOllamaModel || '',
-        openaiModel: settings.mergeOpenaiModel || '',
-        openaiMaxTokens: settings.mergeOpenaiMaxTokens || 0,
-    };
+    return extractRouteSettings(settings, 'merge');
 }
 
 /**
@@ -146,19 +146,56 @@ export function resolveFallbackSummarizerConnectionSettings(settings, metadata =
     }
 
     const primary = resolvePrimarySummarizerConnectionSettings(settings, metadata);
-    const fallback = {
-        ...settings,
-        connectionSource: settings.fallbackConnectionSource,
-        summarizerResponseLength: settings.fallbackSummarizerResponseLength || 0,
-        connectionProfileId: settings.fallbackConnectionProfileId || '',
-        ollamaModel: settings.fallbackOllamaModel || '',
-        openaiModel: settings.fallbackOpenaiModel || '',
-        openaiMaxTokens: settings.fallbackOpenaiMaxTokens || 0,
-    };
+    const fallback = extractRouteSettings(settings, 'fallback');
 
     return isSameConnectionRoute(primary, fallback)
         ? null
         : applyLayer0ResponseCap(fallback, metadata);
+}
+
+/**
+ * Resolve prefixed route override fields onto the provider-facing setting names.
+ * Shared fields without route-specific prefixes, such as URLs and API keys, stay inherited.
+ * @param {ExtensionSettings} settings
+ * @param {string} prefix
+ * @returns {ExtensionSettings}
+ */
+function extractRouteSettings(settings, prefix) {
+    const routeSettings = { ...settings, ...ROUTE_SETTING_DEFAULTS };
+    const prefixLength = prefix.length;
+
+    for (const key of Object.keys(settings)) {
+        if (!key.startsWith(prefix) || key.length === prefixLength) {
+            continue;
+        }
+
+        const mappedKey = lowerFirst(key.slice(prefixLength));
+        routeSettings[mappedKey] = getRouteSettingValue(mappedKey, settings[key]);
+    }
+
+    return routeSettings;
+}
+
+/**
+ * Preserve existing route defaults for known override-only fields.
+ * @param {string} key
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function getRouteSettingValue(key, value) {
+    if (Object.hasOwn(ROUTE_SETTING_DEFAULTS, key) && !value) {
+        return ROUTE_SETTING_DEFAULTS[key];
+    }
+    return value;
+}
+
+/**
+ * Lowercase the first character of a prefixed route setting suffix.
+ * @param {string} value
+ * @returns {string}
+ */
+function lowerFirst(value) {
+    return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 /**

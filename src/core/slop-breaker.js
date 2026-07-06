@@ -1,4 +1,4 @@
-import { getAssistantTurns } from './chatutils.js';
+import { findLastMessage, getAssistantTurns } from './chatutils.js';
 
 /**
  * @typedef {object} SlopBreakerPlan
@@ -58,7 +58,7 @@ export function getSlopBreakerPlan(chat, store, settings, { targetIndex } = {}) 
  * @returns {number | null}
  */
 function getSlopBreakerTargetIndex(chat, summarizedUpTo) {
-    const latest = findPreviousCountableMessage(chat, chat.length - 1);
+    const latest = findLastMessage(chat, chat.length - 1, isCountableConversationMessage);
     if (!latest || latest.index <= summarizedUpTo) {
         return null;
     }
@@ -66,7 +66,7 @@ function getSlopBreakerTargetIndex(chat, summarizedUpTo) {
         return latest.index;
     }
 
-    const previous = findPreviousCountableMessage(chat, latest.index - 1);
+    const previous = findLastMessage(chat, latest.index - 1, isCountableConversationMessage);
     return previous?.index ?? null;
 }
 
@@ -84,22 +84,6 @@ function getEligibleAssistantTurns(chat, summarizedUpTo, targetIndex) {
             turn.index <= targetIndex &&
             isCountableConversationMessage(chat[turn.index]),
     );
-}
-
-/**
- * Find a countable user or assistant message at or before a start index.
- * @param {ChatMessage[]} chat
- * @param {number} startIndex
- * @returns {{ index: number, message: ChatMessage } | null}
- */
-function findPreviousCountableMessage(chat, startIndex) {
-    for (let i = Math.min(startIndex, chat.length - 1); i >= 0; i--) {
-        const message = chat[i];
-        if (isCountableConversationMessage(message)) {
-            return { index: i, message };
-        }
-    }
-    return null;
 }
 
 /**
