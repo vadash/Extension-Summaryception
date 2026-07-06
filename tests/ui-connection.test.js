@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createJQueryHarness } from './test-helpers.js';
 
 let activeSettings;
 let saveSettingsMock;
@@ -237,180 +238,18 @@ describe('connection setting bindings', () => {
 });
 
 function installPanelJquery() {
-    const visibility = new Map();
-
-    function wrap(ids) {
-        const api = {
-            ids,
-            length: ids.length,
-            add(other) {
-                return wrap([...ids, ...other.ids]);
-            },
-            hide() {
-                for (const id of ids) {
-                    visibility.set(id, false);
-                }
-                return api;
-            },
-            show() {
-                for (const id of ids) {
-                    visibility.set(id, true);
-                }
-                return api;
-            },
-            toggle(value) {
-                for (const id of ids) {
-                    visibility.set(id, Boolean(value));
-                }
-                return api;
-            },
-        };
-        return api;
-    }
-
-    globalThis.$ = vi.fn((selector) =>
-        typeof selector === 'string' && selector.startsWith('#')
-            ? wrap([selector.slice(1)])
-            : wrap([]),
-    );
-
-    return { visibility };
+    const harness = createJQueryHarness();
+    globalThis.$ = harness.$;
+    return { visibility: harness.visibility };
 }
 
 function installConnectionJquery() {
-    const handlers = new Map();
-    const visibility = new Map();
-    const elements = new Map();
-    const nodeElements = new Map();
-
-    function element(selector) {
-        if (!elements.has(selector)) {
-            const api = createConnectionElement(
-                selector,
-                handlers,
-                visibility,
-                [selector.slice(1)],
-                CONNECTION_DATA_ATTRIBUTES[selector] || {},
-            );
-            elements.set(selector, api);
-            nodeElements.set(api[0], api);
-        }
-        return elements.get(selector);
-    }
-
-    globalThis.$ = vi.fn((selector) => {
-        if (selector === CONNECTION_DATA_SETTING_SELECTOR) {
-            return createConnectionCollection(
-                Object.keys(CONNECTION_DATA_ATTRIBUTES).map((id) => element(id)),
-            );
-        }
-        if (typeof selector === 'string' && selector.startsWith('#')) {
-            return element(selector);
-        }
-        if (nodeElements.has(selector)) {
-            return nodeElements.get(selector);
-        }
-        return createConnectionElement('', handlers, visibility, []);
+    const harness = createJQueryHarness({
+        attributes: CONNECTION_DATA_ATTRIBUTES,
+        collections: {
+            [CONNECTION_DATA_SETTING_SELECTOR]: Object.keys(CONNECTION_DATA_ATTRIBUTES),
+        },
     });
-
-    return {
-        element,
-        trigger(eventName, selector) {
-            const handler = handlers.get(`${selector}:${eventName}`);
-            if (!handler) {
-                throw new Error(`No handler registered for ${eventName} ${selector}`);
-            }
-            return handler();
-        },
-        visibility,
-    };
-}
-
-function createConnectionCollection(elements) {
-    return {
-        length: elements.length,
-        each(callback) {
-            elements.forEach((element, index) => {
-                callback.call(element[0], index, element[0]);
-            });
-            return this;
-        },
-    };
-}
-
-function createConnectionElement(
-    selector,
-    handlers,
-    visibility,
-    ids = [selector.slice(1)],
-    attrs = {},
-) {
-    const state = { value: '', html: '', visible: true };
-    const node = { id: ids[0] };
-    const api = {
-        0: node,
-        ids,
-        length: ids.length,
-        on(eventName, handler) {
-            for (const name of String(eventName).split(/\s+/).filter(Boolean)) {
-                handlers.set(`${selector}:${name}`, handler);
-            }
-            return api;
-        },
-        val(nextValue) {
-            if (arguments.length === 0) {
-                return state.value;
-            }
-            state.value = nextValue;
-            return api;
-        },
-        html(nextValue) {
-            if (arguments.length === 0) {
-                return state.html;
-            }
-            state.html = nextValue;
-            return api;
-        },
-        attr(name, nextValue) {
-            if (arguments.length === 1) {
-                return attrs[name];
-            }
-            attrs[name] = nextValue;
-            return api;
-        },
-        append() {
-            return api;
-        },
-        add(other) {
-            return createConnectionElement('', handlers, visibility, [...ids, ...other.ids]);
-        },
-        hide() {
-            state.visible = false;
-            for (const id of ids) {
-                visibility.set(id, false);
-            }
-            return api;
-        },
-        show() {
-            state.visible = true;
-            for (const id of ids) {
-                visibility.set(id, true);
-            }
-            return api;
-        },
-        toggle(value) {
-            state.visible = Boolean(value);
-            for (const id of ids) {
-                visibility.set(id, Boolean(value));
-            }
-            return api;
-        },
-        getValue() {
-            return state.value;
-        },
-        isVisible() {
-            return state.visible;
-        },
-    };
-    return api;
+    globalThis.$ = harness.$;
+    return harness;
 }

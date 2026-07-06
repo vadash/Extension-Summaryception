@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installBrowserRuntimeStub, installSillyTavernStub } from './test-helpers.js';
+import {
+    createJQueryHarness,
+    installBrowserRuntimeStub,
+    installSillyTavernStub,
+} from './test-helpers.js';
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 
 const mocks = vi.hoisted(() => ({
@@ -260,51 +264,6 @@ function mockUiEventDependencies() {
     }));
 }
 
-function createJQueryHarness() {
-    const handlers = [];
-    const elements = new Map();
-
-    const element = (selector) => {
-        if (!elements.has(selector)) {
-            elements.set(selector, createJQueryElement());
-        }
-        return elements.get(selector);
-    };
-
-    const documentWrapper = {
-        on(eventName, selector, handler) {
-            for (const name of String(eventName).split(/\s+/).filter(Boolean)) {
-                handlers.push({ eventName: name, selector, handler });
-            }
-            return documentWrapper;
-        },
-    };
-
-    const $ = vi.fn((target) => {
-        if (target === globalThis.document) {
-            return documentWrapper;
-        }
-        if (typeof target === 'string') {
-            return element(target);
-        }
-        return target;
-    });
-
-    return {
-        $,
-        element,
-        trigger(eventName, selector, target = element(selector)) {
-            const entry = handlers.find(
-                (handler) => handler.eventName === eventName && handler.selector === selector,
-            );
-            if (!entry) {
-                throw new Error(`No handler registered for ${eventName} ${selector}`);
-            }
-            return entry.handler.call(target, { type: eventName });
-        },
-    };
-}
-
 function installDownloadStubs() {
     const downloads = [];
     const originalCreateObjectURL = globalThis.URL.createObjectURL;
@@ -323,39 +282,4 @@ function installDownloadStubs() {
     };
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:summaryception');
     globalThis.URL.revokeObjectURL = vi.fn();
-}
-
-function createJQueryElement() {
-    const state = { value: '', props: {}, visible: true };
-    const api = {
-        val(nextValue) {
-            if (arguments.length === 0) {
-                return state.value;
-            }
-            state.value = nextValue;
-            return api;
-        },
-        prop(name, nextValue) {
-            if (arguments.length === 1) {
-                return state.props[name];
-            }
-            state.props[name] = nextValue;
-            return api;
-        },
-        show() {
-            state.visible = true;
-            return api;
-        },
-        hide() {
-            state.visible = false;
-            return api;
-        },
-        getValue() {
-            return state.value;
-        },
-        isVisible() {
-            return state.visible;
-        },
-    };
-    return api;
 }
