@@ -11,7 +11,11 @@ function setStripPatterns(patterns) {
     getSettingsMock.mockReturnValue({ stripPatterns: patterns });
 }
 
-import { cleanSummarizerOutput } from '../src/core/prompts.js';
+import {
+    cleanSummarizerOutput,
+    getChineseIdeographStats,
+    stripChineseIdeographs,
+} from '../src/core/prompts.js';
 
 describe('cleanSummarizerOutput', () => {
     it('removes configured strip patterns (destroys tags, leaving inner text)', () => {
@@ -64,4 +68,16 @@ it('invokes getSettings to read strip patterns', () => {
     setStripPatterns([]);
     cleanSummarizerOutput('test');
     expect(getSettingsMock).toHaveBeenCalled();
+});
+
+it('counts Chinese ideographs against visible non-whitespace characters', () => {
+    expect(getChineseIdeographStats('漢 abc def ghi')).toEqual({
+        chineseIdeographs: 1,
+        visibleCharacters: 10,
+        ratio: 0.1,
+    });
+});
+
+it('strips Chinese ideographs without removing Latin text', () => {
+    expect(stripChineseIdeographs('alpha 漢字 beta')).toBe('alpha  beta');
 });

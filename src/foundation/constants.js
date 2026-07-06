@@ -43,7 +43,7 @@ export const defaultSettings = Object.freeze({
     customMemoryDepth: 0,
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
-    layer0SummaryTokenTarget: 150,
+    layer0SummaryTokenTarget: 200,
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,
@@ -130,6 +130,7 @@ Write one dense third-person narrative paragraph. Never use second-person. Do no
     promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPromotionPrompts: {}, // { name: promptText } — named custom promotion prompt slots
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
+    stripChineseIdeographs: false, // true = strip Han ideographs from summarizer responses
 
     stripPatterns: [
         '<|channel>thought',

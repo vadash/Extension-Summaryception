@@ -134,6 +134,11 @@ function bindToggleHandlers() {
         getSettings().applyRegexScripts = $(this).prop('checked');
         saveSettings();
     });
+
+    $(document).on('change', '#sc_strip_chinese_ideographs', function () {
+        getSettings().stripChineseIdeographs = $(this).prop('checked');
+        saveSettings();
+    });
 }
 
 /**
@@ -708,6 +713,7 @@ function onResetDefaults() {
     s.promptOutputLogMode = defaultSettings.promptOutputLogMode;
     s.promptLogMode = defaultSettings.promptLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
+    s.stripChineseIdeographs = defaultSettings.stripChineseIdeographs;
 
     saveSettings();
     updateInjection();

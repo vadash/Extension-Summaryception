@@ -602,6 +602,14 @@
                             </span>
                             <input type="checkbox" id="sc_apply_regex_scripts" />
                         </label>
+                        <label class="checkbox_label sc-toggle-row" for="sc_strip_chinese_ideographs">
+                            <span class="sc-toggle-icon fa-solid fa-language"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Strip CN</span>
+                                <small class="sc-hint">Remove Han ideographs from summarizer replies.</small>
+                            </span>
+                            <input type="checkbox" id="sc_strip_chinese_ideographs" />
+                        </label>
                     </div>
                 </section>
                 <section class="sc-section">
@@ -643,8 +651,8 @@
                                     <small class="sc-hint">Target size for each raw-chat summary.</small>
                                 </label>
                                 <div class="sc-slider-row">
-                                    <input type="range" id="sc_layer0_summary_token_target" min="80" max="400" step="10" />
-                                    <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="number" min="80" max="400" step="10" value="150" />
+                                    <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" />
+                                    <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="text" inputmode="numeric" value="200" />
                                 </div>
                             </div>
                             <div class="sc-row">
@@ -670,7 +678,7 @@
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_min_summary_turns" min="2" max="10" step="1" />
-                                    <input id="sc_min_summary_turns_val" class="text_pole sc-val" type="number" min="2" max="10" step="1" value="3" />
+                                    <input id="sc_min_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3" />
                                 </div>
                             </div>
                             <div class="sc-row">
@@ -679,8 +687,8 @@
                                     <small class="sc-hint">Maximum assistant turns per Layer 0 summary batch.</small>
                                 </label>
                                 <div class="sc-slider-row">
-                                    <input type="range" id="sc_max_summary_turns" min="3" max="12" step="1" />
-                                    <input id="sc_max_summary_turns_val" class="text_pole sc-val" type="number" min="3" max="12" step="1" value="8" />
+                                    <input type="range" id="sc_max_summary_turns" min="3" max="20" step="1" />
+                                    <input id="sc_max_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" />
                                 </div>
                             </div>
                             <div class="sc-row">
@@ -689,8 +697,8 @@
                                     <small class="sc-hint">Count guard alongside injected-memory token pressure.</small>
                                 </label>
                                 <div class="sc-slider-row">
-                                    <input type="range" id="sc_snippets_per_layer" min="3" max="100" step="1" />
-                                    <input id="sc_snippets_per_layer_val" class="text_pole sc-val" type="number" min="3" max="100" step="1" value="20" />
+                                    <input type="range" id="sc_snippets_per_layer" min="10" max="100" step="1" />
+                                    <input id="sc_snippets_per_layer_val" class="text_pole sc-val" type="text" inputmode="numeric" value="30" />
                                 </div>
                             </div>
                             <div class="sc-row">
@@ -699,8 +707,8 @@
                                     <small class="sc-hint">Oldest snippets merged when promoting.</small>
                                 </label>
                                 <div class="sc-slider-row">
-                                    <input type="range" id="sc_snippets_per_promotion" min="3" max="20" step="1" />
-                                    <input id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="number" min="3" max="20" step="1" value="4" />
+                                    <input type="range" id="sc_snippets_per_promotion" min="3" max="7" step="1" />
+                                    <input id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="text" inputmode="numeric" value="4" />
                                 </div>
                             </div>
                         </div>

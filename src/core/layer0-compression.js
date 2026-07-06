@@ -1,7 +1,7 @@
 import { defaultSettings } from '../foundation/constants.js';
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
-const MAX_LAYER0_TARGET_TOKENS = 400;
+const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
 const PROMOTION_TARGET_RATIO = 0.4;

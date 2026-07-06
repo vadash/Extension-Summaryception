@@ -492,8 +492,8 @@
     min-width: 0;
 }
 .sc-val {
-    flex: 0 0 32px;
-    min-width: 32px;
+    flex: 0 0 44px;
+    min-width: 44px;
     max-width: 72px;
     min-height: 26px;
     padding: 2px 5px;
@@ -506,7 +506,7 @@
     text-align: center;
 }
 .sc-slider-row .sc-val {
-    width: 32px;
+    width: 44px;
 }
 .sc-val-wide {
     flex-basis: 52px;

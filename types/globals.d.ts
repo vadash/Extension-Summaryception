@@ -69,6 +69,7 @@ interface ExtensionSettings {
     promotionPromptPreset: string;
     savedCustomPromotionPrompts: Record<string, string>;
     applyRegexScripts: boolean;
+    stripChineseIdeographs: boolean;
     stripPatterns: string[];
     debugMode: boolean;
     traceMode: boolean;

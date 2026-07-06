@@ -31,6 +31,7 @@ beforeEach(() => {
             promotionSystemPrompt: 'PROMO_SYS',
             promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
             stripPatterns: [],
+            stripChineseIdeographs: false,
         },
     });
     mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue(null);
@@ -347,5 +348,50 @@ describe('callSummarizer abort signal plumbing', () => {
         const finalRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsBeforeFinalRun);
         const finalRunPrimaryCalls = finalRunCalls.filter((call) => !call[4]?.useFallback);
         expect(finalRunPrimaryCalls).toHaveLength(4);
+    });
+
+    it('retries when Strip CN sees more than ten percent Chinese ideographs', async () => {
+        vi.useFakeTimers();
+        installSillyTavernStub({
+            settings: {
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+                stripChineseIdeographs: true,
+            },
+        });
+        mocks.sendSummarizerRequest
+            .mockResolvedValueOnce('漢字漢字漢字 ok')
+            .mockResolvedValueOnce('clean summary');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const resultPromise = callSummarizer('source passage', 'prior context');
+        await vi.runAllTimersAsync();
+
+        await expect(resultPromise).resolves.toBe('clean summary');
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
+        expect(globalThis.toastr.warning).toHaveBeenCalledWith(
+            expect.stringContaining('too much CN text'),
+            'Summaryception',
+            expect.any(Object),
+        );
+    });
+
+    it('strips Chinese ideographs without retrying at exactly ten percent', async () => {
+        installSillyTavernStub({
+            settings: {
+                summarizerSystemPrompt: 'SYS',
+                summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+                stripChineseIdeographs: true,
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('漢abcdefghi');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await expect(callSummarizer('source passage', 'prior context')).resolves.toBe('abcdefghi');
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
     });
 });

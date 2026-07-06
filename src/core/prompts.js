@@ -2,6 +2,9 @@ import { getSettings } from '../foundation/state.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
+const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
+const VISIBLE_CHARACTER_REGEX = /\S/gu;
+
 /**
  * Strip reasoning tags, thinking blocks, and other model artifacts
  * from the summarizer output. Uses configurable patterns plus
@@ -15,7 +18,7 @@ export function cleanSummarizerOutput(raw) {
     const s = getSettings();
 
     // Remove configurable strip patterns
-    for (const pattern of s.stripPatterns) {
+    for (const pattern of s.stripPatterns || []) {
         while (text.includes(pattern)) {
             text = text.replace(pattern, '');
         }
@@ -49,4 +52,33 @@ export function cleanSummarizerOutput(raw) {
     text = text.replace(/\n{3,}/g, '\n').trim();
 
     return text;
+}
+
+/**
+ * Count Han ideographs and visible characters in text.
+ * @param {string} text - Text to inspect
+ * @returns {{ chineseIdeographs: number, visibleCharacters: number, ratio: number }}
+ */
+export function getChineseIdeographStats(text) {
+    const source = String(text || '');
+    const chineseIdeographs = countMatches(source, CHINESE_IDEOGRAPH_REGEX);
+    const visibleCharacters = countMatches(source, VISIBLE_CHARACTER_REGEX);
+    return {
+        chineseIdeographs,
+        visibleCharacters,
+        ratio: visibleCharacters > 0 ? chineseIdeographs / visibleCharacters : 0,
+    };
+}
+
+/**
+ * Remove Han ideographs from text.
+ * @param {string} text - Text to clean
+ * @returns {string}
+ */
+export function stripChineseIdeographs(text) {
+    return String(text || '').replace(CHINESE_IDEOGRAPH_REGEX, '');
+}
+
+function countMatches(text, regex) {
+    return text.match(regex)?.length || 0;
 }

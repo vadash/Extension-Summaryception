@@ -25,15 +25,22 @@ describe('promotion prompt guard', () => {
         const ctx = installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
-                    layers: [[{ text: 'older' }, { text: 'middle' }, { text: 'newer' }]],
+                    layers: [
+                        [
+                            { text: 'older '.repeat(1800) },
+                            { text: 'middle '.repeat(1800) },
+                            { text: 'newer '.repeat(1800) },
+                        ],
+                    ],
                     summarizedUpTo: 4,
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 1,
+                snippetsPerLayer: 10,
                 snippetsPerPromotion: 3,
             },
+            getTokenCountAsync: countWhitespaceTokens,
         });
         ctx.chatId = 'chat-a';
 
@@ -169,13 +176,21 @@ describe('promotion prompt guard', () => {
                             {
                                 text: '[NARRATIVE]\nThird event.\n\n[STATE]\nhooks: resolved\ncounters: score 2',
                             },
+                            { text: '[NARRATIVE]\nExtra 1.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 2.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 3.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 4.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 8.\n\n[STATE]' },
                         ],
                     ],
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 1,
+                snippetsPerLayer: 10,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -213,13 +228,21 @@ describe('promotion prompt guard', () => {
                             { text: 'a '.repeat(1000) },
                             { text: 'b '.repeat(1000) },
                             { text: 'c '.repeat(1000) },
+                            { text: 'extra 1' },
+                            { text: 'extra 2' },
+                            { text: 'extra 3' },
+                            { text: 'extra 4' },
+                            { text: 'extra 5' },
+                            { text: 'extra 6' },
+                            { text: 'extra 7' },
+                            { text: 'extra 8' },
                         ],
                     ],
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 1,
+                snippetsPerLayer: 10,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -231,7 +254,7 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(false);
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
-        expect(getChatStore().layers[0]).toHaveLength(3);
+        expect(getChatStore().layers[0]).toHaveLength(11);
         expect(getChatStore().layers[1]).toBeUndefined();
     });
 

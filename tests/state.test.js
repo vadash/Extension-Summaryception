@@ -140,6 +140,7 @@ describe('state.js', () => {
                 minSummaryBudget: 6500,
                 verbatimTokenBudget: 6500,
                 memoryTokenBudget: 6500,
+                snippetsPerLayer: 1,
                 snippetsPerPromotion: 1,
             },
         });
@@ -155,6 +156,7 @@ describe('state.js', () => {
             minSummaryBudget: 7000,
             verbatimTokenBudget: 7000,
             memoryTokenBudget: 7000,
+            snippetsPerLayer: 10,
             snippetsPerPromotion: 3,
         });
     });
@@ -179,17 +181,33 @@ describe('state.js', () => {
         expect(ctx.saveSettingsDebounced).not.toHaveBeenCalled();
     });
 
-    it('allows maximum summary turns up to twelve', () => {
+    it('allows maximum summary turns up to twenty', () => {
         installSillyTavernStub({
             settings: {
                 minSummaryTurns: 3,
-                maxSummaryTurns: 14,
+                maxSummaryTurns: 24,
             },
         });
 
         expect(getSettings()).toMatchObject({
             minSummaryTurns: 3,
-            maxSummaryTurns: 12,
+            maxSummaryTurns: 20,
+        });
+    });
+
+    it('allows Layer 0 targets up to five hundred and promotion batches up to seven', () => {
+        installSillyTavernStub({
+            settings: {
+                layer0SummaryTokenTarget: 999,
+                snippetsPerLayer: 999,
+                snippetsPerPromotion: 99,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            layer0SummaryTokenTarget: 500,
+            snippetsPerLayer: 100,
+            snippetsPerPromotion: 7,
         });
     });
 

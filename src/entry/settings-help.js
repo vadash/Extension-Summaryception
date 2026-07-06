@@ -126,6 +126,19 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'strip_chinese_ideographs',
+        basicHelp({
+            selector: selectorFor('sc_strip_chinese_ideographs'),
+            title: 'Strip CN',
+            short: 'Remove Han ideographs from summarizer replies.',
+            controls: [controlFor('sc_strip_chinese_ideographs')],
+            controlsText:
+                'Controls whether generated summaries strip Han ideographs and reject heavily contaminated replies.',
+            when: 'if your summarizer sometimes leaks Chinese text into memory.',
+            risk: 'legitimate Chinese names or text will be removed from committed memory.',
+        }),
+    ],
+    [
         'verbatim_token_budget',
         sliderHelp({
             selector: selectorFor('sc_verbatim_token_budget'),
@@ -171,7 +184,7 @@ const HELP_ENTRIES = [
             meaning: 'Target size for one Layer 0 summary before it is injected as memory.',
             higher: 'keeps more detail in each Layer 0 snippet.',
             lower: 'compresses each snippet harder and leaves more memory budget.',
-            defaultText: '150.',
+            defaultText: '200.',
         }),
     ],
     [

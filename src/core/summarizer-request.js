@@ -18,7 +18,11 @@ import {
     warn,
 } from '../foundation/logger.js';
 import { RETRY_CONFIG, parseRetryAfter, isRetryableError } from '../foundation/retry.js';
-import { cleanSummarizerOutput } from './prompts.js';
+import {
+    cleanSummarizerOutput,
+    getChineseIdeographStats,
+    stripChineseIdeographs,
+} from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
@@ -485,6 +489,14 @@ async function executeSummarizerAttempt({
         trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
 
         cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
+        const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, s);
+        if (chinesePolicyResult.error) {
+            attemptError = chinesePolicyResult.error;
+            cleanedResult = '';
+            status = 'cn-rejected';
+            return buildAttemptFailure(attemptError, true);
+        }
+        cleanedResult = chinesePolicyResult.text;
 
         if (!cleanedResult) {
             attemptError = new Error('Empty response from summarizer');
@@ -526,6 +538,42 @@ async function executeSummarizerAttempt({
             error: attemptError,
         });
     }
+}
+
+/**
+ * Strip or reject Han-heavy summarizer output when enabled.
+ * @param {string} cleanedResult - Output after standard artifact cleanup
+ * @param {ExtensionSettings} settings - Active settings
+ * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null }}
+ */
+function applyChineseOutputPolicy(cleanedResult, settings) {
+    if (!settings.stripChineseIdeographs) {
+        return { text: cleanedResult, error: null };
+    }
+
+    const stats = getChineseIdeographStats(cleanedResult);
+    if (stats.chineseIdeographs > 0 && stats.ratio > 0.1) {
+        const percent = (stats.ratio * 100).toFixed(1);
+        warn(`Summarizer response rejected: CN ideographs were ${percent}% of visible characters.`);
+        toastr.warning(
+            `Summarizer response contained too much CN text (${percent}%). Retrying...`,
+            'Summaryception',
+            { timeOut: 5000 },
+        );
+        const error = /** @type {Error & { retryable?: boolean }} */ (
+            new Error(`CN ideograph ratio ${percent}% exceeds 10%`)
+        );
+        error.retryable = true;
+        return { text: '', error };
+    }
+
+    return { text: cleanWhitespace(stripChineseIdeographs(cleanedResult)), error: null };
+}
+
+function cleanWhitespace(text) {
+    return String(text || '')
+        .replace(/\n{3,}/g, '\n')
+        .trim();
 }
 
 /**

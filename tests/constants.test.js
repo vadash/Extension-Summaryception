@@ -30,7 +30,7 @@ describe('constants', () => {
         expect(defaultSettings.customMemoryDepth).toBe(0);
         expect(defaultSettings.minSummaryTurns).toBe(3);
         expect(defaultSettings.maxSummaryTurns).toBe(8);
-        expect(defaultSettings.layer0SummaryTokenTarget).toBe(150);
+        expect(defaultSettings.layer0SummaryTokenTarget).toBe(200);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
             defaultSettings.minSummaryTurns,
         );
@@ -45,6 +45,7 @@ describe('constants', () => {
         expect(defaultSettings.promptInputLogMode).toBe(false);
         expect(defaultSettings.promptOutputLogMode).toBe(false);
         expect(defaultSettings.promptLogMode).toBe(false);
+        expect(defaultSettings.stripChineseIdeographs).toBe(false);
     });
 
     it('uses the Summaryception memory wrapper by default', () => {
