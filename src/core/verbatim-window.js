@@ -1,17 +1,6 @@
 import { getAssistantTurns, getPromptDepthsByChatIndex } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { countMessageTokens } from './token-count.js';
-
-/**
- * @typedef {object} VerbatimBudgetStats
- * @property {number} rawTokens
- * @property {number} finalTokens
- * @property {number} savedTokens
- * @property {boolean} rawTokensEstimated
- * @property {boolean} finalTokensEstimated
- * @property {boolean} savedTokensEstimated
- * @property {number} changedMessageCount
- */
+import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
 /**
  * @typedef {object} Layer0OverflowPlan
@@ -23,8 +12,8 @@ import { countMessageTokens } from './token-count.js';
  * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
  * @property {number} visibleTurnCount
  * @property {number} tokenBoundaryIndex
- * @property {VerbatimBudgetStats} budgetStats
- * @property {VerbatimBudgetStats} summaryStats
+ * @property {import('./token-count.js').BudgetStats} budgetStats
+ * @property {import('./token-count.js').BudgetStats} summaryStats
  * @property {boolean} tokenBudgetExceeded
  */
 
@@ -191,18 +180,6 @@ async function countRangeTokens(chat, startIdx, endIdx, settings) {
     return stats;
 }
 
-function createBudgetStats() {
-    return {
-        rawTokens: 0,
-        finalTokens: 0,
-        savedTokens: 0,
-        rawTokensEstimated: false,
-        finalTokensEstimated: false,
-        savedTokensEstimated: false,
-        changedMessageCount: 0,
-    };
-}
-
 async function countBudgetMessage(message, depth, settings) {
     const rawText = String(message.mes || '').trim();
     const finalText = await getBudgetMessageText(message, rawText, depth, settings);
@@ -229,18 +206,6 @@ async function getBudgetMessageText(message, rawText, depth, settings) {
 function getBudgetMessageLine(message, text) {
     const speaker = message.is_user ? 'Player' : 'Assistant';
     return `${speaker}: ${text}`;
-}
-
-function addBudgetStats(stats, counted) {
-    stats.rawTokens += counted.rawTokens;
-    stats.finalTokens += counted.finalTokens;
-    stats.savedTokens = stats.rawTokens - stats.finalTokens;
-    stats.rawTokensEstimated ||= counted.rawTokensEstimated;
-    stats.finalTokensEstimated ||= counted.finalTokensEstimated;
-    stats.savedTokensEstimated = stats.rawTokensEstimated || stats.finalTokensEstimated;
-    if (counted.changed) {
-        stats.changedMessageCount++;
-    }
 }
 
 function isPromptVisibleMessage(message) {

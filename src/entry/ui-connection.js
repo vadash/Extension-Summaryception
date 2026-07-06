@@ -310,18 +310,7 @@ function bindConnectionButton(elementId, handler) {
  * @returns {void}
  */
 export function updateConnectionSubPanels(source) {
-    const $profile = $('#summaryception_profile_settings');
-    const $ollama = $('#summaryception_ollama_settings');
-    const $openai = $('#summaryception_openai_settings');
-
-    $profile.add($ollama).add($openai).hide();
-    if (source === 'profile') {
-        $profile.show();
-    } else if (source === 'ollama') {
-        $ollama.show();
-    } else if (source === 'openai') {
-        $openai.show();
-    }
+    toggleRouteSubPanels('', source);
 }
 
 /**
@@ -330,21 +319,7 @@ export function updateConnectionSubPanels(source) {
  * @returns {void}
  */
 export function updateMergeConnectionSubPanels(source) {
-    const $responseLength = $('#summaryception_merge_response_length_row');
-    const $profile = $('#summaryception_merge_profile_settings');
-    const $ollama = $('#summaryception_merge_ollama_settings');
-    const $openai = $('#summaryception_merge_openai_settings');
-
-    $profile.add($ollama).add($openai).hide();
-    $responseLength.toggle(source === 'default' || source === 'profile');
-
-    if (source === 'profile') {
-        $profile.show();
-    } else if (source === 'ollama') {
-        $ollama.show();
-    } else if (source === 'openai') {
-        $openai.show();
-    }
+    toggleRouteSubPanels('_merge', source, { toggleResponseLength: true });
 }
 
 /**
@@ -353,13 +328,27 @@ export function updateMergeConnectionSubPanels(source) {
  * @returns {void}
  */
 export function updateFallbackConnectionSubPanels(source) {
-    const $responseLength = $('#summaryception_fallback_response_length_row');
-    const $profile = $('#summaryception_fallback_profile_settings');
-    const $ollama = $('#summaryception_fallback_ollama_settings');
-    const $openai = $('#summaryception_fallback_openai_settings');
+    toggleRouteSubPanels('_fallback', source, { toggleResponseLength: true });
+}
+
+/**
+ * Show or hide connection sub-panels for one route.
+ * @param {'' | '_merge' | '_fallback'} prefix
+ * @param {string} source
+ * @param {{ toggleResponseLength?: boolean }} [options]
+ * @returns {void}
+ */
+function toggleRouteSubPanels(prefix, source, { toggleResponseLength = false } = {}) {
+    const $profile = $(`#summaryception${prefix}_profile_settings`);
+    const $ollama = $(`#summaryception${prefix}_ollama_settings`);
+    const $openai = $(`#summaryception${prefix}_openai_settings`);
 
     $profile.add($ollama).add($openai).hide();
-    $responseLength.toggle(source === 'default' || source === 'profile');
+    if (toggleResponseLength) {
+        $(`#summaryception${prefix}_response_length_row`).toggle(
+            source === 'default' || source === 'profile',
+        );
+    }
 
     if (source === 'profile') {
         $profile.show();

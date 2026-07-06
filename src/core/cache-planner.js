@@ -1,6 +1,6 @@
 import { getPromptDepthsByChatIndex } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { countMessageTokens } from './token-count.js';
+import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
 /**
  * @typedef {object} CacheFriendlyPlan
@@ -15,8 +15,8 @@ import { countMessageTokens } from './token-count.js';
  * @property {import('./chatutils.js').AssistantTurn[]} assistantTurns
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
  * @property {number} overflowCount
- * @property {import('./verbatim-window.js').VerbatimBudgetStats} liveStats
- * @property {import('./verbatim-window.js').VerbatimBudgetStats} flushStats
+ * @property {import('./token-count.js').BudgetStats} liveStats
+ * @property {import('./token-count.js').BudgetStats} flushStats
  * @property {boolean} tokenBudgetExceeded
  */
 
@@ -83,7 +83,7 @@ export function getProtectedTailTokens(verbatimTokenBudget) {
  * Build a cache plan object with normalized discriminants.
  * @param {object} p
  * @param {number} p.flushStartIdx
- * @param {{ stats: import('./verbatim-window.js').VerbatimBudgetStats }} p.liveData
+ * @param {{ stats: import('./token-count.js').BudgetStats }} p.liveData
  * @param {ExtensionSettings} p.settings
  * @param {number} p.protectedTailTokens
  * @param {'ready' | 'none'} [p.reason]
@@ -91,7 +91,7 @@ export function getProtectedTailTokens(verbatimTokenBudget) {
  * @param {number} [p.tailStartIdx]
  * @param {import('./chatutils.js').AssistantTurn[]} [p.assistantTurns]
  * @param {import('./chatutils.js').AssistantTurn[]} [p.batchTurns]
- * @param {import('./verbatim-window.js').VerbatimBudgetStats} [p.flushStats]
+ * @param {import('./token-count.js').BudgetStats} [p.flushStats]
  * @returns {CacheFriendlyPlan}
  */
 function buildPlan({
@@ -208,30 +208,6 @@ function getRangeStats(liveData, startIdx, endIdx) {
         stats.rawTokens += finalTokens;
     }
     return stats;
-}
-
-function createBudgetStats() {
-    return {
-        rawTokens: 0,
-        finalTokens: 0,
-        savedTokens: 0,
-        rawTokensEstimated: false,
-        finalTokensEstimated: false,
-        savedTokensEstimated: false,
-        changedMessageCount: 0,
-    };
-}
-
-function addBudgetStats(stats, counted) {
-    stats.rawTokens += counted.rawTokens;
-    stats.finalTokens += counted.finalTokens;
-    stats.savedTokens = stats.rawTokens - stats.finalTokens;
-    stats.rawTokensEstimated ||= counted.rawTokensEstimated;
-    stats.finalTokensEstimated ||= counted.finalTokensEstimated;
-    stats.savedTokensEstimated = stats.rawTokensEstimated || stats.finalTokensEstimated;
-    if (counted.changed) {
-        stats.changedMessageCount++;
-    }
 }
 
 function getMessageLine(message, text) {

@@ -18,8 +18,57 @@ const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
  */
 
 /**
+ * @typedef {object} BudgetStats
+ * @property {number} rawTokens
+ * @property {number} finalTokens
+ * @property {number} savedTokens
+ * @property {boolean} rawTokensEstimated
+ * @property {boolean} finalTokensEstimated
+ * @property {boolean} savedTokensEstimated
+ * @property {number} changedMessageCount
+ */
+
+/**
+ * @typedef {MessageTokenStats & { changed: boolean }} CountedBudgetMessage
+ */
+
+/**
  * @typedef {MessageTokenStats & { textLength: number }} MessageTokenCache
  */
+
+/**
+ * Create an empty aggregate budget stats object.
+ * @returns {BudgetStats}
+ */
+export function createBudgetStats() {
+    return {
+        rawTokens: 0,
+        finalTokens: 0,
+        savedTokens: 0,
+        rawTokensEstimated: false,
+        finalTokensEstimated: false,
+        savedTokensEstimated: false,
+        changedMessageCount: 0,
+    };
+}
+
+/**
+ * Add one counted message to aggregate budget stats.
+ * @param {BudgetStats} stats
+ * @param {CountedBudgetMessage} counted
+ * @returns {void}
+ */
+export function addBudgetStats(stats, counted) {
+    stats.rawTokens += counted.rawTokens;
+    stats.finalTokens += counted.finalTokens;
+    stats.savedTokens = stats.rawTokens - stats.finalTokens;
+    stats.rawTokensEstimated ||= counted.rawTokensEstimated;
+    stats.finalTokensEstimated ||= counted.finalTokensEstimated;
+    stats.savedTokensEstimated = stats.rawTokensEstimated || stats.finalTokensEstimated;
+    if (counted.changed) {
+        stats.changedMessageCount++;
+    }
+}
 
 /**
  * Count tokens using SillyTavern's active tokenizer, with a marked fallback.
