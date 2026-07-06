@@ -395,4 +395,25 @@ describe('foreground generation save flush', () => {
 
         expect(order.slice(0, 2)).toEqual(['commit', 'flush']);
     });
+
+    it('refreshes the UI and leaves the prompt guard open when save flushing fails', async () => {
+        installSummaryContext({ chat: [], settings: { enabled: false } });
+        mocks.flushPendingChatSave.mockRejectedValueOnce(new Error('save failed'));
+
+        const { beginForegroundGeneration, endForegroundGeneration, setUiUpdater } =
+            await import('../src/core/summarizer.js');
+        const { isPromptMutationFrozen, resetCommitStateForTests } =
+            await import('../src/core/summarizer-commit.js');
+        const updateUi = vi.fn();
+
+        resetCommitStateForTests();
+        setUiUpdater(updateUi);
+        beginForegroundGeneration();
+        updateUi.mockClear();
+
+        await expect(endForegroundGeneration()).rejects.toThrow('save failed');
+
+        expect(isPromptMutationFrozen()).toBe(false);
+        expect(updateUi).toHaveBeenCalledTimes(1);
+    });
 });

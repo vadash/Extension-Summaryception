@@ -134,10 +134,13 @@ export function beginForegroundGeneration() {
  * @returns {Promise<void>}
  */
 export async function endForegroundGeneration() {
-    await endCommitFreeze();
-    await flushPendingChatSave();
-    await requestSummarization({ reason: 'generation-ended', mode: 'auto' });
-    refreshUI();
+    try {
+        await endCommitFreeze();
+        await flushPendingChatSave();
+        await requestSummarization({ reason: 'generation-ended', mode: 'auto' });
+    } finally {
+        refreshUI();
+    }
 }
 
 /**

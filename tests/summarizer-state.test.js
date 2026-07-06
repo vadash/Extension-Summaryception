@@ -129,6 +129,19 @@ describe('summarizer-state', () => {
         ).toBe(['[STATE]', 'location: dock', 'counters: lock: 2'].join('\n'));
     });
 
+    it('strips balanced pseudo-object braces from serialized state values', () => {
+        expect(
+            serializeState({
+                characters: '{Alice: alert, Bob: injured}',
+                inventory: '{key: brass}',
+            }),
+        ).toBe(
+            ['[STATE]', 'characters: Alice: alert, Bob: injured', 'inventory: key: brass'].join(
+                '\n',
+            ),
+        );
+    });
+
     it('compiles global state oldest to newest across layers', () => {
         expect(
             compileGlobalState([

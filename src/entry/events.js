@@ -85,10 +85,14 @@ export function onGenerationEnded() {
         `activeSummaryRequest=${hasActiveSummaryRequest}`,
         `frozen=${hasFrozenMutations}`,
     );
-    void endForegroundGeneration().then(() => {
-        updateInjection();
-        updateUI();
-    });
+    void endForegroundGeneration()
+        .catch((error) => {
+            warn('Error while ending foreground generation:', error);
+        })
+        .finally(() => {
+            updateInjection();
+            updateUI();
+        });
 }
 
 /**

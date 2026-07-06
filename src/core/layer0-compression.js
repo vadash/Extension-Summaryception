@@ -4,6 +4,8 @@ const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
+const MAX_LAYER0_RESPONSE_TOKENS = 384;
+const MAX_PROMOTION_RESPONSE_TOKENS = 512;
 const PROMOTION_TARGET_RATIO = 0.4;
 
 /**
@@ -40,9 +42,15 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
 export function getLayer0ResponseTokenCap(settings = {}, metadata = {}) {
     if (metadata.kind === 'promotion') {
         const target = getPromotionSummaryTokenTarget(metadata);
-        return target === null ? null : target + LAYER0_RESPONSE_TOKEN_BUFFER;
+        if (target === null) {
+            return MAX_PROMOTION_RESPONSE_TOKENS;
+        }
+        return Math.min(target + LAYER0_RESPONSE_TOKEN_BUFFER, MAX_PROMOTION_RESPONSE_TOKENS);
     }
-    return getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER;
+    return Math.min(
+        getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER,
+        MAX_LAYER0_RESPONSE_TOKENS,
+    );
 }
 
 /**

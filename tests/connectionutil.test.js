@@ -166,6 +166,24 @@ describe('connection providers registry', () => {
         });
     });
 
+    it('limits promotion provider caps to the hard response ceiling', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'default',
+                mergeConnectionSource: 'openai',
+                mergeOpenaiModel: 'smart-model',
+                mergeOpenaiMaxTokens: 0,
+            },
+            { kind: 'promotion', memoryTokensBefore: 3000 },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            openaiModel: 'smart-model',
+            openaiMaxTokens: 512,
+        });
+    });
+
     it('falls back to the default provider for unknown merge sources', async () => {
         const generateRaw = installGenerateRaw();
 
@@ -216,6 +234,22 @@ describe('connection providers registry', () => {
         expect(effective).toMatchObject({
             connectionSource: 'default',
             summarizerResponseLength: 200,
+        });
+    });
+
+    it('limits Layer 0 provider caps to the hard response ceiling', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'default',
+                summarizerResponseLength: 0,
+                layer0SummaryTokenTarget: 500,
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'default',
+            summarizerResponseLength: 384,
         });
     });
 

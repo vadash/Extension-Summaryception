@@ -116,7 +116,7 @@ export function serializeState(state) {
     const lines = [];
     for (const [rawKey, rawValue] of Object.entries(state || {})) {
         const key = normalizeKey(rawKey);
-        const value = String(rawValue ?? '').trim();
+        const value = normalizeSerializedStateValue(rawValue);
         if (!value || isNullifyValue(value)) {
             continue;
         }
@@ -254,6 +254,14 @@ function normalizeKey(rawKey) {
 
     const stripped = cleaned.replace(/^(current_|active_)/, '');
     return KEY_ALIASES[stripped] || stripped || cleaned;
+}
+
+function normalizeSerializedStateValue(rawValue) {
+    const value = String(rawValue ?? '').trim();
+    if (value.startsWith('{') && value.endsWith('}')) {
+        return value.slice(1, -1).trim();
+    }
+    return value;
 }
 
 function isNullifyValue(value) {
