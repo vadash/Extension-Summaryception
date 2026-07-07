@@ -7,6 +7,8 @@ const UNCLASSIFIED_NOTES_MAX = 3;
 const STATE_ENTRY_LIMIT = 10;
 const STATE_VALUE_LENGTH_CEILING = 1000;
 const STALE_TRANSIENT_LAYER_MIN = 2;
+const COMPOSITE_MERGE_KEYS = new Set(['characters', 'inventory', 'counters', 'dynamics']);
+const COMPOSITE_ENTRY_RE = /^([a-zA-Z0-9 _-]+?)\s*[:=]\s*(.+)$/;
 const STATIC_PROFILE_KEY_PARTS = [
     'origin',
     'hometown',
@@ -321,13 +323,79 @@ function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
         deleteTrackedStateKey(merged, key, options);
         return;
     }
-    merged[key] = prunedValue;
+    if (COMPOSITE_MERGE_KEYS.has(key)) {
+        merged[key] = mergeCompositeValue(merged[key], prunedValue);
+    } else {
+        merged[key] = prunedValue;
+    }
     trackStateKeyLayer(key, options);
 }
 
 function deleteTrackedStateKey(merged, key, options) {
     delete merged[key];
     options.keyLastLayer?.delete(key);
+}
+
+/**
+ * Merge two composite semicolon-delimited values preserving older sub-entries
+ * that are not reasserted in the newer value. Falls back to whole-value
+ * overwrite when either value is not structured composite text.
+ * @param {string|undefined} oldVal
+ * @param {string} newVal
+ * @returns {string}
+ */
+function mergeCompositeValue(oldVal, newVal) {
+    if (!oldVal) {
+        return newVal;
+    }
+    const oldEntries = parseCompositeEntries(oldVal);
+    const newEntries = parseCompositeEntries(newVal);
+    if (!oldEntries || !newEntries) {
+        return newVal;
+    }
+    const combined = new Map();
+    for (const { key, value } of oldEntries) {
+        combined.set(key.toLowerCase(), { key, value });
+    }
+    for (const { key, value } of newEntries) {
+        const normalized = key.toLowerCase();
+        if (isNullifyValue(value)) {
+            combined.delete(normalized);
+        } else {
+            combined.set(normalized, { key, value });
+        }
+    }
+    const serialized = [...combined.values()]
+        .map(({ key, value }) => `${key}: ${value}`)
+        .join('; ');
+    return pruneMergedStateValue(serialized) || serialized;
+}
+
+/**
+ * Parse a semicolon-delimited composite value into an ordered list of
+ * sub-key/value pairs. Returns null when the value is not structured
+ * composite text.
+ * @param {string} value
+ * @returns {Array<{key: string, value: string}>|null}
+ */
+function parseCompositeEntries(value) {
+    const text = String(value || '').trim();
+    if (!text || !text.includes(':')) {
+        return null;
+    }
+    const entries = splitDelimitedEntries(text, /;/);
+    if (entries.length === 0) {
+        return null;
+    }
+    const parsed = [];
+    for (const entry of entries) {
+        const match = entry.match(COMPOSITE_ENTRY_RE);
+        if (!match) {
+            return null;
+        }
+        parsed.push({ key: match[1].trim(), value: match[2].trim() });
+    }
+    return parsed;
 }
 
 function trackStateKeyLayer(key, options) {

@@ -186,7 +186,7 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             inventory: 'expired pass; closed case',
-            counters: 'old tally: 1',
+            counters: 'active score: 4; old tally: 1',
         });
 
         expect(mergeStates([{ inventory: 'badge; map' }, { inventory: 'removed' }])).toEqual({});
@@ -298,6 +298,74 @@ describe('summarizer-state', () => {
                 [{ text: '[NARRATIVE]\nOlder.\n[STATE]\nlocation: tower\nhooks: open gate' }],
             ]),
         ).toEqual({
+            hooks: 'open gate',
+        });
+    });
+
+    it('merges composite sub-entries without losing unmentioned older entries', () => {
+        expect(
+            mergeStates([
+                { characters: 'Zoe: sore from exercise; Vova: tired' },
+                { characters: 'Zoe: rested' },
+            ]),
+        ).toEqual({
+            characters: 'Zoe: rested; Vova: tired',
+        });
+    });
+
+    it('removes only the matching composite sub-entry on sub-entry nullifier', () => {
+        expect(
+            mergeStates([
+                { characters: 'Alice: alert; Bob: injured' },
+                { characters: 'Bob: removed' },
+            ]),
+        ).toEqual({
+            characters: 'Alice: alert',
+        });
+    });
+
+    it('falls back to whole-value overwrite for ambiguous composite values', () => {
+        expect(
+            mergeStates([{ inventory: 'badge; map; lantern' }, { inventory: 'map: none' }]),
+        ).toEqual({
+            inventory: 'map: none',
+        });
+
+        expect(
+            mergeStates([{ inventory: 'badge; map' }, { inventory: 'a note with no colons here' }]),
+        ).toEqual({
+            inventory: 'a note with no colons here',
+        });
+    });
+
+    it('preserves composite merge behavior across compileGlobalState layers', () => {
+        expect(
+            compileGlobalState([
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Recent L0.',
+                            '[STATE]',
+                            'characters: Zoe: rested',
+                        ].join('\n'),
+                    },
+                ],
+                [],
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Older L2.',
+                            '[STATE]',
+                            'characters: Zoe: sore; Vova: tired',
+                            'hooks: open gate',
+                        ].join('\n'),
+                    },
+                ],
+            ]),
+        ).toEqual({
+            characters: 'Zoe: rested; Vova: tired',
             hooks: 'open gate',
         });
     });
