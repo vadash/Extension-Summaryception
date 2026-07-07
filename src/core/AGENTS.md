@@ -26,6 +26,6 @@ This directory houses the background worker, LLM connections, token counting, an
 - Merge/fallback routes inherit shared endpoint credentials from base settings, but provider-specific tunables such as profile IDs, model names, and token caps reset to route defaults unless prefixed overrides are set.
 - Pass summarizer `AbortSignals` to direct fetch adapters and Connection Manager profiles.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and streams MUST reach `data: [DONE]` before any text is accepted.
-- Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays. Hard network failures (`failed to fetch`, `ECONNREFUSED`, DNS failures) skip retries and trigger immediate fallback when configured.
+- Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays. Hard network failures (`failed to fetch`, `ECONNREFUSED`, DNS failures) skip retries and trigger immediate fallback when configured; if both primary and fallback fail, wait with abort-aware backoff before resetting health and restarting from primary.
 - Primary retry-exhaustion health is tracked separately for Layer 0 calls and L1+ promotion calls; do not let one bucket force early fallback for the other.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.

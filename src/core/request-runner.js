@@ -27,6 +27,7 @@ const PRIMARY_HEALTH_BUCKETS = {
     layer0: 'layer0',
     l1plus: 'l1plus',
 };
+const ROUTE_CYCLE_RETRY_ATTEMPT = RETRY_CONFIG.maxRetries;
 
 /**
  * Run summarizer provider requests with retry and fallback routing.
@@ -113,10 +114,7 @@ export class RequestRunner {
                 if (fallback.status === 'aborted') {
                     return abortWithToast();
                 }
-                info(
-                    `Both primary and fallback exhausted for ${healthBucket}; ` +
-                        'resetting health state and retrying.',
-                );
+                await notifyRouteCycleFailedAndWait({ healthBucket, signal });
                 this.primaryRetryExhaustedBuckets.delete(healthBucket);
                 continue;
             }
@@ -578,6 +576,28 @@ async function notifyRetryAndWait(
         { timeOut: delay },
     );
 
+    await sleepUntilOrAborted(delay, signal);
+}
+
+/**
+ * Notify the user that both routes failed, then wait before restarting from primary.
+ * @param {object} p
+ * @param {string} p.healthBucket
+ * @param {AbortSignal} p.signal
+ * @returns {Promise<void>}
+ */
+async function notifyRouteCycleFailedAndWait({ healthBucket, signal }) {
+    const delay = computeRetryDelay(new Error('Both routes failed'), ROUTE_CYCLE_RETRY_ATTEMPT);
+    const delaySec = (delay / 1000).toFixed(1);
+    info(
+        `Both primary and fallback exhausted for ${healthBucket}; ` +
+            `resetting health state and retrying primary in ${delaySec}s.`,
+    );
+    toastr.warning(
+        `Both summarizer routes failed. Retrying primary in ${delaySec}s...`,
+        'Summaryception',
+        { timeOut: delay },
+    );
     await sleepUntilOrAborted(delay, signal);
 }
 

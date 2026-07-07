@@ -114,6 +114,37 @@ describe('hard network failure fast-failover', () => {
         expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(3);
     });
 
+    it('waits before restarting primary when fallback also hard-fails', async () => {
+        vi.useFakeTimers();
+        mocks.sendSummarizerRequest
+            .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+            .mockRejectedValueOnce(new Error('ECONNREFUSED: fallback refused'))
+            .mockResolvedValueOnce('primary success');
+        mocks.processSummarizerResponse.mockImplementation((raw) => ({
+            status: 'success',
+            text: raw,
+            error: null,
+        }));
+        mocks.resolveFallback.mockReturnValue({ connectionSource: 'fallback' });
+
+        const { RequestRunner } = await import('../src/core/request-runner.js');
+        const runner = new RequestRunner();
+
+        const resultPromise = runner.run({
+            settings: { connectionSource: 'default' },
+            systemPrompt: 'sys',
+            prompt: 'prompt',
+            signal: new AbortController().signal,
+            metadata: { kind: 'layer0' },
+        });
+        await vi.runAllTimersAsync();
+
+        await expect(resultPromise).resolves.toBe('primary success');
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(3);
+        expect(mocks.sendSummarizerRequest.mock.calls[1][4]).toMatchObject({ useFallback: true });
+        expect(mocks.sendSummarizerRequest.mock.calls[2][4]).not.toHaveProperty('useFallback');
+    });
+
     it('returns empty when hard failure occurs with no fallback configured', async () => {
         mocks.sendSummarizerRequest.mockRejectedValueOnce(new TypeError('Failed to fetch'));
         mocks.resolveFallback.mockReturnValue(null);

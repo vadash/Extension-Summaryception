@@ -196,13 +196,28 @@ export default [
         },
     },
     {
-        files: ['scripts/**/*.js'],
+        files: ['scripts/**/*.js', '.husky/**/*.js', '.husky/**/*.mjs'],
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: 'module',
             globals: {
                 ...globals.node,
             },
+        },
+        rules: {
+            'jsdoc/require-jsdoc': 'off',
+            'jsdoc/require-param': 'off',
+            'jsdoc/require-param-type': 'off',
+            'jsdoc/require-param-description': 'off',
+            'jsdoc/require-returns': 'off',
+            'jsdoc/require-returns-type': 'off',
+            'jsdoc/require-returns-description': 'off',
+            'jsdoc/check-types': 'off',
+            'jsdoc/valid-types': 'off',
+            'max-lines-per-function': 'off',
+            'max-lines': 'off',
+            complexity: 'off',
+            'unicorn/expiring-todo-comments': 'off',
         },
     },
     {
