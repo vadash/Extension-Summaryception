@@ -51,8 +51,8 @@ export function makeSummarySettings(overrides = {}) {
         minSummaryBudget: 6000,
         verbatimTokenBudget: 16000,
         memoryTokenBudget: 10000,
-        snippetsPerLayer: 30,
-        snippetsPerPromotion: 4,
+        snippetsPerLayer: 24,
+        snippetsPerPromotion: 3,
         ...overrides,
     };
 }

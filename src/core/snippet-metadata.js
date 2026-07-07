@@ -1,6 +1,7 @@
 import { parseSnippet } from './summarizer-state.js';
 
 const UNKNOWN_TIME = 'unknown';
+const LEADING_SNIPPET_ANCHOR_RE = /^\s*\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*/i;
 
 /**
  * Build optional snippet metadata from a parsed [STATE] object.
@@ -64,8 +65,10 @@ export function extractSnippetMetadata(snippet = {}) {
  */
 export function formatAnchoredSnippetNarrative(snippet = {}) {
     const parsed = parseSnippet(snippet?.text || '');
-    const narrative = parsed.narrative.trim();
     const anchor = formatSnippetAnchor(snippet);
+    const narrative = anchor
+        ? stripLeadingSnippetAnchor(parsed.narrative)
+        : parsed.narrative.trim();
     return [anchor, narrative].filter(Boolean).join(' ');
 }
 
@@ -88,6 +91,17 @@ export function formatSnippetAnchor(snippet = {}) {
     const start = meta.timelineStart || UNKNOWN_TIME;
     const end = meta.timelineEnd || UNKNOWN_TIME;
     return `[${rangeText}; ${start} -> ${end}]`;
+}
+
+/**
+ * Strip a stored/generated leading chronology anchor from snippet prose.
+ * @param {string} text
+ * @returns {string}
+ */
+export function stripLeadingSnippetAnchor(text) {
+    return String(text || '')
+        .replace(LEADING_SNIPPET_ANCHOR_RE, '')
+        .trim();
 }
 
 function normalizeRange(range) {

@@ -158,7 +158,7 @@ describe('state.js', () => {
             minSummaryBudget: 7000,
             verbatimTokenBudget: 7000,
             memoryTokenBudget: 7000,
-            snippetsPerLayer: 10,
+            snippetsPerLayer: 20,
             snippetsPerPromotion: 3,
         });
     });
@@ -208,7 +208,7 @@ describe('state.js', () => {
 
         expect(getSettings()).toMatchObject({
             layer0SummaryTokenTarget: 500,
-            snippetsPerLayer: 100,
+            snippetsPerLayer: 40,
             snippetsPerPromotion: 4,
         });
     });

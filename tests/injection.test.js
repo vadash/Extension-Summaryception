@@ -64,7 +64,9 @@ describe('assembleSummaryBlock', () => {
                 'location: dock',
                 '',
                 '[CHRONOLOGY]',
-                'layer two [Historical note: location is tower; hooks is open gate] layer zero A layer zero B',
+                'layer two [Historical note: location is tower; hooks is open gate]',
+                'layer zero A',
+                'layer zero B',
                 'END',
             ].join('\n'),
         );
@@ -116,9 +118,43 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
 
         expect(assembleSummaryBlock()).toContain(
-            '[msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed] anchored recent legacy recent',
+            '[msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed] anchored recent\nlegacy recent',
         );
         expect(assembleSummaryBlock()).not.toContain('[msgs unknown');
+    });
+
+    it('strips a legacy leading anchor when metadata provides the rendered anchor', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text:
+                                    '[NARRATIVE]\n' +
+                                    '[msgs 0-139; 2024-07-04 14 Thu -> unknown] anchored event\n\n' +
+                                    '[STATE]',
+                                sourceRange: [0, 139],
+                                timelineStart: '2024-07-04 14 Thu',
+                                timelineEnd: '2024-07-05 12 Fri',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+        const assembled = assembleSummaryBlock();
+
+        expect(assembled).toContain(
+            '[msgs 0-139; 2024-07-04 14 Thu -> 2024-07-05 12 Fri] anchored event',
+        );
+        expect(assembled).not.toContain('-> unknown] [msgs');
+        expect(assembled).not.toContain('-> unknown] anchored event');
     });
 
     it('counts effective memory as the assembled injection with merged state', async () => {

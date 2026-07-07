@@ -42,7 +42,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -275,8 +275,8 @@ describe('promotion prompt guard', () => {
             metadata: {
                 summaryception: makeSummaryStore({
                     layers: [
-                        Array.from({ length: 11 }, (_value, index) => ({
-                            text: index === 10 ? 'tail '.repeat(1000) : `memory ${index}`,
+                        Array.from({ length: 21 }, (_value, index) => ({
+                            text: index === 20 ? 'tail '.repeat(1000) : `memory ${index}`,
                         })),
                     ],
                 }),
@@ -284,7 +284,7 @@ describe('promotion prompt guard', () => {
             settings: {
                 injectionTemplate: '{{summary}}',
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -296,7 +296,7 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(true);
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
-        expect(getChatStore().layers[0]).toHaveLength(8);
+        expect(getChatStore().layers[0]).toHaveLength(18);
         expect(getChatStore().layers[1][0]).toMatchObject({
             text: 'merged',
             mergedCount: 3,
@@ -304,14 +304,19 @@ describe('promotion prompt guard', () => {
     });
 
     it('sends narratives plus source state to promotion and stores narrative-only output', async () => {
-        mocks.callSummarizer.mockResolvedValue('Merged narrative.');
+        mocks.callSummarizer.mockResolvedValue(
+            '[NARRATIVE]\n[msgs 10-16; 2024-12-03 06 Wed -> unknown] Merged narrative.',
+        );
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
                     layers: [
                         [
                             {
-                                text: '[NARRATIVE]\nFirst event.\n\n[STATE]\nlocation: tower\nhooks: open gate',
+                                text:
+                                    '[NARRATIVE]\n' +
+                                    '[msgs 10-12; 2024-12-03 06 Wed -> unknown] First event.\n\n' +
+                                    '[STATE]\nlocation: tower\nhooks: open gate',
                                 sourceRange: [10, 12],
                                 timelineStart: '2024-12-03 06 Wed',
                                 timelineEnd: '2024-12-03 07 Wed',
@@ -335,14 +340,17 @@ describe('promotion prompt guard', () => {
                             { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
-                            { text: `[NARRATIVE]\n${'Extra 8. '.repeat(1000)}\n\n[STATE]` },
+                            ...Array.from({ length: 10 }, (_value, index) => ({
+                                text: `[NARRATIVE]\nExtra ${index + 8}.\n\n[STATE]`,
+                            })),
+                            { text: `[NARRATIVE]\n${'tail. '.repeat(1000)}\n\n[STATE]` },
                         ],
                     ],
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -475,7 +483,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -519,14 +527,17 @@ describe('promotion prompt guard', () => {
                             { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
-                            { text: `[NARRATIVE]\n${'Extra 8. '.repeat(1000)}\n\n[STATE]` },
+                            ...Array.from({ length: 10 }, (_value, index) => ({
+                                text: `[NARRATIVE]\nExtra ${index + 8}.\n\n[STATE]`,
+                            })),
+                            { text: `[NARRATIVE]\n${'tail. '.repeat(1000)}\n\n[STATE]` },
                         ],
                     ],
                 }),
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -568,7 +579,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -621,7 +632,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 4000,
-                snippetsPerLayer: 10,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -637,8 +648,8 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[1]).toBeUndefined();
     });
 
-    it('rejects promotion when the hypothetical injection does not shrink', async () => {
-        const repeatedState = 'same '.repeat(1000);
+    it('skips L0 promotion when only current-state memory would remain', async () => {
+        const repeatedState = 'same '.repeat(3000);
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -653,8 +664,8 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 injectionTemplate: '{{summary}}',
-                memoryTokenBudget: 32000,
-                snippetsPerLayer: 2,
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 20,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -750,7 +761,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 1000,
-                snippetsPerLayer: 100,
+                snippetsPerLayer: 40,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -773,7 +784,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 6000,
-                snippetsPerLayer: 100,
+                snippetsPerLayer: 40,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: async (text) =>
@@ -805,7 +816,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 1000,
-                snippetsPerLayer: 100,
+                snippetsPerLayer: 40,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -840,7 +851,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 1000,
-                snippetsPerLayer: 100,
+                snippetsPerLayer: 40,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: countWhitespaceTokens,
@@ -870,7 +881,7 @@ describe('promotion prompt guard', () => {
             },
             settings: {
                 memoryTokenBudget: 1000,
-                snippetsPerLayer: 100,
+                snippetsPerLayer: 40,
                 snippetsPerPromotion: 3,
             },
             getTokenCountAsync: async (text) =>

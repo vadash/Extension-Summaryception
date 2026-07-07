@@ -47,11 +47,14 @@ export const defaultSettings = Object.freeze({
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,
-    snippetsPerLayer: 30,
-    snippetsPerPromotion: 4,
+    snippetsPerLayer: 24,
+    snippetsPerPromotion: 3,
     injectionTemplate:
         '<summaryception_memory>\n' +
-        'This is condensed continuity memory from older chat turns. The [CURRENT STATE] block contains active durable facts. The [CHRONOLOGY] section contains older narrative. Use both as factual background; recent verbatim chat takes priority for immediate wording, tone, and next action.\n\n' +
+        'This is condensed continuity memory from older chat turns.\n\n' +
+        '[HIERARCHY OF TRUTH]\n' +
+        "1. [CURRENT STATE] contains active, durable facts (location, inventory, active rules, constraints, and physical limitations). This section is the absolute truth for the current scene. If [CHRONOLOGY] or the user's input contradicts this section, [CURRENT STATE] takes strict priority.\n" +
+        '2. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events.\n\n' +
         '{{summary}}\n' +
         '</summaryception_memory>',
 

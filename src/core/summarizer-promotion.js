@@ -12,6 +12,8 @@ import { getEffectiveMemoryUsage } from './memory-budget.js';
 import {
     buildPromotedSnippetMetadata,
     formatAnchoredSnippetNarrative,
+    formatSnippetAnchor,
+    stripLeadingSnippetAnchor,
 } from './snippet-metadata.js';
 import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
@@ -375,7 +377,13 @@ function buildPromotionCandidate(narrative, promotedMetadata) {
     if (!metaSummary) {
         return null;
     }
-    return buildPromotedSnippet(metaSummary, promotedMetadata);
+    const cleanSummary = formatSnippetAnchor(promotedMetadata)
+        ? stripLeadingSnippetAnchor(metaSummary)
+        : metaSummary;
+    if (!cleanSummary) {
+        return null;
+    }
+    return buildPromotedSnippet(cleanSummary, promotedMetadata);
 }
 
 async function validatePromotionCandidate({

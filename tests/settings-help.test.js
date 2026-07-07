@@ -79,6 +79,22 @@ describe('settings help metadata', () => {
         }
     });
 
+    it('documents memory budget and layering defaults in the settings UI', () => {
+        expect(SETTINGS_HELP.memory_token_budget.short).toContain('Maximum');
+        expect(SETTINGS_HELP.memory_token_budget.detail).toContain('ceiling');
+        expect(SETTINGS_HELP.memory_token_budget.detail).toContain('4k');
+        expect(SETTINGS_HELP.snippets_per_promotion.detail).toContain('Default 3');
+        expect(SETTINGS_HELP.snippets_per_promotion.detail).toContain('2000+ message chats');
+        expect(SETTINGS_HELP.snippets_per_layer.detail).toContain('Default 24');
+        expect(SETTINGS_HTML).toContain('id="sc_snippets_per_layer" min="20" max="40" step="1"');
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_snippets_per_layer_val" class="text_pole sc-val" type="text" inputmode="numeric" value="24"',
+        );
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3"',
+        );
+    });
+
     it('generates the expected Layer 0, Merge, and Fallback connection labels', () => {
         for (const [prefix, group] of Object.entries(CONNECTION_LABELS)) {
             for (const [key, suffix] of group.keys) {

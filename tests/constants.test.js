@@ -37,7 +37,8 @@ describe('constants', () => {
         expect(defaultSettings.minSummaryBudget).toBe(8000);
         expect(defaultSettings.verbatimTokenBudget).toBe(16000);
         expect(defaultSettings.memoryTokenBudget).toBe(10000);
-        expect(defaultSettings.snippetsPerPromotion).toBe(4);
+        expect(defaultSettings.snippetsPerLayer).toBe(24);
+        expect(defaultSettings.snippetsPerPromotion).toBe(3);
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
         );
@@ -50,8 +51,10 @@ describe('constants', () => {
 
     it('uses the Summaryception memory wrapper by default', () => {
         expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
+        expect(defaultSettings.injectionTemplate).toContain('[HIERARCHY OF TRUTH]');
         expect(defaultSettings.injectionTemplate).toContain('[CURRENT STATE]');
         expect(defaultSettings.injectionTemplate).toContain('[CHRONOLOGY]');
+        expect(defaultSettings.injectionTemplate).toContain('strict priority');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
     });
 

@@ -638,7 +638,7 @@
                             <div class="sc-row">
                                 <label for="sc_memory_token_budget">
                                     <span>Injected Memory Budget</span>
-                                    <small class="sc-hint">Promotion pressure target for committed memory.</small>
+                                    <small class="sc-hint">Maximum ceiling for committed memory; actual use can be lower.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="memoryTokenBudget" data-sc-partner-input="#sc_memory_token_budget_val" />
@@ -697,8 +697,8 @@
                                     <small class="sc-hint">Count guard alongside injected-memory token pressure.</small>
                                 </label>
                                 <div class="sc-slider-row">
-                                    <input type="range" id="sc_snippets_per_layer" min="10" max="100" step="1" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer_val" />
-                                    <input id="sc_snippets_per_layer_val" class="text_pole sc-val" type="text" inputmode="numeric" value="30" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer" />
+                                    <input type="range" id="sc_snippets_per_layer" min="20" max="40" step="1" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer_val" />
+                                    <input id="sc_snippets_per_layer_val" class="text_pole sc-val" type="text" inputmode="numeric" value="24" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer" />
                                 </div>
                             </div>
                             <div class="sc-row">
@@ -708,7 +708,7 @@
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_snippets_per_promotion" min="3" max="4" step="1" data-sc-slider-setting="snippetsPerPromotion" data-sc-partner-input="#sc_snippets_per_promotion_val" />
-                                    <input id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="text" inputmode="numeric" value="4" data-sc-slider-setting="snippetsPerPromotion" data-sc-partner-input="#sc_snippets_per_promotion" />
+                                    <input id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3" data-sc-slider-setting="snippetsPerPromotion" data-sc-partner-input="#sc_snippets_per_promotion" />
                                 </div>
                             </div>
                         </div>

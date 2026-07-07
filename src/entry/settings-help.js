@@ -159,15 +159,15 @@ const HELP_ENTRIES = [
         sliderHelp({
             selector: selectorFor('sc_memory_token_budget'),
             title: 'Injected Memory Budget',
-            short: 'Target size for the memory block sent to the model.',
+            short: 'Maximum memory block size sent to the model.',
             controls: [
                 controlFor('sc_memory_token_budget'),
                 controlFor('sc_memory_token_budget_val'),
             ],
             meaning:
-                'Target size for all committed Summaryception memory injected into the prompt.',
+                'Maximum ceiling for committed Summaryception memory injected into the prompt; actual use may sit below it after compression and promotion cycles.',
             higher: 'keeps more detailed memory before promotion pressure rises.',
-            lower: 'promotes and compresses memory sooner.',
+            lower: 'promotes and compresses memory sooner; 4k is the hard ceiling where consolidation becomes aggressive.',
             defaultText: '10k.',
         }),
     ],
@@ -244,7 +244,7 @@ const HELP_ENTRIES = [
                 'Maximum memory snippets a layer should hold before promotion pressure applies.',
             higher: 'keeps more separate memories in each layer.',
             lower: 'merges memories into deeper layers sooner.',
-            defaultText: '30.',
+            defaultText: '24.',
         }),
     ],
     [
@@ -258,9 +258,9 @@ const HELP_ENTRIES = [
                 controlFor('sc_snippets_per_promotion_val'),
             ],
             meaning: 'Number of oldest snippets bundled when a layer promotes memory deeper.',
-            higher: 'makes fewer, larger promotion merges.',
-            lower: 'makes smaller promotion merges more often.',
-            defaultText: '4.',
+            higher: 'makes fewer, larger promotion merges and is useful for 2000+ message chats.',
+            lower: 'makes smaller promotion merges more often and is better for shorter chats.',
+            defaultText: '3.',
         }),
     ],
     [

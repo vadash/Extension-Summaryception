@@ -1,5 +1,5 @@
 import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
-import { formatSnippetAnchor } from './snippet-metadata.js';
+import { formatSnippetAnchor, stripLeadingSnippetAnchor } from './snippet-metadata.js';
 
 /**
  * @typedef {object} MemoryInjectionParts
@@ -30,7 +30,7 @@ export function buildMemoryInjectionParts(layers) {
 
     const stateText = buildCurrentStateText(layers);
     const chronologyParts = collectChronologyParts(layers);
-    const chronologyText = chronologyParts.map((part) => part.text).join(' ');
+    const chronologyText = chronologyParts.map((part) => part.text).join('\n');
     const memoryText = combineMemoryText(stateText, chronologyText);
 
     return { stateText, chronologyParts, chronologyText, memoryText };
@@ -55,7 +55,7 @@ function collectChronologyParts(layers) {
         const text = layer
             .map((snippet) => buildChronologySnippetText(snippet, i))
             .filter(Boolean)
-            .join(' ');
+            .join('\n');
         if (text) {
             parts.push({ layerIndex: i, text });
         }
@@ -65,7 +65,11 @@ function collectChronologyParts(layers) {
 
 function buildChronologySnippetText(snippet, layerIndex) {
     const parsed = parseSnippet(snippet?.text || '');
-    const pieces = [formatSnippetAnchor(snippet), parsed.narrative.trim()];
+    const anchor = formatSnippetAnchor(snippet);
+    const narrative = anchor
+        ? stripLeadingSnippetAnchor(parsed.narrative)
+        : parsed.narrative.trim();
+    const pieces = [anchor, narrative];
     if (layerIndex > 0) {
         const historicalStateNote = formatHistoricalStateNote(parsed.state);
         if (historicalStateNote) {
