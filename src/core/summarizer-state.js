@@ -4,17 +4,8 @@ const NARRATIVE_HEADER_RE = /^\s*\[NARRATIVE\]\s*$/i;
 const ANY_SECTION_HEADER_RE = /^\s*\[[^\]]+\]\s*$/;
 const NULLIFY_VALUES = new Set(['none', 'empty', 'null', 'cleared', 'resolved', 'removed']);
 const UNCLASSIFIED_NOTES_MAX = 3;
-const STATE_ENTRY_LIMITS = Object.freeze({
-    counters: 8,
-    hooks: 10,
-    inventory: 10,
-});
-const STATE_ENTRY_PRUNE_PATTERNS = Object.freeze({
-    counters: /\b(?:archived|closed|historical|inactive|old|past|previous|resolved)\b/i,
-    hooks: /\b(?:closed|completed|expired|resolved)\b/i,
-    inventory:
-        /\b(?:closed|cleared|consumed|discarded|expired|inactive|removed|resolved|spent|used up)\b/i,
-});
+const STATE_ENTRY_LIMIT = 10;
+const STATE_VALUE_LENGTH_CEILING = 1000;
 
 const KEY_ALIASES = Object.freeze({
     location: 'location',
@@ -107,7 +98,7 @@ export function mergeStates(states) {
                 delete merged[key];
                 continue;
             }
-            const prunedValue = pruneMergedStateValue(key, value);
+            const prunedValue = pruneMergedStateValue(value);
             if (!prunedValue) {
                 continue;
             }
@@ -308,43 +299,22 @@ function formatCappedNotes(notes) {
     return notes.length > UNCLASSIFIED_NOTES_MAX ? `${capped} [...]` : capped;
 }
 
-function pruneMergedStateValue(key, value) {
-    const entryLimit = STATE_ENTRY_LIMITS[key];
-    const prunePattern = STATE_ENTRY_PRUNE_PATTERNS[key];
-    if (!entryLimit && !prunePattern) {
+function pruneMergedStateValue(value) {
+    return pruneSemicolonStateEntries(value);
+}
+
+function pruneSemicolonStateEntries(value) {
+    const text = String(value || '').trim();
+    if (!text || !text.includes(';')) {
         return value;
     }
 
-    return pruneStateEntries(key, value, { entryLimit, prunePattern });
-}
+    const entries = splitDelimitedEntries(text, /;/);
+    if (entries.length <= STATE_ENTRY_LIMIT && text.length <= STATE_VALUE_LENGTH_CEILING) {
+        return value;
+    }
 
-function pruneStateEntries(key, value, { entryLimit, prunePattern }) {
-    const entries = splitStateEntries(key, value);
-    const activeEntries = prunePattern
-        ? entries.filter((entry) => !prunePattern.test(entry))
-        : entries;
-    const cappedEntries =
-        entryLimit && activeEntries.length > entryLimit
-            ? activeEntries.slice(-entryLimit)
-            : activeEntries;
-    return cappedEntries.join('; ');
-}
-
-function splitStateEntries(key, value) {
-    const text = String(value || '').trim();
-    if (!text) {
-        return [];
-    }
-    if (text.includes(';')) {
-        return splitDelimitedEntries(text, /;/);
-    }
-    if (/\r?\n/.test(text)) {
-        return splitDelimitedEntries(text, /\r?\n/);
-    }
-    if (key === 'counters' && looksLikeCounterList(text)) {
-        return splitDelimitedEntries(text, /,/);
-    }
-    return [text];
+    return entries.slice(-STATE_ENTRY_LIMIT).join('; ');
 }
 
 function splitDelimitedEntries(text, delimiter) {
@@ -352,11 +322,6 @@ function splitDelimitedEntries(text, delimiter) {
         .split(delimiter)
         .map((entry) => entry.trim())
         .filter(Boolean);
-}
-
-function looksLikeCounterList(text) {
-    const entries = splitDelimitedEntries(text, /,/);
-    return entries.length > 1 && entries.every((entry) => /^[^:=-]{1,80}\s*[:=-]\s*\S/.test(entry));
 }
 
 function escapeStateValueQuotes(value) {

@@ -4,6 +4,7 @@ import {
     isLocalUrl,
     normalizeOpenAIEndpoint,
     readErrorText,
+    tryExtractChatContent,
 } from './connection-transport.js';
 
 /**
@@ -332,18 +333,8 @@ function parseSSELine(line) {
 
     try {
         const parsed = /** @type {OpenAIChatCompletionChunk} */ (JSON.parse(data));
-        return { content: extractDeltaContent(parsed.choices?.[0]), done: false };
+        return { content: tryExtractChatContent(parsed) ?? '', done: false };
     } catch (_e) {
         return { content: '', done: false };
     }
-}
-
-/**
- * Extract string content from an OpenAI-compatible stream choice.
- * @param {OpenAIChatCompletionChoice | undefined} choice
- * @returns {string}
- */
-function extractDeltaContent(choice) {
-    const delta = /** @type {OpenAIChatCompletionDelta | undefined} */ (choice?.delta);
-    return typeof delta?.content === 'string' ? delta.content : '';
 }

@@ -37,7 +37,14 @@ import {
     showSlopBreakerOutcome,
     updateManualProgressToast,
 } from './ui-dialogs.js';
-import { bindDocumentSetting, readChecked, readIntegerOrZero, readString } from './ui-bind.js';
+import {
+    SETTING_SLIDER_SELECTOR,
+    bindDocumentSetting,
+    bindSliderSettingPairs,
+    readChecked,
+    readIntegerOrZero,
+    readString,
+} from './ui-bind.js';
 
 const PROMPT_PROFILES = {
     layer0: {
@@ -238,123 +245,15 @@ function readStripPatterns($element) {
  * @returns {void}
  */
 function bindSliderHandlers() {
-    /** @type {Array<{ id: string, key: 'verbatimTokenBudget' | 'memoryTokenBudget' | 'layer0SummaryTokenTarget' | 'minSummaryBudget' | 'minSummaryTurns' | 'maxSummaryTurns' | 'snippetsPerLayer' | 'snippetsPerPromotion', display: string }>} */
-    const sliders = [
-        {
-            id: '#sc_verbatim_token_budget',
-            key: 'verbatimTokenBudget',
-            display: '#sc_verbatim_token_budget_val',
-        },
-        {
-            id: '#sc_memory_token_budget',
-            key: 'memoryTokenBudget',
-            display: '#sc_memory_token_budget_val',
-        },
-        {
-            id: '#sc_layer0_summary_token_target',
-            key: 'layer0SummaryTokenTarget',
-            display: '#sc_layer0_summary_token_target_val',
-        },
-        {
-            id: '#sc_min_summary_budget',
-            key: 'minSummaryBudget',
-            display: '#sc_min_summary_budget_val',
-        },
-        {
-            id: '#sc_min_summary_turns',
-            key: 'minSummaryTurns',
-            display: '#sc_min_summary_turns_val',
-        },
-        {
-            id: '#sc_max_summary_turns',
-            key: 'maxSummaryTurns',
-            display: '#sc_max_summary_turns_val',
-        },
-        {
-            id: '#sc_snippets_per_layer',
-            key: 'snippetsPerLayer',
-            display: '#sc_snippets_per_layer_val',
-        },
-        {
-            id: '#sc_snippets_per_promotion',
-            key: 'snippetsPerPromotion',
-            display: '#sc_snippets_per_promotion_val',
-        },
-    ];
-
-    for (const sl of sliders) {
-        $(document).on('input', sl.id, function () {
-            const val = normalizeSliderValue($(this).val(), $(this));
-            getSettings()[sl.key] = val;
-            enforceRetentionConstraints(sl.key);
-            syncSliderDisplays(sliders, sl.key, sl.display);
-            saveSettings();
+    bindSliderSettingPairs(SETTING_SLIDER_SELECTOR, {
+        beforeSave: (_settings, _value, _source, key) => enforceRetentionConstraints(key),
+        afterSave: (settings) => {
             updateInjection();
-        });
-
-        $(document).on('change blur', sl.display, function () {
-            const val = normalizeSliderValue($(this).val(), $(sl.id));
-            getSettings()[sl.key] = val;
-            enforceRetentionConstraints(sl.key);
-            syncSliderDisplays(sliders, sl.key, sl.display);
-            saveSettings();
-            updateInjection();
-        });
-
-        $(document).on('focus', sl.display, function () {
-            const s = getSettings();
-            $(this).val(s[sl.key]);
-        });
-    }
+            syncPayloadSchematic(settings);
+        },
+    });
 
     bindInputHelpers();
-}
-
-function isRetentionSlider(key) {
-    return [
-        'verbatimTokenBudget',
-        'memoryTokenBudget',
-        'minSummaryBudget',
-        'minSummaryTurns',
-        'maxSummaryTurns',
-    ].includes(key);
-}
-
-/**
- * Normalize a slider value to the paired range input's min, max, and step.
- * @param {unknown} value
- * @param {object} slider jQuery-wrapped range input
- * @returns {number}
- */
-function normalizeSliderValue(value, slider) {
-    const min = parseSliderAttr(slider, 'min', 0);
-    const max = parseSliderAttr(slider, 'max', min);
-    const step = parseSliderAttr(slider, 'step', 1);
-    const parsed = parseSliderInputValue(value, { min, step });
-    const base = Number.isFinite(parsed) ? parsed : min;
-    const clamped = Math.min(max, Math.max(min, base));
-    const snapped = min + Math.round((clamped - min) / step) * step;
-    return Math.round(Math.min(max, Math.max(min, snapped)));
-}
-
-function parseSliderInputValue(value, { min, step }) {
-    const raw = String(value).trim().toLowerCase();
-    const parsed = Number.parseFloat(raw);
-    if (!Number.isFinite(parsed)) {
-        return Number.NaN;
-    }
-    if (raw.endsWith('k')) {
-        return parsed * 1000;
-    }
-    if (step >= 1000 && parsed > 0 && parsed < min) {
-        return parsed * 1000;
-    }
-    return parsed;
-}
-
-function parseSliderAttr(slider, attr, fallback) {
-    const parsed = Number.parseFloat(String(slider.attr(attr)));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function enforceRetentionConstraints(changedKey) {
@@ -365,55 +264,6 @@ function enforceRetentionConstraints(changedKey) {
     if (s.maxSummaryTurns < s.minSummaryTurns) {
         s.maxSummaryTurns = s.minSummaryTurns;
     }
-}
-
-function syncSliderDisplays(sliders, changedKey, display) {
-    if (isRetentionSlider(changedKey)) {
-        syncRetentionSliderDisplays();
-        return;
-    }
-
-    const s = getSettings();
-    const binding = sliders.find((sl) => sl.display === display);
-    if (!binding) {
-        return;
-    }
-    $(binding.id).val(s[binding.key]);
-    $(binding.display).val(formatSliderChipValue(s[binding.key], $(binding.id)));
-    syncPayloadSchematic(s);
-}
-
-function syncRetentionSliderDisplays() {
-    const s = getSettings();
-    $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
-    $('#sc_verbatim_token_budget_val').val(
-        formatSliderChipValue(s.verbatimTokenBudget, $('#sc_verbatim_token_budget')),
-    );
-    $('#sc_memory_token_budget').val(s.memoryTokenBudget);
-    $('#sc_memory_token_budget_val').val(
-        formatSliderChipValue(s.memoryTokenBudget, $('#sc_memory_token_budget')),
-    );
-    $('#sc_min_summary_budget').val(s.minSummaryBudget);
-    $('#sc_min_summary_budget_val').val(
-        formatSliderChipValue(s.minSummaryBudget, $('#sc_min_summary_budget')),
-    );
-    $('#sc_min_summary_turns').val(s.minSummaryTurns);
-    $('#sc_min_summary_turns_val').val(
-        formatSliderChipValue(s.minSummaryTurns, $('#sc_min_summary_turns')),
-    );
-    $('#sc_max_summary_turns').val(s.maxSummaryTurns);
-    $('#sc_max_summary_turns_val').val(
-        formatSliderChipValue(s.maxSummaryTurns, $('#sc_max_summary_turns')),
-    );
-    syncPayloadSchematic(s);
-}
-
-function formatSliderChipValue(value, slider) {
-    const step = parseSliderAttr(slider, 'step', 1);
-    if (step >= 1000 && value % 1000 === 0) {
-        return `${value / 1000}k`;
-    }
-    return String(value);
 }
 
 /**

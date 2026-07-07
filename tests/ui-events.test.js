@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     syncPayloadSchematic: vi.fn(),
 }));
 
+const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setting]';
+
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -62,6 +64,45 @@ describe('ui prompt/reset events', () => {
             '<thinking>',
             '</thinking>',
         ]);
+    });
+
+    it('syncs metadata-bound slider pairs and accepts compact chip values', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness(makeSliderHarnessOptions(['verbatim']));
+
+        ui.element('#sc_verbatim_token_budget').val('12500');
+        ui.trigger('input', '#sc_verbatim_token_budget');
+
+        expect(ctx.extensionSettings.summaryception.verbatimTokenBudget).toBe(13000);
+        expect(ui.element('#sc_verbatim_token_budget_val').getValue()).toBe('13k');
+
+        ui.element('#sc_verbatim_token_budget_val').val('12k');
+        ui.trigger('change', '#sc_verbatim_token_budget_val');
+
+        expect(ctx.extensionSettings.summaryception.verbatimTokenBudget).toBe(12000);
+        expect(ui.element('#sc_verbatim_token_budget').getValue()).toBe(12000);
+        expect(ui.element('#sc_verbatim_token_budget_val').getValue()).toBe('12k');
+        expect(mocks.updateInjection).toHaveBeenCalledTimes(2);
+        expect(mocks.syncPayloadSchematic).toHaveBeenCalledTimes(2);
+    });
+
+    it('enforces min/max summary-turn constraints through metadata-bound sliders', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.minSummaryTurns = 3;
+        settings.maxSummaryTurns = 8;
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness(makeSliderHarnessOptions(['minTurns', 'maxTurns']));
+
+        ui.element('#sc_min_summary_turns_val').val('10');
+        ui.trigger('change', '#sc_min_summary_turns_val');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            minSummaryTurns: 10,
+            maxSummaryTurns: 10,
+        });
+        expect(ui.element('#sc_max_summary_turns').getValue()).toBe(10);
+        expect(ui.element('#sc_max_summary_turns_val').getValue()).toBe('10');
     });
 
     it('refreshes injection and UI after custom memory depth changes', async () => {
@@ -208,8 +249,8 @@ describe('ui prompt/reset events', () => {
     });
 });
 
-async function installUiEventsHarness() {
-    const harness = createJQueryHarness();
+async function installUiEventsHarness(harnessOptions = {}) {
+    const harness = createJQueryHarness(harnessOptions);
     installBrowserRuntimeStub({ $: harness.$ });
     mockUiEventDependencies();
 
@@ -217,6 +258,60 @@ async function installUiEventsHarness() {
     bindUIEvents();
 
     return harness;
+}
+
+function makeSliderHarnessOptions(names) {
+    const sliders = {
+        verbatim: sliderFixture({
+            id: 'sc_verbatim_token_budget',
+            partner: '#sc_verbatim_token_budget_val',
+            key: 'verbatimTokenBudget',
+            min: '4000',
+            max: '64000',
+            step: '1000',
+        }),
+        minTurns: sliderFixture({
+            id: 'sc_min_summary_turns',
+            partner: '#sc_min_summary_turns_val',
+            key: 'minSummaryTurns',
+            min: '2',
+            max: '10',
+            step: '1',
+        }),
+        maxTurns: sliderFixture({
+            id: 'sc_max_summary_turns',
+            partner: '#sc_max_summary_turns_val',
+            key: 'maxSummaryTurns',
+            min: '3',
+            max: '20',
+            step: '1',
+        }),
+    };
+
+    const attributes = {};
+    const collections = {
+        [SETTING_SLIDER_SELECTOR]: names.map((name) => sliders[name].selector),
+    };
+
+    for (const name of names) {
+        attributes[sliders[name].selector] = sliders[name].attributes;
+    }
+
+    return { attributes, collections };
+}
+
+function sliderFixture({ id, partner, key, min, max, step }) {
+    return {
+        selector: `#${id}`,
+        attributes: {
+            id,
+            min,
+            max,
+            step,
+            'data-sc-slider-setting': key,
+            'data-sc-partner-input': partner,
+        },
+    };
 }
 
 function mockUiEventDependencies() {

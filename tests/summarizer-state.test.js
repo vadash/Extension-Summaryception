@@ -150,8 +150,8 @@ describe('summarizer-state', () => {
         );
     });
 
-    it('prunes stale list entries and caps long counter lists during merge', () => {
-        const counters = Array.from({ length: 10 }, (_value, index) => `count${index}: ${index}`);
+    it('generically caps long semicolon-delimited state lists during merge', () => {
+        const counters = Array.from({ length: 12 }, (_value, index) => `count${index}: ${index}`);
 
         expect(
             mergeStates([
@@ -168,20 +168,22 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             counters: counters.slice(2).join('; '),
-            inventory: 'badge; map; lantern',
+            inventory: 'badge; expired pass; map; closed case; lantern',
         });
     });
 
-    it('preserves prior state when pruning removes every incoming list entry', () => {
+    it('preserves stale-sounding entries unless the whole value is an exact nullifier', () => {
         expect(
             mergeStates([
                 { inventory: 'badge; map', counters: 'active score: 4' },
                 { inventory: 'expired pass; closed case', counters: 'old tally: 1' },
             ]),
         ).toEqual({
-            inventory: 'badge; map',
-            counters: 'active score: 4',
+            inventory: 'expired pass; closed case',
+            counters: 'old tally: 1',
         });
+
+        expect(mergeStates([{ inventory: 'badge; map' }, { inventory: 'removed' }])).toEqual({});
     });
 
     it('compiles global state oldest to newest across layers', () => {

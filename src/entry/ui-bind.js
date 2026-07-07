@@ -1,5 +1,7 @@
 import { getSettings, saveSettings } from '../foundation/state.js';
 
+export const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setting]';
+
 /**
  * @typedef {object} SettingBinding
  * @property {string} key
@@ -13,6 +15,12 @@ import { getSettings, saveSettings } from '../foundation/state.js';
  * @property {string} [eventName]
  * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave]
  * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave]
+ */
+
+/**
+ * @typedef {object} SliderSettingBindingOptions
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [beforeSave]
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSave]
  */
 
 /**
@@ -77,6 +85,43 @@ export function syncDataSettingElements(selector, settings = getSettings()) {
             syncDataSettingElementValue($element, settings, key);
         }
     });
+}
+
+/**
+ * Bind range sliders to paired numeric inputs using data-sc-slider-setting metadata.
+ * @param {string} selector
+ * @param {SliderSettingBindingOptions} [options]
+ * @returns {void}
+ */
+export function bindSliderSettingPairs(selector = SETTING_SLIDER_SELECTOR, options = {}) {
+    for (const binding of collectSliderSettingBindings(selector)) {
+        $(document).on('input', binding.sliderSelector, function () {
+            writeSliderSetting(binding, $(this), options);
+        });
+
+        $(document).on('change blur', binding.partnerSelector, function () {
+            writeSliderSetting(binding, $(this), options);
+        });
+
+        $(document).on('focus', binding.partnerSelector, function () {
+            $(this).val(getSettings()[binding.key]);
+        });
+    }
+}
+
+/**
+ * Sync slider pairs from settings using data-sc-slider-setting metadata.
+ * @param {string} selector
+ * @param {ReturnType<typeof getSettings>} [settings]
+ * @returns {void}
+ */
+export function syncSliderSettingPairs(
+    selector = SETTING_SLIDER_SELECTOR,
+    settings = getSettings(),
+) {
+    for (const binding of collectSliderSettingBindings(selector)) {
+        syncSliderSettingPair(binding, settings);
+    }
 }
 
 /**
@@ -147,6 +192,96 @@ function getDataSettingFallback($element) {
         return Number.parseInt(String(rawFallback ?? '0'), 10) || 0;
     }
     return String(rawFallback ?? '');
+}
+
+function collectSliderSettingBindings(selector) {
+    const bindings = [];
+    $(selector).each(function () {
+        const $slider = $(this);
+        const key = readSliderSettingKey($slider);
+        const partnerSelector = readPartnerInputSelector($slider);
+        const sliderSelector = getIdSelector($slider);
+        if (!key || !partnerSelector || !sliderSelector) {
+            return;
+        }
+        bindings.push({ key, sliderSelector, partnerSelector });
+    });
+    return bindings;
+}
+
+function readSliderSettingKey($element) {
+    return String($element.attr('data-sc-slider-setting') ?? '').trim();
+}
+
+function readPartnerInputSelector($element) {
+    return String($element.attr('data-sc-partner-input') ?? '').trim();
+}
+
+function getIdSelector($element) {
+    const id = String($element.attr('id') ?? '').trim();
+    return id ? `#${id}` : '';
+}
+
+function writeSliderSetting(binding, $source, options) {
+    const settings = getSettings();
+    const value = normalizeSliderValue($source.val(), $(binding.sliderSelector));
+    settings[binding.key] = value;
+    options.beforeSave?.(settings, value, $source, binding.key);
+    syncSliderSettingPairs(SETTING_SLIDER_SELECTOR, settings);
+    saveSettings();
+    options.afterSave?.(settings, value, $source, binding.key);
+}
+
+function syncSliderSettingPair(binding, settings) {
+    const $slider = $(binding.sliderSelector);
+    const value = settings[binding.key];
+    $slider.val(value);
+    $(binding.partnerSelector).val(formatSliderChipValue(value, $slider));
+}
+
+/**
+ * Normalize a slider value to the paired range input's min, max, and step.
+ * @param {unknown} value
+ * @param {object} slider jQuery-wrapped range input
+ * @returns {number}
+ */
+function normalizeSliderValue(value, slider) {
+    const min = parseSliderAttr(slider, 'min', 0);
+    const max = parseSliderAttr(slider, 'max', min);
+    const step = parseSliderAttr(slider, 'step', 1);
+    const parsed = parseSliderInputValue(value, { min, step });
+    const base = Number.isFinite(parsed) ? parsed : min;
+    const clamped = Math.min(max, Math.max(min, base));
+    const snapped = min + Math.round((clamped - min) / step) * step;
+    return Math.round(Math.min(max, Math.max(min, snapped)));
+}
+
+function parseSliderInputValue(value, { min, step }) {
+    const raw = String(value).trim().toLowerCase();
+    const parsed = Number.parseFloat(raw);
+    if (!Number.isFinite(parsed)) {
+        return Number.NaN;
+    }
+    if (raw.endsWith('k')) {
+        return parsed * 1000;
+    }
+    if (step >= 1000 && parsed > 0 && parsed < min) {
+        return parsed * 1000;
+    }
+    return parsed;
+}
+
+function parseSliderAttr(slider, attr, fallback) {
+    const parsed = Number.parseFloat(String(slider.attr(attr)));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function formatSliderChipValue(value, slider) {
+    const step = parseSliderAttr(slider, 'step', 1);
+    if (step >= 1000 && value % 1000 === 0) {
+        return `${value / 1000}k`;
+    }
+    return String(value);
 }
 
 /**

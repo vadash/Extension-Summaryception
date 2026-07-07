@@ -1,4 +1,5 @@
 import { ConnectionError } from './connection-error.js';
+import { tryExtractChatContent } from './connection-transport.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
 import { trace, warn } from '../foundation/logger.js';
 
@@ -125,32 +126,6 @@ function getProfileRequestService() {
 }
 
 /**
- * Extract content from a `choices[0].message.content` structure.
- * @param {ConnectionProfileChoice[]} choices
- * @returns {string|null} The content string, or null if not found
- */
-function extractChoiceContent(choices) {
-    const choice = choices[0];
-    if (!choice?.message || typeof choice.message !== 'object') {
-        return null;
-    }
-    return typeof choice.message.content === 'string' ? choice.message.content : null;
-}
-
-/**
- * Extract content from a `message.content` wrapper.
- * @param {ConnectionProfileResponse} obj
- * @returns {string|null} The content string, or null if not found
- */
-function extractMessageContent(obj) {
-    if (!obj.message || typeof obj.message !== 'object') {
-        return null;
-    }
-    const content = /** @type {ConnectionProfileMessage} */ (obj.message).content;
-    return typeof content === 'string' ? content : null;
-}
-
-/**
  * Extract content from a `data` field.
  * @param {ConnectionProfileResponse} obj
  * @returns {string|null} The data string, or null if absent
@@ -185,20 +160,9 @@ function parseProfileResponse(raw) {
 
     const obj = /** @type {ConnectionProfileResponse} */ (raw);
 
-    if (typeof obj.content === 'string') {
-        return obj.content;
-    }
-
-    const messageContent = extractMessageContent(obj);
-    if (messageContent) {
-        return messageContent;
-    }
-
-    if (Array.isArray(obj.choices)) {
-        const choiceContent = extractChoiceContent(obj.choices);
-        if (choiceContent) {
-            return choiceContent;
-        }
+    const chatContent = tryExtractChatContent(obj);
+    if (chatContent !== null) {
+        return chatContent;
     }
 
     const dataContent = extractDataField(obj);

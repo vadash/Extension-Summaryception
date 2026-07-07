@@ -16,7 +16,11 @@ import {
     regenerateSnippetAt,
     updateSnippetTextAt,
 } from '../features/snippet-manager.js';
-import { syncDataSettingElements } from './ui-bind.js';
+import {
+    SETTING_SLIDER_SELECTOR,
+    syncDataSettingElements,
+    syncSliderSettingPairs,
+} from './ui-bind.js';
 
 const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [data-sc-setting]';
 
@@ -82,22 +86,7 @@ function syncSettingsInputs(s) {
     $('#sc_custom_memory_position').val(s.customMemoryPosition);
     $('#sc_custom_memory_role').val(s.customMemoryRole);
     $('#sc_custom_memory_depth').val(s.customMemoryDepth);
-    $('#sc_verbatim_token_budget').val(s.verbatimTokenBudget);
-    $('#sc_verbatim_token_budget_val').val(formatSliderChipValue(s.verbatimTokenBudget));
-    $('#sc_memory_token_budget').val(s.memoryTokenBudget);
-    $('#sc_memory_token_budget_val').val(formatSliderChipValue(s.memoryTokenBudget));
-    $('#sc_layer0_summary_token_target').val(s.layer0SummaryTokenTarget);
-    $('#sc_layer0_summary_token_target_val').val(s.layer0SummaryTokenTarget);
-    $('#sc_min_summary_budget').val(s.minSummaryBudget);
-    $('#sc_min_summary_budget_val').val(formatSliderChipValue(s.minSummaryBudget));
-    $('#sc_min_summary_turns').val(s.minSummaryTurns);
-    $('#sc_min_summary_turns_val').val(s.minSummaryTurns);
-    $('#sc_max_summary_turns').val(s.maxSummaryTurns);
-    $('#sc_max_summary_turns_val').val(s.maxSummaryTurns);
-    $('#sc_snippets_per_layer').val(s.snippetsPerLayer);
-    $('#sc_snippets_per_layer_val').val(s.snippetsPerLayer);
-    $('#sc_snippets_per_promotion').val(s.snippetsPerPromotion);
-    $('#sc_snippets_per_promotion_val').val(s.snippetsPerPromotion);
+    syncSliderSettingPairs(SETTING_SLIDER_SELECTOR, s);
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
@@ -105,10 +94,6 @@ function syncSettingsInputs(s) {
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
     syncPayloadSchematic(s);
     syncMemoryModeControls(s);
-}
-
-function formatSliderChipValue(value) {
-    return value % 1000 === 0 && value >= 1000 ? `${value / 1000}k` : String(value);
 }
 
 function syncEnabledContent(s) {
