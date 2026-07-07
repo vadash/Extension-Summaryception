@@ -1,7 +1,11 @@
 import {
     MEMORY_MODES,
     PROMOTION_PROMPT_PRESETS,
+    PROMOTION_REPAIR_PROMPT_PRESETS,
+    PROMOTION_SYSTEM_PROMPT_PRESETS,
     PROMPT_PRESETS,
+    SUMMARIZER_REPAIR_PROMPT_PRESETS,
+    SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     defaultSettings,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
@@ -27,7 +31,7 @@ import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
-import { updateUI, updateCustomPromptSlots, syncPayloadSchematic } from './ui.js';
+import { updateUI, syncPayloadSchematic } from './ui.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -46,50 +50,56 @@ import {
     readString,
 } from './ui-bind.js';
 
-const PROMPT_PROFILES = {
-    layer0: {
-        label: 'Layer 0',
-        exportName: 'L0_summary',
+const PROMPT_FIELDS = [
+    {
+        presetSelect: '#sc_summarizer_system_prompt_preset',
+        textarea: '#sc_summarizer_system_prompt',
+        presetKey: 'summarizerSystemPromptPreset',
+        settingKey: 'summarizerSystemPrompt',
+        presets: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
+        defaultPreset: defaultSettings.summarizerSystemPromptPreset,
+    },
+    {
         presetSelect: '#sc_prompt_preset',
-        customManager: '#sc_custom_prompt_manager',
-        customSlot: '#sc_custom_prompt_slot',
-        customName: '#sc_custom_prompt_name',
-        saveButton: '#sc_custom_prompt_save',
-        loadButton: '#sc_custom_prompt_load',
-        deleteButton: '#sc_custom_prompt_delete_slot',
-        exportButton: '#sc_custom_prompt_export',
-        importButton: '#sc_custom_prompt_import',
-        systemPrompt: '#sc_summarizer_system_prompt',
-        userPrompt: '#sc_summarizer_user_prompt',
+        textarea: '#sc_summarizer_user_prompt',
         presetKey: 'promptPreset',
-        savedPromptsKey: 'savedCustomPrompts',
-        systemPromptKey: 'summarizerSystemPrompt',
-        userPromptKey: 'summarizerUserPrompt',
+        settingKey: 'summarizerUserPrompt',
         presets: PROMPT_PRESETS,
         defaultPreset: defaultSettings.promptPreset,
     },
-    promotion: {
-        label: 'Layer 1+',
-        exportName: 'L1_summary',
+    {
+        presetSelect: '#sc_summarizer_repair_prompt_preset',
+        textarea: '#sc_summarizer_repair_prompt',
+        presetKey: 'summarizerRepairPromptPreset',
+        settingKey: 'summarizerRepairPrompt',
+        presets: SUMMARIZER_REPAIR_PROMPT_PRESETS,
+        defaultPreset: defaultSettings.summarizerRepairPromptPreset,
+    },
+    {
+        presetSelect: '#sc_promotion_system_prompt_preset',
+        textarea: '#sc_promotion_system_prompt',
+        presetKey: 'promotionSystemPromptPreset',
+        settingKey: 'promotionSystemPrompt',
+        presets: PROMOTION_SYSTEM_PROMPT_PRESETS,
+        defaultPreset: defaultSettings.promotionSystemPromptPreset,
+    },
+    {
         presetSelect: '#sc_promotion_prompt_preset',
-        customManager: '#sc_promotion_custom_prompt_manager',
-        customSlot: '#sc_promotion_custom_prompt_slot',
-        customName: '#sc_promotion_custom_prompt_name',
-        saveButton: '#sc_promotion_custom_prompt_save',
-        loadButton: '#sc_promotion_custom_prompt_load',
-        deleteButton: '#sc_promotion_custom_prompt_delete_slot',
-        exportButton: '#sc_promotion_custom_prompt_export',
-        importButton: '#sc_promotion_custom_prompt_import',
-        systemPrompt: '#sc_promotion_system_prompt',
-        userPrompt: '#sc_promotion_user_prompt',
+        textarea: '#sc_promotion_user_prompt',
         presetKey: 'promotionPromptPreset',
-        savedPromptsKey: 'savedCustomPromotionPrompts',
-        systemPromptKey: 'promotionSystemPrompt',
-        userPromptKey: 'promotionUserPrompt',
+        settingKey: 'promotionUserPrompt',
         presets: PROMOTION_PROMPT_PRESETS,
         defaultPreset: defaultSettings.promotionPromptPreset,
     },
-};
+    {
+        presetSelect: '#sc_promotion_repair_prompt_preset',
+        textarea: '#sc_promotion_repair_prompt',
+        presetKey: 'promotionRepairPromptPreset',
+        settingKey: 'promotionRepairPrompt',
+        presets: PROMOTION_REPAIR_PROMPT_PRESETS,
+        defaultPreset: defaultSettings.promotionRepairPromptPreset,
+    },
+];
 
 // Event bindings
 
@@ -514,7 +524,7 @@ function onResetDefaults() {
         !confirm(
             'Reset all Advanced Settings to defaults?\n\n' +
                 'This will reset sliders, stock prompts, injection template, and strip patterns.\n' +
-                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom L0/L1+ prompts.',
+                'It will NOT clear your summary memory, connection settings, selected memory mode, or custom prompt fields.',
         )
     ) {
         return;
@@ -525,16 +535,6 @@ function onResetDefaults() {
     const preservedCustomMemoryPosition = s.customMemoryPosition;
     const preservedCustomMemoryRole = s.customMemoryRole;
     const preservedCustomMemoryDepth = s.customMemoryDepth;
-    const preserveCustomLayer0Prompt = s.promptPreset === 'custom';
-    const preserveCustomPromotionPrompt = s.promotionPromptPreset === 'custom';
-    const preservedLayer0Prompt = {
-        systemPrompt: s.summarizerSystemPrompt,
-        userPrompt: s.summarizerUserPrompt,
-    };
-    const preservedPromotionPrompt = {
-        systemPrompt: s.promotionSystemPrompt,
-        userPrompt: s.promotionUserPrompt,
-    };
 
     // Reset sliders
     s.memoryMode = preservedMemoryMode;
@@ -551,23 +551,7 @@ function onResetDefaults() {
     s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
     s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
 
-    // Reset prompts
-    s.summarizerSystemPrompt = preserveCustomLayer0Prompt
-        ? preservedLayer0Prompt.systemPrompt
-        : defaultSettings.summarizerSystemPrompt;
-    s.summarizerUserPrompt = preserveCustomLayer0Prompt
-        ? preservedLayer0Prompt.userPrompt
-        : defaultSettings.summarizerUserPrompt;
-    s.promotionSystemPrompt = preserveCustomPromotionPrompt
-        ? preservedPromotionPrompt.systemPrompt
-        : defaultSettings.promotionSystemPrompt;
-    s.promotionUserPrompt = preserveCustomPromotionPrompt
-        ? preservedPromotionPrompt.userPrompt
-        : defaultSettings.promotionUserPrompt;
-    s.promptPreset = preserveCustomLayer0Prompt ? 'custom' : defaultSettings.promptPreset;
-    s.promotionPromptPreset = preserveCustomPromotionPrompt
-        ? 'custom'
-        : defaultSettings.promotionPromptPreset;
+    resetPromptFields(s);
     s.injectionTemplate = defaultSettings.injectionTemplate;
     s.stripPatterns = [...defaultSettings.stripPatterns];
     s.summarizerResponseLength = defaultSettings.summarizerResponseLength;
@@ -590,6 +574,17 @@ function onResetDefaults() {
         'Summaryception',
         { timeOut: 4000 },
     );
+}
+
+function resetPromptFields(settings) {
+    for (const field of PROMPT_FIELDS) {
+        if (settings[field.presetKey] === 'custom') {
+            continue;
+        }
+        settings[field.presetKey] = field.defaultPreset;
+        settings[field.settingKey] =
+            field.presets[field.defaultPreset] || defaultSettings[field.settingKey];
+    }
 }
 
 /**
@@ -643,216 +638,56 @@ function bindClickHandlers() {
 }
 
 /**
- * Bind preset, custom slot, import/export, and edit handlers for prompt profiles.
+ * Bind preset and edit handlers for prompt fields.
  * @returns {void}
  */
 function bindPromptProfileHandlers() {
-    for (const profile of Object.values(PROMPT_PROFILES)) {
-        bindPromptPresetSelect(profile);
-        bindPromptTextarea(profile, profile.systemPrompt, profile.systemPromptKey);
-        bindPromptTextarea(profile, profile.userPrompt, profile.userPromptKey);
-        bindCustomPromptHandlers(profile);
+    for (const field of PROMPT_FIELDS) {
+        bindPromptPresetSelect(field);
+        bindPromptTextarea(field);
     }
 }
 
-function bindPromptPresetSelect(profile) {
-    $(document).on('change', profile.presetSelect, function () {
+function bindPromptPresetSelect(field) {
+    $(document).on('change', field.presetSelect, function () {
         const selected = String($(this).val());
-        if (!Object.hasOwn(profile.presets, selected)) {
-            $(profile.presetSelect).val(profile.defaultPreset);
+        if (!Object.hasOwn(field.presets, selected)) {
+            $(field.presetSelect).val(field.defaultPreset);
             return;
         }
 
         const s = getSettings();
 
-        s[profile.presetKey] = selected;
+        s[field.presetKey] = selected;
 
-        if (selected === 'custom') {
-            $(profile.customManager).show();
-        } else {
-            const presetText = profile.presets[selected] || profile.presets[profile.defaultPreset];
-            $(profile.userPrompt).val(presetText);
-            s[profile.userPromptKey] = presetText;
-            $(profile.customManager).hide();
+        if (selected !== 'custom') {
+            const presetText = field.presets[selected] || field.presets[field.defaultPreset];
+            $(field.textarea).val(presetText);
+            s[field.settingKey] = presetText;
         }
 
         saveSettings();
-        updateCustomPromptSlots();
     });
 }
 
-function bindPromptTextarea(profile, selector, settingKey) {
+function bindPromptTextarea(field) {
     for (const eventName of ['input', 'change']) {
-        $(document).on(eventName, selector, function () {
+        $(document).on(eventName, field.textarea, function () {
             const s = getSettings();
             const currentText = $(this).val();
-            s[settingKey] = currentText;
+            s[field.settingKey] = currentText;
 
-            switchPromptProfileToCustom(profile, s);
+            switchPromptFieldToCustom(field, s);
             saveSettings();
         });
     }
 }
 
-function switchPromptProfileToCustom(profile, settings) {
-    if (settings[profile.presetKey] === 'custom') {
+function switchPromptFieldToCustom(field, settings) {
+    if (settings[field.presetKey] === 'custom') {
         return;
     }
 
-    settings[profile.presetKey] = 'custom';
-    $(profile.presetSelect).val('custom');
-    $(profile.customManager).show();
-    updateCustomPromptSlots();
-}
-
-/**
- * Bind handlers for custom prompt save/load/delete/export/import actions.
- * @param {object} profile
- * @returns {void}
- */
-function bindCustomPromptHandlers(profile) {
-    $(document).on('click', profile.saveButton, function () {
-        const name = String($(profile.customName).val()).trim();
-        if (!name) {
-            toastr.warning('Enter a name for the prompt.', 'Summaryception');
-            return;
-        }
-
-        const s = getSettings();
-        if (!s[profile.savedPromptsKey]) {
-            s[profile.savedPromptsKey] = {};
-        }
-
-        const promptText = $(profile.userPrompt).val();
-        if (!String(promptText).trim()) {
-            toastr.warning('Prompt is empty - nothing to save.', 'Summaryception');
-            return;
-        }
-
-        const isOverwrite = s[profile.savedPromptsKey][name];
-        s[profile.savedPromptsKey][name] = promptText;
-        saveSettings();
-
-        $(profile.customName).val('');
-        updateCustomPromptSlots();
-
-        toastr.success(`Prompt "${name}" ${isOverwrite ? 'updated' : 'saved'}.`, 'Summaryception', {
-            timeOut: 2000,
-        });
-    });
-
-    $(document).on('click', profile.loadButton, function () {
-        const name = $(profile.customSlot).val();
-        if (!name) {
-            toastr.warning('Select a saved prompt to load.', 'Summaryception');
-            return;
-        }
-
-        const s = getSettings();
-        const promptText = s[profile.savedPromptsKey]?.[name];
-        if (!promptText) {
-            toastr.error(`Prompt "${name}" not found.`, 'Summaryception');
-            return;
-        }
-
-        $(profile.userPrompt).val(promptText);
-        s[profile.userPromptKey] = promptText;
-        s[profile.presetKey] = 'custom';
-        $(profile.presetSelect).val('custom');
-        $(profile.customManager).show();
-        saveSettings();
-
-        toastr.success(`Loaded prompt "${name}".`, 'Summaryception', { timeOut: 2000 });
-    });
-
-    $(document).on('click', profile.deleteButton, function () {
-        const name = $(profile.customSlot).val();
-        if (!name) {
-            toastr.warning('Select a saved prompt to delete.', 'Summaryception');
-            return;
-        }
-
-        if (!confirm(`Delete saved prompt "${name}"?`)) {
-            return;
-        }
-
-        const s = getSettings();
-        if (s[profile.savedPromptsKey]) {
-            delete s[profile.savedPromptsKey][name];
-            saveSettings();
-        }
-
-        updateCustomPromptSlots();
-        toastr.info(`Prompt "${name}" deleted.`, 'Summaryception', { timeOut: 2000 });
-    });
-
-    $(document).on('click', profile.exportButton, function () {
-        exportCustomPrompt(profile);
-    });
-
-    $(document).on('click', profile.importButton, function () {
-        triggerCustomPromptImport(profile);
-    });
-}
-
-function exportCustomPrompt(profile) {
-    const promptText = $(profile.userPrompt).val();
-    if (!String(promptText).trim()) {
-        toastr.warning('Prompt is empty - nothing to export.', 'Summaryception');
-        return;
-    }
-
-    const blob = new Blob([promptText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `summaryception_${profile.exportName}_${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toastr.success('Prompt exported.', 'Summaryception', { timeOut: 2000 });
-}
-
-/**
- * Import a custom prompt from a user-selected text file.
- *
- * Vanilla document.createElement is used for the ephemeral <input type="file">
- * because it never enters the live DOM - we read its files and discard it.
- * @param {object} profile
- * @returns {void}
- */
-function triggerCustomPromptImport(profile) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,.text';
-    input.onchange = async (e) => {
-        const target = /** @type {HTMLInputElement} */ (e.target);
-        const file = target.files?.[0];
-        if (!file) {
-            return;
-        }
-        try {
-            const text = await file.text();
-            if (!text.trim()) {
-                toastr.warning('File is empty.', 'Summaryception');
-                return;
-            }
-
-            const s = getSettings();
-            $(profile.userPrompt).val(text);
-            s[profile.userPromptKey] = text;
-            s[profile.presetKey] = 'custom';
-            $(profile.presetSelect).val('custom');
-            $(profile.customManager).show();
-            saveSettings();
-            updateCustomPromptSlots();
-
-            toastr.success(`Prompt imported from "${file.name}".`, 'Summaryception', {
-                timeOut: 3000,
-            });
-        } catch (err) {
-            error(err);
-            toastr.error('Import failed - check console.', 'Summaryception');
-        }
-    };
-    input.click();
+    settings[field.presetKey] = 'custom';
+    $(field.presetSelect).val('custom');
 }

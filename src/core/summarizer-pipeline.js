@@ -16,7 +16,7 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  * @param {string} contextStr - The accumulated context string
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
  * @param {ExtensionSettings} [settings]
- * @returns {Promise<{ settings: ExtensionSettings, systemPrompt: string, prompt: string, metadata: import('./summarizer-usage.js').SummarizerCallMetadata }>}
+ * @returns {Promise<{ settings: ExtensionSettings, systemPrompt: string, prompt: string, repairPrompt: string, metadata: import('./summarizer-usage.js').SummarizerCallMetadata }>}
  */
 export async function buildSummarizerPipelineInput(
     storyTxt,
@@ -33,11 +33,19 @@ export async function buildSummarizerPipelineInput(
         settings,
         usageMetadata,
     );
+    const repairPromptTemplate = resolveLayer0RepairPromptTemplate(settings, usageMetadata);
+    const repairPrompt = repairPromptTemplate
+        ? buildSummarizerPrompt(repairPromptTemplate, storyTxt, contextStr, settings, {
+              ...usageMetadata,
+              layer0Repair: true,
+          })
+        : '';
 
     return {
         settings,
         systemPrompt: promptConfig.systemPrompt,
         prompt,
+        repairPrompt,
         metadata: usageMetadata,
     };
 }
@@ -179,8 +187,12 @@ function resolveSummarizerPromptConfig(settings, metadata = {}) {
                 defaultSettings.promotionSystemPrompt,
             ),
             userPromptTemplate: getStringSetting(
-                settings.promotionUserPrompt,
-                defaultSettings.promotionUserPrompt,
+                metadata.promotionRepair
+                    ? settings.promotionRepairPrompt
+                    : settings.promotionUserPrompt,
+                metadata.promotionRepair
+                    ? defaultSettings.promotionRepairPrompt
+                    : defaultSettings.promotionUserPrompt,
             ),
         };
     }
@@ -195,6 +207,16 @@ function resolveSummarizerPromptConfig(settings, metadata = {}) {
             defaultSettings.summarizerUserPrompt,
         ),
     };
+}
+
+function resolveLayer0RepairPromptTemplate(settings, metadata = {}) {
+    if (metadata.kind !== 'layer0' && metadata.kind !== 'regenerate') {
+        return '';
+    }
+    return getStringSetting(
+        settings.summarizerRepairPrompt,
+        defaultSettings.summarizerRepairPrompt,
+    );
 }
 
 /**

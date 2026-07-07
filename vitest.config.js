@@ -25,6 +25,7 @@ export default defineConfig({
             reporter: ['text', 'json', 'html'],
             include: [
                 'src/foundation/constants.js',
+                'src/foundation/prompt-constants.js',
                 'src/foundation/retry.js',
                 'src/core/chatutils.js',
                 'src/core/prompts.js',

@@ -24,21 +24,6 @@ import {
 
 const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [data-sc-setting]';
 
-const CUSTOM_PROMPT_SLOT_BINDINGS = [
-    {
-        manager: '#sc_custom_prompt_manager',
-        presetKey: 'promptPreset',
-        savedPromptsKey: 'savedCustomPrompts',
-        select: '#sc_custom_prompt_slot',
-    },
-    {
-        manager: '#sc_promotion_custom_prompt_manager',
-        presetKey: 'promotionPromptPreset',
-        savedPromptsKey: 'savedCustomPromotionPrompts',
-        select: '#sc_promotion_custom_prompt_slot',
-    },
-];
-
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
  * @returns {Promise<void>}
@@ -51,8 +36,12 @@ export async function updateUI() {
         syncSettingsInputs(s);
         syncEnabledContent(s);
 
+        $('#sc_summarizer_system_prompt_preset').val(s.summarizerSystemPromptPreset);
         $('#sc_prompt_preset').val(s.promptPreset);
+        $('#sc_summarizer_repair_prompt_preset').val(s.summarizerRepairPromptPreset);
+        $('#sc_promotion_system_prompt_preset').val(s.promotionSystemPromptPreset);
         $('#sc_promotion_prompt_preset').val(s.promotionPromptPreset);
+        $('#sc_promotion_repair_prompt_preset').val(s.promotionRepairPromptPreset);
         $('#sc_debug_mode').prop('checked', s.debugMode);
         $('#sc_trace_mode').prop('checked', s.traceMode);
         $('#sc_prompt_input_log_mode').prop('checked', s.promptInputLogMode);
@@ -69,7 +58,6 @@ export async function updateUI() {
         renderLayerStats(s, store);
         await renderPreview();
         updateSnippetBrowser();
-        updateCustomPromptSlots();
     } catch (e) {
         warn('updateUI error:', e);
     }
@@ -90,8 +78,10 @@ function syncSettingsInputs(s) {
     $('#sc_injection_template').val(s.injectionTemplate);
     $('#sc_summarizer_system_prompt').val(s.summarizerSystemPrompt);
     $('#sc_summarizer_user_prompt').val(s.summarizerUserPrompt);
+    $('#sc_summarizer_repair_prompt').val(s.summarizerRepairPrompt);
     $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
+    $('#sc_promotion_repair_prompt').val(s.promotionRepairPrompt);
     syncPayloadSchematic(s);
     syncMemoryModeControls(s);
 }
@@ -495,36 +485,6 @@ async function renderPreview() {
     $('#sc_preview_token_count').text(
         `${formatBudgetTokenLabel(tokens.count, tokens.estimated)} tokens`,
     );
-}
-
-/**
- * Render the custom prompt slot dropdown.
- * @returns {void}
- */
-export function updateCustomPromptSlots() {
-    const s = getSettings();
-    for (const binding of CUSTOM_PROMPT_SLOT_BINDINGS) {
-        updateCustomPromptSlot(binding, s);
-    }
-}
-
-function updateCustomPromptSlot(binding, settings) {
-    const select = $(binding.select);
-    select.empty().append('<option value="">-- Load a saved prompt --</option>');
-
-    const prompts = settings[binding.savedPromptsKey] || {};
-    const names = Object.keys(prompts).sort();
-
-    for (const name of names) {
-        const preview = prompts[name].substring(0, 60).replace(/\n/g, ' ');
-        select.append($('<option></option>').val(name).text(`${name}`).attr('title', preview));
-    }
-
-    if (settings[binding.presetKey] === 'custom') {
-        $(binding.manager).show();
-    } else {
-        $(binding.manager).hide();
-    }
 }
 
 /**

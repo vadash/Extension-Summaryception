@@ -43,11 +43,12 @@ export class RequestRunner {
      * @param {ExtensionSettings} p.settings - Settings
      * @param {string} p.systemPrompt - System prompt sent to the summarizer
      * @param {string} p.prompt - Fully substituted user prompt
+     * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
      * @param {AbortSignal} p.signal - Abort signal
      * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
      * @returns {Promise<string>} Summary text, or '' on failure
      */
-    async run({ settings, systemPrompt, prompt, signal, metadata }) {
+    async run({ settings, systemPrompt, prompt, repairPrompt, signal, metadata }) {
         const healthBucket = getPrimaryHealthBucket(metadata);
         const fallbackSettings = resolveFallbackSummarizerConnectionSettings(settings, metadata);
 
@@ -72,6 +73,7 @@ export class RequestRunner {
                 settings,
                 systemPrompt,
                 prompt,
+                repairPrompt,
                 signal,
                 metadata,
                 routeLabel: 'primary',
@@ -102,6 +104,7 @@ export class RequestRunner {
                     settings,
                     systemPrompt,
                     prompt,
+                    repairPrompt,
                     signal,
                     metadata: { ...metadata, useFallback: true },
                     routeLabel: 'fallback',
@@ -136,6 +139,7 @@ export class RequestRunner {
      * @param {ExtensionSettings} p.settings - Settings
      * @param {string} p.systemPrompt - System prompt sent to the summarizer
      * @param {string} p.prompt - Fully substituted user prompt
+     * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
      * @param {AbortSignal} p.signal - Abort signal
      * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
      * @param {string} p.routeLabel - Human-readable route label for trace logs
@@ -146,6 +150,7 @@ export class RequestRunner {
         settings,
         systemPrompt,
         prompt,
+        repairPrompt,
         signal,
         metadata,
         routeLabel,
@@ -153,6 +158,7 @@ export class RequestRunner {
     }) {
         /** @type {Error & { status?: number, response?: { status?: number } }} */
         let lastError = new Error('no error');
+        let useRepairPrompt = false;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (signal.aborted) {
@@ -166,14 +172,17 @@ export class RequestRunner {
                 };
             }
 
+            const activePrompt = useRepairPrompt && repairPrompt ? repairPrompt : prompt;
+            const activeMetadata =
+                useRepairPrompt && repairPrompt ? { ...metadata, layer0Repair: true } : metadata;
             const timeoutMs = computeAttemptTimeoutMs(metadata, attempt);
             const attemptResult = await this.executeAttempt({
                 settings,
                 systemPrompt,
-                prompt,
+                prompt: activePrompt,
                 signal,
                 attempt,
-                metadata,
+                metadata: activeMetadata,
                 routeLabel,
                 maxRetries,
                 timeoutMs,
@@ -203,6 +212,12 @@ export class RequestRunner {
                 };
             }
 
+            const shouldUseRepairPrompt = shouldSwitchToRepairPrompt({
+                attemptResult,
+                attempt,
+                maxRetries,
+                repairPrompt,
+            });
             if (shouldStopRetrying(attemptResult, attempt, maxRetries)) {
                 return {
                     status: 'failed',
@@ -212,6 +227,10 @@ export class RequestRunner {
                     retriesExhausted: attemptResult.shouldRetry && attempt >= maxRetries,
                     hardFailover: attemptResult.hardFailover,
                 };
+            }
+
+            if (shouldUseRepairPrompt) {
+                useRepairPrompt = true;
             }
 
             await notifyRetryAndWait(lastError, attempt, signal, maxRetries);
@@ -239,7 +258,7 @@ export class RequestRunner {
      * @param {string} p.routeLabel - Human-readable route label for trace logs
      * @param {number} p.maxRetries - Maximum retry count for this route
      * @param {number} p.timeoutMs - Timeout in milliseconds for this attempt
-     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }>}
+     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string }>}
      */
     async executeAttempt({
         settings,
@@ -295,7 +314,7 @@ export class RequestRunner {
                 } else if (processed.status === 'integrity-rejected') {
                     debug('Summarizer output failed integrity validation, treating as retryable');
                 }
-                return buildAttemptFailure(attemptError, true);
+                return buildAttemptFailure(attemptError, true, processed.status);
             }
 
             await recordSuccessfulSummarizerUsage({
@@ -313,6 +332,7 @@ export class RequestRunner {
                 aborted: false,
                 shouldRetry: false,
                 hardFailover: false,
+                failureStatus: '',
             };
         } catch (err) {
             const result = classifyAttemptError(err, signal);
@@ -389,7 +409,7 @@ async function traceSummarizerRequest({ settings, systemPrompt, prompt, metadata
  * Classify an exception from a summarizer attempt.
  * @param {unknown} err - Thrown error
  * @param {AbortSignal} signal - Abort signal
- * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }}
+ * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string }}
  */
 function classifyAttemptError(err, signal) {
     const error =
@@ -410,6 +430,7 @@ function classifyAttemptError(err, signal) {
             aborted: true,
             shouldRetry: false,
             hardFailover: false,
+            failureStatus: 'aborted',
         };
     }
 
@@ -423,6 +444,7 @@ function classifyAttemptError(err, signal) {
             aborted: false,
             shouldRetry: false,
             hardFailover: true,
+            failureStatus: 'hard-failover',
         };
     }
 
@@ -458,9 +480,10 @@ function isHardNetworkError(error) {
  * Build a failed attempt result.
  * @param {Error} error - Attempt error
  * @param {boolean} shouldRetry - Whether retry should continue
- * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }}
+ * @param {string} [failureStatus] - Attempt failure classification
+ * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string }}
  */
-function buildAttemptFailure(error, shouldRetry) {
+function buildAttemptFailure(error, shouldRetry, failureStatus = 'failed') {
     return {
         success: false,
         result: '',
@@ -468,7 +491,21 @@ function buildAttemptFailure(error, shouldRetry) {
         aborted: false,
         shouldRetry,
         hardFailover: false,
+        failureStatus,
     };
+}
+
+function shouldSwitchToRepairPrompt({ attemptResult, attempt, maxRetries, repairPrompt }) {
+    return (
+        Boolean(repairPrompt) &&
+        attempt < maxRetries &&
+        attemptResult.shouldRetry &&
+        isValidationFailureStatus(attemptResult.failureStatus)
+    );
+}
+
+function isValidationFailureStatus(status) {
+    return status === 'empty' || status === 'cn-rejected' || status === 'integrity-rejected';
 }
 
 /**

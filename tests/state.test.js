@@ -47,40 +47,46 @@ describe('state.js', () => {
     });
 
     it.each([
-        ['', 'narrative', PROMPT_PRESETS.narrative],
-        ['Summarize only named locations.', 'custom', 'Summarize only named locations.'],
-    ])('migrates a missing prompt preset when loaded', (prompt, preset, saved) => {
-        const ctx = installSillyTavernStub({ settings: { summarizerUserPrompt: prompt } });
-        ctx.saveSettingsDebounced = vi.fn();
+        ['', PROMPT_PRESETS.narrative, true],
+        ['Summarize only named locations.', 'Summarize only named locations.', false],
+    ])(
+        'backfills a missing prompt preset without migrating legacy text',
+        (prompt, saved, saves) => {
+            const ctx = installSillyTavernStub({ settings: { summarizerUserPrompt: prompt } });
+            ctx.saveSettingsDebounced = vi.fn();
 
-        const settings = getSettings();
+            const settings = getSettings();
 
-        expect(settings.promptPreset).toBe(preset);
-        expect(settings.summarizerUserPrompt).toBe(saved);
-        expect(settings.promotionPromptPreset).toBe('narrative');
-        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
-    });
+            expect(settings.promptPreset).toBe('narrative');
+            expect(settings.summarizerUserPrompt).toBe(saved);
+            expect(settings.promotionPromptPreset).toBe('narrative');
+            expect(ctx.saveSettingsDebounced).toHaveBeenCalledTimes(saves ? 1 : 0);
+        },
+    );
 
     it.each([
-        ['', 'narrative', PROMOTION_PROMPT_PRESETS.narrative],
-        ['Merge only unresolved goals.', 'custom', 'Merge only unresolved goals.'],
-    ])('migrates a missing promotion prompt preset when loaded', (prompt, preset, saved) => {
-        const ctx = installSillyTavernStub({
-            settings: {
-                promptPreset: 'narrative',
-                promotionUserPrompt: prompt,
-            },
-        });
-        ctx.saveSettingsDebounced = vi.fn();
+        ['', PROMOTION_PROMPT_PRESETS.narrative, true],
+        ['Merge only unresolved goals.', 'Merge only unresolved goals.', false],
+    ])(
+        'backfills a missing promotion prompt preset without migrating legacy text',
+        (prompt, saved, saves) => {
+            const ctx = installSillyTavernStub({
+                settings: {
+                    promptPreset: 'narrative',
+                    promotionUserPrompt: prompt,
+                },
+            });
+            ctx.saveSettingsDebounced = vi.fn();
 
-        const settings = getSettings();
+            const settings = getSettings();
 
-        expect(settings.promotionPromptPreset).toBe(preset);
-        expect(settings.promotionUserPrompt).toBe(saved);
-        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
-    });
+            expect(settings.promotionPromptPreset).toBe('narrative');
+            expect(settings.promotionUserPrompt).toBe(saved);
+            expect(ctx.saveSettingsDebounced).toHaveBeenCalledTimes(saves ? 1 : 0);
+        },
+    );
 
-    it('normalizes removed prompt presets to custom without rewriting prompt text', () => {
+    it('normalizes removed prompt presets to defaults', () => {
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'gamestate',
@@ -92,13 +98,12 @@ describe('state.js', () => {
 
         const settings = getSettings();
 
-        expect(settings.promptPreset).toBe('custom');
-        expect(settings.summarizerUserPrompt).toBe('Old game-state prompt text.');
-        expect(settings.lastCustomPrompt).toBeUndefined();
+        expect(settings.promptPreset).toBe('narrative');
+        expect(settings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
-    it('normalizes removed promotion prompt presets to custom without rewriting prompt text', () => {
+    it('normalizes removed promotion prompt presets to defaults', () => {
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'narrative',
@@ -110,9 +115,8 @@ describe('state.js', () => {
 
         const settings = getSettings();
 
-        expect(settings.promotionPromptPreset).toBe('custom');
-        expect(settings.promotionUserPrompt).toBe('Old promotion prompt text.');
-        expect(settings.lastCustomPromotionPrompt).toBeUndefined();
+        expect(settings.promotionPromptPreset).toBe('narrative');
+        expect(settings.promotionUserPrompt).toBe(PROMOTION_PROMPT_PRESETS.narrative);
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 

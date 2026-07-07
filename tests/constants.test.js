@@ -5,6 +5,10 @@ import {
     defaultSettings,
     PROMPT_PRESETS,
     PROMOTION_PROMPT_PRESETS,
+    PROMOTION_REPAIR_PROMPT_PRESETS,
+    PROMOTION_SYSTEM_PROMPT_PRESETS,
+    SUMMARIZER_REPAIR_PROMPT_PRESETS,
+    SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     DEFAULT_PROMPT_PRESET,
     DEFAULT_PROMOTION_PROMPT_PRESET,
     RETRY_CONFIG,
@@ -47,6 +51,8 @@ describe('constants', () => {
         expect(defaultSettings.promptOutputLogMode).toBe(false);
         expect(defaultSettings.promptLogMode).toBe(false);
         expect(defaultSettings.stripChineseIdeographs).toBe(true);
+        expect(defaultSettings.savedCustomPrompts).toBeUndefined();
+        expect(defaultSettings.savedCustomPromotionPrompts).toBeUndefined();
     });
 
     it('uses the Summaryception memory wrapper by default', () => {
@@ -72,6 +78,14 @@ describe('constants', () => {
     });
 
     it('exposes every documented prompt preset', () => {
+        expect(Object.keys(SUMMARIZER_SYSTEM_PROMPT_PRESETS).sort()).toEqual([
+            'custom',
+            'narrative',
+        ]);
+        expect(SUMMARIZER_SYSTEM_PROMPT_PRESETS.custom).toBeNull();
+        expect(SUMMARIZER_SYSTEM_PROMPT_PRESETS.narrative).toContain(
+            'narrative-state dual compressor',
+        );
         expect(Object.keys(PROMPT_PRESETS).sort()).toEqual(['custom', 'narrative']);
         expect(PROMPT_PRESETS.custom).toBeNull();
         expect(PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
@@ -84,9 +98,26 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMPT_PRESETS.narrative).toContain('static character background/profile facts');
         expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
+        expect(Object.keys(SUMMARIZER_REPAIR_PROMPT_PRESETS).sort()).toEqual([
+            'custom',
+            'narrative',
+        ]);
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.custom).toBeNull();
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain(
+            'previous Layer 0 summary attempt failed',
+        );
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain('[STATE]');
     });
 
     it('exposes every documented promotion prompt preset', () => {
+        expect(Object.keys(PROMOTION_SYSTEM_PROMPT_PRESETS).sort()).toEqual([
+            'custom',
+            'narrative',
+        ]);
+        expect(PROMOTION_SYSTEM_PROMPT_PRESETS.custom).toBeNull();
+        expect(PROMOTION_SYSTEM_PROMPT_PRESETS.narrative).toContain(
+            'prose-folding memory synthesizer',
+        );
         expect(Object.keys(PROMOTION_PROMPT_PRESETS).sort()).toEqual(['custom', 'narrative']);
         expect(PROMOTION_PROMPT_PRESETS.custom).toBeNull();
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{context_str}}');
@@ -101,15 +132,40 @@ describe('constants', () => {
         );
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Omit stale transient scene facts');
+        expect(Object.keys(PROMOTION_REPAIR_PROMPT_PRESETS).sort()).toEqual([
+            'custom',
+            'narrative',
+        ]);
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.custom).toBeNull();
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain(
+            'previous Layer 1+ promotion draft',
+        );
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('{{source_state}}');
     });
 
     it('defaults to the narrative preset', () => {
         expect(DEFAULT_PROMPT_PRESET).toBe('narrative');
+        expect(defaultSettings.summarizerSystemPromptPreset).toBe(DEFAULT_PROMPT_PRESET);
+        expect(defaultSettings.summarizerSystemPrompt).toBe(
+            SUMMARIZER_SYSTEM_PROMPT_PRESETS.narrative,
+        );
         expect(defaultSettings.promptPreset).toBe(DEFAULT_PROMPT_PRESET);
         expect(defaultSettings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
+        expect(defaultSettings.summarizerRepairPromptPreset).toBe(DEFAULT_PROMPT_PRESET);
+        expect(defaultSettings.summarizerRepairPrompt).toBe(
+            SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative,
+        );
         expect(DEFAULT_PROMOTION_PROMPT_PRESET).toBe('narrative');
+        expect(defaultSettings.promotionSystemPromptPreset).toBe(DEFAULT_PROMOTION_PROMPT_PRESET);
+        expect(defaultSettings.promotionSystemPrompt).toBe(
+            PROMOTION_SYSTEM_PROMPT_PRESETS.narrative,
+        );
         expect(defaultSettings.promotionPromptPreset).toBe(DEFAULT_PROMOTION_PROMPT_PRESET);
         expect(defaultSettings.promotionUserPrompt).toBe(PROMOTION_PROMPT_PRESETS.narrative);
+        expect(defaultSettings.promotionRepairPromptPreset).toBe(DEFAULT_PROMOTION_PROMPT_PRESET);
+        expect(defaultSettings.promotionRepairPrompt).toBe(
+            PROMOTION_REPAIR_PROMPT_PRESETS.narrative,
+        );
     });
 
     it('provides separate Layer 1+ promotion prompts', () => {

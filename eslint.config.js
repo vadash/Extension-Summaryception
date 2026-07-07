@@ -32,6 +32,7 @@ export default [
         settings: {
             'boundaries/elements': [
                 { type: 'constants', pattern: 'src/foundation/constants.js' },
+                { type: 'constants', pattern: 'src/foundation/prompt-constants.js' },
                 { type: 'context', pattern: 'src/foundation/context.js' },
                 { type: 'logger', pattern: 'src/foundation/logger.js' },
                 { type: 'retry', pattern: 'src/foundation/retry.js' },

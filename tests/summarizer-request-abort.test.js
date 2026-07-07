@@ -127,6 +127,44 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(prompt).toContain('Deduplicate related events');
     });
 
+    it('uses promotion repair prompts for promotion repair calls', async () => {
+        installSillyTavernStub({
+            settings: {
+                summarizerSystemPrompt: 'L0_SYS',
+                summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
+                promotionSystemPrompt: 'PROMO_SYS',
+                promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
+                promotionRepairPrompt: 'PROMO_REPAIR {{context_str}} MEMORY {{story_txt}}',
+                stripPatterns: [],
+            },
+        });
+        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        await expect(
+            callSummarizer('merged snippets', 'deep context', {
+                kind: 'promotion',
+                promotionRepair: {
+                    outputTokens: 500,
+                    requiredMaxTokens: 300,
+                    rejectedSummary: 'Rejected verbose summary.',
+                },
+            }),
+        ).resolves.toBe('summary text');
+
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledWith(
+            expect.any(Object),
+            'PROMO_SYS',
+            expect.stringContaining('PROMO_REPAIR deep context MEMORY merged snippets'),
+            expect.any(AbortSignal),
+            expect.objectContaining({ kind: 'promotion' }),
+        );
+        const prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
+        expect(prompt).toContain('Repair task');
+        expect(prompt).toContain('Rejected verbose summary.');
+    });
+
     it('preserves dual-track structural markers in promotion output for state parsing', async () => {
         mocks.sendSummarizerRequest.mockResolvedValue(
             '[NARRATIVE]\nMerged summary.\n[STATE]\nlocation: dock',
@@ -188,6 +226,44 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(promotionPrompt).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(promotionPrompt).toContain('Do not invent broad dates for unknown spans');
         expect(promotionPrompt).toContain('Do not repeat or re-summarize events');
+    });
+
+    it('switches Layer 0 validation retries to the repair prompt', async () => {
+        vi.useFakeTimers();
+        installSillyTavernStub({
+            settings: {
+                layer0SummaryTokenTarget: 120,
+                summarizerSystemPrompt: 'L0_SYS',
+                summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
+                summarizerRepairPrompt: 'L0_REPAIR {{context_str}} STORY {{story_txt}}',
+                stripPatterns: [],
+                stripChineseIdeographs: false,
+            },
+        });
+        mocks.sendSummarizerRequest
+            .mockResolvedValueOnce('invalid unstructured output')
+            .mockResolvedValueOnce(VALID_L0_SUMMARY);
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const resultPromise = callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceRange: [0, 1],
+        });
+        await vi.runAllTimersAsync();
+
+        await expect(resultPromise).resolves.toBe(VALID_L0_SUMMARY);
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
+        expect(mocks.sendSummarizerRequest.mock.calls[0][2]).toContain(
+            'L0 prior context STORY source passage',
+        );
+        expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toContain(
+            'L0_REPAIR prior context STORY source passage',
+        );
+        expect(mocks.sendSummarizerRequest.mock.calls[1][4]).toMatchObject({
+            kind: 'layer0',
+            layer0Repair: true,
+        });
     });
 
     it('routes through fallback after primary retry exhaustion', async () => {

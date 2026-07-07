@@ -24,6 +24,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - In-flight summary/promotion commits validate `store.mutationEpoch`; any code that changes `store.layers` or snippet fields must call `bumpSummaryStoreMutationEpoch()`.
 - If chat changes while a summarizer request is in flight, mark the queue dirty and recompute after the current batch rather than starting parallel work.
 - Summarizer integrity failures (tiny output for substantial source text, malformed L0/regeneration `[NARRATIVE]`/`[STATE]` sections) are retryable and must be rejected before mutating summary layers or ghosting source messages.
+- L0/regeneration repair prompts are only for output-validation retries; provider/network retries must reuse the active prompt unless a validation failure already switched the route into repair mode.
 
 ## LLM Connections
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.

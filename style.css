@@ -554,7 +554,6 @@
 .sc-stats-box,
 .sc-snippet-browser,
 .sc-textarea,
-.sc-custom-prompt-manager,
 .sc-sub-panel {
     border: 1px solid var(--sc-border);
     border-radius: var(--sc-radius);
@@ -652,8 +651,7 @@
     outline: none;
     resize: vertical;
 }
-.sc-sub-panel,
-.sc-custom-prompt-manager {
+.sc-sub-panel {
     margin: 6px 0 7px;
     padding: 7px;
 }
@@ -688,24 +686,6 @@
 .sc-connection-status.success { color: #5dcc7a; }
 .sc-connection-status.error { color: var(--sc-danger); }
 .sc-connection-status.loading { color: var(--sc-warning); }
-.sc-custom-prompt-row,
-.sc-custom-prompt-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.sc-custom-prompt-slot-row,
-.sc-custom-prompt-save-row,
-.sc-custom-prompt-io-row {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.sc-custom-prompt-slot-row select,
-.sc-custom-prompt-save-row input {
-    flex: 1;
-    min-width: 0;
-}
 .sc-prompt-section .sc-row { margin-bottom: 7px; }
 .sc-prompt-segment {
     display: grid;

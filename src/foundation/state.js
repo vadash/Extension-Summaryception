@@ -3,8 +3,6 @@ import {
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
-    PROMOTION_PROMPT_PRESETS,
-    PROMPT_PRESETS,
     defaultSettings,
 } from './constants.js';
 import {
@@ -14,6 +12,34 @@ import {
     saveMetadata,
     saveSettingsDebounced,
 } from './context.js';
+
+const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'custom']);
+const PROMPT_SETTING_BINDINGS = Object.freeze([
+    {
+        presetKey: 'summarizerSystemPromptPreset',
+        promptKey: 'summarizerSystemPrompt',
+    },
+    {
+        presetKey: 'promptPreset',
+        promptKey: 'summarizerUserPrompt',
+    },
+    {
+        presetKey: 'summarizerRepairPromptPreset',
+        promptKey: 'summarizerRepairPrompt',
+    },
+    {
+        presetKey: 'promotionSystemPromptPreset',
+        promptKey: 'promotionSystemPrompt',
+    },
+    {
+        presetKey: 'promotionPromptPreset',
+        promptKey: 'promotionUserPrompt',
+    },
+    {
+        presetKey: 'promotionRepairPromptPreset',
+        promptKey: 'promotionRepairPrompt',
+    },
+]);
 
 /**
  * Get the extension settings object.
@@ -25,12 +51,6 @@ export function getSettings() {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
     const settings = extensionSettings[MODULE_NAME];
-    const hadPromptPreset = Boolean(settings.promptPreset);
-    const hadPromotionPromptPreset = Boolean(settings.promotionPromptPreset);
-    const promptBeforeBackfill =
-        typeof settings.summarizerUserPrompt === 'string' ? settings.summarizerUserPrompt : '';
-    const promotionPromptBeforeBackfill =
-        typeof settings.promotionUserPrompt === 'string' ? settings.promotionUserPrompt : '';
     const legacyPromptLogMode = Boolean(settings.promptLogMode);
     const hadPromptInputLogMode = Object.hasOwn(settings, 'promptInputLogMode');
     const hadPromptOutputLogMode = Object.hasOwn(settings, 'promptOutputLogMode');
@@ -45,26 +65,13 @@ export function getSettings() {
     }
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
-    const promptPresetMigrated = ensurePromptPresetMigrated(settings, {
-        hadPromptPreset,
-        presetKey: 'promptPreset',
-        presets: PROMPT_PRESETS,
-        promptBeforeBackfill,
-        userPromptKey: 'summarizerUserPrompt',
-    });
-    const promotionPromptPresetMigrated = ensurePromptPresetMigrated(settings, {
-        hadPromptPreset: hadPromotionPromptPreset,
-        presetKey: 'promotionPromptPreset',
-        presets: PROMOTION_PROMPT_PRESETS,
-        promptBeforeBackfill: promotionPromptBeforeBackfill,
-        userPromptKey: 'promotionUserPrompt',
-    });
+    const promptSettingsNormalized = normalizePromptSettings(settings);
     const promptLogMigrated = ensurePromptLogSettingsMigrated(settings, {
         legacyPromptLogMode,
         hadPromptInputLogMode,
         hadPromptOutputLogMode,
     });
-    if (promptPresetMigrated || promotionPromptPresetMigrated || promptLogMigrated) {
+    if (promptSettingsNormalized || promptLogMigrated) {
         saveSettingsDebounced();
     }
     return settings;
@@ -203,33 +210,27 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
 }
 
-/**
- * Migrate prompt presets for existing users: empty -> narrative, existing text -> custom.
- * @param {ExtensionSettings} settings
- * @param {object} config
- * @param {boolean} config.hadPromptPreset
- * @param {'promptPreset' | 'promotionPromptPreset'} config.presetKey
- * @param {{ [key: string]: string | null }} config.presets
- * @param {string} config.promptBeforeBackfill
- * @param {'summarizerUserPrompt' | 'promotionUserPrompt'} config.userPromptKey
- * @returns {boolean}
- */
-function ensurePromptPresetMigrated(
-    settings,
-    { hadPromptPreset, presetKey, presets, promptBeforeBackfill, userPromptKey },
-) {
-    if (hadPromptPreset && Object.hasOwn(presets, settings[presetKey])) {
-        return false;
+function normalizePromptSettings(settings) {
+    let changed = false;
+    for (const binding of PROMPT_SETTING_BINDINGS) {
+        const defaults = /** @type {Record<string, unknown>} */ (defaultSettings);
+        const settingsRecord = /** @type {Record<string, unknown>} */ (
+            /** @type {unknown} */ (settings)
+        );
+        if (!isSettingValue(PROMPT_PRESET_VALUES, settingsRecord[binding.presetKey])) {
+            settingsRecord[binding.presetKey] = defaults[binding.presetKey];
+            settingsRecord[binding.promptKey] = defaults[binding.promptKey];
+            changed = true;
+            continue;
+        }
+        const isDefaultPrompt = settingsRecord[binding.presetKey] !== 'custom';
+        const promptText = settingsRecord[binding.promptKey];
+        if (typeof promptText !== 'string' || (isDefaultPrompt && !promptText.trim())) {
+            settingsRecord[binding.promptKey] = defaults[binding.promptKey];
+            changed = true;
+        }
     }
-    const currentPrompt = promptBeforeBackfill.trim();
-
-    if (!currentPrompt) {
-        settings[presetKey] = 'narrative';
-        settings[userPromptKey] = presets.narrative || '';
-    } else {
-        settings[presetKey] = 'custom';
-    }
-    return true;
+    return changed;
 }
 
 /**

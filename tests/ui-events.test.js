@@ -9,7 +9,6 @@ import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 const mocks = vi.hoisted(() => ({
     updateInjection: vi.fn(),
     updateUI: vi.fn(),
-    updateCustomPromptSlots: vi.fn(),
     syncPayloadSchematic: vi.fn(),
 }));
 
@@ -166,7 +165,6 @@ describe('ui prompt/reset events', () => {
             promotionPromptPreset: 'custom',
             promotionUserPrompt: 'Custom promotion prompt',
         });
-        expect(ctx.extensionSettings.summaryception.savedCustomPromotionPrompts).toEqual({});
         expect(mocks.updateInjection).toHaveBeenCalledOnce();
         expect(mocks.updateUI).toHaveBeenCalledOnce();
     });
@@ -180,11 +178,10 @@ describe('ui prompt/reset events', () => {
         ui.trigger('input', '#sc_summarizer_system_prompt');
 
         expect(ctx.extensionSettings.summaryception).toMatchObject({
-            promptPreset: 'custom',
+            summarizerSystemPromptPreset: 'custom',
             summarizerSystemPrompt: 'Custom system prompt',
         });
-        expect(ui.element('#sc_prompt_preset').getValue()).toBe('custom');
-        expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();
+        expect(ui.element('#sc_summarizer_system_prompt_preset').getValue()).toBe('custom');
     });
 
     it('switches Layer 1+ system-prompt edits to custom', async () => {
@@ -196,17 +193,39 @@ describe('ui prompt/reset events', () => {
         ui.trigger('input', '#sc_promotion_system_prompt');
 
         expect(ctx.extensionSettings.summaryception).toMatchObject({
-            promotionPromptPreset: 'custom',
+            promotionSystemPromptPreset: 'custom',
             promotionSystemPrompt: 'Custom promotion system prompt',
         });
-        expect(ui.element('#sc_promotion_prompt_preset').getValue()).toBe('custom');
-        expect(mocks.updateCustomPromptSlots).toHaveBeenCalledOnce();
+        expect(ui.element('#sc_promotion_system_prompt_preset').getValue()).toBe('custom');
     });
 
-    it('resets stock Layer 1+ prompts to defaults', async () => {
+    it('switches repair prompt edits to custom independently', async () => {
         const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_summarizer_repair_prompt').val('Custom L0 repair prompt');
+        ui.trigger('input', '#sc_summarizer_repair_prompt');
+        ui.element('#sc_promotion_repair_prompt').val('Custom L1 repair prompt');
+        ui.trigger('input', '#sc_promotion_repair_prompt');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            summarizerRepairPromptPreset: 'custom',
+            summarizerRepairPrompt: 'Custom L0 repair prompt',
+            promotionRepairPromptPreset: 'custom',
+            promotionRepairPrompt: 'Custom L1 repair prompt',
+        });
+        expect(ui.element('#sc_summarizer_repair_prompt_preset').getValue()).toBe('custom');
+        expect(ui.element('#sc_promotion_repair_prompt_preset').getValue()).toBe('custom');
+    });
+
+    it('resets stock prompt fields to defaults independently', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.summarizerSystemPrompt = 'Stock-edited L0 system';
+        settings.summarizerRepairPrompt = 'Stock-edited L0 repair';
         settings.promotionSystemPrompt = 'Stock-edited system';
         settings.promotionUserPrompt = 'Stock-edited user';
+        settings.promotionRepairPrompt = 'Stock-edited repair';
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness();
 
@@ -214,10 +233,36 @@ describe('ui prompt/reset events', () => {
         ui.trigger('click', '#sc_reset_defaults');
 
         expect(ctx.extensionSettings.summaryception).toMatchObject({
+            summarizerSystemPromptPreset: defaultSettings.summarizerSystemPromptPreset,
+            summarizerSystemPrompt: defaultSettings.summarizerSystemPrompt,
+            summarizerRepairPromptPreset: defaultSettings.summarizerRepairPromptPreset,
+            summarizerRepairPrompt: defaultSettings.summarizerRepairPrompt,
+            promotionSystemPromptPreset: defaultSettings.promotionSystemPromptPreset,
             promotionPromptPreset: defaultSettings.promotionPromptPreset,
             promotionSystemPrompt: defaultSettings.promotionSystemPrompt,
             promotionUserPrompt: defaultSettings.promotionUserPrompt,
+            promotionRepairPromptPreset: defaultSettings.promotionRepairPromptPreset,
+            promotionRepairPrompt: defaultSettings.promotionRepairPrompt,
         });
+    });
+
+    it('selecting default preset restores that prompt field default', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.summarizerRepairPromptPreset = 'custom';
+        settings.summarizerRepairPrompt = 'Custom L0 repair prompt';
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_summarizer_repair_prompt_preset').val('narrative');
+        ui.trigger('change', '#sc_summarizer_repair_prompt_preset');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            summarizerRepairPromptPreset: 'narrative',
+            summarizerRepairPrompt: defaultSettings.summarizerRepairPrompt,
+        });
+        expect(ui.element('#sc_summarizer_repair_prompt').getValue()).toBe(
+            defaultSettings.summarizerRepairPrompt,
+        );
     });
 
     it('resets Chinese output policy to the enabled default', async () => {
@@ -230,22 +275,6 @@ describe('ui prompt/reset events', () => {
         ui.trigger('click', '#sc_reset_defaults');
 
         expect(ctx.extensionSettings.summaryception.stripChineseIdeographs).toBe(true);
-    });
-
-    it('exports Layer 0 and Layer 1+ prompts with profile-specific filenames', async () => {
-        installDownloadStubs();
-        installSillyTavernStub({ settings: structuredClone(defaultSettings) });
-        const ui = await installUiEventsHarness();
-
-        ui.element('#sc_summarizer_user_prompt').val('Layer 0 custom prompt');
-        ui.trigger('click', '#sc_custom_prompt_export');
-        ui.element('#sc_promotion_user_prompt').val('Layer 1 custom prompt');
-        ui.trigger('click', '#sc_promotion_custom_prompt_export');
-
-        expect(globalThis.__summaryceptionDownloads).toEqual([
-            expect.stringContaining('summaryception_L0_summary_'),
-            expect.stringContaining('summaryception_L1_summary_'),
-        ]);
     });
 });
 
@@ -345,7 +374,6 @@ function mockUiEventDependencies() {
     }));
     vi.doMock('../src/entry/ui.js', () => ({
         updateUI: mocks.updateUI,
-        updateCustomPromptSlots: mocks.updateCustomPromptSlots,
         syncPayloadSchematic: mocks.syncPayloadSchematic,
     }));
     vi.doMock('../src/entry/ui-dialogs.js', () => ({
@@ -357,24 +385,4 @@ function mockUiEventDependencies() {
         showSlopBreakerOutcome: vi.fn(),
         updateManualProgressToast: vi.fn(),
     }));
-}
-
-function installDownloadStubs() {
-    const downloads = [];
-    const originalCreateObjectURL = globalThis.URL.createObjectURL;
-    const originalRevokeObjectURL = globalThis.URL.revokeObjectURL;
-    globalThis.__summaryceptionDownloads = downloads;
-    globalThis.__summaryceptionRestoreDownloads = () => {
-        globalThis.URL.createObjectURL = originalCreateObjectURL;
-        globalThis.URL.revokeObjectURL = originalRevokeObjectURL;
-    };
-    globalThis.document = {
-        createElement: vi.fn(() => ({
-            click: vi.fn(function () {
-                downloads.push(this.download);
-            }),
-        })),
-    };
-    globalThis.URL.createObjectURL = vi.fn(() => 'blob:summaryception');
-    globalThis.URL.revokeObjectURL = vi.fn();
 }

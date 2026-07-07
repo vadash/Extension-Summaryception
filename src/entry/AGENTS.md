@@ -5,7 +5,7 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 ## UI Guidelines
 - Keep HTML control IDs stable.
 - Root `settings.html` and `style.css` are the SillyTavern-rendered UI assets; `src/entry/` modules should annotate or bind that DOM only after the template is appended.
-- Settings tabs are intentionally scoped: Status for overview/actions, Memory for layer stats/injection preview/import-export/snippet browsing, Settings for connection/retention/budget/layering controls, Prompts for L0 and L1+ prompt presets, and Tools for diagnostics/reset/clear memory.
+- Settings tabs are intentionally scoped: Status for overview/actions, Memory for layer stats/injection preview/import-export/snippet browsing, Settings for connection/retention/budget/layering controls, Prompts for the injection wrapper plus L0/L1+ system/user/repair prompt presets, and Tools for diagnostics/reset/clear memory.
 - Prefer compact, theme-aware panels and Font Awesome icons over emoji headings.
 - Settings UI reloads should always land on the Status tab.
 - Keep budget/status visuals compact and read-only.

@@ -341,6 +341,19 @@ const HELP_ENTRIES = [
     ],
     ...CONNECTION_HELP_ENTRIES,
     [
+        'layer0_system_prompt_preset',
+        basicHelp({
+            selector: selectorFor('sc_summarizer_system_prompt_preset'),
+            title: 'Layer 0 System Preset',
+            short: 'Choose the Layer 0 system prompt source.',
+            controls: [controlFor('sc_summarizer_system_prompt_preset')],
+            controlsText:
+                'Controls whether the Layer 0 system prompt uses the default or custom text.',
+            when: 'when changing the role instruction for Layer 0 summaries.',
+            risk: 'changing system instructions can affect summary structure.',
+        }),
+    ],
+    [
         'layer0_system_prompt',
         basicHelp({
             selector: selectorFor('sc_summarizer_system_prompt'),
@@ -357,37 +370,13 @@ const HELP_ENTRIES = [
         'prompt_preset',
         basicHelp({
             selector: selectorFor('sc_prompt_preset'),
-            title: 'Prompt Preset',
+            title: 'Layer 0 User Preset',
             short: 'Choose the Layer 0 user-prompt template.',
             controls: [controlFor('sc_prompt_preset')],
-            controlsText: 'Controls which Layer 0 user prompt template is active.',
-            when: 'when switching between narrative memory and your own custom prompt.',
-            risk: 'changing presets can change what future summaries preserve.',
-        }),
-    ],
-    [
-        'saved_custom_prompts',
-        basicHelp({
-            selector: selectorFor('sc_custom_prompt_slot'),
-            title: 'Saved Custom Prompts',
-            short: 'Load one of your saved Layer 0 custom prompts.',
-            controls: [controlFor('sc_custom_prompt_slot')],
             controlsText:
-                'Controls which saved custom prompt slot is selected for loading or deleting.',
-            when: 'when reusing a prompt you previously saved.',
-            risk: 'loading the wrong slot replaces the current Layer 0 user prompt text.',
-        }),
-    ],
-    [
-        'custom_prompt_name',
-        basicHelp({
-            selector: controlFor('sc_custom_prompt_name'),
-            title: 'Prompt Name',
-            short: 'Name used when saving the current custom prompt.',
-            controls: [controlFor('sc_custom_prompt_name')],
-            controlsText: 'Controls the saved slot name for the current custom prompt.',
-            when: 'before saving a reusable prompt.',
-            risk: 'using an existing name overwrites that saved prompt.',
+                'Controls whether the Layer 0 user prompt uses the default or custom text.',
+            when: 'when switching between default narrative memory and your own custom prompt.',
+            risk: 'changing presets can change what future summaries preserve.',
         }),
     ],
     [
@@ -404,6 +393,32 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'layer0_repair_prompt_preset',
+        basicHelp({
+            selector: selectorFor('sc_summarizer_repair_prompt_preset'),
+            title: 'Layer 0 Repair Preset',
+            short: 'Choose the Layer 0 repair prompt source.',
+            controls: [controlFor('sc_summarizer_repair_prompt_preset')],
+            controlsText:
+                'Controls whether Layer 0 validation retries use the default or custom repair prompt.',
+            when: 'if invalid Layer 0 output needs stricter retry instructions.',
+            risk: 'weak repair prompts can keep failing output validation.',
+        }),
+    ],
+    [
+        'layer0_repair_prompt',
+        basicHelp({
+            selector: selectorFor('sc_summarizer_repair_prompt'),
+            title: 'Layer 0 Repair Prompt',
+            short: 'Template used after invalid Layer 0 output.',
+            controls: [controlFor('sc_summarizer_repair_prompt')],
+            controlsText:
+                'Controls the user prompt for Layer 0 validation repair retries and can use {{player_name}}, {{context_str}}, and {{story_txt}}.',
+            when: 'if the default repair prompt is not strict enough for your summarizer.',
+            risk: 'missing required section instructions can prevent repair retries from succeeding.',
+        }),
+    ],
+    [
         'injection_template',
         basicHelp({
             selector: selectorFor('sc_injection_template'),
@@ -414,6 +429,19 @@ const HELP_ENTRIES = [
                 'Controls the wrapper around injected memory and must include {{summary}}.',
             when: 'if your model follows a different memory tag or framing better.',
             risk: 'removing {{summary}} means no memory text is injected.',
+        }),
+    ],
+    [
+        'promotion_system_prompt_preset',
+        basicHelp({
+            selector: selectorFor('sc_promotion_system_prompt_preset'),
+            title: 'Promotion System Preset',
+            short: 'Choose the Layer 1+ system prompt source.',
+            controls: [controlFor('sc_promotion_system_prompt_preset')],
+            controlsText:
+                'Controls whether the Layer 1+ system prompt uses the default or custom text.',
+            when: 'when changing the role instruction for deeper memory merges.',
+            risk: 'changing system instructions can affect promotion compression.',
         }),
     ],
     [
@@ -432,37 +460,13 @@ const HELP_ENTRIES = [
         'promotion_prompt_preset',
         basicHelp({
             selector: selectorFor('sc_promotion_prompt_preset'),
-            title: 'Promotion Prompt Preset',
+            title: 'Layer 1+ User Preset',
             short: 'Choose the Layer 1+ merge user-prompt template.',
             controls: [controlFor('sc_promotion_prompt_preset')],
-            controlsText: 'Controls which Layer 1+ promotion user prompt template is active.',
-            when: 'when switching between narrative promotion memory and your own custom prompt.',
-            risk: 'changing presets can change how deeper summaries preserve durable facts.',
-        }),
-    ],
-    [
-        'saved_custom_promotion_prompts',
-        basicHelp({
-            selector: selectorFor('sc_promotion_custom_prompt_slot'),
-            title: 'Saved Promotion Prompts',
-            short: 'Load one of your saved Layer 1+ custom prompts.',
-            controls: [controlFor('sc_promotion_custom_prompt_slot')],
             controlsText:
-                'Controls which saved promotion prompt slot is selected for loading or deleting.',
-            when: 'when reusing a promotion prompt you previously saved.',
-            risk: 'loading the wrong slot replaces the current Layer 1+ user prompt text.',
-        }),
-    ],
-    [
-        'promotion_custom_prompt_name',
-        basicHelp({
-            selector: controlFor('sc_promotion_custom_prompt_name'),
-            title: 'Promotion Prompt Name',
-            short: 'Name used when saving the current promotion custom prompt.',
-            controls: [controlFor('sc_promotion_custom_prompt_name')],
-            controlsText: 'Controls the saved slot name for the current promotion custom prompt.',
-            when: 'before saving a reusable promotion prompt.',
-            risk: 'using an existing name overwrites that saved prompt.',
+                'Controls whether the Layer 1+ user prompt uses the default or custom text.',
+            when: 'when switching between default promotion memory and your own custom prompt.',
+            risk: 'changing presets can change how deeper summaries preserve durable facts.',
         }),
     ],
     [
@@ -476,6 +480,32 @@ const HELP_ENTRIES = [
                 'Controls the user prompt for Layer 1+ promotion and can use {{player_name}}, {{context_str}}, and {{story_txt}}.',
             when: 'if deeper memories keep too much detail or lose key state.',
             risk: 'weak instructions can create bloated or lossy meta-summaries.',
+        }),
+    ],
+    [
+        'promotion_repair_prompt_preset',
+        basicHelp({
+            selector: selectorFor('sc_promotion_repair_prompt_preset'),
+            title: 'Layer 1+ Repair Preset',
+            short: 'Choose the Layer 1+ repair prompt source.',
+            controls: [controlFor('sc_promotion_repair_prompt_preset')],
+            controlsText:
+                'Controls whether failed Layer 1+ compression repair uses the default or custom repair prompt.',
+            when: 'if promotion repair needs a different compression style.',
+            risk: 'weak repair prompts can keep promoted memories too large.',
+        }),
+    ],
+    [
+        'promotion_repair_prompt',
+        basicHelp({
+            selector: selectorFor('sc_promotion_repair_prompt'),
+            title: 'Layer 1+ Repair Prompt',
+            short: 'Template used for failed promotion compression repair.',
+            controls: [controlFor('sc_promotion_repair_prompt')],
+            controlsText:
+                'Controls the user prompt for Layer 1+ promotion repair and can use {{player_name}}, {{context_str}}, {{story_txt}}, and {{source_state}}.',
+            when: 'if repaired promotions still keep too much detail.',
+            risk: 'bad repair instructions can erase durable continuity.',
         }),
     ],
     [
@@ -784,13 +814,9 @@ function annotateHelpEntry($settings, key, entry) {
 }
 
 function resolveHelpTarget($selected) {
-    const rowSelector = [
-        '.sc-row',
-        '.sc-setting-row',
-        '.sc-toggle-row',
-        '.sc-mode-card',
-        '.sc-custom-prompt-save-row',
-    ].join(', ');
+    const rowSelector = ['.sc-row', '.sc-setting-row', '.sc-toggle-row', '.sc-mode-card'].join(
+        ', ',
+    );
 
     if ($selected.is(rowSelector)) {
         return $selected;
