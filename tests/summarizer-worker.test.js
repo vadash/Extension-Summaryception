@@ -199,10 +199,20 @@ describe('runCatchup', () => {
         await runCatchup([], 1, { onStart, onProgress });
 
         expect(onStart).toHaveBeenCalledWith(
-            expect.objectContaining({ completed: 0, totalBatches: 1 }),
+            expect.objectContaining({
+                completed: 0,
+                totalBatches: 1,
+                label: 'Processing',
+                title: 'Summaryception Catch-Up',
+            }),
         );
         expect(onProgress).toHaveBeenCalledWith(
-            expect.objectContaining({ completed: 1, totalBatches: 1 }),
+            expect.objectContaining({
+                completed: 1,
+                totalBatches: 1,
+                label: 'Processing',
+                title: 'Summaryception Catch-Up',
+            }),
         );
     });
 
@@ -298,6 +308,37 @@ describe('runSlopBreaker', () => {
         );
         expect(outcome.fullyCommitted).toBe(true);
         expect(outcome.shouldReload).toBe(true);
+    });
+
+    it('does not report completion when a slop run stops before the fixed target', async () => {
+        const ctx = installWorkerContext({
+            chat: [
+                makeMessage({ mes: 'assistant source 0' }),
+                makeMessage({ isUser: true, mes: 'middle user 1', name: 'Player' }),
+                makeMessage({ mes: 'assistant source 2' }),
+                makeMessage({ isUser: true, mes: 'middle user 3', name: 'Player' }),
+                makeMessage({ mes: 'assistant source 4' }),
+                makeMessage({ isUser: true, mes: 'middle user 5', name: 'Player' }),
+                makeMessage({ mes: 'assistant target' }),
+            ],
+            settings: workerSettings({
+                maxSummaryTurns: 3,
+            }),
+        });
+
+        mocks.summarizeBatchFromTurns.mockImplementationOnce(async (_turns, opts) => {
+            ctx.chatMetadata.summaryception.summarizedUpTo = opts.sourceEndIdx;
+            ctx.chat[6].is_hidden = true;
+            return true;
+        });
+
+        const { runSlopBreaker } = await import('../src/core/summarizer.js');
+        const outcome = await runSlopBreaker();
+
+        expect(outcome.completed).toBe(1);
+        expect(outcome.fullyCommitted).toBe(false);
+        expect(outcome.shouldReload).toBe(false);
+        expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(4);
     });
 
     it('normalizes promotion pressure before continuing a slop breaker run', async () => {

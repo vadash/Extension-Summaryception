@@ -185,14 +185,25 @@ async function processPromotionCycle({ overflowKnown = false } = {}) {
     return hadOverflow ? 'failed' : 'idle';
 }
 
+const MANUAL_STRATEGIES = Object.freeze({
+    [ELASTIC_STRATEGIES.FORCE]: {
+        buildTask: buildForceTask,
+        processBatch: processForceBatch,
+        isComplete: () => true,
+    },
+    [ELASTIC_STRATEGIES.SLOP]: {
+        buildTask: buildSlopTask,
+        processBatch: processSlopBatch,
+        isComplete: (_outcome, task) => getChatStore().summarizedUpTo >= task.targetIndex,
+    },
+});
+
 async function buildManualTask(strategy, options) {
-    if (strategy === ELASTIC_STRATEGIES.SLOP) {
-        return buildSlopTask(options);
-    }
-    return await buildForceTask(options);
+    const manualStrategy = MANUAL_STRATEGIES[strategy];
+    return await manualStrategy?.buildTask(options, manualStrategy);
 }
 
-async function buildForceTask(options) {
+async function buildForceTask(options, strategy) {
     const initialPlan = await getForcePlan();
     if (!initialPlan) {
         return null;
@@ -207,11 +218,12 @@ async function buildForceTask(options) {
         targetIndex: initialPlan.tokenBoundaryIndex,
         getBatch: getForcePlan,
         isBatchReady: (batch) => Boolean(batch),
-        processBatch: processForceBatch,
+        processBatch: strategy.processBatch,
+        isComplete: strategy.isComplete,
     };
 }
 
-function buildSlopTask(options) {
+function buildSlopTask(options, strategy) {
     const initialPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
     if (initialPlan.reason !== 'ready') {
         return null;
@@ -228,7 +240,8 @@ function buildSlopTask(options) {
         getBatch: () =>
             getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), { targetIndex }),
         isBatchReady: (batch) => batch?.reason === 'ready',
-        processBatch: processSlopBatch,
+        processBatch: strategy.processBatch,
+        isComplete: strategy.isComplete,
     };
 }
 
@@ -382,10 +395,7 @@ function isManualRunComplete(outcome, task) {
     if (outcome.cancelled || outcome.blocked || outcome.failed > 0 || outcome.completed === 0) {
         return false;
     }
-    if (task.kind === ELASTIC_STRATEGIES.SLOP) {
-        return getChatStore().summarizedUpTo >= task.targetIndex;
-    }
-    return true;
+    return task.isComplete(outcome, task);
 }
 
 async function prepareManualRun(deps, recoverReason) {
