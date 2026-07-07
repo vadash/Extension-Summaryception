@@ -5,7 +5,10 @@ const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
 const MAX_LAYER0_RESPONSE_TOKENS = 384;
-const MAX_PROMOTION_RESPONSE_TOKENS = 512;
+const MIN_PROMOTION_RESPONSE_TOKENS = 512;
+const MAX_PROMOTION_RESPONSE_TOKENS = 2048;
+const PROMOTION_RESPONSE_TOKENS_PER_SNIPPET = 256;
+const PROMOTION_RESPONSE_TOKEN_BUFFER = 200;
 const PROMOTION_TARGET_RATIO = 0.4;
 
 /**
@@ -42,10 +45,17 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
 export function getLayer0ResponseTokenCap(settings = {}, metadata = {}) {
     if (metadata.kind === 'promotion') {
         const target = getPromotionSummaryTokenTarget(metadata);
-        if (target === null) {
-            return MAX_PROMOTION_RESPONSE_TOKENS;
-        }
-        return Math.min(target + LAYER0_RESPONSE_TOKEN_BUFFER, MAX_PROMOTION_RESPONSE_TOKENS);
+        const effectiveTarget = target === null ? MIN_PROMOTION_RESPONSE_TOKENS : target;
+        const mergedCount =
+            Number(metadata.mergedSnippetCount) || settings.snippetsPerPromotion || 3;
+        const scaledCap =
+            effectiveTarget +
+            mergedCount * PROMOTION_RESPONSE_TOKENS_PER_SNIPPET +
+            PROMOTION_RESPONSE_TOKEN_BUFFER;
+        return Math.min(
+            Math.max(scaledCap, MIN_PROMOTION_RESPONSE_TOKENS),
+            MAX_PROMOTION_RESPONSE_TOKENS,
+        );
     }
     return Math.min(
         getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER,
@@ -75,8 +85,9 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         '<summaryception_l0_constraints>\n' +
         `Target length: at most about ${target} tokens.\n` +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
-        '[NARRATIVE] must be one dense paragraph covering only durable chronology and outcomes.\n' +
+        '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
         '[STATE] must contain only changed or newly relevant current facts as key: value lines; omit unchanged facts.\n' +
+        'Do NOT write descriptive sentences in the state block. Use concise keys and values only.\n' +
         'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
         'Include one full date/time anchor when present, e.g. Saturday Oct 19, 7PM.\n' +
         'After that, use coarse hour labels like 8AM or 7PM; avoid minute tracking unless essential.\n' +
@@ -118,12 +129,15 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_promotion_constraints>\n' +
         targetLine +
-        'Output exactly one dense paragraph with no heading, list, preamble, or markdown.\n' +
+        'Output exactly two sections: [NARRATIVE] and [STATE].\n' +
+        '[NARRATIVE] must be one dense paragraph with no heading, list, preamble, or markdown.\n' +
         'Preserve only durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
         'Preserve useful full date/time anchors already present in memory.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
         'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +
+        '[NARRATIVE] must contain ONLY story, actions, and events. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
+        '[STATE] must contain ONLY consolidated key: value facts, counters, and status flags. Do NOT write descriptive sentences in the state block.\n' +
         '</summaryception_promotion_constraints>'
     );
 }

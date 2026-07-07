@@ -89,9 +89,12 @@ export class RequestRunner {
                 this.primaryRetryExhaustedBuckets.add(healthBucket);
             }
 
-            if (primary.retryable && fallbackSettings) {
+            const shouldTryFallback =
+                fallbackSettings && (primary.retryable || primary.hardFailover);
+
+            if (shouldTryFallback) {
                 info(
-                    `Primary summarizer failed after retryable errors; trying fallback ` +
+                    `Primary summarizer failed${primary.hardFailover ? ' (hard network failure)' : ' after retryable errors'}; trying fallback ` +
                         `(${fallbackSettings.connectionSource}).`,
                 );
                 const fallback = await this.runAttemptSeries({
@@ -139,7 +142,7 @@ export class RequestRunner {
      * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
      * @param {string} p.routeLabel - Human-readable route label for trace logs
      * @param {number} p.maxRetries - Maximum retry count for this route
-     * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false }>}
+     * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }>}
      */
     async runAttemptSeries({
         settings,
@@ -161,6 +164,7 @@ export class RequestRunner {
                     error: lastError,
                     retryable: false,
                     retriesExhausted: false,
+                    hardFailover: false,
                 };
             }
 
@@ -184,6 +188,7 @@ export class RequestRunner {
                     error: attemptResult.error,
                     retryable: false,
                     retriesExhausted: false,
+                    hardFailover: false,
                 };
             }
 
@@ -196,6 +201,7 @@ export class RequestRunner {
                     error: lastError,
                     retryable: false,
                     retriesExhausted: false,
+                    hardFailover: false,
                 };
             }
 
@@ -206,6 +212,7 @@ export class RequestRunner {
                     error: lastError,
                     retryable: attemptResult.shouldRetry,
                     retriesExhausted: attemptResult.shouldRetry && attempt >= maxRetries,
+                    hardFailover: attemptResult.hardFailover,
                 };
             }
 
@@ -218,6 +225,7 @@ export class RequestRunner {
             error: lastError,
             retryable: true,
             retriesExhausted: true,
+            hardFailover: false,
         };
     }
 
@@ -233,7 +241,7 @@ export class RequestRunner {
      * @param {string} p.routeLabel - Human-readable route label for trace logs
      * @param {number} p.maxRetries - Maximum retry count for this route
      * @param {number} p.timeoutMs - Timeout in milliseconds for this attempt
-     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }>}
+     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }>}
      */
     async executeAttempt({
         settings,
@@ -304,6 +312,7 @@ export class RequestRunner {
                 error: new Error('no error'),
                 aborted: false,
                 shouldRetry: false,
+                hardFailover: false,
             };
         } catch (err) {
             const result = classifyAttemptError(err, signal);
@@ -380,7 +389,7 @@ async function traceSummarizerRequest({ settings, systemPrompt, prompt, metadata
  * Classify an exception from a summarizer attempt.
  * @param {unknown} err - Thrown error
  * @param {AbortSignal} signal - Abort signal
- * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }}
+ * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }}
  */
 function classifyAttemptError(err, signal) {
     const error =
@@ -394,7 +403,27 @@ function classifyAttemptError(err, signal) {
     });
 
     if (signal.aborted || error.message === 'Aborted by user') {
-        return { success: false, result: '', error, aborted: true, shouldRetry: false };
+        return {
+            success: false,
+            result: '',
+            error,
+            aborted: true,
+            shouldRetry: false,
+            hardFailover: false,
+        };
+    }
+
+    const isHardNetworkFailure = isHardNetworkError(error);
+    if (isHardNetworkFailure) {
+        info('Hard network failure detected; skipping retries for this route.', error.message);
+        return {
+            success: false,
+            result: '',
+            error,
+            aborted: false,
+            shouldRetry: false,
+            hardFailover: true,
+        };
     }
 
     const shouldRetry = isRetryableError(error);
@@ -406,10 +435,30 @@ function classifyAttemptError(err, signal) {
 }
 
 /**
+ * Detect definitive, non-recoverable connection-level failures that will not
+ * succeed on retry and should trigger immediate failover instead.
+ * @param {Error & { message?: string, name?: string }} error
+ * @returns {boolean}
+ */
+function isHardNetworkError(error) {
+    const msg = (error?.message || '').toLowerCase();
+    if (!msg) {
+        return false;
+    }
+    return (
+        msg.includes('failed to fetch') ||
+        msg.includes('econnrefused') ||
+        msg.includes('err_connection_refused') ||
+        msg.includes('err_name_not_resolved') ||
+        msg.includes('err_internet_disconnected')
+    );
+}
+
+/**
  * Build a failed attempt result.
  * @param {Error} error - Attempt error
  * @param {boolean} shouldRetry - Whether retry should continue
- * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean }}
+ * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean }}
  */
 function buildAttemptFailure(error, shouldRetry) {
     return {
@@ -418,17 +467,23 @@ function buildAttemptFailure(error, shouldRetry) {
         error,
         aborted: false,
         shouldRetry,
+        hardFailover: false,
     };
 }
 
 /**
  * Decide whether retry processing should stop.
- * @param {{ shouldRetry: boolean }} attemptResult - Attempt result
+ * @param {{ shouldRetry: boolean, hardFailover?: boolean }} attemptResult - Attempt result
  * @param {number} attempt - Zero-based attempt index
  * @param {number} maxRetries - Maximum retry count for this route
  * @returns {boolean}
  */
 function shouldStopRetrying(attemptResult, attempt, maxRetries) {
+    if (attemptResult.hardFailover) {
+        trace('  HARD NETWORK FAILURE, SKIPPING RETRIES FOR THIS ROUTE');
+        return true;
+    }
+
     if (!attemptResult.shouldRetry) {
         trace('  ERROR IS NON-RETRYABLE, BREAKING');
         return true;

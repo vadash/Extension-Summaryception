@@ -84,10 +84,13 @@ describe('isRetryableError', () => {
         expect(isRetryableError(new Error('timeout'))).toBe(true);
         expect(isRetryableError(new Error('Request timed out after 120s'))).toBe(true);
         expect(isRetryableError(new Error('ECONNRESET'))).toBe(true);
-        expect(isRetryableError(new Error('ECONNREFUSED'))).toBe(true);
         expect(isRetryableError(new Error('network error'))).toBe(true);
         expect(isRetryableError(new Error('overloaded'))).toBe(true);
         expect(isRetryableError(new Error('at capacity'))).toBe(true);
         expect(isRetryableError(new Error('rate limit exceeded'))).toBe(true);
+    });
+
+    it('treats hard connection refusals as non-retryable', () => {
+        expect(isRetryableError(new Error('ECONNREFUSED'))).toBe(false);
     });
 });

@@ -4,6 +4,7 @@ import {
     installSillyTavernStub,
     makeSummaryStore,
 } from './test-helpers.js';
+import { parseSnippet } from '../src/core/summarizer-state.js';
 
 const mocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
@@ -232,7 +233,7 @@ describe('promotion prompt guard', () => {
         });
     });
 
-    it('sends only narratives to promotion and stores code-merged state', async () => {
+    it('sends only narratives to promotion and falls back to code-merged state when LLM omits state', async () => {
         mocks.callSummarizer.mockResolvedValue('Merged narrative.');
         installSillyTavernStub({
             metadata: {
@@ -276,7 +277,11 @@ describe('promotion prompt guard', () => {
         expect(mocks.callSummarizer).toHaveBeenCalledWith(
             ['First event.', 'Second event.', 'Third event.'].join('\n\n'),
             expect.any(String),
-            expect.objectContaining({ kind: 'promotion', memoryTokensBefore: expect.any(Number) }),
+            expect.objectContaining({
+                kind: 'promotion',
+                memoryTokensBefore: expect.any(Number),
+                sourceState: expect.stringContaining('[STATE]'),
+            }),
         );
         expect(getChatStore().layers[1][0].text).toBe(
             [
@@ -288,6 +293,67 @@ describe('promotion prompt guard', () => {
                 'counters: score 2',
             ].join('\n'),
         );
+    });
+
+    it('uses LLM-produced state when promotion output includes [STATE]', async () => {
+        mocks.callSummarizer.mockResolvedValue(
+            [
+                '[NARRATIVE]',
+                'The trio advanced through the dock and secured a boat.',
+                '',
+                '[STATE]',
+                'location: harbor',
+                'inventory: boat, key',
+                'counters: score 5',
+            ].join('\n'),
+        );
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: `[NARRATIVE]\n${'first event. '.repeat(400)}\n\n[STATE]\nlocation: tower\nhooks: open gate`,
+                            },
+                            {
+                                text: `[NARRATIVE]\n${'second event. '.repeat(400)}\n\n[STATE]\nplace: dock\ninventory: key`,
+                            },
+                            {
+                                text: `[NARRATIVE]\n${'third event. '.repeat(400)}\n\n[STATE]\nhooks: resolved\ncounters: score 2`,
+                            },
+                            { text: `[NARRATIVE]\n${'extra 1. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 2. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 3. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 4. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 5. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 6. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 7. '.repeat(400)}\n\n[STATE]` },
+                            { text: `[NARRATIVE]\n${'extra 8. '.repeat(400)}\n\n[STATE]` },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 10,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        const storedText = getChatStore().layers[1][0].text;
+        const parsed = parseStoredSnippet(storedText);
+        expect(parsed.narrative).toBe('The trio advanced through the dock and secured a boat.');
+        expect(parsed.state).toEqual({
+            location: 'harbor',
+            inventory: 'boat, key',
+            counters: 'score 5',
+        });
     });
 
     it('rejects promotion output that is not smaller than its source memory', async () => {
@@ -459,4 +525,8 @@ function countWhitespaceTokens(text) {
         .trim()
         .split(/\s+/)
         .filter(Boolean).length;
+}
+
+function parseStoredSnippet(text) {
+    return parseSnippet(text);
 }

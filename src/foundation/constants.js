@@ -76,11 +76,12 @@ If the prose uses 2nd person ('you'), map it directly to <player_name>. Never us
 Output exactly two sections:
 
 [NARRATIVE]
-<one dense chronological prose paragraph covering events, actions, and outcomes>
+<one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here.>
 
 [STATE]
 Extract only durable state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
 Omit unchanged state. Omission means the previous value is preserved.
+Do NOT write descriptive sentences in the state block. Use concise keys and values only.
 To delete a resolved or emptied variable, write: key: none
 
 Common keys (use what is relevant, invent new ones if needed):
@@ -94,7 +95,7 @@ Common keys (use what is relevant, invent new ones if needed):
 Do not narrate events inside [STATE]. Only current facts. If nothing changed, output [STATE] with no keys below it.`,
 
     promotionSystemPrompt:
-        'Role: dual-track memory synthesizer. Summarize narrative prose only. State blocks are merged separately in code. Output only the narrative paragraph - no preamble, no commentary, no markdown.',
+        'Role: dual-track memory synthesizer. Reconcile newer narrative events with an existing state baseline, then output a consolidated [NARRATIVE] paragraph and a [STATE] key-value block. No preamble, no commentary, no markdown.',
 
     promotionUserPrompt: `<player_name>
 {{player_name}}
@@ -108,13 +109,29 @@ Do not narrate events inside [STATE]. Only current facts. If nothing changed, ou
 {{story_txt}}
 </narratives_to_consolidate>
 
-Consolidate only the NEW events from <narratives_to_consolidate> into a highly compressed continuation that follows the runtime Layer 1+ target length.
+<source_state>
+{{source_state}}
+</source_state>
+
+Consolidate the NEW events from <narratives_to_consolidate> into a highly compressed continuation that follows the runtime Layer 1+ target length.
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
 2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <narratives_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
 4. **Temporal Anchors:** Preserve useful full date/time anchors already present in lower-layer memory (for example, Saturday Oct 19, 7PM). Do not reduce inferable absolute timing to vague relative timing; for future goals/plans, prefer full dates over bare weekdays when available.
+
+### STATE RECONCILIATION RULES:
+The <source_state> block contains durable facts extracted from the source memories. Produce a consolidated [STATE] block by intelligently reconciling <source_state> with the new events in <narratives_to_consolidate>:
+1. **Reconcile, Do Not Replace:** Update existing keys to reflect new developments. If a character was recovering and the narrative implies time has passed, advance the status rather than discarding it.
+2. **Increment Counters:** Update numerical counters by adding new events, not replacing the old value.
+3. **Merge Inventories:** Combine inventory lists, adding new items and removing used ones as described in the narrative.
+4. **Preserve Unchanged State:** If a key-value pair from <source_state> is still relevant and was not mentioned in the new narrative, carry it forward unchanged.
+5. **Clear Resolved State:** Write key: none only when a durable fact is explicitly resolved, emptied, or removed.
+
+### NARRATIVE/STATE SEPARATION:
+- [NARRATIVE] must contain ONLY story, actions, dialogue, and events. Do NOT include factual parameters like dates, inventory lists, or status flags here.
+- [STATE] must contain ONLY key: value facts, counters, and status flags. Do NOT write descriptive sentences in the state block.
 
 ### SYNTHESIS PRIORITIES:
 1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
@@ -123,7 +140,13 @@ Consolidate only the NEW events from <narratives_to_consolidate> into a highly c
 4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 
 ### FORMAT:
-Write one dense third-person narrative paragraph. Never use second-person. Do not include headings, bullets, markdown, code blocks, [NARRATIVE], [STATE], or meta-commentary.`,
+Output exactly two sections:
+
+[NARRATIVE]
+<one dense third-person chronological prose paragraph. Never use second-person.>
+
+[STATE]
+<consolidated key: value lines, one per line. If nothing is relevant, output [STATE] with no keys below it.>`,
 
     promptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots

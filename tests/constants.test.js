@@ -82,9 +82,11 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.custom).toBeNull();
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{context_str}}');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{source_state}}');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('narratives_to_consolidate');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do not include');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do NOT include');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('[STATE]');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Reconcile, Do Not Replace');
     });
 
     it('defaults to the narrative preset', () => {
@@ -100,12 +102,14 @@ describe('constants', () => {
         expect(defaultSettings.promotionSystemPrompt).toContain('memory synthesizer');
         expect(defaultSettings.promotionUserPrompt).toContain('{{context_str}}');
         expect(defaultSettings.promotionUserPrompt).toContain('{{story_txt}}');
+        expect(defaultSettings.promotionUserPrompt).toContain('{{source_state}}');
         expect(defaultSettings.promotionUserPrompt).toContain('narratives_to_consolidate');
         expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
         expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
         expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');
         expect(defaultSettings.promotionUserPrompt).toContain('Saturday Oct 19, 7PM');
         expect(defaultSettings.promotionUserPrompt).toContain('full dates over bare weekdays');
+        expect(defaultSettings.promotionUserPrompt).toContain('Reconcile, Do Not Replace');
     });
 
     it('strips common reasoning tokens by default', () => {

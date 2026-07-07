@@ -175,6 +175,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         .join('\n\n');
     const mergedState = mergeStates(parsed.map((snippet) => snippet.state));
     const serializedState = serializeState(mergedState);
+    const sourceState = serializedState || '(none)';
     const memoryTokensBefore = await countTextTokens(sourceMemoryText);
     const contextStr = buildFullContext(layerIndex + 1);
     const snapshot = {
@@ -202,12 +203,13 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
               overflowMemoryLimit: s.snippetsPerLayer,
               overflowTokens: layerTokens,
               overflowTokenQuota: quota,
+              sourceState,
           })
         : '';
     if (storyTxt && !metaNarrative) {
         return false;
     }
-    const metaSummary = combinePromotedMemory(metaNarrative, serializedState);
+    const metaSummary = combinePromotedMemory(metaNarrative, mergedState);
     if (!metaSummary) {
         return false;
     }
@@ -227,8 +229,23 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     return result !== 'stale';
 }
 
-function combinePromotedMemory(narrative, serializedState) {
-    return [narrative, serializedState].filter(Boolean).join('\n\n').trim();
+function combinePromotedMemory(narrative, fallbackState) {
+    if (!narrative) {
+        return serializeState(fallbackState) || '';
+    }
+
+    const parsed = parseSnippet(narrative);
+    const narrativeText = parsed.narrative.trim();
+    if (!narrativeText) {
+        return serializeState(fallbackState) || '';
+    }
+
+    const llmState = parsed.state;
+    const hasLlmState = Object.keys(llmState).length > 0;
+    const finalState = hasLlmState ? mergeStates([fallbackState, llmState]) : fallbackState;
+
+    const serializedState = serializeState(finalState);
+    return [narrativeText, serializedState].filter(Boolean).join('\n\n').trim();
 }
 
 async function isPromotionCompressed({ layerIndex, mergeCount, metaSummary, settings }) {

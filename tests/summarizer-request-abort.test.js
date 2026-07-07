@@ -117,8 +117,10 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(prompt).toContain('Deduplicate related events');
     });
 
-    it('strips dual-track structural markers from promotion output only', async () => {
-        mocks.sendSummarizerRequest.mockResolvedValue('[NARRATIVE]\nMerged summary.\n[STATE]');
+    it('preserves dual-track structural markers in promotion output for state parsing', async () => {
+        mocks.sendSummarizerRequest.mockResolvedValue(
+            '[NARRATIVE]\nMerged summary.\n[STATE]\nlocation: dock',
+        );
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
 
@@ -128,7 +130,7 @@ describe('callSummarizer abort signal plumbing', () => {
                 layerIndex: 0,
                 mergedSnippetCount: 3,
             }),
-        ).resolves.toBe('Merged summary.');
+        ).resolves.toBe('[NARRATIVE]\nMerged summary.\n[STATE]\nlocation: dock');
     });
 
     it('adds runtime compression constraints to Layer 0 and promotion prompts', async () => {

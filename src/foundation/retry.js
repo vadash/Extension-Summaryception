@@ -46,7 +46,6 @@ const RETRYABLE_MESSAGE_PATTERNS = [
     'timeout',
     'timed out',
     'econnreset',
-    'econnrefused',
     'network',
     'overloaded',
     'capacity',

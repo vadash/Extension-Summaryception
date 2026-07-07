@@ -121,7 +121,7 @@ describe('connection providers registry', () => {
             prompt: [{ role: 'user', content: 'user prompt' }],
             systemPrompt: 'system prompt',
             trimNames: false,
-            responseLength: 450,
+            responseLength: 1368,
         });
     });
 
@@ -211,7 +211,7 @@ describe('connection providers registry', () => {
         expect(effective).toMatchObject({
             connectionSource: 'openai',
             openaiModel: 'smart-model',
-            openaiMaxTokens: 428,
+            openaiMaxTokens: 1346,
         });
     });
 
@@ -229,7 +229,7 @@ describe('connection providers registry', () => {
         expect(effective).toMatchObject({
             connectionSource: 'openai',
             openaiModel: 'smart-model',
-            openaiMaxTokens: 512,
+            openaiMaxTokens: 2048,
         });
     });
 
@@ -393,14 +393,14 @@ describe('connection providers registry', () => {
                 connectionSource: 'profile',
                 connectionProfileId: 'fast-profile',
                 fallbackConnectionSource: 'default',
-                fallbackSummarizerResponseLength: 512,
+                fallbackSummarizerResponseLength: 0,
             },
             { kind: 'promotion', memoryTokensBefore: 944 },
         );
 
         expect(fallback).toMatchObject({
             connectionSource: 'default',
-            summarizerResponseLength: 428,
+            summarizerResponseLength: 1346,
         });
     });
 

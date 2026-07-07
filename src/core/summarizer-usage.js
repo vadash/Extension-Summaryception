@@ -21,6 +21,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {number} [overflowTokens] - Token count in the overflowing layer
  * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
  * @property {boolean} [useFallback] - Whether this call is routed through fallback
+ * @property {string} [sourceState] - Serialized source state for promotion reconciliation
  */
 
 /**

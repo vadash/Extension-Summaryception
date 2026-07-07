@@ -42,12 +42,12 @@ export async function buildSummarizerPipelineInput(
  * Clean and validate a raw provider response.
  * @param {string} rawResult - Raw provider output
  * @param {ExtensionSettings} settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} _metadata - Call metadata (unused, kept for API stability)
  * @returns {{ status: 'success', text: string, error: null } | { status: 'empty' | 'cn-rejected', text: string, error: Error & { retryable?: boolean } }}
  */
-export function processSummarizerResponse(rawResult, settings, metadata = {}) {
+export function processSummarizerResponse(rawResult, settings, _metadata = {}) {
     const cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), {
-        stripStructuralMarkers: metadata.kind === 'promotion',
+        stripStructuralMarkers: false,
     });
     const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, settings);
 
@@ -188,9 +188,11 @@ function getStringSetting(value, fallback) {
  * @returns {string}
  */
 function buildSummarizerPrompt(template, storyTxt, contextStr, settings, metadata) {
+    const sourceState = metadata.sourceState || '(none)';
     const prompt = template
         .replace('{{player_name}}', getPlayerName())
         .replace('{{context_str}}', contextStr || '(none yet)')
+        .replace('{{source_state}}', sourceState)
         .replace('{{story_txt}}', storyTxt);
     return appendLayer0PromptConstraints(prompt, settings, metadata);
 }

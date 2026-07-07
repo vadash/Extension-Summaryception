@@ -10,7 +10,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - **Layers 1+:** Meta-summaries promoted from lower layers.
 - **Memory budget:** `memoryTokenBudget` tracks the assembled Summaryception injection size; use `memory-budget.js`/`memory-injection.js` instead of raw snippet text when changing budget UI or promotion pressure.
 - **Promotion:** Only merge an over-limit layer once it has at least `snippetsPerPromotion` snippets; underfilled layers may temporarily exceed quota, non-compressing promotion output must not be committed, empty destination layers are created only by LLM-backed merge promotion, and maximum depth is capped at 20.
-- **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text to the LLM and merge `[STATE]` data with `mergeStates()` in code. Build current-state prompt output through `serializeState()` so escaping and pruning stay centralized.
+- **Dual-track memory:** L0/regeneration stored output must preserve `[NARRATIVE]`/`[STATE]` markers for `summarizer-state.js`; promotions send narrative text plus serialized source state to the LLM, which reconciles and outputs both `[NARRATIVE]` and `[STATE]`; when the LLM omits `[STATE]`, `combinePromotedMemory` falls back to the code-merged state via `mergeStates()`. Build current-state prompt output through `serializeState()` so escaping and pruning stay centralized.
 - **Regex:** Apply SillyTavern regex scripts only while rendering chat passages into Layer 0 or regeneration source text; promotion inputs are synthetic memory and must not be regexed.
 - **Ghosting:** Ghosted messages are hidden from the LLM context using SillyTavern's native `/hide` command, but remain fully visible in the UI; batching builds contiguous `/hide` and `/unhide` ranges after filtering user, system, empty, and already hidden messages, with ownership tracked by `sc_ghosted` and `ghostedIndices`.
 
@@ -26,6 +26,6 @@ This directory houses the background worker, LLM connections, token counting, an
 - Merge/fallback routes inherit shared endpoint credentials from base settings, but provider-specific tunables such as profile IDs, model names, and token caps reset to route defaults unless prefixed overrides are set.
 - Pass summarizer `AbortSignals` to direct fetch adapters and Connection Manager profiles.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and streams MUST reach `data: [DONE]` before any text is accepted.
-- Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays.
+- Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays. Hard network failures (`failed to fetch`, `ECONNREFUSED`, DNS failures) skip retries and trigger immediate fallback when configured.
 - Primary retry-exhaustion health is tracked separately for Layer 0 calls and L1+ promotion calls; do not let one bucket force early fallback for the other.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.
