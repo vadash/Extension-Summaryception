@@ -28,13 +28,13 @@ run_check tsc npx tsc --noEmit --pretty false || exit 1
 run_check lint-staged npx lint-staged --verbose || exit 1
 run_check tests npm test || exit 1
 
-# Run repomix asynchronously (non-blocking). Uses a lock file so concurrent
-# commits queue their repomix runs instead of writing to the same files.
-repomix_lock="$tmp_dir/repomix.lock"
+# Run repomix asynchronously (non-blocking). Uses a lock file outside tmp_dir
+# so the parent's cleanup trap can't race it; concurrent commits skip rather
+# than both writing to the same output files.
+repomix_lock="$tmp_dir/../summaryception-repomix.lock"
 (
-    # Try to acquire lock; if held, skip (another commit is already regenerating).
     if mkdir "$repomix_lock" 2>/dev/null; then
-        trap 'rmdir "$repomix_lock"' EXIT
+        trap 'rmdir "$repomix_lock"' EXIT INT TERM
         npm run repomix:source >/dev/null 2>&1
         npm run repomix:tests >/dev/null 2>&1
         npm run repomix:compressed-source >/dev/null 2>&1
