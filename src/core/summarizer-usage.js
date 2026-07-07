@@ -11,6 +11,8 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {[number, number]} [sourceRange] - Source chat index range
  * @property {number} [assistantTurnCount] - Assistant turns summarized
  * @property {PassageRegexStats} [regexStats] - Passage regex stats
+ * @property {number} [sourceTokensBefore] - Source text size before summarization
+ * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
  * @property {number} [layerIndex] - Source layer for promotion calls
  * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
  * @property {number} [memoryTokensBefore] - Source memory size before promotion

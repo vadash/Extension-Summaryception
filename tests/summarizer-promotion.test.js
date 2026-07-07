@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
 }));
 
+const VALID_PROMOTION_SUMMARY =
+    'The merged memory preserves the major sequence of events, decisions, and consequences while omitting repeated details from the source snippets and keeping the timeline coherent.';
+
 vi.mock('../src/core/summarizer-request.js', () => ({
     callSummarizer: mocks.callSummarizer,
 }));
@@ -18,7 +21,7 @@ beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
     installBrowserRuntimeStub();
-    mocks.callSummarizer.mockResolvedValue('merged');
+    mocks.callSummarizer.mockResolvedValue(VALID_PROMOTION_SUMMARY);
 });
 
 describe('promotion prompt guard', () => {
@@ -72,7 +75,7 @@ describe('promotion prompt guard', () => {
         expect(ctx.chatMetadata.summaryception.layers[0]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1][0]).toMatchObject({
-            text: 'merged',
+            text: VALID_PROMOTION_SUMMARY,
             mergedCount: 3,
         });
     });
@@ -158,9 +161,42 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1]).toHaveLength(1);
         expect(getChatStore().layers[1][0]).toMatchObject({
-            text: 'merged',
+            text: VALID_PROMOTION_SUMMARY,
             mergedCount: 3,
         });
+    });
+
+    it('rejects tiny promotion output before removing source snippets', async () => {
+        mocks.callSummarizer.mockResolvedValue('[Nivalis]');
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1800) },
+                            { text: 'b '.repeat(1800) },
+                            { text: 'c '.repeat(1800) },
+                            { text: 'tail '.repeat(1000) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(4);
+        expect(getChatStore().layers[1]).toBeUndefined();
     });
 
     it('skips L0 promotion when the projected remainder would fall below the retention floor', async () => {
@@ -234,6 +270,7 @@ describe('promotion prompt guard', () => {
     });
 
     it('still promotes when snippet count exceeds the layer limit', async () => {
+        mocks.callSummarizer.mockResolvedValue('merged');
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -339,7 +376,7 @@ describe('promotion prompt guard', () => {
     });
 
     it('carries durable promoted L0 state into the oldest remaining L0 snippet', async () => {
-        mocks.callSummarizer.mockResolvedValue('Merged narrative.');
+        mocks.callSummarizer.mockResolvedValue(VALID_PROMOTION_SUMMARY);
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -402,7 +439,7 @@ describe('promotion prompt guard', () => {
         mocks.callSummarizer.mockResolvedValue(
             [
                 '[NARRATIVE]',
-                'The trio advanced through the dock and secured a boat.',
+                'The trio advanced through the dock, resolved the immediate danger, secured a boat, and carried the consequences forward without repeating earlier setup details.',
                 '',
                 '[STATE]',
                 'location: harbor',
@@ -451,7 +488,9 @@ describe('promotion prompt guard', () => {
 
         const storedText = getChatStore().layers[1][0].text;
         const parsed = parseStoredSnippet(storedText);
-        expect(parsed.narrative).toBe('The trio advanced through the dock and secured a boat.');
+        expect(parsed.narrative).toBe(
+            'The trio advanced through the dock, resolved the immediate danger, secured a boat, and carried the consequences forward without repeating earlier setup details.',
+        );
         expect(parsed.state).toEqual({});
     });
 
@@ -604,7 +643,7 @@ describe('promotion prompt guard', () => {
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
         expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1][0]).toMatchObject({
-            text: 'merged',
+            text: VALID_PROMOTION_SUMMARY,
             mergedCount: 3,
         });
     });
@@ -640,7 +679,7 @@ describe('promotion prompt guard', () => {
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
         expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1][0]).toMatchObject({
-            text: 'merged',
+            text: VALID_PROMOTION_SUMMARY,
             mergedCount: 4,
         });
     });
@@ -758,7 +797,7 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[2]).toHaveLength(0);
         expect(getChatStore().layers[3]).toHaveLength(2);
         expect(getChatStore().layers[3][1]).toMatchObject({
-            text: 'merged',
+            text: VALID_PROMOTION_SUMMARY,
             fromLayer: 2,
             mergedCount: 3,
         });

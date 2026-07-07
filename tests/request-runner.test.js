@@ -163,4 +163,32 @@ describe('hard network failure fast-failover', () => {
         expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
         expect(result).toBe('');
     });
+
+    it('returns empty after retry exhaustion when no fallback is configured', async () => {
+        const { RETRY_CONFIG } = await import('../src/foundation/constants.js');
+        const originalMaxRetries = RETRY_CONFIG.maxRetries;
+        RETRY_CONFIG.maxRetries = 0;
+        const serverError = new Error('Server Error: 502');
+        serverError.status = 502;
+        mocks.sendSummarizerRequest.mockRejectedValueOnce(serverError);
+        mocks.resolveFallback.mockReturnValue(null);
+
+        try {
+            const { RequestRunner } = await import('../src/core/request-runner.js');
+            const runner = new RequestRunner();
+
+            const result = await runner.run({
+                settings: { connectionSource: 'default' },
+                systemPrompt: 'sys',
+                prompt: 'prompt',
+                signal: new AbortController().signal,
+                metadata: { kind: 'layer0' },
+            });
+
+            expect(result).toBe('');
+            expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
+        } finally {
+            RETRY_CONFIG.maxRetries = originalMaxRetries;
+        }
+    });
 });

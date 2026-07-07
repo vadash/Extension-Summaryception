@@ -15,6 +15,7 @@ import {
 } from './snippet-metadata.js';
 import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
+import { validateSummarizerOutputIntegrity } from './prompts.js';
 import {
     commitWhenSafe,
     isPromptMutationFrozen,
@@ -313,6 +314,10 @@ async function isPromotionCompressed({
     sourceMemoryText,
 }) {
     const sourceTokens = await countTextTokens(sourceMemoryText);
+    if (!isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens })) {
+        return false;
+    }
+
     const outputTokens = await countTextTokens(promotedSnippet.text);
     if (outputTokens.count >= sourceTokens.count) {
         warn(
@@ -347,6 +352,20 @@ async function isPromotionCompressed({
                 memoryTokensAfter.total.estimated,
             )} tokens).`,
     );
+    return false;
+}
+
+function isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens }) {
+    const integrityResult = validateSummarizerOutputIntegrity(promotedSnippet.text, {
+        kind: 'promotion',
+        memoryTokensBefore: sourceTokens.count,
+        memoryTokensBeforeEstimated: sourceTokens.estimated,
+    });
+    if (integrityResult.valid) {
+        return true;
+    }
+
+    warn(`Promotion L${layerIndex} rejected: ${integrityResult.error.message}.`);
     return false;
 }
 

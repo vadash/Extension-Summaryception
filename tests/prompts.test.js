@@ -16,6 +16,7 @@ import {
     cleanSummarizerOutput,
     getChineseIdeographStats,
     stripChineseIdeographs,
+    validateSummarizerOutputIntegrity,
 } from '../src/core/prompts.js';
 
 describe('cleanSummarizerOutput', () => {
@@ -120,5 +121,52 @@ describe('applyChineseOutputPolicy', () => {
             error: null,
             percent: null,
         });
+    });
+});
+
+describe('validateSummarizerOutputIntegrity', () => {
+    it('rejects tiny outputs for substantial source text', () => {
+        const result = validateSummarizerOutputIntegrity('[Nivalis]', {
+            kind: 'promotion',
+            memoryTokensBefore: 900,
+        });
+
+        expect(result.valid).toBe(false);
+        expect(result.error?.message).toContain('output too short');
+        expect(result.error?.retryable).toBe(true);
+    });
+
+    it('requires non-empty L0 narrative and state sections', () => {
+        expect(
+            validateSummarizerOutputIntegrity('A summary without headers.', {
+                kind: 'layer0',
+                regexStats: { finalTokens: 120 },
+            }).valid,
+        ).toBe(false);
+        expect(
+            validateSummarizerOutputIntegrity('[NARRATIVE]\nScene summary.\n\n[STATE]', {
+                kind: 'regenerate',
+                regexStats: { finalTokens: 120 },
+            }).valid,
+        ).toBe(false);
+    });
+
+    it('accepts a structured L0 output above the safety floor', () => {
+        const output = [
+            '[NARRATIVE]',
+            'The group reviewed the plan, crossed the bridge, and secured the gate before nightfall.',
+            '',
+            '[STATE]',
+            'current_date_time: 2024-12-03 21 Tue',
+            'timeline_start: 2024-12-03 20 Tue',
+            'timeline_end: 2024-12-03 21 Tue',
+        ].join('\n');
+
+        expect(
+            validateSummarizerOutputIntegrity(output, {
+                kind: 'layer0',
+                regexStats: { finalTokens: 120 },
+            }),
+        ).toEqual({ valid: true, error: null });
     });
 });

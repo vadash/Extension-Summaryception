@@ -20,6 +20,16 @@ vi.mock('../src/core/connectionutil.js', () => ({
     sendSummarizerRequest: mocks.sendSummarizerRequest,
 }));
 
+const VALID_L0_SUMMARY = [
+    '[NARRATIVE]',
+    'The source passage was summarized into a concise memory.',
+    '',
+    '[STATE]',
+    'current_date_time: 2024-12-03 06 Wed',
+    'timeline_start: 2024-12-03 06 Wed',
+    'timeline_end: 2024-12-03 06 Wed',
+].join('\n');
+
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -144,7 +154,9 @@ describe('callSummarizer abort signal plumbing', () => {
                 stripPatterns: [],
             },
         });
-        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+        mocks.sendSummarizerRequest
+            .mockResolvedValueOnce(VALID_L0_SUMMARY)
+            .mockResolvedValueOnce('summary text');
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
 
@@ -185,7 +197,7 @@ describe('callSummarizer abort signal plumbing', () => {
         mocks.sendSummarizerRequest.mockImplementation(
             async (_settings, _system, _prompt, _signal, metadata) => {
                 if (metadata.useFallback) {
-                    return 'backup summary';
+                    return VALID_L0_SUMMARY;
                 }
                 throw new Error('timeout');
             },
@@ -198,7 +210,7 @@ describe('callSummarizer abort signal plumbing', () => {
         });
         await vi.runAllTimersAsync();
 
-        await expect(resultPromise).resolves.toBe('backup summary');
+        await expect(resultPromise).resolves.toBe(VALID_L0_SUMMARY);
         expect(
             mocks.sendSummarizerRequest.mock.calls.some((call) => call[4]?.useFallback === true),
         ).toBe(true);
@@ -265,7 +277,7 @@ describe('callSummarizer abort signal plumbing', () => {
         mocks.sendSummarizerRequest.mockImplementation(
             async (_settings, _system, _prompt, _signal, metadata) => {
                 if (metadata.useFallback) {
-                    return 'backup summary';
+                    return VALID_L0_SUMMARY;
                 }
                 throw new Error('timeout');
             },
@@ -277,13 +289,13 @@ describe('callSummarizer abort signal plumbing', () => {
             kind: 'layer0',
         });
         await vi.runAllTimersAsync();
-        await expect(firstRun).resolves.toBe('backup summary');
+        await expect(firstRun).resolves.toBe(VALID_L0_SUMMARY);
 
         const callsAfterFirstRun = mocks.sendSummarizerRequest.mock.calls.length;
         const secondRun = callSummarizer('source passage', 'prior context', {
             kind: 'layer0',
         });
-        await expect(secondRun).resolves.toBe('backup summary');
+        await expect(secondRun).resolves.toBe(VALID_L0_SUMMARY);
 
         const secondRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsAfterFirstRun);
         const secondRunPrimaryCalls = secondRunCalls.filter((call) => !call[4]?.useFallback);
@@ -301,7 +313,7 @@ describe('callSummarizer abort signal plumbing', () => {
         mocks.sendSummarizerRequest.mockImplementation(
             async (_settings, _system, _prompt, _signal, metadata) => {
                 if (metadata.useFallback) {
-                    return 'backup summary';
+                    return metadata.kind === 'layer0' ? VALID_L0_SUMMARY : 'backup summary';
                 }
                 throw new Error('timeout');
             },
@@ -313,7 +325,7 @@ describe('callSummarizer abort signal plumbing', () => {
             kind: 'layer0',
         });
         await vi.runAllTimersAsync();
-        await expect(layer0Run).resolves.toBe('backup summary');
+        await expect(layer0Run).resolves.toBe(VALID_L0_SUMMARY);
 
         const callsAfterLayer0 = mocks.sendSummarizerRequest.mock.calls.length;
         const promotionRun = callSummarizer('merged snippets', 'deep context', {
@@ -338,7 +350,7 @@ describe('callSummarizer abort signal plumbing', () => {
         mocks.sendSummarizerRequest.mockImplementation(
             async (_settings, _system, _prompt, _signal, metadata) => {
                 if (metadata.useFallback) {
-                    return 'backup summary';
+                    return VALID_L0_SUMMARY;
                 }
                 throw new Error('timeout');
             },
@@ -350,19 +362,19 @@ describe('callSummarizer abort signal plumbing', () => {
             kind: 'layer0',
         });
         await vi.runAllTimersAsync();
-        await expect(firstRun).resolves.toBe('backup summary');
+        await expect(firstRun).resolves.toBe(VALID_L0_SUMMARY);
 
-        mocks.sendSummarizerRequest.mockResolvedValueOnce('primary recovered');
+        mocks.sendSummarizerRequest.mockResolvedValueOnce(VALID_L0_SUMMARY);
         await expect(
             callSummarizer('source passage', 'prior context', {
                 kind: 'layer0',
             }),
-        ).resolves.toBe('primary recovered');
+        ).resolves.toBe(VALID_L0_SUMMARY);
 
         mocks.sendSummarizerRequest.mockImplementation(
             async (_settings, _system, _prompt, _signal, metadata) => {
                 if (metadata.useFallback) {
-                    return 'backup summary';
+                    return VALID_L0_SUMMARY;
                 }
                 throw new Error('timeout');
             },
@@ -373,7 +385,7 @@ describe('callSummarizer abort signal plumbing', () => {
             kind: 'layer0',
         });
         await vi.runAllTimersAsync();
-        await expect(finalRun).resolves.toBe('backup summary');
+        await expect(finalRun).resolves.toBe(VALID_L0_SUMMARY);
 
         const finalRunCalls = mocks.sendSummarizerRequest.mock.calls.slice(callsBeforeFinalRun);
         const finalRunPrimaryCalls = finalRunCalls.filter((call) => !call[4]?.useFallback);

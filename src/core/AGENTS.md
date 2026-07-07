@@ -22,6 +22,7 @@ This directory houses the background worker, LLM connections, token counting, an
 - Prompt-affecting commits/effects must be queued during SillyTavern foreground generation; pending commits flush on generation end with injection updates and deferred ghosting.
 - In-flight summary/promotion commits validate `store.mutationEpoch`; any code that changes `store.layers` or snippet fields must call `bumpSummaryStoreMutationEpoch()`.
 - If chat changes while a summarizer request is in flight, mark the queue dirty and recompute after the current batch rather than starting parallel work.
+- Summarizer integrity failures (tiny output for substantial source text, malformed L0/regeneration `[NARRATIVE]`/`[STATE]` sections) are retryable and must be rejected before mutating summary layers or ghosting source messages.
 
 ## LLM Connections
 - Connection backends are provider adapters registered in `src/core/connectionutil.js`.
@@ -29,5 +30,6 @@ This directory houses the background worker, LLM connections, token counting, an
 - Pass summarizer `AbortSignals` to direct fetch adapters and Connection Manager profiles.
 - SSE stream readers must treat incomplete streams as failed attempts: abort signals propagate unchanged, read failures throw retryable errors, and streams MUST reach `data: [DONE]` before any text is accepted.
 - Summarizer calls use exponential backoff, up to 3 retries per route, spanning 2s-60s delays. Hard network failures (`failed to fetch`, `ECONNREFUSED`, DNS failures) skip retries and trigger immediate fallback when configured; if both primary and fallback fail, wait with abort-aware backoff before resetting health and restarting from primary.
+- When no fallback route is configured, primary retry exhaustion returns a failed summarizer call; the next worker/manual trigger is responsible for retrying rather than self-looping inside the same call.
 - Primary retry-exhaustion health is tracked separately for Layer 0 calls and L1+ promotion calls; do not let one bucket force early fallback for the other.
 - Default `generateRaw()` calls must use isolated raw messages and must not mutate PromptManager toggles.

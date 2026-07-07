@@ -21,6 +21,16 @@ vi.mock('../src/core/persist-state.js', () => ({
     persistChatState: mocks.persistChatState,
 }));
 
+const VALID_L0_SUMMARY = [
+    '[NARRATIVE]',
+    'The source turn was summarized into a concise but complete memory.',
+    '',
+    '[STATE]',
+    'current_date_time: 2024-12-03 06 Wed',
+    'timeline_start: 2024-12-03 06 Wed',
+    'timeline_end: 2024-12-03 06 Wed',
+].join('\n');
+
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -56,6 +66,24 @@ function installBatchContext(options = {}) {
 }
 
 describe('summarizeBatchFromTurns stale result rejection', () => {
+    it('rejects malformed L0 output before committing or ghosting', async () => {
+        const ctx = installBatchContext({
+            chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
+        });
+        mocks.callSummarizer.mockResolvedValue('[Nivalis]');
+
+        const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+
+        const { summarizeBatchFromTurns } = await import('../src/core/summarizer-batch.js');
+        const success = await summarizeBatchFromTurns([{ index: 0, mes: 'source turn' }]);
+
+        expect(success).toBe(false);
+        expect(ctx.chatMetadata.summaryception.layers[0]).toEqual([]);
+        expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(-1);
+        expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
+    });
+
     it('uses an explicit source endpoint for a final user-ended batch', async () => {
         const ctx = installBatchContext({
             chat: [
@@ -127,7 +155,7 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         installBatchContext({
             chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
         });
-        mocks.callSummarizer.mockResolvedValue('new summary');
+        mocks.callSummarizer.mockResolvedValue(VALID_L0_SUMMARY);
 
         const {
             beginForegroundGeneration,
@@ -161,7 +189,7 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         const ctx = installBatchContext({
             chat: [makeMessage({ mes: 'source turn' }), makeMessage({ mes: 'later turn' })],
         });
-        mocks.callSummarizer.mockResolvedValue('new summary');
+        mocks.callSummarizer.mockResolvedValue(VALID_L0_SUMMARY);
 
         const { beginForegroundGeneration, endForegroundGeneration, resetCommitStateForTests } =
             await import('../src/core/summarizer-commit.js');

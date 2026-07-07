@@ -23,6 +23,16 @@ let consoleLogSpy;
 let consoleGroupCollapsedSpy;
 let consoleGroupEndSpy;
 
+const VALID_L0_SUMMARY = [
+    '[NARRATIVE]',
+    'The source passage was summarized into a concise memory.',
+    '',
+    '[STATE]',
+    'current_date_time: 2024-12-03 06 Wed',
+    'timeline_start: 2024-12-03 06 Wed',
+    'timeline_end: 2024-12-03 06 Wed',
+].join('\n');
+
 beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -95,7 +105,7 @@ describe('summarizer usage logging', () => {
                 stripPatterns: [],
             },
         });
-        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+        mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
         await callSummarizer('source passage', 'prior context', {
@@ -126,7 +136,7 @@ describe('summarizer usage logging', () => {
         expect(inputLog.messages[1].content).toContain('current_date_time');
         expect(inputLog.messages[1].content).toContain('YYYY-MM-DD HH ddd');
         expect(outputLog).toBeNull();
-        expect(getConsoleText()).not.toContain('summary text');
+        expect(getConsoleText()).not.toContain(VALID_L0_SUMMARY);
     });
 
     it('logs cleaned output without raw response or prompt content when output logging is enabled', async () => {
@@ -140,7 +150,7 @@ describe('summarizer usage logging', () => {
             },
         });
         mocks.sendSummarizerRequest.mockResolvedValue(
-            '<thinking>private provider trace</thinking>summary text',
+            `<thinking>private provider trace</thinking>${VALID_L0_SUMMARY}`,
         );
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
@@ -159,7 +169,7 @@ describe('summarizer usage logging', () => {
             route: 'primary',
             attempt: 1,
             status: 'success',
-            cleanedSummary: 'summary text',
+            cleanedSummary: VALID_L0_SUMMARY,
             error: null,
         });
         expect(outputLog).not.toHaveProperty('rawResponse');
@@ -258,7 +268,7 @@ describe('summarizer usage logging', () => {
                 stripPatterns: [],
             },
         });
-        mocks.sendSummarizerRequest.mockResolvedValue('summary text');
+        mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
         await callSummarizer('Assistant: visible after regex', '', {
@@ -275,7 +285,7 @@ describe('summarizer usage logging', () => {
     it('logs compact input, prompt, output, and regex savings after a successful call', async () => {
         const ctx = installDebugContext();
         ctx.getTokenCountAsync.mockResolvedValueOnce(32).mockResolvedValueOnce(4);
-        mocks.sendSummarizerRequest.mockResolvedValue(' clean summary ');
+        mocks.sendSummarizerRequest.mockResolvedValue(` ${VALID_L0_SUMMARY} `);
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
         const summary = await callSummarizer('source passage', 'prior context', {
@@ -294,12 +304,12 @@ describe('summarizer usage logging', () => {
             },
         });
 
-        expect(summary).toBe('clean summary');
+        expect(summary).toBe(VALID_L0_SUMMARY);
         expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(2);
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('SYS');
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('prior context');
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toContain('source passage');
-        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toBe('clean summary');
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toBe(VALID_L0_SUMMARY);
 
         const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
         expect(usageLog?.join(' ')).toContain('input 20, prompt 12, output 4');
@@ -409,7 +419,7 @@ describe('summarizer usage logging', () => {
                 stripPatterns: [],
             },
         });
-        mocks.sendSummarizerRequest.mockResolvedValue('fallback summary');
+        mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 
         const { callSummarizer } = await import('../src/core/summarizer-request.js');
         const summary = await callSummarizer('source passage', 'prior context', {
@@ -418,7 +428,7 @@ describe('summarizer usage logging', () => {
             assistantTurnCount: 2,
         });
 
-        expect(summary).toBe('fallback summary');
+        expect(summary).toBe(VALID_L0_SUMMARY);
 
         const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
         expect(usageLog?.join(' ')).toContain('input ?');

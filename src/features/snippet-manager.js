@@ -7,6 +7,7 @@ import {
 } from '../foundation/state.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
+import { validateSummarizerOutputIntegrity } from '../core/prompts.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
 import { updateInjection } from './injection.js';
@@ -159,6 +160,14 @@ async function regenerateSnippetWithTarget(target) {
     });
 
     if (!newSummary) {
+        return { status: 'failed' };
+    }
+    const integrityResult = validateSummarizerOutputIntegrity(newSummary, {
+        kind: 'regenerate',
+        sourceRange: target.range,
+        regexStats: passage.stats,
+    });
+    if (!integrityResult.valid) {
         return { status: 'failed' };
     }
 

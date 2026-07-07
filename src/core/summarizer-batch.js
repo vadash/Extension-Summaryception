@@ -1,12 +1,13 @@
 import { getContext, getChat } from '../foundation/context.js';
 import { bumpSummaryStoreMutationEpoch, getChatStore, saveChatStore } from '../foundation/state.js';
-import { debug, error, info, isTraceEnabled, trace } from '../foundation/logger.js';
+import { debug, error, info, isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromState } from './snippet-metadata.js';
 import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
+import { validateSummarizerOutputIntegrity } from './prompts.js';
 import { parseSnippet } from './summarizer-state.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
@@ -259,6 +260,10 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     const [passageStart, endIdx] = snapshot.sourceRange;
     ensureLayer0(store);
 
+    if (!isLayer0SummarySafe(summary, snapshot)) {
+        return false;
+    }
+
     const parsed = parseSnippet(summary);
     store.layers[0].push({
         text: summary,
@@ -286,6 +291,26 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     }
 
     return true;
+}
+
+/**
+ * Validate a Layer 0 summary before mutating summary storage.
+ * @param {string} summary
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
+ * @returns {boolean}
+ */
+function isLayer0SummarySafe(summary, snapshot) {
+    const integrityResult = validateSummarizerOutputIntegrity(summary, {
+        kind: 'layer0',
+        sourceRange: snapshot.sourceRange,
+        regexStats: snapshot.passageStats,
+    });
+    if (integrityResult.valid) {
+        return true;
+    }
+
+    warn(integrityResult.error.message);
+    return false;
 }
 
 /**

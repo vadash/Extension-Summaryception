@@ -16,6 +16,16 @@ function summaryMetadata(store) {
     return { summaryception: makeSummaryStore(store) };
 }
 
+const VALID_L0_SUMMARY = [
+    '[NARRATIVE]',
+    'The source turns were regenerated into a concise memory of the exchange.',
+    '',
+    '[STATE]',
+    'current_date_time: 2024-12-03 06 Wed',
+    'timeline_start: 2024-12-03 06 Wed',
+    'timeline_end: 2024-12-03 06 Wed',
+].join('\n');
+
 describe('snippet editing', () => {
     it('updates snippet text through chat metadata and refreshes injection', async () => {
         const ctx = installSnippetContext({
@@ -103,7 +113,7 @@ describe('snippet regeneration', () => {
             }),
         });
         const { snippetManager, mocks } = await loadSnippetManager();
-        mocks.callSummarizer.mockResolvedValue('new summary');
+        mocks.callSummarizer.mockResolvedValue(VALID_L0_SUMMARY);
 
         const result = await snippetManager.regenerateSnippetAt(0, 0);
 
@@ -124,7 +134,7 @@ describe('snippet regeneration', () => {
         expect(mocks.setSummarizing).toHaveBeenNthCalledWith(1, true);
         expect(mocks.setSummarizing).toHaveBeenNthCalledWith(2, false);
         expect(ctx.chatMetadata.summaryception.layers[0][0]).toMatchObject({
-            text: 'new summary',
+            text: VALID_L0_SUMMARY,
             regenerated: true,
         });
         expect(ctx.chatMetadata.summaryception.layers[0][0].timestamp).toEqual(expect.any(Number));
@@ -192,6 +202,25 @@ describe('snippet regeneration', () => {
         expect(ctx.chatMetadata.summaryception.layers[0][1].text).toBe('failed source');
         expect(mocks.updateInjection).not.toHaveBeenCalled();
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the original snippet when regeneration output is structurally invalid', async () => {
+        const ctx = installSnippetContext({
+            chat: [makeMessage({ mes: 'usable source' })],
+            metadata: summaryMetadata({
+                layers: [[{ text: 'old summary', turnRange: [0, 0] }]],
+                summarizedUpTo: 0,
+            }),
+        });
+        const { snippetManager, mocks } = await loadSnippetManager();
+        mocks.callSummarizer.mockResolvedValue('[Nivalis]');
+
+        await expect(snippetManager.regenerateSnippetAt(0, 0)).resolves.toEqual({
+            status: 'failed',
+        });
+
+        expect(ctx.chatMetadata.summaryception.layers[0][0].text).toBe('old summary');
+        expect(mocks.updateInjection).not.toHaveBeenCalled();
     });
 });
 

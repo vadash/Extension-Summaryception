@@ -125,8 +125,8 @@ export class RequestRunner {
                 });
             }
 
-            // Primary exhausted, no fallback configured - loop and retry.
             this.primaryRetryExhaustedBuckets.delete(healthBucket);
+            return failSummarization(primary.error);
         }
     }
 
@@ -292,6 +292,8 @@ export class RequestRunner {
                 status = processed.status;
                 if (processed.status === 'empty') {
                     debug('Empty response from LLM, treating as retryable');
+                } else if (processed.status === 'integrity-rejected') {
+                    debug('Summarizer output failed integrity validation, treating as retryable');
                 }
                 return buildAttemptFailure(attemptError, true);
             }

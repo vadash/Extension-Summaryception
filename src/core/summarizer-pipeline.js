@@ -2,7 +2,11 @@ import { defaultSettings } from '../foundation/constants.js';
 import { warn, isTraceEnabled, trace } from '../foundation/logger.js';
 import { getPlayerName, getSettings } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
-import { applyChineseOutputPolicy, cleanSummarizerOutput } from './prompts.js';
+import {
+    applyChineseOutputPolicy,
+    cleanSummarizerOutput,
+    validateSummarizerOutputIntegrity,
+} from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
@@ -42,10 +46,10 @@ export async function buildSummarizerPipelineInput(
  * Clean and validate a raw provider response.
  * @param {string} rawResult - Raw provider output
  * @param {ExtensionSettings} settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} _metadata - Call metadata (unused, kept for API stability)
- * @returns {{ status: 'success', text: string, error: null } | { status: 'empty' | 'cn-rejected', text: string, error: Error & { retryable?: boolean } }}
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @returns {{ status: 'success', text: string, error: null } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected', text: string, error: Error & { retryable?: boolean } }}
  */
-export function processSummarizerResponse(rawResult, settings, _metadata = {}) {
+export function processSummarizerResponse(rawResult, settings, metadata = {}) {
     const cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), {
         stripStructuralMarkers: false,
     });
@@ -65,6 +69,16 @@ export function processSummarizerResponse(rawResult, settings, _metadata = {}) {
             status: 'empty',
             text: '',
             error: new Error('Empty response from summarizer'),
+        };
+    }
+
+    const integrityResult = validateSummarizerOutputIntegrity(chinesePolicyResult.text, metadata);
+    if (!integrityResult.valid) {
+        warn(integrityResult.error.message);
+        return {
+            status: 'integrity-rejected',
+            text: '',
+            error: integrityResult.error,
         };
     }
 
@@ -120,20 +134,35 @@ export async function recordSuccessfulSummarizerUsage({ systemPrompt, prompt, su
  * @returns {Promise<import('./summarizer-usage.js').SummarizerCallMetadata>}
  */
 async function buildUsageMetadata(metadata = {}, storyTxt = '') {
-    if (metadata.kind !== 'promotion') {
-        return metadata;
+    let usageMetadata = metadata;
+
+    if (metadata.kind === 'promotion' && !Number.isFinite(Number(metadata.memoryTokensBefore))) {
+        const memoryTokens = await countTextTokens(storyTxt || '');
+        usageMetadata = {
+            ...usageMetadata,
+            memoryTokensBefore: memoryTokens.count,
+            memoryTokensBeforeEstimated: memoryTokens.estimated,
+        };
     }
 
-    if (Number.isFinite(Number(metadata.memoryTokensBefore))) {
-        return metadata;
+    if (!hasSourceTokenMetadata(usageMetadata)) {
+        const sourceTokens = await countTextTokens(storyTxt || '');
+        usageMetadata = {
+            ...usageMetadata,
+            sourceTokensBefore: sourceTokens.count,
+            sourceTokensBeforeEstimated: sourceTokens.estimated,
+        };
     }
 
-    const memoryTokens = await countTextTokens(storyTxt || '');
-    return {
-        ...metadata,
-        memoryTokensBefore: memoryTokens.count,
-        memoryTokensBeforeEstimated: memoryTokens.estimated,
-    };
+    return usageMetadata;
+}
+
+function hasSourceTokenMetadata(metadata = {}) {
+    return (
+        Number.isFinite(Number(metadata.sourceTokensBefore)) ||
+        Number.isFinite(Number(metadata.regexStats?.finalTokens)) ||
+        Number.isFinite(Number(metadata.memoryTokensBefore))
+    );
 }
 
 /**
