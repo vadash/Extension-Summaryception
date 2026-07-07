@@ -102,6 +102,7 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_l0_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
+        expect(result).toContain('static character background/profile facts');
     });
 
     it('appends dual-output constraints for promotion calls', () => {
@@ -116,6 +117,7 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_promotion_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
+        expect(result).toContain('Omitted [STATE] keys are treated as no longer active');
     });
 
     it('returns prompt unchanged for non-compression calls', () => {

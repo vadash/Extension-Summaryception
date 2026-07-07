@@ -313,7 +313,7 @@ describe('promotion prompt guard', () => {
                     layers: [
                         [
                             {
-                                text: `[NARRATIVE]\n${'first event. '.repeat(400)}\n\n[STATE]\nlocation: tower\nhooks: open gate`,
+                                text: `[NARRATIVE]\n${'first event. '.repeat(400)}\n\n[STATE]\nlocation: tower\nhooks: open gate\ndynamics: wary`,
                             },
                             {
                                 text: `[NARRATIVE]\n${'second event. '.repeat(400)}\n\n[STATE]\nplace: dock\ninventory: key`,
@@ -354,6 +354,52 @@ describe('promotion prompt guard', () => {
             inventory: 'boat, key',
             counters: 'score 5',
         });
+    });
+
+    it('treats an explicit empty promotion state as authoritative', async () => {
+        mocks.callSummarizer.mockResolvedValue(
+            ['[NARRATIVE]', 'The old setup ended cleanly.', '', '[STATE]'].join('\n'),
+        );
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: '[NARRATIVE]\nFirst event.\n\n[STATE]\nlocation: tower\nhooks: open gate',
+                            },
+                            {
+                                text: '[NARRATIVE]\nSecond event.\n\n[STATE]\ninventory: key',
+                            },
+                            {
+                                text: '[NARRATIVE]\nThird event.\n\n[STATE]\ndynamics: wary',
+                            },
+                            { text: '[NARRATIVE]\nExtra 1.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 2.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 3.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 4.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
+                            { text: '[NARRATIVE]\nExtra 8.\n\n[STATE]' },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 10,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(getChatStore().layers[1][0].text).toBe('The old setup ended cleanly.');
     });
 
     it('rejects promotion output that is not smaller than its source memory', async () => {

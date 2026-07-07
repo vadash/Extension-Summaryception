@@ -6,6 +6,17 @@ const NULLIFY_VALUES = new Set(['none', 'empty', 'null', 'cleared', 'resolved', 
 const UNCLASSIFIED_NOTES_MAX = 3;
 const STATE_ENTRY_LIMIT = 10;
 const STATE_VALUE_LENGTH_CEILING = 1000;
+const STALE_TRANSIENT_LAYER_MIN = 2;
+const STATIC_PROFILE_KEY_PARTS = [
+    'origin',
+    'hometown',
+    'backstory',
+    'personality',
+    'species',
+    'nationality',
+];
+const TRANSIENT_KEY_RE =
+    /(^|_)(clothing|clothes|outfit|wearing|mood|arousal|soreness|fatigue|scene|pose|position|active|temporary|temp|current)(_|$)/;
 
 const KEY_ALIASES = Object.freeze({
     location: 'location',
@@ -40,6 +51,17 @@ const KEY_ALIASES = Object.freeze({
     score: 'counters',
 });
 const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
+
+/**
+ * Check whether text contains an explicit [STATE] section.
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function hasStateSection(text) {
+    return String(text || '')
+        .split(/\r?\n/)
+        .some((line) => STATE_HEADER_RE.test(line));
+}
 
 /**
  * Parse a stored snippet into narrative prose and structured state.
@@ -81,39 +103,10 @@ export function mergeStates(states) {
     const allUnclassified = [];
 
     for (const state of states || []) {
-        if (!state || typeof state !== 'object' || Array.isArray(state)) {
-            continue;
-        }
-        for (const [rawKey, rawValue] of Object.entries(state)) {
-            const key = normalizeKey(rawKey);
-            const value = String(rawValue ?? '').trim();
-            if (!value) {
-                continue;
-            }
-            if (key === 'unclassified_notes') {
-                allUnclassified.push(...splitUnclassifiedNotes(value));
-                continue;
-            }
-            if (isNullifyValue(value)) {
-                delete merged[key];
-                continue;
-            }
-            const prunedValue = pruneMergedStateValue(value);
-            if (!prunedValue) {
-                continue;
-            }
-            if (isNullifyValue(prunedValue)) {
-                delete merged[key];
-                continue;
-            }
-            merged[key] = prunedValue;
-        }
+        mergeStateInto(merged, allUnclassified, state);
     }
 
-    const notes = dedupeNotes(allUnclassified);
-    if (notes.length > 0) {
-        merged.unclassified_notes = formatCappedNotes(notes);
-    }
+    applyUnclassifiedNotes(merged, allUnclassified);
     return merged;
 }
 
@@ -141,7 +134,10 @@ export function serializeState(state) {
  * @returns {Record<string, string>}
  */
 export function compileGlobalState(layers) {
-    const states = [];
+    const compiled = /** @type {Record<string, string>} */ ({});
+    const allUnclassified = [];
+    const keyLastLayer = new Map();
+
     for (let i = (layers || []).length - 1; i >= 0; i--) {
         const layer = layers[i];
         if (!Array.isArray(layer)) {
@@ -150,11 +146,18 @@ export function compileGlobalState(layers) {
         for (const snippet of layer) {
             const parsed = parseSnippet(snippet?.text || '');
             if (Object.keys(parsed.state).length > 0) {
-                states.push(parsed.state);
+                mergeStateInto(compiled, allUnclassified, parsed.state, {
+                    filterStaticProfile: true,
+                    keyLastLayer,
+                    layerIndex: i,
+                });
             }
         }
     }
-    return mergeStates(states);
+
+    pruneStaleTransientState(compiled, keyLastLayer);
+    applyUnclassifiedNotes(compiled, allUnclassified);
+    return compiled;
 }
 
 function findHeaderLine(lines, regex) {
@@ -263,7 +266,7 @@ function normalizeKey(rawKey) {
     }
 
     const stripped = cleaned.replace(/^(current_|active_)/, '');
-    return KEY_ALIASES[stripped] || stripped || cleaned;
+    return KEY_ALIASES[stripped] || cleaned;
 }
 
 function normalizeSerializedStateValue(rawValue) {
@@ -280,6 +283,86 @@ function isNullifyValue(value) {
             .trim()
             .toLowerCase(),
     );
+}
+
+function mergeStateInto(merged, allUnclassified, state, options = {}) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+        return;
+    }
+
+    for (const [rawKey, rawValue] of Object.entries(state)) {
+        mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options);
+    }
+}
+
+function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
+    const key = normalizeKey(rawKey);
+    const value = String(rawValue ?? '').trim();
+    if (!value) {
+        return;
+    }
+    if (key === 'unclassified_notes') {
+        allUnclassified.push(...splitUnclassifiedNotes(value));
+        return;
+    }
+    if (options.filterStaticProfile && isStaticProfileKey(key)) {
+        return;
+    }
+    if (isNullifyValue(value)) {
+        deleteTrackedStateKey(merged, key, options);
+        return;
+    }
+
+    const prunedValue = pruneMergedStateValue(value);
+    if (!prunedValue) {
+        return;
+    }
+    if (isNullifyValue(prunedValue)) {
+        deleteTrackedStateKey(merged, key, options);
+        return;
+    }
+    merged[key] = prunedValue;
+    trackStateKeyLayer(key, options);
+}
+
+function deleteTrackedStateKey(merged, key, options) {
+    delete merged[key];
+    options.keyLastLayer?.delete(key);
+}
+
+function trackStateKeyLayer(key, options) {
+    if (Number.isInteger(options.layerIndex)) {
+        options.keyLastLayer?.set(key, options.layerIndex);
+    }
+}
+
+function applyUnclassifiedNotes(merged, allUnclassified) {
+    const notes = dedupeNotes(allUnclassified);
+    if (notes.length > 0) {
+        merged.unclassified_notes = formatCappedNotes(notes);
+    }
+}
+
+function pruneStaleTransientState(compiled, keyLastLayer) {
+    for (const key of Object.keys(compiled)) {
+        const lastLayer = keyLastLayer.get(key);
+        if (lastLayer >= STALE_TRANSIENT_LAYER_MIN && isTransientStateKey(key)) {
+            delete compiled[key];
+        }
+    }
+}
+
+function isStaticProfileKey(key) {
+    if (key === 'age' || key.endsWith('_age')) {
+        return true;
+    }
+    return STATIC_PROFILE_KEY_PARTS.some(
+        (part) => key === part || key.includes(`_${part}`) || key.includes(`${part}_`),
+    );
+}
+
+function isTransientStateKey(key) {
+    return key === 'location' || key === 'characters' || TRANSIENT_KEY_RE.test(key);
 }
 
 function splitUnclassifiedNotes(value) {

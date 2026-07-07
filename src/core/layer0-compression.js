@@ -86,7 +86,8 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         `Target length: at most about ${target} tokens.\n` +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
-        '[STATE] must contain only changed or newly relevant current facts as key: value lines; omit unchanged facts.\n' +
+        '[STATE] must contain only changed or newly relevant dynamic current facts as key: value lines; omit unchanged facts.\n' +
+        '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +
         'Do NOT write descriptive sentences in the state block. Use concise keys and values only.\n' +
         'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
         'Include one full date/time anchor when present, e.g. Saturday Oct 19, 7PM.\n' +
@@ -137,7 +138,9 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
         'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +
         '[NARRATIVE] must contain ONLY story, actions, and events. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
-        '[STATE] must contain ONLY consolidated key: value facts, counters, and status flags. Do NOT write descriptive sentences in the state block.\n' +
+        '[STATE] must contain ONLY consolidated active dynamic facts, counters, and status flags. Omit stale transient scene facts and static character background/profile facts.\n' +
+        'Omitted [STATE] keys are treated as no longer active when you output a [STATE] section.\n' +
+        'Do NOT write descriptive sentences in the state block.\n' +
         '</summaryception_promotion_constraints>'
     );
 }

@@ -74,6 +74,7 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('[STATE]');
         expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
         expect(PROMPT_PRESETS.narrative).toContain('CHANGED or became newly relevant');
+        expect(PROMPT_PRESETS.narrative).toContain('static character background/profile facts');
         expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
     });
 
@@ -87,6 +88,7 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do NOT include');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('[STATE]');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Reconcile, Do Not Replace');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Evict Stale or Static State');
     });
 
     it('defaults to the narrative preset', () => {
@@ -110,6 +112,7 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('Saturday Oct 19, 7PM');
         expect(defaultSettings.promotionUserPrompt).toContain('full dates over bare weekdays');
         expect(defaultSettings.promotionUserPrompt).toContain('Reconcile, Do Not Replace');
+        expect(defaultSettings.promotionUserPrompt).toContain('Omit transient scene facts');
     });
 
     it('strips common reasoning tokens by default', () => {

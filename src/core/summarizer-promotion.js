@@ -9,7 +9,7 @@ import {
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { getEffectiveMemoryUsage } from './memory-budget.js';
-import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
+import { hasStateSection, mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
     commitWhenSafe,
@@ -241,8 +241,7 @@ function combinePromotedMemory(narrative, fallbackState) {
     }
 
     const llmState = parsed.state;
-    const hasLlmState = Object.keys(llmState).length > 0;
-    const finalState = hasLlmState ? mergeStates([fallbackState, llmState]) : fallbackState;
+    const finalState = hasStateSection(narrative) ? llmState : fallbackState;
 
     const serializedState = serializeState(finalState);
     return [narrativeText, serializedState].filter(Boolean).join('\n\n').trim();

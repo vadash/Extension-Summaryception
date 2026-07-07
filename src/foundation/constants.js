@@ -79,8 +79,9 @@ Output exactly two sections:
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here.>
 
 [STATE]
-Extract only durable state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
+Extract only dynamic state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
 Omit unchanged state. Omission means the previous value is preserved.
+Do NOT extract static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions. Those belong in character cards or lorebooks.
 Do NOT write descriptive sentences in the state block. Use concise keys and values only.
 To delete a resolved or emptied variable, write: key: none
 
@@ -122,12 +123,13 @@ Consolidate the NEW events from <narratives_to_consolidate> into a highly compre
 4. **Temporal Anchors:** Preserve useful full date/time anchors already present in lower-layer memory (for example, Saturday Oct 19, 7PM). Do not reduce inferable absolute timing to vague relative timing; for future goals/plans, prefer full dates over bare weekdays when available.
 
 ### STATE RECONCILIATION RULES:
-The <source_state> block contains durable facts extracted from the source memories. Produce a consolidated [STATE] block by intelligently reconciling <source_state> with the new events in <narratives_to_consolidate>:
+The <source_state> block contains rolling dynamic facts extracted from the source memories. Produce a consolidated [STATE] block by intelligently reconciling <source_state> with the new events in <narratives_to_consolidate>:
 1. **Reconcile, Do Not Replace:** Update existing keys to reflect new developments. If a character was recovering and the narrative implies time has passed, advance the status rather than discarding it.
 2. **Increment Counters:** Update numerical counters by adding new events, not replacing the old value.
 3. **Merge Inventories:** Combine inventory lists, adding new items and removing used ones as described in the narrative.
-4. **Preserve Unchanged State:** If a key-value pair from <source_state> is still relevant and was not mentioned in the new narrative, carry it forward unchanged.
+4. **Preserve Still-Relevant Durable State:** If a key-value pair from <source_state> is still active, durable, and relevant, carry it forward unchanged.
 5. **Clear Resolved State:** Write key: none only when a durable fact is explicitly resolved, emptied, or removed.
+6. **Evict Stale or Static State:** Omit transient scene facts that are no longer active, and omit static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.
 
 ### NARRATIVE/STATE SEPARATION:
 - [NARRATIVE] must contain ONLY story, actions, dialogue, and events. Do NOT include factual parameters like dates, inventory lists, or status flags here.

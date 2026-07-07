@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     compileGlobalState,
+    hasStateSection,
     mergeStates,
     parseSnippet,
     serializeState,
@@ -35,6 +36,11 @@ describe('summarizer-state', () => {
             narrative: 'Plain legacy summary.',
             state: {},
         });
+    });
+
+    it('detects only explicit state sections', () => {
+        expect(hasStateSection('[NARRATIVE]\nScene.\n\n[STATE]\nlocation: dock')).toBe(true);
+        expect(hasStateSection('Scene.\nlocation: dock')).toBe(false);
     });
 
     it('recovers a trailing state block when structural markers were stripped', () => {
@@ -194,6 +200,105 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             location: 'bridge',
+        });
+    });
+
+    it('filters static profile facts from compiled current state', () => {
+        expect(
+            compileGlobalState([
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'They compared backgrounds.',
+                            '[STATE]',
+                            'zoe_origin_claim: grandmother from Chongju',
+                            'vova_hometown: Moscow',
+                            'vova_age: 32',
+                            'zoe_species: human',
+                            'dynamics: allied',
+                        ].join('\n'),
+                    },
+                ],
+            ]),
+        ).toEqual({
+            dynamics: 'allied',
+        });
+    });
+
+    it('drops stale transient keys last seen only in deep layers', () => {
+        expect(
+            compileGlobalState([
+                [],
+                [],
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Old scene.',
+                            '[STATE]',
+                            'location: tower',
+                            'characters: Zoe: tired',
+                            'zoe_wearing: pink robe',
+                            'current_task: shower',
+                            'hooks: find the gate',
+                            'inventory: brass key',
+                            'dynamics: wary alliance',
+                        ].join('\n'),
+                    },
+                ],
+            ]),
+        ).toEqual({
+            hooks: 'find the gate',
+            inventory: 'brass key',
+            dynamics: 'wary alliance',
+        });
+    });
+
+    it('preserves recent transient keys from L0 and L1', () => {
+        expect(
+            compileGlobalState([
+                [],
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Recent setup.',
+                            '[STATE]',
+                            'location: bridge',
+                            'vova_wearing: cloak',
+                            'current_task: escape',
+                        ].join('\n'),
+                    },
+                ],
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Older setup.',
+                            '[STATE]',
+                            'location: tower',
+                            'vova_wearing: robe',
+                        ].join('\n'),
+                    },
+                ],
+            ]),
+        ).toEqual({
+            location: 'bridge',
+            vova_wearing: 'cloak',
+            current_task: 'escape',
+        });
+    });
+
+    it('lets recent nullifiers delete older tracked state', () => {
+        expect(
+            compileGlobalState([
+                [{ text: '[NARRATIVE]\nRecent.\n[STATE]\nlocation: none' }],
+                [],
+                [{ text: '[NARRATIVE]\nOlder.\n[STATE]\nlocation: tower\nhooks: open gate' }],
+            ]),
+        ).toEqual({
+            hooks: 'open gate',
         });
     });
 });
