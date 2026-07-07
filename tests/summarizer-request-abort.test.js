@@ -173,8 +173,10 @@ describe('callSummarizer abort signal plumbing', () => {
 
         const layer0Prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
         expect(layer0Prompt).toContain('Target length: at most about 120 tokens');
+        expect(layer0Prompt).toContain('This passage covers chat messages 0-1');
+        expect(layer0Prompt).toContain('Message 1 is the latest summarized message');
         expect(layer0Prompt).toContain('current_date_time');
-        expect(layer0Prompt).toContain('timeline_start');
+        expect(layer0Prompt).not.toContain('timeline_start');
         expect(layer0Prompt).toContain('YYYY-MM-DD HH ddd');
         expect(layer0Prompt).toContain('drop minutes');
         expect(layer0Prompt).toContain('physiological or sex counters');
@@ -183,7 +185,7 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(promotionPrompt).toContain('PROMO deep context MEMORY merged snippets');
         expect(promotionPrompt).toContain('<summaryception_promotion_constraints>');
         expect(promotionPrompt).toContain('Target length: at most about 120 tokens');
-        expect(promotionPrompt).toContain('2024-12-03 06 Wed');
+        expect(promotionPrompt).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(promotionPrompt).toContain('Do not invent broad dates for unknown spans');
         expect(promotionPrompt).toContain('Do not repeat or re-summarize events');
     });

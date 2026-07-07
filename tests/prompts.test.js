@@ -158,8 +158,6 @@ describe('validateSummarizerOutputIntegrity', () => {
             '',
             '[STATE]',
             'current_date_time: 2024-12-03 21 Tue',
-            'timeline_start: 2024-12-03 20 Tue',
-            'timeline_end: 2024-12-03 21 Tue',
         ].join('\n');
 
         expect(

@@ -102,6 +102,7 @@ describe('assembleSummaryBlock', () => {
                                 sourceRange: [100, 120],
                                 timelineStart: '2024-12-03 06 Wed',
                                 timelineEnd: '2024-12-03 09 Wed',
+                                currentDateTime: '2024-12-03 10 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nlegacy recent\n\n[STATE]\ntimeline_start: 2024-12-01 06 Mon',
@@ -118,9 +119,10 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
 
         expect(assembleSummaryBlock()).toContain(
-            '[msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed] anchored recent\nlegacy recent',
+            '[msgs 100-120; current 2024-12-03 10 Wed] anchored recent\nlegacy recent',
         );
         expect(assembleSummaryBlock()).not.toContain('[msgs unknown');
+        expect(assembleSummaryBlock()).not.toContain('2024-12-03 06 Wed ->');
     });
 
     it('strips a legacy leading anchor when metadata provides the rendered anchor', async () => {
@@ -137,6 +139,7 @@ describe('assembleSummaryBlock', () => {
                                 sourceRange: [0, 139],
                                 timelineStart: '2024-07-04 14 Thu',
                                 timelineEnd: '2024-07-05 12 Fri',
+                                currentDateTime: '2024-07-05 12 Fri',
                             },
                         ],
                     ],
@@ -150,11 +153,68 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
         const assembled = assembleSummaryBlock();
 
-        expect(assembled).toContain(
-            '[msgs 0-139; 2024-07-04 14 Thu -> 2024-07-05 12 Fri] anchored event',
-        );
+        expect(assembled).toContain('[msgs 0-139; current 2024-07-05 12 Fri] anchored event');
         expect(assembled).not.toContain('-> unknown] [msgs');
         expect(assembled).not.toContain('-> unknown] anchored event');
+    });
+
+    it('renders export-shaped legacy timeline metadata using only current time', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: '[NARRATIVE]\nlatest event\n\n[STATE]\ncurrent_date_time: 2024-07-10 19 Wed',
+                                sourceRange: [283, 298],
+                                timelineStart: '2024-07-04 14 Thu',
+                                currentDateTime: '2024-07-10 19 Wed',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+        const assembled = assembleSummaryBlock();
+
+        expect(assembled).toContain('[msgs 283-298; current 2024-07-10 19 Wed] latest event');
+        expect(assembled).not.toContain('2024-07-04 14 Thu -> unknown');
+    });
+
+    it('strips repeated leading old and current-style anchors when rendering', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text:
+                                    '[NARRATIVE]\n' +
+                                    '[msgs 0-139; 2024-07-04 14 Thu -> unknown] ' +
+                                    '[msgs 0-139; current 2024-07-05 12 Fri] anchored event\n\n' +
+                                    '[STATE]',
+                                sourceRange: [0, 139],
+                                currentDateTime: '2024-07-05 12 Fri',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+        const assembled = assembleSummaryBlock();
+
+        expect(assembled).toContain('[msgs 0-139; current 2024-07-05 12 Fri] anchored event');
+        expect(assembled).not.toContain('] [msgs');
     });
 
     it('counts effective memory as the assembled injection with merged state', async () => {

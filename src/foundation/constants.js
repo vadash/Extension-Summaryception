@@ -54,7 +54,7 @@ export const defaultSettings = Object.freeze({
         'This is condensed continuity memory from older chat turns.\n\n' +
         '[HIERARCHY OF TRUTH]\n' +
         "1. [CURRENT STATE] contains active, durable facts (location, inventory, active rules, constraints, and physical limitations). This section is the absolute truth for the current scene. If [CHRONOLOGY] or the user's input contradicts this section, [CURRENT STATE] takes strict priority.\n" +
-        '2. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events.\n\n' +
+        '2. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events. Entries are ordered older to newer; an anchor like [msgs X-Y; current T] means the entry summarizes chat messages X through Y, and T is the scene time at the end of message Y.\n\n' +
         '{{summary}}\n' +
         '</summaryception_memory>',
 
@@ -87,17 +87,13 @@ Omit unchanged state. Omission means the previous value is preserved.
 Do NOT extract static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions. Those belong in character cards or lorebooks.
 Do NOT write descriptive sentences in the state block. Use concise keys and values only.
 To delete a resolved or emptied variable, write: key: none
-Always include temporal keys:
+Always include temporal key:
 - current_date_time: YYYY-MM-DD HH ddd
-- timeline_start: YYYY-MM-DD HH ddd | unknown
-- timeline_end: YYYY-MM-DD HH ddd | unknown
 Use 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed. Normalize from raw bracket headers or passage timestamps when present. Drop minutes instead of preserving them.
-If no explicit time appears in the passage, carry forward the prior current_date_time if known and set timeline_start/timeline_end to unknown unless same-hour/day timing is explicit.
+If no explicit time appears in the passage, carry forward the prior current_date_time if known.
 
 Common keys (use what is relevant, invent new ones if needed):
 - current_date_time: <YYYY-MM-DD HH ddd>
-- timeline_start: <YYYY-MM-DD HH ddd | unknown>
-- timeline_end: <YYYY-MM-DD HH ddd | unknown>
 - location: <current place>
 - characters: <name: brief status, ...>
 - inventory: <active items/equipment>
@@ -107,7 +103,7 @@ Common keys (use what is relevant, invent new ones if needed):
 
 Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, or momentary pose/arousal/mood counters. Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by an unresolved hook.
 
-Do not narrate events inside [STATE]. Only current facts. If nothing changed, output only the required temporal keys below [STATE].`,
+Do not narrate events inside [STATE]. Only current facts. If nothing changed, output only current_date_time below [STATE].`,
 
     promotionSystemPrompt:
         'Role: prose-folding memory synthesizer. Fold durable state into narrative continuity, then output one consolidated [NARRATIVE] paragraph only. No [STATE], preamble, commentary, or markdown.',
@@ -134,7 +130,7 @@ Consolidate the NEW events from <narratives_to_consolidate> and any durable fact
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
 2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <narratives_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
-4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available.
+4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; current 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available.
 
 ### PROSE-FOLDING RULES:
 The <source_state> block contains dynamic facts extracted from the source memories. Fold any still-durable facts, inventory changes, counters, relationship changes, current positions, and unresolved hooks directly into the narrative prose.

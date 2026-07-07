@@ -55,6 +55,8 @@ describe('constants', () => {
         expect(defaultSettings.injectionTemplate).toContain('[CURRENT STATE]');
         expect(defaultSettings.injectionTemplate).toContain('[CHRONOLOGY]');
         expect(defaultSettings.injectionTemplate).toContain('strict priority');
+        expect(defaultSettings.injectionTemplate).toContain('[msgs X-Y; current T]');
+        expect(defaultSettings.injectionTemplate).toContain('scene time at the end of message Y');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
     });
 
@@ -94,7 +96,9 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('PROSE-FOLDING RULES');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do not output a [STATE] block');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Fold any still-durable facts');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('2024-12-03 06 Wed');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain(
+            '[msgs 100-120; current 2024-12-03 09 Wed]',
+        );
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Omit stale transient scene facts');
     });
@@ -117,7 +121,9 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
         expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
         expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');
-        expect(defaultSettings.promotionUserPrompt).toContain('2024-12-03 06 Wed');
+        expect(defaultSettings.promotionUserPrompt).toContain(
+            '[msgs 100-120; current 2024-12-03 09 Wed]',
+        );
         expect(defaultSettings.promotionUserPrompt).toContain('hour-level 24-hour timestamps');
         expect(defaultSettings.promotionUserPrompt).toContain('PROSE-FOLDING RULES');
         expect(defaultSettings.promotionUserPrompt).toContain('Omit stale transient scene facts');

@@ -70,12 +70,16 @@ describe('appendLayer0PromptConstraints', () => {
             { layer0SummaryTokenTarget: 200 },
             {
                 kind: 'layer0',
+                sourceRange: [12, 34],
             },
         );
         expect(result).toContain('summaryception_l0_constraints');
+        expect(result).toContain('This passage covers chat messages 12-34');
+        expect(result).toContain('Message 34 is the latest summarized message');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
         expect(result).toContain('current_date_time');
+        expect(result).not.toContain('timeline_start');
         expect(result).toContain('YYYY-MM-DD HH ddd');
         expect(result).toContain('physiological or sex counters');
         expect(result).toContain('static character background/profile facts');
@@ -96,7 +100,7 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('exactly one dense paragraph');
         expect(result).toContain('no more than 4 to 5 sentences');
         expect(result).toContain('macro-level durable chronology');
-        expect(result).toContain('2024-12-03 06 Wed');
+        expect(result).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(result).toContain('unknown spans');
         expect(result).toContain('Fold any critical changes in state');
     });

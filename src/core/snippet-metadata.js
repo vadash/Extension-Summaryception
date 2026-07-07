@@ -1,17 +1,17 @@
 import { parseSnippet } from './summarizer-state.js';
 
 const UNKNOWN_TIME = 'unknown';
-const LEADING_SNIPPET_ANCHOR_RE = /^\s*\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*/i;
+const LEADING_NARRATIVE_HEADER_RE = /^\s*\[NARRATIVE\]\s*/i;
+const LEADING_SNIPPET_ANCHORS_RE =
+    /^\s*(?:(?:[-*]\s*)?\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*)+/i;
 
 /**
  * Build optional snippet metadata from a parsed [STATE] object.
  * @param {Record<string, string>} state
- * @returns {{ timelineStart?: string, timelineEnd?: string, currentDateTime?: string }}
+ * @returns {{ currentDateTime?: string }}
  */
 export function buildSnippetMetadataFromState(state = {}) {
     return compactMetadata({
-        timelineStart: knownStateValue(state.timeline_start),
-        timelineEnd: knownStateValue(state.timeline_end),
         currentDateTime: knownStateValue(state.current_date_time),
     });
 }
@@ -19,7 +19,7 @@ export function buildSnippetMetadataFromState(state = {}) {
 /**
  * Build the metadata envelope for a promoted snippet.
  * @param {Array<object>} snippets
- * @returns {{ sourceRange?: [number, number], timelineStart?: string, timelineEnd?: string, currentDateTime?: string }}
+ * @returns {{ sourceRange?: [number, number], currentDateTime?: string }}
  */
 export function buildPromotedSnippetMetadata(snippets = []) {
     const childMetadata = snippets.map(extractSnippetMetadata);
@@ -38,8 +38,6 @@ export function buildPromotedSnippetMetadata(snippets = []) {
         ];
     }
 
-    envelope.timelineStart = firstKnown(childMetadata.map((meta) => meta.timelineStart));
-    envelope.timelineEnd = lastKnown(childMetadata.map((meta) => meta.timelineEnd));
     envelope.currentDateTime = lastKnown(childMetadata.map((meta) => meta.currentDateTime));
     return compactMetadata(envelope);
 }
@@ -47,14 +45,13 @@ export function buildPromotedSnippetMetadata(snippets = []) {
 /**
  * Extract normalized optional chronology metadata from a snippet object.
  * @param {object} snippet
- * @returns {{ sourceRange?: [number, number], timelineStart?: string, timelineEnd?: string, currentDateTime?: string }}
+ * @returns {{ sourceRange?: [number, number], currentDateTime?: string }}
  */
 export function extractSnippetMetadata(snippet = {}) {
     return compactMetadata({
         sourceRange: normalizeRange(snippet.sourceRange),
-        timelineStart: knownStateValue(snippet.timelineStart),
-        timelineEnd: knownStateValue(snippet.timelineEnd),
-        currentDateTime: knownStateValue(snippet.currentDateTime),
+        currentDateTime:
+            knownStateValue(snippet.currentDateTime) || knownStateValue(snippet.timelineEnd),
     });
 }
 
@@ -79,18 +76,14 @@ export function formatAnchoredSnippetNarrative(snippet = {}) {
  */
 export function formatSnippetAnchor(snippet = {}) {
     const meta = extractSnippetMetadata(snippet);
-    const hasRange = Boolean(meta.sourceRange);
-    const hasTime = Boolean(meta.timelineStart || meta.timelineEnd || meta.currentDateTime);
-    if (!hasRange && !hasTime) {
+    const range = meta.sourceRange;
+    if (!range) {
         return '';
     }
 
-    const rangeText = meta.sourceRange
-        ? `msgs ${meta.sourceRange[0]}-${meta.sourceRange[1]}`
-        : 'msgs unknown';
-    const start = meta.timelineStart || UNKNOWN_TIME;
-    const end = meta.timelineEnd || UNKNOWN_TIME;
-    return `[${rangeText}; ${start} -> ${end}]`;
+    const rangeText = `msgs ${range[0]}-${range[1]}`;
+    const current = meta.currentDateTime || UNKNOWN_TIME;
+    return `[${rangeText}; current ${current}]`;
 }
 
 /**
@@ -99,9 +92,13 @@ export function formatSnippetAnchor(snippet = {}) {
  * @returns {string}
  */
 export function stripLeadingSnippetAnchor(text) {
-    return String(text || '')
-        .replace(LEADING_SNIPPET_ANCHOR_RE, '')
+    let cleaned = String(text || '')
+        .replace(LEADING_NARRATIVE_HEADER_RE, '')
         .trim();
+    while (LEADING_SNIPPET_ANCHORS_RE.test(cleaned)) {
+        cleaned = cleaned.replace(LEADING_SNIPPET_ANCHORS_RE, '').trim();
+    }
+    return cleaned;
 }
 
 function normalizeRange(range) {
@@ -124,10 +121,6 @@ function knownStateValue(value) {
         return undefined;
     }
     return text;
-}
-
-function firstKnown(values) {
-    return values.find(Boolean);
 }
 
 function lastKnown(values) {

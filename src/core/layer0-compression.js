@@ -65,16 +65,18 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
     }
 
     const target = getLayer0SummaryTokenTarget(settings);
+    const sourceRangeLine = buildLayer0SourceRangeLine(metadata);
     return (
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_l0_constraints>\n' +
         `Target length: at most about ${target} tokens.\n` +
+        sourceRangeLine +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
         '[STATE] must contain only changed or newly relevant dynamic current facts as key: value lines; omit unchanged facts.\n' +
-        '[STATE] must always include current_date_time, timeline_start, and timeline_end.\n' +
+        '[STATE] must always include current_date_time.\n' +
         'Use temporal format YYYY-MM-DD HH ddd with 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed; drop minutes instead of preserving them.\n' +
-        'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time and set timeline_start/timeline_end to unknown unless same-hour/day timing is explicit.\n' +
+        'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time.\n' +
         '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +
         'Do NOT write descriptive sentences in the state block. Use concise keys and values only.\n' +
         'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
@@ -84,6 +86,18 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Omit repeated micro-actions, flavor dialogue, sensory detail, and transient atmosphere unless they create lasting state.\n' +
         'When detail competes with length, keep the fact needed for future continuity and drop the scene replay.\n' +
         '</summaryception_l0_constraints>'
+    );
+}
+
+function buildLayer0SourceRangeLine(metadata = {}) {
+    const range = metadata.sourceRange;
+    if (!Array.isArray(range) || range.length < 2) {
+        return '';
+    }
+    return (
+        `This passage covers chat messages ${range[0]}-${range[1]}. ` +
+        `Message ${range[1]} is the latest summarized message. ` +
+        'current_date_time must be the scene time at the end of that message.\n'
     );
 }
 
@@ -126,7 +140,7 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         'Fold any critical changes in state, inventory, counters, or character dynamics directly into the prose.\n' +
         'Do not use key-value formatting, bullet lists, tables, or structured state syntax.\n' +
         'Preserve only macro-level durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
-        'Preserve anchored source ranges and hour-level 24-hour timestamps already present in memory, e.g. [msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed].\n' +
+        'Preserve anchored source ranges and hour-level 24-hour timestamps already present in memory, e.g. [msgs 100-120; current 2024-12-03 09 Wed].\n' +
         'Do not invent broad dates for unknown spans; only clean unknown spans when bounded by explicit neighboring anchors.\n' +
         'Omit physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, and momentary pose/arousal/mood counters.\n' +
         'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +

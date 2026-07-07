@@ -27,8 +27,6 @@ const VALID_L0_SUMMARY = [
     '',
     '[STATE]',
     'current_date_time: 2024-12-03 06 Wed',
-    'timeline_start: 2024-12-03 06 Wed',
-    'timeline_end: 2024-12-03 06 Wed',
 ].join('\n');
 
 beforeEach(async () => {
@@ -99,8 +97,6 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
                 '',
                 '[STATE]',
                 'current_date_time: 2024-12-03 06 Wed',
-                'timeline_start: 2024-12-03 06 Wed',
-                'timeline_end: 2024-12-03 06 Wed',
             ].join('\n'),
         );
 
@@ -120,9 +116,9 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
             turnRange: [0, 1],
             sourceRange: [0, 1],
             currentDateTime: '2024-12-03 06 Wed',
-            timelineStart: '2024-12-03 06 Wed',
-            timelineEnd: '2024-12-03 06 Wed',
         });
+        expect(ctx.chatMetadata.summaryception.layers[0][0]).not.toHaveProperty('timelineStart');
+        expect(ctx.chatMetadata.summaryception.layers[0][0]).not.toHaveProperty('timelineEnd');
         expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(1);
         expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 1, {
             chatSave: 'deferred',

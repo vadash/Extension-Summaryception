@@ -305,7 +305,9 @@ describe('promotion prompt guard', () => {
 
     it('sends narratives plus source state to promotion and stores narrative-only output', async () => {
         mocks.callSummarizer.mockResolvedValue(
-            '[NARRATIVE]\n[msgs 10-16; 2024-12-03 06 Wed -> unknown] Merged narrative.',
+            '[NARRATIVE]\n' +
+                '[msgs 10-16; 2024-12-03 06 Wed -> unknown] ' +
+                '[msgs 10-16; current 2024-12-03 09 Wed] Merged narrative.',
         );
         installSillyTavernStub({
             metadata: {
@@ -320,12 +322,14 @@ describe('promotion prompt guard', () => {
                                 sourceRange: [10, 12],
                                 timelineStart: '2024-12-03 06 Wed',
                                 timelineEnd: '2024-12-03 07 Wed',
+                                currentDateTime: '2024-12-03 07 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nSecond event.\n\n[STATE]\nplace: dock\ninventory: key',
                                 sourceRange: [13, 14],
                                 timelineStart: '2024-12-03 08 Wed',
                                 timelineEnd: '2024-12-03 08 Wed',
+                                currentDateTime: '2024-12-03 08 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nThird event.\n\n[STATE]\nhooks: resolved\ncounters: score 2',
@@ -363,9 +367,9 @@ describe('promotion prompt guard', () => {
 
         expect(mocks.callSummarizer).toHaveBeenCalledWith(
             [
-                '[msgs 10-12; 2024-12-03 06 Wed -> 2024-12-03 07 Wed] First event.',
-                '[msgs 13-14; 2024-12-03 08 Wed -> 2024-12-03 08 Wed] Second event.',
-                '[msgs 15-16; unknown -> 2024-12-03 09 Wed] Third event.',
+                '[msgs 10-12; current 2024-12-03 07 Wed] First event.',
+                '[msgs 13-14; current 2024-12-03 08 Wed] Second event.',
+                '[msgs 15-16; current 2024-12-03 09 Wed] Third event.',
             ].join('\n\n'),
             expect.any(String),
             expect.objectContaining({
@@ -377,10 +381,10 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[1][0].text).toBe('Merged narrative.');
         expect(getChatStore().layers[1][0]).toMatchObject({
             sourceRange: [10, 16],
-            timelineStart: '2024-12-03 06 Wed',
-            timelineEnd: '2024-12-03 09 Wed',
             currentDateTime: '2024-12-03 09 Wed',
         });
+        expect(getChatStore().layers[1][0]).not.toHaveProperty('timelineStart');
+        expect(getChatStore().layers[1][0]).not.toHaveProperty('timelineEnd');
     });
 
     it('carries durable promoted L0 state into the oldest remaining L0 snippet', async () => {
