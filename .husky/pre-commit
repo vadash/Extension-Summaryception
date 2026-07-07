@@ -28,9 +28,10 @@ run_check tsc npx tsc --noEmit --pretty false || exit 1
 run_check lint-staged npx lint-staged --verbose || exit 1
 run_check tests npm test || exit 1
 
-# Run repomix asynchronously (non-blocking). A flag file acts as both lock
-# and age check: no flag or flag older than 2min triggers a run; otherwise
-# skip. Stale runs get killed and all four outputs regenerate.
+# Run repomix asynchronously (fire-and-forget). A flag file acts as both
+# lock and age check: no flag or flag older than 2min triggers a fresh run;
+# otherwise skip. If the flag is stale (older than 2min, meaning a previous
+# run likely hung), kill all repomix processes and start fresh.
 repomix_flag="$tmp_dir/../summaryception-repomix.flag"
 repomix_max_age=120
 repomix_cmds="repomix:source repomix:tests repomix:compressed-source repomix:compressed-tests"
@@ -44,7 +45,9 @@ flag_age() {
 
 should_run() { [ ! -f "$repomix_flag" ] || [ "$(flag_age)" -ge "$repomix_max_age" ]; }
 
-cleanup_stale() { pkill -f repomix 2>/dev/null; rm -f "$repomix_flag"; }
+is_stale() { [ -f "$repomix_flag" ] && [ "$(flag_age)" -ge "$repomix_max_age" ]; }
+
+kill_stale() { pkill -f repomix 2>/dev/null; rm -f "$repomix_flag"; }
 
 run_repomix() {
     for cmd in $repomix_cmds; do npm run "$cmd" >/dev/null 2>&1; done
@@ -52,7 +55,10 @@ run_repomix() {
 }
 
 if should_run; then
-    ( cleanup_stale; run_repomix; ) &
+    if is_stale; then
+        kill_stale
+    fi
+    ( run_repomix; ) &
     disown
 fi
 
