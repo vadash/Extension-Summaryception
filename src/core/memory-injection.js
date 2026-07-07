@@ -52,7 +52,7 @@ function collectChronologyParts(layers) {
             continue;
         }
         const text = layer
-            .map((snippet) => parseSnippet(snippet?.text || '').narrative)
+            .map((snippet) => buildChronologySnippetText(snippet, i))
             .filter(Boolean)
             .join(' ');
         if (text) {
@@ -60,6 +60,29 @@ function collectChronologyParts(layers) {
         }
     }
     return parts;
+}
+
+function buildChronologySnippetText(snippet, layerIndex) {
+    const parsed = parseSnippet(snippet?.text || '');
+    const pieces = [parsed.narrative.trim()];
+    if (layerIndex > 0) {
+        const historicalStateNote = formatHistoricalStateNote(parsed.state);
+        if (historicalStateNote) {
+            pieces.push(historicalStateNote);
+        }
+    }
+    return pieces.filter(Boolean).join(' ');
+}
+
+function formatHistoricalStateNote(state) {
+    const entries = Object.entries(state || {})
+        .map(([key, value]) => [String(key).trim(), String(value ?? '').trim()])
+        .filter(([key, value]) => key && value);
+    if (entries.length === 0) {
+        return '';
+    }
+    const facts = entries.map(([key, value]) => `${key} is ${value}`).join('; ');
+    return `[Historical note: ${facts}]`;
 }
 
 function combineMemoryText(stateText, chronologyText) {

@@ -200,7 +200,7 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
     settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 10, 100);
-    settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 7);
+    settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
 }
 
 /**

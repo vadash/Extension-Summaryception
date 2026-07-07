@@ -233,7 +233,7 @@ describe('promotion prompt guard', () => {
         });
     });
 
-    it('sends only narratives to promotion and falls back to code-merged state when LLM omits state', async () => {
+    it('sends narratives plus source state to promotion and stores narrative-only output', async () => {
         mocks.callSummarizer.mockResolvedValue('Merged narrative.');
         installSillyTavernStub({
             metadata: {
@@ -283,19 +283,10 @@ describe('promotion prompt guard', () => {
                 sourceState: expect.stringContaining('[STATE]'),
             }),
         );
-        expect(getChatStore().layers[1][0].text).toBe(
-            [
-                'Merged narrative.',
-                '',
-                '[STATE]',
-                'location: dock',
-                'inventory: key',
-                'counters: score 2',
-            ].join('\n'),
-        );
+        expect(getChatStore().layers[1][0].text).toBe('Merged narrative.');
     });
 
-    it('uses LLM-produced state when promotion output includes [STATE]', async () => {
+    it('strips LLM-produced state when promotion output includes [STATE]', async () => {
         mocks.callSummarizer.mockResolvedValue(
             [
                 '[NARRATIVE]',
@@ -349,11 +340,7 @@ describe('promotion prompt guard', () => {
         const storedText = getChatStore().layers[1][0].text;
         const parsed = parseStoredSnippet(storedText);
         expect(parsed.narrative).toBe('The trio advanced through the dock and secured a boat.');
-        expect(parsed.state).toEqual({
-            location: 'harbor',
-            inventory: 'boat, key',
-            counters: 'score 5',
-        });
+        expect(parsed.state).toEqual({});
     });
 
     it('treats an explicit empty promotion state as authoritative', async () => {
@@ -509,7 +496,66 @@ describe('promotion prompt guard', () => {
         });
     });
 
-    it('uses normalized halving quotas across active layers', async () => {
+    it('uses four snippets as the defensive maximum for invalid promotion batch settings', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(900) },
+                            { text: 'b '.repeat(900) },
+                            { text: 'c '.repeat(900) },
+                            { text: 'd '.repeat(900) },
+                            { text: 'e '.repeat(900) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 99,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(getChatStore().layers[0]).toHaveLength(1);
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            text: 'merged',
+            mergedCount: 4,
+        });
+    });
+
+    it('uses the walkthrough L0 creation gate before L1 exists', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'a '.repeat(600) }]],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 1000,
+                snippetsPerLayer: 100,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore, getSettings } = await import('../src/foundation/state.js');
+        const { getLayerMemoryQuotas } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(getLayerMemoryQuotas(getChatStore(), getSettings())).resolves.toEqual([
+            expect.objectContaining({ layerIndex: 0, quota: 2400, tokens: 600 }),
+        ]);
+    });
+
+    it('uses pyramid quotas across active L0 and L1 layers', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -531,9 +577,78 @@ describe('promotion prompt guard', () => {
         const { getLayerMemoryQuotas } = await import('../src/core/summarizer-promotion.js');
 
         await expect(getLayerMemoryQuotas(getChatStore(), getSettings())).resolves.toEqual([
-            expect.objectContaining({ layerIndex: 0, quota: 4000, tokens: 600 }),
-            expect.objectContaining({ layerIndex: 1, quota: 2000, tokens: 300 }),
+            expect.objectContaining({ layerIndex: 0, quota: 3600, tokens: 600 }),
+            expect.objectContaining({ layerIndex: 1, quota: 1800, tokens: 300 }),
         ]);
+    });
+
+    it('uses final pyramid quotas and aggregates L2+ token pressure', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [{ text: 'a '.repeat(500) }],
+                        [{ text: 'b '.repeat(300) }],
+                        [{ text: 'c '.repeat(100) }],
+                        [{ text: 'd '.repeat(150) }],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 1000,
+                snippetsPerLayer: 100,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore, getSettings } = await import('../src/foundation/state.js');
+        const { getLayerMemoryQuotas } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(getLayerMemoryQuotas(getChatStore(), getSettings())).resolves.toEqual([
+            expect.objectContaining({ layerIndex: 0, quota: 2000, tokens: 500 }),
+            expect.objectContaining({ layerIndex: 1, quota: 1200, tokens: 300 }),
+            expect.objectContaining({ layerIndex: 2, quota: 800, tokens: 250 }),
+            expect.objectContaining({ layerIndex: 3, quota: 800, tokens: 250 }),
+        ]);
+    });
+
+    it('promotes the shallowest eligible L2+ layer when the deep bucket overflows', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [{ text: 'l0 '.repeat(100) }],
+                        [{ text: 'l1 '.repeat(100) }],
+                        [
+                            { text: 'l2a '.repeat(300) },
+                            { text: 'l2b '.repeat(300) },
+                            { text: 'l2c '.repeat(300) },
+                        ],
+                        [{ text: 'l3 '.repeat(25) }],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 1000,
+                snippetsPerLayer: 100,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(getChatStore().layers[2]).toHaveLength(0);
+        expect(getChatStore().layers[3]).toHaveLength(2);
+        expect(getChatStore().layers[3][1]).toMatchObject({
+            text: 'merged',
+            fromLayer: 2,
+            mergedCount: 3,
+        });
     });
 
     it('preserves layers beyond the hidden creation cap and includes them in quotas', async () => {

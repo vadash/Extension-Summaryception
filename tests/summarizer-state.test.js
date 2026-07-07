@@ -192,7 +192,7 @@ describe('summarizer-state', () => {
         expect(mergeStates([{ inventory: 'badge; map' }, { inventory: 'removed' }])).toEqual({});
     });
 
-    it('compiles global state oldest to newest across layers', () => {
+    it('compiles global state from Layer 0 only', () => {
         expect(
             compileGlobalState([
                 [{ text: '[NARRATIVE]\nRecent.\n[STATE]\nlocation: bridge\nhooks: none' }],
@@ -226,7 +226,7 @@ describe('summarizer-state', () => {
         });
     });
 
-    it('drops stale transient keys last seen only in deep layers', () => {
+    it('ignores state from deep layers', () => {
         expect(
             compileGlobalState([
                 [],
@@ -248,17 +248,12 @@ describe('summarizer-state', () => {
                     },
                 ],
             ]),
-        ).toEqual({
-            hooks: 'find the gate',
-            inventory: 'brass key',
-            dynamics: 'wary alliance',
-        });
+        ).toEqual({});
     });
 
-    it('preserves recent transient keys from L0 and L1', () => {
+    it('preserves recent transient keys from L0', () => {
         expect(
             compileGlobalState([
-                [],
                 [
                     {
                         text: [
@@ -297,9 +292,7 @@ describe('summarizer-state', () => {
                 [],
                 [{ text: '[NARRATIVE]\nOlder.\n[STATE]\nlocation: tower\nhooks: open gate' }],
             ]),
-        ).toEqual({
-            hooks: 'open gate',
-        });
+        ).toEqual({});
     });
 
     it('merges composite sub-entries without losing unmentioned older entries', () => {
@@ -338,7 +331,7 @@ describe('summarizer-state', () => {
         });
     });
 
-    it('preserves composite merge behavior across compileGlobalState layers', () => {
+    it('preserves composite merge behavior within Layer 0', () => {
         expect(
             compileGlobalState([
                 [
@@ -350,15 +343,12 @@ describe('summarizer-state', () => {
                             'characters: Zoe: rested',
                         ].join('\n'),
                     },
-                ],
-                [],
-                [
                     {
                         text: [
                             '[NARRATIVE]',
-                            'Older L2.',
+                            'Newer L0.',
                             '[STATE]',
-                            'characters: Zoe: sore; Vova: tired',
+                            'characters: Vova: tired',
                             'hooks: open gate',
                         ].join('\n'),
                     },

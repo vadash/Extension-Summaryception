@@ -295,11 +295,10 @@ describe('buildMemoryInjection', () => {
             [
                 '[CURRENT STATE]',
                 'location: bridge',
-                'inventory: key',
                 'hooks: escape',
                 '',
                 '[CHRONOLOGY]',
-                'Older scene. Recent scene.',
+                'Older scene. [Historical note: location is tower; inventory is key] Recent scene.',
             ].join('\n'),
         );
     });

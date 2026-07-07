@@ -197,7 +197,7 @@ describe('state.js', () => {
         });
     });
 
-    it('allows Layer 0 targets up to five hundred and promotion batches up to seven', () => {
+    it('allows Layer 0 targets up to five hundred and promotion batches up to four', () => {
         installSillyTavernStub({
             settings: {
                 layer0SummaryTokenTarget: 999,
@@ -209,7 +209,7 @@ describe('state.js', () => {
         expect(getSettings()).toMatchObject({
             layer0SummaryTokenTarget: 500,
             snippetsPerLayer: 100,
-            snippetsPerPromotion: 7,
+            snippetsPerPromotion: 4,
         });
     });
 

@@ -105,7 +105,7 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('static character background/profile facts');
     });
 
-    it('appends dual-output constraints for promotion calls', () => {
+    it('appends narrative-only constraints for promotion calls', () => {
         const result = appendLayer0PromptConstraints(
             'prompt',
             {},
@@ -116,8 +116,8 @@ describe('appendLayer0PromptConstraints', () => {
         );
         expect(result).toContain('summaryception_promotion_constraints');
         expect(result).toContain('[NARRATIVE]');
-        expect(result).toContain('[STATE]');
-        expect(result).toContain('Omitted [STATE] keys are treated as no longer active');
+        expect(result).toContain('Do not output a [STATE] block');
+        expect(result).toContain('Fold any critical changes in state');
     });
 
     it('returns prompt unchanged for non-compression calls', () => {

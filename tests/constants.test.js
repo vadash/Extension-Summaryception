@@ -85,10 +85,10 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{story_txt}}');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('{{source_state}}');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('narratives_to_consolidate');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do NOT include');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('[STATE]');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Reconcile, Do Not Replace');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Evict Stale or Static State');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('PROSE-FOLDING RULES');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do not output a [STATE] block');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Fold any still-durable facts');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Omit stale transient scene facts');
     });
 
     it('defaults to the narrative preset', () => {
@@ -101,7 +101,7 @@ describe('constants', () => {
     });
 
     it('provides separate Layer 1+ promotion prompts', () => {
-        expect(defaultSettings.promotionSystemPrompt).toContain('memory synthesizer');
+        expect(defaultSettings.promotionSystemPrompt).toContain('prose-folding memory synthesizer');
         expect(defaultSettings.promotionUserPrompt).toContain('{{context_str}}');
         expect(defaultSettings.promotionUserPrompt).toContain('{{story_txt}}');
         expect(defaultSettings.promotionUserPrompt).toContain('{{source_state}}');
@@ -111,8 +111,8 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');
         expect(defaultSettings.promotionUserPrompt).toContain('Saturday Oct 19, 7PM');
         expect(defaultSettings.promotionUserPrompt).toContain('full dates over bare weekdays');
-        expect(defaultSettings.promotionUserPrompt).toContain('Reconcile, Do Not Replace');
-        expect(defaultSettings.promotionUserPrompt).toContain('Omit transient scene facts');
+        expect(defaultSettings.promotionUserPrompt).toContain('PROSE-FOLDING RULES');
+        expect(defaultSettings.promotionUserPrompt).toContain('Omit stale transient scene facts');
     });
 
     it('strips common reasoning tokens by default', () => {

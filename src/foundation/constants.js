@@ -96,7 +96,7 @@ Common keys (use what is relevant, invent new ones if needed):
 Do not narrate events inside [STATE]. Only current facts. If nothing changed, output [STATE] with no keys below it.`,
 
     promotionSystemPrompt:
-        'Role: dual-track memory synthesizer. Reconcile newer narrative events with an existing state baseline, then output a consolidated [NARRATIVE] paragraph and a [STATE] key-value block. No preamble, no commentary, no markdown.',
+        'Role: prose-folding memory synthesizer. Fold durable state into narrative continuity, then output one consolidated [NARRATIVE] paragraph only. No [STATE], preamble, commentary, or markdown.',
 
     promotionUserPrompt: `<player_name>
 {{player_name}}
@@ -114,7 +114,7 @@ Do not narrate events inside [STATE]. Only current facts. If nothing changed, ou
 {{source_state}}
 </source_state>
 
-Consolidate the NEW events from <narratives_to_consolidate> into a highly compressed continuation that follows the runtime Layer 1+ target length.
+Consolidate the NEW events from <narratives_to_consolidate> and any durable facts from <source_state> into a highly compressed continuation that follows the runtime Layer 1+ target length.
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
@@ -122,18 +122,10 @@ Consolidate the NEW events from <narratives_to_consolidate> into a highly compre
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
 4. **Temporal Anchors:** Preserve useful full date/time anchors already present in lower-layer memory (for example, Saturday Oct 19, 7PM). Do not reduce inferable absolute timing to vague relative timing; for future goals/plans, prefer full dates over bare weekdays when available.
 
-### STATE RECONCILIATION RULES:
-The <source_state> block contains rolling dynamic facts extracted from the source memories. Produce a consolidated [STATE] block by intelligently reconciling <source_state> with the new events in <narratives_to_consolidate>:
-1. **Reconcile, Do Not Replace:** Update existing keys to reflect new developments. If a character was recovering and the narrative implies time has passed, advance the status rather than discarding it.
-2. **Increment Counters:** Update numerical counters by adding new events, not replacing the old value.
-3. **Merge Inventories:** Combine inventory lists, adding new items and removing used ones as described in the narrative.
-4. **Preserve Still-Relevant Durable State:** If a key-value pair from <source_state> is still active, durable, and relevant, carry it forward unchanged.
-5. **Clear Resolved State:** Write key: none only when a durable fact is explicitly resolved, emptied, or removed.
-6. **Evict Stale or Static State:** Omit transient scene facts that are no longer active, and omit static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.
-
-### NARRATIVE/STATE SEPARATION:
-- [NARRATIVE] must contain ONLY story, actions, dialogue, and events. Do NOT include factual parameters like dates, inventory lists, or status flags here.
-- [STATE] must contain ONLY key: value facts, counters, and status flags. Do NOT write descriptive sentences in the state block.
+### PROSE-FOLDING RULES:
+The <source_state> block contains dynamic facts extracted from the source memories. Fold any still-durable facts, inventory changes, counters, relationship changes, current positions, and unresolved hooks directly into the narrative prose.
+Do not output a [STATE] block, key-value lines, tables, bullets, or structured state syntax.
+Omit stale transient scene facts and static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.
 
 ### SYNTHESIS PRIORITIES:
 1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
@@ -142,13 +134,10 @@ The <source_state> block contains rolling dynamic facts extracted from the sourc
 4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 
 ### FORMAT:
-Output exactly two sections:
+Output exactly one section:
 
 [NARRATIVE]
-<one dense third-person chronological prose paragraph. Never use second-person.>
-
-[STATE]
-<consolidated key: value lines, one per line. If nothing is relevant, output [STATE] with no keys below it.>`,
+<one dense third-person chronological prose paragraph. Never use second-person. Do not output [STATE].>`,
 
     promptPreset: 'narrative', // 'narrative' | 'custom'
     savedCustomPrompts: {}, // { name: promptText } — named custom prompt slots

@@ -130,17 +130,16 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_promotion_constraints>\n' +
         targetLine +
-        'Output exactly two sections: [NARRATIVE] and [STATE].\n' +
+        'Read the [NARRATIVE] and [STATE] segments of the provided memory snippets.\n' +
+        'Output exactly one [NARRATIVE] section. Do not output a [STATE] block.\n' +
         '[NARRATIVE] must be one dense paragraph with no heading, list, preamble, or markdown.\n' +
+        'Fold any critical changes in state, inventory, counters, or character dynamics directly into the prose.\n' +
+        'Do not use key-value formatting, bullet lists, tables, or structured state syntax.\n' +
         'Preserve only durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
         'Preserve useful full date/time anchors already present in memory.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
         'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +
-        '[NARRATIVE] must contain ONLY story, actions, and events. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
-        '[STATE] must contain ONLY consolidated active dynamic facts, counters, and status flags. Omit stale transient scene facts and static character background/profile facts.\n' +
-        'Omitted [STATE] keys are treated as no longer active when you output a [STATE] section.\n' +
-        'Do NOT write descriptive sentences in the state block.\n' +
         '</summaryception_promotion_constraints>'
     );
 }

@@ -9,7 +9,7 @@ import {
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { getEffectiveMemoryUsage } from './memory-budget.js';
-import { hasStateSection, mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
+import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
     commitWhenSafe,
@@ -24,6 +24,11 @@ import {
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
 const MIN_PROMOTION_MERGE_COUNT = 3;
+const MAX_PROMOTION_MERGE_COUNT = 4;
+const LAYER0_INITIAL_BUDGET_RATIO = 0.6;
+const LAYER0_DEEP_BUDGET_RATIO = 0.5;
+const LAYER1_BUDGET_RATIO = 0.3;
+const DEEP_LAYER_BUDGET_RATIO = 0.2;
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.
@@ -73,16 +78,18 @@ export async function getLayerMemoryQuotas(store, settings) {
     }
 
     const usage = await getEffectiveMemoryUsage(store.layers, settings);
-    const chronologyTokens = getChronologyTokensByLayer(usage.layers);
-    const totalWeight = active.reduce((sum, layer) => sum + layer.weight, 0);
+    const layerTokens = getTokenCountsByLayer(usage);
+    const hasDeepLayers = active.some((layer) => layer.layerIndex >= 2);
+    const deepLayerTokens = getDeepLayerTokenCount(active, layerTokens);
     const budget = Math.max(1, Number(settings.memoryTokenBudget) || 1);
     const quotas = [];
     for (const layer of active) {
-        const quota = Math.max(1, Math.floor((budget * layer.weight) / totalWeight));
+        const quota = getLayerQuota(layer.layerIndex, budget, hasDeepLayers);
         quotas.push({
             layerIndex: layer.layerIndex,
             quota,
-            tokens: chronologyTokens.get(layer.layerIndex) || 0,
+            tokens:
+                layer.layerIndex >= 2 ? deepLayerTokens : layerTokens.get(layer.layerIndex) || 0,
             count: layer.snippets.length,
             totalTokens: usage.total.count,
             tokenBudgetExceeded: usage.total.count > budget,
@@ -113,17 +120,44 @@ function getActiveLayers(store) {
         if (!Array.isArray(snippets) || snippets.length === 0) {
             continue;
         }
-        active.push({ layerIndex: i, snippets, weight: 1 / 2 ** i });
+        active.push({ layerIndex: i, snippets });
     }
     return active;
 }
 
-function getChronologyTokensByLayer(layerParts) {
+function getTokenCountsByLayer(usage) {
     const tokens = new Map();
-    for (const part of layerParts) {
+    for (const part of usage.layers) {
         tokens.set(part.layerIndex, part.count);
     }
+    if (usage.state) {
+        tokens.set(0, (tokens.get(0) || 0) + usage.state.count);
+    }
     return tokens;
+}
+
+function getDeepLayerTokenCount(active, tokens) {
+    return active.reduce((sum, layer) => {
+        if (layer.layerIndex < 2) {
+            return sum;
+        }
+        return sum + (tokens.get(layer.layerIndex) || 0);
+    }, 0);
+}
+
+function getLayerQuota(layerIndex, budget, hasDeepLayers) {
+    if (layerIndex === 0) {
+        return Math.max(
+            1,
+            Math.floor(
+                budget * (hasDeepLayers ? LAYER0_DEEP_BUDGET_RATIO : LAYER0_INITIAL_BUDGET_RATIO),
+            ),
+        );
+    }
+    if (layerIndex === 1) {
+        return Math.max(1, Math.floor(budget * LAYER1_BUDGET_RATIO));
+    }
+    return Math.max(1, Math.floor(budget * DEEP_LAYER_BUDGET_RATIO));
 }
 
 function isLayerOverLimit(quota, settings) {
@@ -133,7 +167,7 @@ function isLayerOverLimit(quota, settings) {
     if (quota.count > settings.snippetsPerLayer) {
         return true;
     }
-    return quota.tokenBudgetExceeded && quota.tokens > quota.quota;
+    return quota.tokens > quota.quota;
 }
 
 function canPromoteLayer(layerIndex) {
@@ -145,7 +179,10 @@ function getEffectivePromotionBatchSize(settings) {
     if (!Number.isFinite(configured)) {
         return MIN_PROMOTION_MERGE_COUNT;
     }
-    return Math.max(MIN_PROMOTION_MERGE_COUNT, Math.round(configured));
+    return Math.min(
+        MAX_PROMOTION_MERGE_COUNT,
+        Math.max(MIN_PROMOTION_MERGE_COUNT, Math.round(configured)),
+    );
 }
 
 /**
@@ -191,29 +228,38 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         { timeOut: 3000, progressBar: true },
     );
 
-    const metaNarrative = storyTxt
-        ? await callSummarizer(storyTxt, contextStr, {
-              kind: 'promotion',
-              layerIndex,
-              mergedSnippetCount: toMerge.length,
-              memoryTokensBefore: memoryTokensBefore.count,
-              memoryTokensBeforeEstimated: memoryTokensBefore.estimated,
-              overflowLayerIndex: layerIndex,
-              overflowMemoryCount: layerCount,
-              overflowMemoryLimit: s.snippetsPerLayer,
-              overflowTokens: layerTokens,
-              overflowTokenQuota: quota,
-              sourceState,
-          })
-        : '';
-    if (storyTxt && !metaNarrative) {
+    if (!storyTxt) {
         return false;
     }
-    const metaSummary = combinePromotedMemory(metaNarrative, mergedState);
+    const metaNarrative = await callSummarizer(storyTxt, contextStr, {
+        kind: 'promotion',
+        layerIndex,
+        mergedSnippetCount: toMerge.length,
+        memoryTokensBefore: memoryTokensBefore.count,
+        memoryTokensBeforeEstimated: memoryTokensBefore.estimated,
+        overflowLayerIndex: layerIndex,
+        overflowMemoryCount: layerCount,
+        overflowMemoryLimit: s.snippetsPerLayer,
+        overflowTokens: layerTokens,
+        overflowTokenQuota: quota,
+        sourceState,
+    });
+    if (!metaNarrative) {
+        return false;
+    }
+    const metaSummary = combinePromotedMemory(metaNarrative);
     if (!metaSummary) {
         return false;
     }
-    if (!(await isPromotionCompressed({ layerIndex, mergeCount, metaSummary, settings: s }))) {
+    if (
+        !(await isPromotionCompressed({
+            layerIndex,
+            mergeCount,
+            metaSummary,
+            settings: s,
+            sourceMemoryText,
+        }))
+    ) {
         return false;
     }
 
@@ -229,25 +275,29 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     return result !== 'stale';
 }
 
-function combinePromotedMemory(narrative, fallbackState) {
-    if (!narrative) {
-        return serializeState(fallbackState) || '';
-    }
-
+function combinePromotedMemory(narrative) {
     const parsed = parseSnippet(narrative);
-    const narrativeText = parsed.narrative.trim();
-    if (!narrativeText) {
-        return serializeState(fallbackState) || '';
-    }
-
-    const llmState = parsed.state;
-    const finalState = hasStateSection(narrative) ? llmState : fallbackState;
-
-    const serializedState = serializeState(finalState);
-    return [narrativeText, serializedState].filter(Boolean).join('\n\n').trim();
+    return parsed.narrative.trim();
 }
 
-async function isPromotionCompressed({ layerIndex, mergeCount, metaSummary, settings }) {
+async function isPromotionCompressed({
+    layerIndex,
+    mergeCount,
+    metaSummary,
+    settings,
+    sourceMemoryText,
+}) {
+    const sourceTokens = await countTextTokens(sourceMemoryText);
+    const outputTokens = await countTextTokens(metaSummary);
+    if (outputTokens.count >= sourceTokens.count) {
+        warn(
+            `Promotion L${layerIndex} rejected: output did not compress source ` +
+                `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
+                `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens).`,
+        );
+        return false;
+    }
+
     const store = getChatStore();
     const memoryTokensBefore = await getEffectiveMemoryUsage(store.layers, settings);
     const nextLayers = buildHypotheticalPromotionLayers(

@@ -62,10 +62,9 @@ describe('assembleSummaryBlock', () => {
                 'BEGIN',
                 '[CURRENT STATE]',
                 'location: dock',
-                'hooks: open gate',
                 '',
                 '[CHRONOLOGY]',
-                'layer two layer zero A layer zero B',
+                'layer two [Historical note: location is tower; hooks is open gate] layer zero A layer zero B',
                 'END',
             ].join('\n'),
         );

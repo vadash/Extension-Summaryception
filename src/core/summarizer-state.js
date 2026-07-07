@@ -131,7 +131,7 @@ export function serializeState(state) {
 }
 
 /**
- * Compile all layer snippets into one merged state object.
+ * Compile Layer 0 snippets into one merged current-state object.
  * @param {Array<Array<{ text: string }>>} layers
  * @returns {Record<string, string>}
  */
@@ -139,21 +139,16 @@ export function compileGlobalState(layers) {
     const compiled = /** @type {Record<string, string>} */ ({});
     const allUnclassified = [];
     const keyLastLayer = new Map();
+    const layer = Array.isArray(layers?.[0]) ? layers[0] : [];
 
-    for (let i = (layers || []).length - 1; i >= 0; i--) {
-        const layer = layers[i];
-        if (!Array.isArray(layer)) {
-            continue;
-        }
-        for (const snippet of layer) {
-            const parsed = parseSnippet(snippet?.text || '');
-            if (Object.keys(parsed.state).length > 0) {
-                mergeStateInto(compiled, allUnclassified, parsed.state, {
-                    filterStaticProfile: true,
-                    keyLastLayer,
-                    layerIndex: i,
-                });
-            }
+    for (const snippet of layer) {
+        const parsed = parseSnippet(snippet?.text || '');
+        if (Object.keys(parsed.state).length > 0) {
+            mergeStateInto(compiled, allUnclassified, parsed.state, {
+                filterStaticProfile: true,
+                keyLastLayer,
+                layerIndex: 0,
+            });
         }
     }
 
