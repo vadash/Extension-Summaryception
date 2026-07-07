@@ -33,21 +33,16 @@ describe('cleanSummarizerOutput', () => {
         expect(result).toContain('42');
     });
 
-    it('keeps the content inside <output> tags', () => {
-        const raw = '<output>Final answer.</output>';
-        expect(cleanSummarizerOutput(raw)).toBe('Final answer.');
-    });
+    it('handles output wrappers and structural markers', () => {
+        expect(cleanSummarizerOutput('<output>Final answer.</output>')).toBe('Final answer.');
 
-    it('preserves dual-track structural markers by default', () => {
-        const raw = '[NARRATIVE]\nScene summary.\n\n[STATE]\nlocation: dock';
-        expect(cleanSummarizerOutput(raw)).toBe(raw);
-    });
-
-    it('strips dual-track structural markers only when requested', () => {
-        const raw = '[NARRATIVE]\nMerged summary.\n[STATE]';
-        expect(cleanSummarizerOutput(raw, { stripStructuralMarkers: true })).toBe(
-            'Merged summary.',
-        );
+        const structuralOutput = '[NARRATIVE]\nScene summary.\n\n[STATE]\nlocation: dock';
+        expect(cleanSummarizerOutput(structuralOutput)).toBe(structuralOutput);
+        expect(
+            cleanSummarizerOutput('[NARRATIVE]\nMerged summary.\n[STATE]', {
+                stripStructuralMarkers: true,
+            }),
+        ).toBe('Merged summary.');
     });
 
     it('removes multiple reasoning-tag variants', () => {
@@ -66,12 +61,8 @@ describe('cleanSummarizerOutput', () => {
         expect(cleaned).not.toContain('whisper');
     });
 
-    it('collapses three or more consecutive newlines down to one', () => {
-        const raw = 'alpha\n\n\n\n\nbeta';
-        expect(cleanSummarizerOutput(raw)).toBe('alpha\nbeta');
-    });
-
-    it('trims surrounding whitespace', () => {
+    it('normalizes excess whitespace', () => {
+        expect(cleanSummarizerOutput('alpha\n\n\n\n\nbeta')).toBe('alpha\nbeta');
         expect(cleanSummarizerOutput('\n\nhello\n\n')).toBe('hello');
     });
 });

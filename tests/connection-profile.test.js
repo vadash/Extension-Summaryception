@@ -69,32 +69,18 @@ describe('sendViaProfile', () => {
         );
     });
 
-    it('extracts top-level content responses', async () => {
-        await expectProfileResponse({ content: 'content response' }, 'content response');
-    });
+    it('parses supported object responses and rejects unexpected objects', async () => {
+        const cases = [
+            [{ content: 'content response' }, 'content response'],
+            [{ message: { content: 'message response' } }, 'message response'],
+            [{ choices: [{ message: { content: 'choice response' } }] }, 'choice response'],
+            [{ data: { text: 'data response' } }, '{"text":"data response"}'],
+        ];
 
-    it('extracts message.content responses', async () => {
-        await expectProfileResponse(
-            { message: { content: 'message response' } },
-            'message response',
-        );
-    });
+        for (const [raw, expected] of cases) {
+            await expectProfileResponse(raw, expected);
+        }
 
-    it('extracts choices[0].message.content responses', async () => {
-        await expectProfileResponse(
-            { choices: [{ message: { content: 'choice response' } }] },
-            'choice response',
-        );
-    });
-
-    it('falls back to the data field', async () => {
-        await expectProfileResponse(
-            { data: { text: 'data response' } },
-            '{"text":"data response"}',
-        );
-    });
-
-    it('throws a non-retryable error for unexpected response objects', async () => {
         installProfileService({ unexpected: true });
 
         await expect(

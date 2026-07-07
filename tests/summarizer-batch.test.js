@@ -85,29 +85,26 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         });
     });
 
-    it('discards a result when the chat id changes', async () => {
-        await runStaleCase((ctx) => {
-            ctx.chatId = 'chat-b';
-        });
-    });
+    it('discards stale results when chat state changes before commit', async () => {
+        const staleMutators = [
+            (ctx) => {
+                ctx.chatId = 'chat-b';
+            },
+            (ctx) => {
+                ctx.chatMetadata.summaryception.summarizedUpTo = 5;
+            },
+            (ctx) => {
+                ctx.chat[0].mes = 'edited source';
+            },
+            (ctx) => {
+                ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
+                ctx.chatMetadata.summaryception.mutationEpoch++;
+            },
+        ];
 
-    it('discards a result when summarizedUpTo changes', async () => {
-        await runStaleCase((ctx) => {
-            ctx.chatMetadata.summaryception.summarizedUpTo = 5;
-        });
-    });
-
-    it('discards a result when a source message is edited', async () => {
-        await runStaleCase((ctx) => {
-            ctx.chat[0].mes = 'edited source';
-        });
-    });
-
-    it('discards a result when summary layers change', async () => {
-        await runStaleCase((ctx) => {
-            ctx.chatMetadata.summaryception.layers[0].push({ text: 'external summary' });
-            ctx.chatMetadata.summaryception.mutationEpoch++;
-        });
+        for (const mutator of staleMutators) {
+            await runStaleCase(mutator);
+        }
     });
 
     it('defers prompt effects for a completed summary while foreground generation is frozen', async () => {

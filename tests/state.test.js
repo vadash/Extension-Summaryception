@@ -238,7 +238,7 @@ describe('state.js', () => {
         expect(getChatStore().mutationEpoch).toBe(0);
     });
 
-    it('normalizes and bumps the summary mutation epoch', () => {
+    it('normalizes chat stores and mutation epoch fields', () => {
         installSillyTavernStub({
             metadata: { summaryception: { layers: [], summarizedUpTo: -1, mutationEpoch: 2.5 } },
         });
@@ -247,39 +247,41 @@ describe('state.js', () => {
         expect(getSummaryStoreMutationEpoch(store)).toBe(0);
         expect(bumpSummaryStoreMutationEpoch(store)).toBe(1);
         expect(store.mutationEpoch).toBe(1);
-    });
 
-    it.each([
-        [
-            'drops malformed snippets while preserving layer positions',
-            {
-                layers: [
-                    [{ text: 'kept', turnRange: [0, 2] }, { text: 42 }, null, ['bad']],
-                    'bad-layer',
-                ],
-                summarizedUpTo: 2,
-                ghostedIndices: [],
-            },
-            { layers: [[{ text: 'kept', turnRange: [0, 2] }], []] },
-        ],
-        [
-            'normalizes non-array layers to an empty list',
-            { layers: { 0: [{ text: 'bad' }] }, summarizedUpTo: 0, ghostedIndices: [] },
-            { layers: [] },
-        ],
-        [
-            'normalizes bad summarizedUpTo values to the sentinel',
-            { layers: [], summarizedUpTo: Number.POSITIVE_INFINITY, ghostedIndices: [] },
-            { summarizedUpTo: -1 },
-        ],
-        [
-            'normalizes duplicate and string ghost indices',
-            { layers: [], summarizedUpTo: -1, ghostedIndices: [0, '1', 1, -1, 'bad', 2.5, 3] },
-            { ghostedIndices: [0, 1, 3] },
-        ],
-    ])('%s', (_label, summaryception, expected) => {
-        installSillyTavernStub({ metadata: { summaryception } });
-        expect(getChatStore()).toMatchObject(expected);
+        const normalizationCases = [
+            [
+                {
+                    layers: [
+                        [{ text: 'kept', turnRange: [0, 2] }, { text: 42 }, null, ['bad']],
+                        'bad-layer',
+                    ],
+                    summarizedUpTo: 2,
+                    ghostedIndices: [],
+                },
+                { layers: [[{ text: 'kept', turnRange: [0, 2] }], []] },
+            ],
+            [
+                { layers: { 0: [{ text: 'bad' }] }, summarizedUpTo: 0, ghostedIndices: [] },
+                { layers: [] },
+            ],
+            [
+                { layers: [], summarizedUpTo: Number.POSITIVE_INFINITY, ghostedIndices: [] },
+                { summarizedUpTo: -1 },
+            ],
+            [
+                {
+                    layers: [],
+                    summarizedUpTo: -1,
+                    ghostedIndices: [0, '1', 1, -1, 'bad', 2.5, 3],
+                },
+                { ghostedIndices: [0, 1, 3] },
+            ],
+        ];
+
+        for (const [summaryception, expected] of normalizationCases) {
+            installSillyTavernStub({ metadata: { summaryception } });
+            expect(getChatStore()).toMatchObject(expected);
+        }
     });
 
     it('calculates summarized coverage only through contiguous Layer 0 ranges', () => {

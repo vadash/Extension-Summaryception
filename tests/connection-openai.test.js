@@ -77,31 +77,42 @@ async function expectRetryableStreamFailure(response) {
 }
 
 describe('sendViaOpenAI streaming', () => {
-    it('assembles full content from newline-terminated SSE events', async () => {
+    it('assembles content across SSE chunk variants and stops at DONE', async () => {
+        const encoder = new TextEncoder();
         const response = makeStreamResponse([
             { value: sseEvent('Hello') },
-            { value: sseEvent(' world') },
-            { value: sseEvent('!') },
-            { value: sseDone() },
+            {
+                value: encoder.encode(
+                    'data: {"choices":[{"delta":{"role":"assistant"}}]}\n' +
+                        'data: {"choices":[{"delta":{"content":" world"}}]}\n' +
+                        'data: {not json}\n' +
+                        'data: {"choices":[{"delta":{"content":42}}]}\n' +
+                        'data: {"choices":[{"delta":{"content":"first"}}]}\n' +
+                        'data: {"choices":[{"delta":{"content":"second"}}]}\n',
+                ),
+            },
+            {
+                value: encoder.encode(
+                    'event: ping\n' +
+                        'data: {"choices":[{"delta":{"content":"kept"}}]}\n' +
+                        'data: [DONE]',
+                ),
+            },
         ]);
         stubFetch(response);
 
         const result = await sendTestRequest();
 
-        expect(result).toBe('Hello world!');
-    });
+        expect(result).toBe('Hello worldfirstsecondkept');
 
-    it('accepts a final DONE marker without a trailing newline', async () => {
-        const response = makeStreamResponse([
-            { value: sseEvent('first') },
-            { value: sseEvent('second') },
-            { value: sseDone(false) },
-        ]);
-        stubFetch(response);
-
-        const result = await sendTestRequest();
-
-        expect(result).toBe('firstsecond');
+        stubFetch(
+            makeStreamResponse([
+                { value: sseEvent('alpha') },
+                { value: encoder.encode('data: [DONE]\n') },
+                { value: sseEvent('beta') },
+            ]),
+        );
+        await expect(sendTestRequest()).resolves.toBe('alpha');
     });
 
     it('passes abort signals to direct fetch requests', async () => {
@@ -129,24 +140,25 @@ describe('sendViaOpenAI streaming', () => {
         expect(body.max_tokens).toBe(180);
     });
 
-    it.each([
-        [
-            'long',
+    it('throws a retryable ConnectionError for partial disconnects or missing DONE', async () => {
+        const disconnectCases = [
             'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.',
-        ],
-        ['short', 'hi'],
-    ])('throws a retryable ConnectionError for %s partial disconnects', async (_label, content) => {
-        const response = makeFailingStreamResponse(
-            [{ value: sseEvent(content) }],
-            1,
-            new TypeError('network error'),
-        );
-        await expectRetryableStreamFailure(response);
-    });
+            'hi',
+        ];
 
-    it('throws a retryable ConnectionError when the stream ends without DONE', async () => {
-        const response = makeStreamResponse([{ value: sseEvent('incomplete summary') }]);
-        await expectRetryableStreamFailure(response);
+        for (const content of disconnectCases) {
+            await expectRetryableStreamFailure(
+                makeFailingStreamResponse(
+                    [{ value: sseEvent(content) }],
+                    1,
+                    new TypeError('network error'),
+                ),
+            );
+        }
+
+        await expectRetryableStreamFailure(
+            makeStreamResponse([{ value: sseEvent('incomplete summary') }]),
+        );
     });
 
     it('rethrows AbortError so the caller classifies it as a user abort', async () => {
@@ -155,72 +167,5 @@ describe('sendViaOpenAI streaming', () => {
         stubFetch(response);
 
         await expect(sendTestRequest()).rejects.toThrow(/Aborted/);
-    });
-
-    it('ignores the [DONE] sentinel and returns only delta content', async () => {
-        const encoder = new TextEncoder();
-        const response = makeStreamResponse([
-            { value: sseEvent('alpha') },
-            { value: encoder.encode('data: [DONE]\n') },
-            { value: sseEvent('beta') },
-        ]);
-        stubFetch(response);
-
-        const result = await sendTestRequest();
-
-        expect(result).toBe('alpha');
-    });
-
-    it('ignores role-only deltas with no content', async () => {
-        const encoder = new TextEncoder();
-        const response = makeStreamResponse([
-            { value: encoder.encode('data: {"choices":[{"delta":{"role":"assistant"}}]}\n') },
-            { value: sseEvent('content') },
-            { value: sseDone() },
-        ]);
-        stubFetch(response);
-
-        const result = await sendTestRequest();
-
-        expect(result).toBe('content');
-    });
-
-    it('appends multiple SSE data lines from one chunk in order', async () => {
-        const encoder = new TextEncoder();
-        const response = makeStreamResponse([
-            {
-                value: encoder.encode(
-                    'data: {"choices":[{"delta":{"content":"first"}}]}\n' +
-                        'data: {"choices":[{"delta":{"content":"second"}}]}\n' +
-                        'data: [DONE]\n',
-                ),
-            },
-        ]);
-        stubFetch(response);
-
-        const result = await sendTestRequest();
-
-        expect(result).toBe('firstsecond');
-    });
-
-    it('ignores malformed and non-content data while keeping valid content', async () => {
-        const encoder = new TextEncoder();
-        const response = makeStreamResponse([
-            {
-                value: encoder.encode(
-                    'event: ping\n' +
-                        'data: {not json}\n' +
-                        'data: {"choices":[{"delta":{"content":42}}]}\n' +
-                        'data: {"choices":[{"delta":{"role":"assistant"}}]}\n' +
-                        'data: {"choices":[{"delta":{"content":"kept"}}]}\n' +
-                        'data: [DONE]\n',
-                ),
-            },
-        ]);
-        stubFetch(response);
-
-        const result = await sendTestRequest();
-
-        expect(result).toBe('kept');
     });
 });
