@@ -18,6 +18,8 @@
         "jscpd": "jscpd --config jscpd.json src",
         "repomix:source": "repomix --config repomix-source.json",
         "repomix:tests": "repomix --config repomix-tests.json",
+        "repomix:compressed-source": "repomix --config repomix-source.json --compress",
+        "repomix:compressed-tests": "repomix --config repomix-tests.json --compress",
         "prepare": "husky"
     },
     "lint-staged": {
