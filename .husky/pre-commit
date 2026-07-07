@@ -32,7 +32,7 @@ run_check tests npm test || exit 1
 # lock and age check: no flag or flag older than 2min triggers a fresh run;
 # otherwise skip. If the flag is stale (older than 2min, meaning a previous
 # run likely hung), kill all repomix processes and start fresh.
-repomix_flag="$tmp_dir/../summaryception-repomix.flag"
+repomix_flag="/tmp/summaryception-repomix.flag"
 repomix_max_age=120
 repomix_cmds="repomix:source repomix:tests repomix:compressed-source repomix:compressed-tests"
 
