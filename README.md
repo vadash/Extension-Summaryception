@@ -130,6 +130,7 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
+- **v12:** Focus on stability. Tested on few RP till 2-3k messages. Main problem is STATE gets too big. Good stopping point but I have few ideas. 
 - **v11:** CN output filter (CN models love to add non EN symbols to output) and Dual-Track Architecture test.
 Separate each summary into two tracks:
 1. **Narrative track** -- free-form prose describing what happened (events, actions, dialogue outcomes)
