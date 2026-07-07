@@ -1,6 +1,6 @@
 {
     "name": "extension-summaryception",
-    "version": "13.2.0",
+    "version": "13.3.0",
     "description": "Layered recursive summarization SillyTavern extension",
     "type": "module",
     "main": "index.js",
