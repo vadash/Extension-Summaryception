@@ -64,7 +64,17 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
                 makeMessage({ isUser: true, mes: 'preserved user', name: 'Player' }),
             ],
         });
-        mocks.callSummarizer.mockResolvedValue('new summary');
+        mocks.callSummarizer.mockResolvedValue(
+            [
+                '[NARRATIVE]',
+                'new summary',
+                '',
+                '[STATE]',
+                'current_date_time: 2024-12-03 06 Wed',
+                'timeline_start: 2024-12-03 06 Wed',
+                'timeline_end: 2024-12-03 06 Wed',
+            ].join('\n'),
+        );
 
         const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
         resetCommitStateForTests();
@@ -78,7 +88,13 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
         expect(mocks.callSummarizer.mock.calls[0][0]).toContain('Assistant: assistant source');
         expect(mocks.callSummarizer.mock.calls[0][0]).toContain('Player: trailing user');
         expect(mocks.callSummarizer.mock.calls[0][0]).not.toContain('preserved user');
-        expect(ctx.chatMetadata.summaryception.layers[0][0].turnRange).toEqual([0, 1]);
+        expect(ctx.chatMetadata.summaryception.layers[0][0]).toMatchObject({
+            turnRange: [0, 1],
+            sourceRange: [0, 1],
+            currentDateTime: '2024-12-03 06 Wed',
+            timelineStart: '2024-12-03 06 Wed',
+            timelineEnd: '2024-12-03 06 Wed',
+        });
         expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(1);
         expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 1, {
             chatSave: 'deferred',

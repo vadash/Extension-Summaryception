@@ -31,6 +31,7 @@ describe('promotion prompt guard', () => {
                             { text: 'older '.repeat(1800) },
                             { text: 'middle '.repeat(1800) },
                             { text: 'newer '.repeat(1800) },
+                            { text: 'tail '.repeat(1000) },
                         ],
                     ],
                     summarizedUpTo: 4,
@@ -68,7 +69,7 @@ describe('promotion prompt guard', () => {
         await endForegroundGeneration();
 
         expect(updateInjection).toHaveBeenCalledTimes(1);
-        expect(ctx.chatMetadata.summaryception.layers[0]).toHaveLength(0);
+        expect(ctx.chatMetadata.summaryception.layers[0]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1]).toHaveLength(1);
         expect(ctx.chatMetadata.summaryception.layers[1][0]).toMatchObject({
             text: 'merged',
@@ -135,6 +136,7 @@ describe('promotion prompt guard', () => {
                             { text: 'a '.repeat(1800) },
                             { text: 'b '.repeat(1800) },
                             { text: 'c '.repeat(1800) },
+                            { text: 'tail '.repeat(1000) },
                         ],
                     ],
                 }),
@@ -153,12 +155,43 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(true);
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
-        expect(getChatStore().layers[0]).toHaveLength(0);
+        expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1]).toHaveLength(1);
         expect(getChatStore().layers[1][0]).toMatchObject({
             text: 'merged',
             mergedCount: 3,
         });
+    });
+
+    it('skips L0 promotion when the projected remainder would fall below the retention floor', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1800) },
+                            { text: 'b '.repeat(1800) },
+                            { text: 'c '.repeat(1800) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(false);
+
+        expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(getChatStore().layers[0]).toHaveLength(3);
+        expect(getChatStore().layers[1]).toBeUndefined();
     });
 
     it('does not promote for token pressure when raw snippets exceed budget but injection fits', async () => {
@@ -206,14 +239,14 @@ describe('promotion prompt guard', () => {
                 summaryception: makeSummaryStore({
                     layers: [
                         Array.from({ length: 11 }, (_value, index) => ({
-                            text: `memory ${index}`,
+                            text: index === 10 ? 'tail '.repeat(1000) : `memory ${index}`,
                         })),
                     ],
                 }),
             },
             settings: {
                 injectionTemplate: '{{summary}}',
-                memoryTokenBudget: 32000,
+                memoryTokenBudget: 4000,
                 snippetsPerLayer: 10,
                 snippetsPerPromotion: 3,
             },
@@ -242,12 +275,21 @@ describe('promotion prompt guard', () => {
                         [
                             {
                                 text: '[NARRATIVE]\nFirst event.\n\n[STATE]\nlocation: tower\nhooks: open gate',
+                                sourceRange: [10, 12],
+                                timelineStart: '2024-12-03 06 Wed',
+                                timelineEnd: '2024-12-03 07 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nSecond event.\n\n[STATE]\nplace: dock\ninventory: key',
+                                sourceRange: [13, 14],
+                                timelineStart: '2024-12-03 08 Wed',
+                                timelineEnd: '2024-12-03 08 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nThird event.\n\n[STATE]\nhooks: resolved\ncounters: score 2',
+                                sourceRange: [15, 16],
+                                currentDateTime: '2024-12-03 09 Wed',
+                                timelineEnd: '2024-12-03 09 Wed',
                             },
                             { text: '[NARRATIVE]\nExtra 1.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 2.\n\n[STATE]' },
@@ -256,7 +298,7 @@ describe('promotion prompt guard', () => {
                             { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
-                            { text: '[NARRATIVE]\nExtra 8.\n\n[STATE]' },
+                            { text: `[NARRATIVE]\n${'Extra 8. '.repeat(1000)}\n\n[STATE]` },
                         ],
                     ],
                 }),
@@ -275,7 +317,11 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(true);
 
         expect(mocks.callSummarizer).toHaveBeenCalledWith(
-            ['First event.', 'Second event.', 'Third event.'].join('\n\n'),
+            [
+                '[msgs 10-12; 2024-12-03 06 Wed -> 2024-12-03 07 Wed] First event.',
+                '[msgs 13-14; 2024-12-03 08 Wed -> 2024-12-03 08 Wed] Second event.',
+                '[msgs 15-16; unknown -> 2024-12-03 09 Wed] Third event.',
+            ].join('\n\n'),
             expect.any(String),
             expect.objectContaining({
                 kind: 'promotion',
@@ -284,6 +330,72 @@ describe('promotion prompt guard', () => {
             }),
         );
         expect(getChatStore().layers[1][0].text).toBe('Merged narrative.');
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            sourceRange: [10, 16],
+            timelineStart: '2024-12-03 06 Wed',
+            timelineEnd: '2024-12-03 09 Wed',
+            currentDateTime: '2024-12-03 09 Wed',
+        });
+    });
+
+    it('carries durable promoted L0 state into the oldest remaining L0 snippet', async () => {
+        mocks.callSummarizer.mockResolvedValue('Merged narrative.');
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: [
+                                    '[NARRATIVE]',
+                                    'First event. '.repeat(400),
+                                    '[STATE]',
+                                    'current_date_time: 2024-12-06 21 Fri',
+                                    'timeline_start: 2024-12-06 20 Fri',
+                                    'timeline_end: 2024-12-06 21 Fri',
+                                    'location: theater',
+                                    'characters: Zoe: sitting',
+                                    'hooks: rent: pending payment',
+                                    'dynamics: Zoe trusts Vova',
+                                    'inventory: brass key',
+                                    'counters: rent debt: owed',
+                                ].join('\n'),
+                            },
+                            { text: '[NARRATIVE]\nSecond event. '.repeat(400) },
+                            { text: '[NARRATIVE]\nThird event. '.repeat(400) },
+                            {
+                                text: '[NARRATIVE]\nRemaining tail. '.repeat(1000) + '\n[STATE]',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+        const { parseSnippet } = await import('../src/core/summarizer-state.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        const remaining = parseSnippet(getChatStore().layers[0][0].text);
+        expect(remaining.state).toMatchObject({
+            current_date_time: '2024-12-06 21 Fri',
+            hooks: 'rent: pending payment',
+            dynamics: 'Zoe trusts Vova',
+            inventory: 'brass key',
+            counters: 'rent debt: owed',
+        });
+        expect(remaining.state).not.toHaveProperty('location');
+        expect(remaining.state).not.toHaveProperty('characters');
+        expect(remaining.state).not.toHaveProperty('timeline_start');
+        expect(remaining.state).not.toHaveProperty('timeline_end');
     });
 
     it('strips LLM-produced state when promotion output includes [STATE]', async () => {
@@ -368,7 +480,7 @@ describe('promotion prompt guard', () => {
                             { text: '[NARRATIVE]\nExtra 5.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 6.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 7.\n\n[STATE]' },
-                            { text: '[NARRATIVE]\nExtra 8.\n\n[STATE]' },
+                            { text: `[NARRATIVE]\n${'Extra 8. '.repeat(1000)}\n\n[STATE]` },
                         ],
                     ],
                 }),
@@ -406,7 +518,7 @@ describe('promotion prompt guard', () => {
                             { text: 'extra 5' },
                             { text: 'extra 6' },
                             { text: 'extra 7' },
-                            { text: 'extra 8' },
+                            { text: 'tail '.repeat(1000) },
                         ],
                     ],
                 }),
@@ -471,6 +583,7 @@ describe('promotion prompt guard', () => {
                             { text: 'a '.repeat(1800) },
                             { text: 'b '.repeat(1800) },
                             { text: 'c '.repeat(1800) },
+                            { text: 'tail '.repeat(1000) },
                         ],
                     ],
                 }),
@@ -489,7 +602,7 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(true);
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
-        expect(getChatStore().layers[0]).toHaveLength(0);
+        expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1][0]).toMatchObject({
             text: 'merged',
             mergedCount: 3,
@@ -506,7 +619,7 @@ describe('promotion prompt guard', () => {
                             { text: 'b '.repeat(900) },
                             { text: 'c '.repeat(900) },
                             { text: 'd '.repeat(900) },
-                            { text: 'e '.repeat(900) },
+                            { text: 'e '.repeat(1000) },
                         ],
                     ],
                 }),

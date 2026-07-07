@@ -31,6 +31,10 @@ interface SlashCommand {
 interface SummaryceptionSnippet {
     text: string;
     turnRange?: [number, number];
+    sourceRange?: [number, number];
+    timelineStart?: string;
+    timelineEnd?: string;
+    currentDateTime?: string;
     promoted?: boolean;
     seedFromLayer?: number;
     fromLayer?: number;

@@ -74,6 +74,9 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('[STATE]');
         expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
         expect(PROMPT_PRESETS.narrative).toContain('CHANGED or became newly relevant');
+        expect(PROMPT_PRESETS.narrative).toContain('current_date_time');
+        expect(PROMPT_PRESETS.narrative).toContain('YYYY-MM-DD HH ddd');
+        expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMPT_PRESETS.narrative).toContain('static character background/profile facts');
         expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
     });
@@ -88,6 +91,8 @@ describe('constants', () => {
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('PROSE-FOLDING RULES');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Do not output a [STATE] block');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Fold any still-durable facts');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('2024-12-03 06 Wed');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Omit stale transient scene facts');
     });
 
@@ -109,8 +114,8 @@ describe('constants', () => {
         expect(defaultSettings.promotionUserPrompt).toContain('immutable baseline history');
         expect(defaultSettings.promotionUserPrompt).toContain('Strict Delta Scoping');
         expect(defaultSettings.promotionUserPrompt).toContain('Temporal Anchors');
-        expect(defaultSettings.promotionUserPrompt).toContain('Saturday Oct 19, 7PM');
-        expect(defaultSettings.promotionUserPrompt).toContain('full dates over bare weekdays');
+        expect(defaultSettings.promotionUserPrompt).toContain('2024-12-03 06 Wed');
+        expect(defaultSettings.promotionUserPrompt).toContain('hour-level 24-hour timestamps');
         expect(defaultSettings.promotionUserPrompt).toContain('PROSE-FOLDING RULES');
         expect(defaultSettings.promotionUserPrompt).toContain('Omit stale transient scene facts');
     });

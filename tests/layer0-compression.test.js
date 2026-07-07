@@ -102,6 +102,9 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_l0_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
+        expect(result).toContain('current_date_time');
+        expect(result).toContain('YYYY-MM-DD HH ddd');
+        expect(result).toContain('physiological or sex counters');
         expect(result).toContain('static character background/profile facts');
     });
 
@@ -117,6 +120,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_promotion_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('Do not output a [STATE] block');
+        expect(result).toContain('2024-12-03 06 Wed');
+        expect(result).toContain('unknown spans');
         expect(result).toContain('Fold any critical changes in state');
     });
 

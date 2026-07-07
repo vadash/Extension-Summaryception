@@ -1,4 +1,5 @@
 import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
+import { formatSnippetAnchor } from './snippet-metadata.js';
 
 /**
  * @typedef {object} MemoryInjectionParts
@@ -64,7 +65,7 @@ function collectChronologyParts(layers) {
 
 function buildChronologySnippetText(snippet, layerIndex) {
     const parsed = parseSnippet(snippet?.text || '');
-    const pieces = [parsed.narrative.trim()];
+    const pieces = [formatSnippetAnchor(snippet), parsed.narrative.trim()];
     if (layerIndex > 0) {
         const historicalStateNote = formatHistoricalStateNote(parsed.state);
         if (historicalStateNote) {

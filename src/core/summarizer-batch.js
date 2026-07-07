@@ -5,7 +5,9 @@ import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
+import { buildSnippetMetadataFromState } from './snippet-metadata.js';
 import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js';
+import { parseSnippet } from './summarizer-state.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
     fingerprintSourceRange,
@@ -257,9 +259,12 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     const [passageStart, endIdx] = snapshot.sourceRange;
     ensureLayer0(store);
 
+    const parsed = parseSnippet(summary);
     store.layers[0].push({
         text: summary,
         turnRange: [passageStart, endIdx],
+        sourceRange: [passageStart, endIdx],
+        ...buildSnippetMetadataFromState(parsed.state),
         timestamp: Date.now(),
     });
 

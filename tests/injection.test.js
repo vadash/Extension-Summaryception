@@ -89,6 +89,38 @@ describe('assembleSummaryBlock', () => {
         );
     });
 
+    it('renders chronology anchors from snippet metadata without backfilling legacy snippets', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text: '[NARRATIVE]\nanchored recent\n\n[STATE]',
+                                sourceRange: [100, 120],
+                                timelineStart: '2024-12-03 06 Wed',
+                                timelineEnd: '2024-12-03 09 Wed',
+                            },
+                            {
+                                text: '[NARRATIVE]\nlegacy recent\n\n[STATE]\ntimeline_start: 2024-12-01 06 Mon',
+                            },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                injectionTemplate: '{{summary}}',
+            },
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+
+        expect(assembleSummaryBlock()).toContain(
+            '[msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed] anchored recent legacy recent',
+        );
+        expect(assembleSummaryBlock()).not.toContain('[msgs unknown');
+    });
+
     it('counts effective memory as the assembled injection with merged state', async () => {
         const layers = [
             [

@@ -161,17 +161,18 @@ describe('callSummarizer abort signal plumbing', () => {
 
         const layer0Prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
         expect(layer0Prompt).toContain('Target length: at most about 120 tokens');
-        expect(layer0Prompt).toContain('Saturday Oct 19, 7PM');
-        expect(layer0Prompt).toContain('8AM or 7PM');
-        expect(layer0Prompt).toContain('avoid minute tracking unless essential');
-        expect(layer0Prompt).toContain('absolute date/time can be inferred');
-        expect(layer0Prompt).toContain('future goals/plans');
+        expect(layer0Prompt).toContain('current_date_time');
+        expect(layer0Prompt).toContain('timeline_start');
+        expect(layer0Prompt).toContain('YYYY-MM-DD HH ddd');
+        expect(layer0Prompt).toContain('drop minutes');
+        expect(layer0Prompt).toContain('physiological or sex counters');
 
         const promotionPrompt = mocks.sendSummarizerRequest.mock.calls[1][2];
         expect(promotionPrompt).toContain('PROMO deep context MEMORY merged snippets');
         expect(promotionPrompt).toContain('<summaryception_promotion_constraints>');
         expect(promotionPrompt).toContain('Target length: at most about 120 tokens');
-        expect(promotionPrompt).toContain('Preserve useful full date/time anchors');
+        expect(promotionPrompt).toContain('2024-12-03 06 Wed');
+        expect(promotionPrompt).toContain('Do not invent broad dates for unknown spans');
         expect(promotionPrompt).toContain('Do not repeat or re-summarize events');
     });
 

@@ -7,7 +7,7 @@ const UNCLASSIFIED_NOTES_MAX = 3;
 const STATE_ENTRY_LIMIT = 10;
 const STATE_VALUE_LENGTH_CEILING = 1000;
 const STALE_TRANSIENT_LAYER_MIN = 2;
-const COMPOSITE_MERGE_KEYS = new Set(['characters', 'inventory', 'counters', 'dynamics']);
+const COMPOSITE_MERGE_KEYS = new Set(['characters', 'inventory', 'counters', 'dynamics', 'hooks']);
 const COMPOSITE_ENTRY_RE = /^([a-zA-Z0-9 _-]+?)\s*[:=]\s*(.+)$/;
 const STATIC_PROFILE_KEY_PARTS = [
     'origin',
@@ -19,6 +19,12 @@ const STATIC_PROFILE_KEY_PARTS = [
 ];
 const TRANSIENT_KEY_RE =
     /(^|_)(clothing|clothes|outfit|wearing|mood|arousal|soreness|fatigue|scene|pose|position|active|temporary|temp|current)(_|$)/;
+const EPHEMERAL_COUNTER_RE =
+    /\b(arousal|mood|pose|position|posture|sex|sexual|orgasm|thrust|stroke|breath|blush|sweat|wetness|soreness|fatigue|drink|beverage|food|meal|snack|coffee|tea|water|sip|bite)\b/i;
+const OBLIGATION_COUNTER_RE =
+    /\b(debt|owed?|owing|obligation|promise|favor|favour|appointment|deadline|due|pending|unresolved|iou|tab|loan)\b/i;
+const TEMPORARY_INVENTORY_RE =
+    /\b(consumed|drank|ate|eaten|finished|empty|soiled|used|disposed|discarded|thrown away|trash|temporary|single-use|food|drink|beverage|coffee|tea|water|snack|meal)\b/i;
 
 const KEY_ALIASES = Object.freeze({
     location: 'location',
@@ -51,6 +57,13 @@ const KEY_ALIASES = Object.freeze({
     tallies: 'counters',
     counts: 'counters',
     score: 'counters',
+    current_date_time: 'current_date_time',
+    current_datetime: 'current_date_time',
+    current_time: 'current_date_time',
+    timeline_start: 'timeline_start',
+    start_time: 'timeline_start',
+    timeline_end: 'timeline_end',
+    end_time: 'timeline_end',
 });
 const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
 
@@ -288,7 +301,7 @@ function mergeStateInto(merged, allUnclassified, state, options = {}) {
     }
 
     for (const [rawKey, rawValue] of Object.entries(state)) {
-        mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options);
+        mergeStateEntry(merged, allUnclassified, rawKey, rawValue, { ...options, state });
     }
 }
 
@@ -310,7 +323,10 @@ function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
         return;
     }
 
-    const prunedValue = pruneMergedStateValue(value);
+    const prunedValue = pruneMergedStateValue(value, {
+        key,
+        hooks: collectHookText(merged, stateFromOptions(options)),
+    });
     if (!prunedValue) {
         return;
     }
@@ -319,7 +335,12 @@ function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
         return;
     }
     if (COMPOSITE_MERGE_KEYS.has(key)) {
-        merged[key] = mergeCompositeValue(merged[key], prunedValue);
+        const mergedValue = mergeCompositeValue(merged[key], prunedValue);
+        if (!mergedValue) {
+            deleteTrackedStateKey(merged, key, options);
+            return;
+        }
+        merged[key] = mergedValue;
     } else {
         merged[key] = prunedValue;
     }
@@ -445,7 +466,16 @@ function formatCappedNotes(notes) {
     return notes.length > UNCLASSIFIED_NOTES_MAX ? `${capped} [...]` : capped;
 }
 
-function pruneMergedStateValue(value) {
+function pruneMergedStateValue(value, options = {}) {
+    if (options.key === 'inventory') {
+        return pruneInventoryStateValue(value);
+    }
+    if (options.key === 'hooks') {
+        return pruneSemicolonStateEntries(value);
+    }
+    if (options.key === 'counters') {
+        return pruneCounterStateValue(value, options.hooks);
+    }
     return pruneSemicolonStateEntries(value);
 }
 
@@ -472,4 +502,66 @@ function splitDelimitedEntries(text, delimiter) {
 
 function escapeStateValueQuotes(value) {
     return String(value || '').replace(/(^|[^\\])"/g, '$1\\"');
+}
+
+function stateFromOptions(options) {
+    return options?.state && typeof options.state === 'object' ? options.state : {};
+}
+
+function collectHookText(merged, state) {
+    return [merged?.hooks, state?.hooks].map((value) => String(value || '')).join('; ');
+}
+
+function pruneInventoryStateValue(value) {
+    return pruneSemicolonEntriesByPredicate(value, (entry) => !TEMPORARY_INVENTORY_RE.test(entry));
+}
+
+function pruneCounterStateValue(value, hooks = '') {
+    const parsed = parseCompositeEntries(value);
+    if (!parsed) {
+        return shouldKeepCounterEntry(value, value, hooks) ? value : '';
+    }
+
+    const kept = parsed.filter(({ key, value: entryValue }) =>
+        shouldKeepCounterEntry(key, entryValue, hooks),
+    );
+    return pruneSemicolonStateEntries(
+        kept.map(({ key, value: entryValue }) => `${key}: ${entryValue}`).join('; '),
+    );
+}
+
+function shouldKeepCounterEntry(name, value, hooks) {
+    const text = `${name} ${value}`.trim();
+    if (!text) {
+        return false;
+    }
+    if (EPHEMERAL_COUNTER_RE.test(text)) {
+        return false;
+    }
+    if (OBLIGATION_COUNTER_RE.test(text)) {
+        return true;
+    }
+    return isCounterReferencedByHooks(name, hooks);
+}
+
+function isCounterReferencedByHooks(name, hooks) {
+    const key = String(name || '').trim();
+    const hookText = String(hooks || '').trim();
+    if (!key || !hookText) {
+        return false;
+    }
+    return hookText.toLowerCase().includes(key.toLowerCase());
+}
+
+function pruneSemicolonEntriesByPredicate(value, predicate) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return '';
+    }
+    if (!text.includes(';')) {
+        return predicate(text) ? text : '';
+    }
+
+    const entries = splitDelimitedEntries(text, /;/).filter(predicate);
+    return pruneSemicolonStateEntries(entries.join('; '));
 }

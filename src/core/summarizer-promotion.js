@@ -9,6 +9,10 @@ import {
 import { debug, warn } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { getEffectiveMemoryUsage } from './memory-budget.js';
+import {
+    buildPromotedSnippetMetadata,
+    formatAnchoredSnippetNarrative,
+} from './snippet-metadata.js';
 import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -29,6 +33,7 @@ const LAYER0_INITIAL_BUDGET_RATIO = 0.6;
 const LAYER0_DEEP_BUDGET_RATIO = 0.5;
 const LAYER1_BUDGET_RATIO = 0.3;
 const DEEP_LAYER_BUDGET_RATIO = 0.2;
+const LAYER0_PROMOTION_RETENTION_FLOOR_RATIO = 0.4;
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.
@@ -204,10 +209,27 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         return false;
     }
 
+    if (
+        await wouldViolateLayer0RetentionFloor({
+            layerIndex,
+            layers: store.layers,
+            mergeCount,
+            settings: s,
+            quota,
+        })
+    ) {
+        debug(
+            `L0 promotion skipped: projected L0 memory would fall below ${Math.round(
+                LAYER0_PROMOTION_RETENTION_FLOOR_RATIO * 100,
+            )}% of quota.`,
+        );
+        return false;
+    }
+
     const sourceMemoryText = toMerge.map((sn) => sn.text).join(' ');
     const parsed = toMerge.map((sn) => parseSnippet(sn.text));
-    const storyTxt = parsed
-        .map((snippet) => snippet.narrative.trim())
+    const storyTxt = toMerge
+        .map((snippet) => formatAnchoredSnippetNarrative(snippet))
         .filter(Boolean)
         .join('\n\n');
     const mergedState = mergeStates(parsed.map((snippet) => snippet.state));
@@ -215,11 +237,13 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     const sourceState = serializedState || '(none)';
     const memoryTokensBefore = await countTextTokens(sourceMemoryText);
     const contextStr = buildFullContext(layerIndex + 1);
+    const promotedMetadata = buildPromotedSnippetMetadata(toMerge);
     const snapshot = {
         ...capturePromotionSnapshot(layerIndex),
         mergeCount: toMerge.length,
         storyTxt: sourceMemoryText,
         contextStr,
+        promotedMetadata,
     };
 
     toastr.info(
@@ -251,11 +275,12 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     if (!metaSummary) {
         return false;
     }
+    const promotedSnippet = buildPromotedSnippet(metaSummary, promotedMetadata);
     if (
         !(await isPromotionCompressed({
             layerIndex,
             mergeCount,
-            metaSummary,
+            promotedSnippet,
             settings: s,
             sourceMemoryText,
         }))
@@ -266,7 +291,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     const result = await commitWhenSafe({
         kind: 'promotion-merge',
         snapshot,
-        apply: async () => applyMergePromotion({ snapshot, layerIndex, metaSummary }),
+        apply: async () => applyMergePromotion({ snapshot, layerIndex, promotedSnippet }),
     });
 
     if (result === 'applied') {
@@ -283,12 +308,12 @@ function combinePromotedMemory(narrative) {
 async function isPromotionCompressed({
     layerIndex,
     mergeCount,
-    metaSummary,
+    promotedSnippet,
     settings,
     sourceMemoryText,
 }) {
     const sourceTokens = await countTextTokens(sourceMemoryText);
-    const outputTokens = await countTextTokens(metaSummary);
+    const outputTokens = await countTextTokens(promotedSnippet.text);
     if (outputTokens.count >= sourceTokens.count) {
         warn(
             `Promotion L${layerIndex} rejected: output did not compress source ` +
@@ -304,7 +329,7 @@ async function isPromotionCompressed({
         store.layers,
         layerIndex,
         mergeCount,
-        metaSummary,
+        promotedSnippet,
     );
     const memoryTokensAfter = await getEffectiveMemoryUsage(nextLayers, settings);
     if (memoryTokensAfter.total.count < memoryTokensBefore.total.count) {
@@ -325,19 +350,131 @@ async function isPromotionCompressed({
     return false;
 }
 
-function buildHypotheticalPromotionLayers(layers, layerIndex, mergeCount, metaSummary) {
+function buildHypotheticalPromotionLayers(layers, layerIndex, mergeCount, promotedSnippet) {
     const sourceLayers = Array.isArray(layers) ? layers : [];
-    const nextLayers = sourceLayers.map((layer) => (Array.isArray(layer) ? [...layer] : layer));
+    const nextLayers = sourceLayers.map((layer) =>
+        Array.isArray(layer) ? cloneLayer(layer) : layer,
+    );
     const sourceLayer = Array.isArray(nextLayers[layerIndex]) ? [...nextLayers[layerIndex]] : [];
     const destLayer = Array.isArray(nextLayers[layerIndex + 1])
         ? [...nextLayers[layerIndex + 1]]
         : [];
 
-    sourceLayer.splice(0, mergeCount);
-    destLayer.push({ text: metaSummary });
+    const toMerge = sourceLayer.splice(0, mergeCount);
+    if (layerIndex === 0) {
+        carryPromotedLayer0State({ promotedSnippets: toMerge, remainingLayer: sourceLayer });
+    }
+    destLayer.push(promotedSnippet);
     nextLayers[layerIndex] = sourceLayer;
     nextLayers[layerIndex + 1] = destLayer;
     return nextLayers;
+}
+
+function cloneLayer(layer) {
+    return layer.map((snippet) => ({ ...snippet }));
+}
+
+async function wouldViolateLayer0RetentionFloor({
+    layerIndex,
+    layers,
+    mergeCount,
+    settings,
+    quota,
+}) {
+    if (layerIndex !== 0) {
+        return false;
+    }
+
+    const projectedLayers = buildHypotheticalLayer0AfterPromotion(layers, mergeCount);
+    const usage = await getEffectiveMemoryUsage(projectedLayers, settings);
+    const projectedTokens = getTokenCountsByLayer(usage).get(0) || 0;
+    const floor = Math.floor(quota * LAYER0_PROMOTION_RETENTION_FLOOR_RATIO);
+    return projectedTokens < floor;
+}
+
+function buildHypotheticalLayer0AfterPromotion(layers, mergeCount) {
+    const sourceLayers = Array.isArray(layers) ? layers : [];
+    const nextLayers = sourceLayers.map((layer) =>
+        Array.isArray(layer) ? cloneLayer(layer) : layer,
+    );
+    const sourceLayer = Array.isArray(nextLayers[0]) ? [...nextLayers[0]] : [];
+    const promotedSnippets = sourceLayer.splice(0, mergeCount);
+    carryPromotedLayer0State({ promotedSnippets, remainingLayer: sourceLayer });
+    nextLayers[0] = sourceLayer;
+    return nextLayers;
+}
+
+function buildPromotedSnippet(text, metadata) {
+    return {
+        text,
+        ...metadata,
+    };
+}
+
+function carryPromotedLayer0State({ promotedSnippets, remainingLayer }) {
+    if (!Array.isArray(remainingLayer) || remainingLayer.length === 0) {
+        return;
+    }
+
+    const carryState = buildLayer0CarryState(promotedSnippets, remainingLayer[0]);
+    if (Object.keys(carryState).length === 0) {
+        return;
+    }
+
+    const target = remainingLayer[0];
+    const parsed = parseSnippet(target.text || '');
+    const mergedState = mergeStates([carryState, parsed.state]);
+    const stateText = serializeState(mergedState);
+    target.text = stateText
+        ? ['[NARRATIVE]', parsed.narrative.trim(), '', stateText].join('\n').trim()
+        : parsed.narrative.trim();
+
+    if (carryState.current_date_time && !target.currentDateTime) {
+        target.currentDateTime = carryState.current_date_time;
+    }
+}
+
+function buildLayer0CarryState(promotedSnippets, oldestRemainingSnippet) {
+    const promotedState = mergeStates(
+        (promotedSnippets || []).map((snippet) => parseSnippet(snippet?.text || '').state),
+    );
+    const remainingState = parseSnippet(oldestRemainingSnippet?.text || '').state;
+    const carryState = /** @type {Record<string, string>} */ ({});
+
+    const hooks = filterCarryHooks(promotedState.hooks);
+    if (hooks) {
+        carryState.hooks = hooks;
+    }
+    if (promotedState.dynamics) {
+        carryState.dynamics = promotedState.dynamics;
+    }
+    if (promotedState.inventory) {
+        carryState.inventory = promotedState.inventory;
+    }
+    if (promotedState.counters) {
+        carryState.counters = promotedState.counters;
+    }
+    if (promotedState.current_date_time && !remainingState.current_date_time) {
+        carryState.current_date_time = promotedState.current_date_time;
+    }
+
+    return carryState;
+}
+
+function filterCarryHooks(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+        return '';
+    }
+    const entries = text
+        .split(';')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .filter(
+            (entry) =>
+                !/\b(resolved|complete|completed|done|closed|cancelled|canceled)\b/i.test(entry),
+        );
+    return entries.join('; ');
 }
 
 /**
@@ -362,10 +499,10 @@ function capturePromotionSnapshot(layerIndex) {
  * @param {object} p
  * @param {object} p.snapshot
  * @param {number} p.layerIndex
- * @param {string} p.metaSummary
+ * @param {object} p.promotedSnippet
  * @returns {Promise<boolean>}
  */
-async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
+async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
     if (!isPromotionSnapshotValid(snapshot)) {
         return false;
     }
@@ -378,9 +515,12 @@ async function applyMergePromotion({ snapshot, layerIndex, metaSummary }) {
     if (toMerge.length !== snapshot.mergeCount) {
         return false;
     }
+    if (layerIndex === 0) {
+        carryPromotedLayer0State({ promotedSnippets: toMerge, remainingLayer: layer });
+    }
 
     destLayer.push({
-        text: metaSummary,
+        ...promotedSnippet,
         fromLayer: layerIndex,
         mergedCount: toMerge.length,
         timestamp: Date.now(),

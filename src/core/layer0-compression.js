@@ -87,13 +87,15 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
         '[STATE] must contain only changed or newly relevant dynamic current facts as key: value lines; omit unchanged facts.\n' +
+        '[STATE] must always include current_date_time, timeline_start, and timeline_end.\n' +
+        'Use temporal format YYYY-MM-DD HH ddd with 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed; drop minutes instead of preserving them.\n' +
+        'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time and set timeline_start/timeline_end to unknown unless same-hour/day timing is explicit.\n' +
         '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +
         'Do NOT write descriptive sentences in the state block. Use concise keys and values only.\n' +
         'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
-        'Include one full date/time anchor when present, e.g. Saturday Oct 19, 7PM.\n' +
-        'After that, use coarse hour labels like 8AM or 7PM; avoid minute tracking unless essential.\n' +
-        'Do not preserve only vague relative timing when absolute date/time can be inferred from context.\n' +
-        'For future goals/plans, prefer full dates over bare weekdays when available.\n' +
+        'Treat [STATE] as durable state, not ephemeral trivia.\n' +
+        'Do not preserve physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, or momentary pose/arousal/mood counters.\n' +
+        'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
         'Omit repeated micro-actions, flavor dialogue, sensory detail, and transient atmosphere unless they create lasting state.\n' +
         'When detail competes with length, keep the fact needed for future continuity and drop the scene replay.\n' +
         '</summaryception_l0_constraints>'
@@ -136,7 +138,10 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         'Fold any critical changes in state, inventory, counters, or character dynamics directly into the prose.\n' +
         'Do not use key-value formatting, bullet lists, tables, or structured state syntax.\n' +
         'Preserve only durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
-        'Preserve useful full date/time anchors already present in memory.\n' +
+        'Preserve anchored source ranges and hour-level 24-hour timestamps already present in memory, e.g. [msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed].\n' +
+        'Do not invent broad dates for unknown spans; only clean unknown spans when bounded by explicit neighboring anchors.\n' +
+        'Omit physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, and momentary pose/arousal/mood counters.\n' +
+        'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
         'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +

@@ -157,17 +157,15 @@ describe('summarizer-state', () => {
     });
 
     it('generically caps long semicolon-delimited state lists during merge', () => {
-        const counters = Array.from({ length: 12 }, (_value, index) => `count${index}: ${index}`);
+        const counters = Array.from(
+            { length: 12 },
+            (_value, index) => `debt${index}: owed ${index}`,
+        );
 
         expect(
             mergeStates([
                 {
-                    counters: [
-                        'old tally: 1',
-                        'current tally: 2',
-                        'previous score: 3',
-                        'active score: 4',
-                    ].join('; '),
+                    counters: ['old tally: 1', 'active score: 4'].join('; '),
                     inventory: 'badge; expired pass; map; closed case; lantern',
                 },
                 { counters: counters.join('; ') },
@@ -186,7 +184,6 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             inventory: 'expired pass; closed case',
-            counters: 'active score: 4; old tally: 1',
         });
 
         expect(mergeStates([{ inventory: 'badge; map' }, { inventory: 'removed' }])).toEqual({});
@@ -357,6 +354,69 @@ describe('summarizer-state', () => {
         ).toEqual({
             characters: 'Zoe: rested; Vova: tired',
             hooks: 'open gate',
+        });
+    });
+
+    it('parses and merges temporal state keys with latest Layer 0 time winning', () => {
+        expect(
+            compileGlobalState([
+                [
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Friday setup.',
+                            '[STATE]',
+                            'current_date_time: 2024-12-06 21 Fri',
+                            'timeline_start: 2024-12-06 20 Fri',
+                            'timeline_end: 2024-12-06 21 Fri',
+                        ].join('\n'),
+                    },
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Sunday continuation.',
+                            '[STATE]',
+                            'current_date_time: 2024-12-08 10 Sun',
+                            'timeline_start: unknown',
+                            'timeline_end: unknown',
+                        ].join('\n'),
+                    },
+                ],
+            ]),
+        ).toEqual({
+            current_date_time: '2024-12-08 10 Sun',
+            timeline_start: 'unknown',
+            timeline_end: 'unknown',
+        });
+    });
+
+    it('prunes ephemeral counters while preserving unresolved obligation counters', () => {
+        expect(
+            mergeStates([
+                {
+                    hooks: 'red ledger: pending settlement',
+                    counters: [
+                        'arousal: 4',
+                        'coffee cups: 2',
+                        'red ledger: 2',
+                        'rent debt: owed',
+                    ].join('; '),
+                },
+            ]),
+        ).toEqual({
+            hooks: 'red ledger: pending settlement',
+            counters: 'red ledger: 2; rent debt: owed',
+        });
+    });
+
+    it('merges named hook entries independently', () => {
+        expect(
+            mergeStates([
+                { hooks: 'appointment: pending Friday; gate: open' },
+                { hooks: 'appointment: resolved; debt: owed tonight' },
+            ]),
+        ).toEqual({
+            hooks: 'gate: open; debt: owed tonight',
         });
     });
 });
