@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
-const FLAG_FILE = path.join(os.tmpdir(), 'summaryception-repomix.flag');
-const MAX_AGE_MS = 120 * 1000;
+const LAST_HEAD_FILE = path.join(os.tmpdir(), 'summaryception-repomix.last-head');
+const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 const REPOMIX_CMDS = [
-    'repomix:source',
-    'repomix:tests',
-    'repomix:compressed-source',
-    'repomix:compressed-tests',
+    'repomix:source-full',
+    'repomix:source-compressed',
+    'repomix:tests-full',
+    'repomix:tests-compressed',
 ];
 
 const npmCli = findNpmCli();
@@ -33,33 +33,49 @@ function findNpmCli() {
     return found;
 }
 
-/** Check whether background repomix outputs are old enough to refresh. */
-function shouldRunRepomix() {
-    if (!fs.existsSync(FLAG_FILE)) {
+function getCurrentHead() {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+    }).trim();
+}
+
+/** Check whether the current commit has already refreshed Repomix outputs. */
+function shouldRunRepomix(head) {
+    if (!fs.existsSync(LAST_HEAD_FILE)) {
         return true;
     }
-    return Date.now() - fs.statSync(FLAG_FILE).mtimeMs >= MAX_AGE_MS;
+    return fs.readFileSync(LAST_HEAD_FILE, 'utf8').trim() !== head;
 }
 
-function startRepomixInBackground() {
-    fs.writeFileSync(FLAG_FILE, String(Date.now()));
-    const child = spawn(
-        process.execPath,
-        [
-            path.join(import.meta.dirname, 'pre-commit-repomix.mjs'),
-            npmCli,
-            FLAG_FILE,
-            ...REPOMIX_CMDS,
-        ],
-        {
-            detached: true,
-            stdio: 'ignore',
-            windowsHide: true,
-        },
-    );
-    child.unref();
+/**
+ * @param {string} head
+ */
+function markRepomixComplete(head) {
+    fs.writeFileSync(LAST_HEAD_FILE, `${head}\n`);
 }
 
-if (shouldRunRepomix()) {
-    startRepomixInBackground();
+/**
+ * @param {string} command
+ */
+function runRepomix(command) {
+    execFileSync(process.execPath, [npmCli, 'run', command], {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        env: process.env,
+        stdio: 'inherit',
+    });
+}
+
+function runRepomixCommands() {
+    for (const command of REPOMIX_CMDS) {
+        runRepomix(command);
+    }
+}
+
+const currentHead = getCurrentHead();
+
+if (shouldRunRepomix(currentHead)) {
+    runRepomixCommands();
+    markRepomixComplete(currentHead);
 }

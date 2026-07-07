@@ -16,10 +16,10 @@
         "format:check": "prettier --check .",
         "knip": "knip",
         "jscpd": "jscpd --config jscpd.json src",
-        "repomix:source": "repomix --config repomix-source.json",
-        "repomix:tests": "repomix --config repomix-tests.json",
-        "repomix:compressed-source": "repomix --config repomix-source-zip.json --compress",
-        "repomix:compressed-tests": "repomix --config repomix-tests-zip.json --compress",
+        "repomix:source-full": "repomix --config repomix-source-full.json",
+        "repomix:source-compressed": "repomix --config repomix-source-compressed.json",
+        "repomix:tests-full": "repomix --config repomix-tests-full.json",
+        "repomix:tests-compressed": "repomix --config repomix-tests-compressed.json",
         "prepare": "husky"
     },
     "lint-staged": {
