@@ -11,11 +11,8 @@ export default defineConfig({
         include: ['tests/**/*.test.js'],
         exclude: ['node_modules/**', 'dist/**', 'report/**'],
 
-        // Performance timing: emitted in JSON + stdout summary.
-        reporters: ['default', 'json'],
-        outputFile: {
-            json: './report/test-results.json',
-        },
+        // Performance timing: emitted in the stdout summary.
+        reporters: ['default'],
         logHeapUsage: true,
 
         // Coverage with enforced thresholds.
