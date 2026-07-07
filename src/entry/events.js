@@ -10,6 +10,7 @@ import {
     maybeSummarizeTurns,
     recoverStalePromptFreeze,
     resetCatchupDismissed,
+    resetPromptMutationGuard,
 } from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
 import { repairOrphanedMessages } from '../features/maintenance.js';
@@ -56,6 +57,7 @@ export function onChatChanged() {
  * @returns {Promise<void>}
  */
 export async function onAppReady() {
+    resetPromptMutationGuard();
     await runSerializedReconciliation();
 }
 
@@ -70,6 +72,13 @@ export function bindPromptFreezeRecoveryEvents() {
     }
 
     win.addEventListener('beforeunload', onBeforeUnload);
+    win.addEventListener('focus', onWindowFocus);
+
+    const doc = globalThis.document;
+    if (doc && typeof doc.addEventListener === 'function') {
+        doc.addEventListener('visibilitychange', onVisibilityChange);
+    }
+
     promptFreezeRecoveryBound = true;
 }
 
@@ -114,6 +123,17 @@ export function onGenerationEnded() {
 
 function onBeforeUnload() {
     recoverPromptFreeze('page unload');
+}
+
+function onWindowFocus() {
+    recoverPromptFreeze('window focus');
+}
+
+function onVisibilityChange() {
+    const doc = globalThis.document;
+    if (!doc || doc.visibilityState === 'visible' || doc.hidden === false) {
+        recoverPromptFreeze('tab visible');
+    }
 }
 
 function recoverPromptFreeze(reason) {

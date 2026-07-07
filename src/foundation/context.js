@@ -197,3 +197,87 @@ export function getEventTypes() {
 export function getStreamingProcessor() {
     return getContext().streamingProcessor || null;
 }
+
+/**
+ * Check whether SillyTavern's chat send control is currently showing stop mode.
+ * @returns {boolean}
+ */
+export function isSendButtonInStopMode() {
+    try {
+        const stopButton = $('#mes_stop');
+        if (isJQueryElementVisible(stopButton)) {
+            return true;
+        }
+
+        const sendButton = $('#send_but');
+        if (hasStopButtonMarker(sendButton)) {
+            return true;
+        }
+
+        const stopMarker = sendButton?.find?.(
+            '.fa-stop, .fa-circle-stop, [title*="Stop"], [title*="stop"], [aria-label*="Stop"], [aria-label*="stop"]',
+        );
+        return Boolean(stopMarker?.length);
+    } catch (_e) {
+        return false;
+    }
+}
+
+/**
+ * Check visible state without assuming a full jQuery implementation in tests.
+ * @param {object} element - jQuery-like object
+ * @returns {boolean}
+ */
+function isJQueryElementVisible(element) {
+    if (!element || element.length === 0) {
+        return false;
+    }
+    if (typeof element.is === 'function') {
+        return element.is(':visible');
+    }
+    if (typeof element.css === 'function') {
+        return element.css('display') !== 'none';
+    }
+    return false;
+}
+
+/**
+ * Check common stop-mode markers on a jQuery-like button object.
+ * @param {object} element - jQuery-like object
+ * @returns {boolean}
+ */
+function hasStopButtonMarker(element) {
+    if (!element || element.length === 0) {
+        return false;
+    }
+
+    const text = [
+        readJQueryValue(element, 'attr', 'class'),
+        readJQueryValue(element, 'attr', 'title'),
+        readJQueryValue(element, 'attr', 'aria-label'),
+        readJQueryValue(element, 'text'),
+    ]
+        .join(' ')
+        .toLowerCase();
+    return text.includes('fa-stop') || text.includes('fa-circle-stop') || text.includes('stop');
+}
+
+/**
+ * Read a best-effort string value from a jQuery-like object.
+ * @param {object} element - jQuery-like object
+ * @param {string} method - Method name
+ * @param {string} [arg] - Optional method argument
+ * @returns {string}
+ */
+function readJQueryValue(element, method, arg) {
+    try {
+        const fn = element?.[method];
+        if (typeof fn !== 'function') {
+            return '';
+        }
+        const value = arg === undefined ? fn.call(element) : fn.call(element, arg);
+        return typeof value === 'string' ? value : '';
+    } catch (_e) {
+        return '';
+    }
+}

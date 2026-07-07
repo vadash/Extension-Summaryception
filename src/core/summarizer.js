@@ -23,7 +23,7 @@ import {
 export { callSummarizer, hasActiveAbortController } from './summarizer-request.js';
 export { summarizeOneBatchFromTurns } from './summarizer-batch.js';
 export { maybePromoteLayer } from './summarizer-promotion.js';
-export { recoverStalePromptFreeze } from './summarizer-commit.js';
+export { recoverStalePromptFreeze, resetPromptMutationGuard } from './summarizer-commit.js';
 
 /** @typedef {'auto'} SummarizationMode */
 /** @typedef {import('./summarizer-manual.js').ManualRunOptions} ManualRunOptions */

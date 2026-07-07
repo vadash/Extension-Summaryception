@@ -11,6 +11,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
     delete globalThis.SillyTavern;
+    delete globalThis.$;
 });
 
 describe('context.js facade', () => {
@@ -100,5 +101,30 @@ describe('context.js facade', () => {
 
         delete globalThis.SillyTavern.getContext().getRequestHeaders;
         expect(contextFacade.getRequestHeaders()).toEqual({ 'Content-Type': 'application/json' });
+    });
+
+    it('detects send button stop mode defensively', () => {
+        globalThis.$ = vi.fn((selector) => {
+            if (selector === '#mes_stop') {
+                return { length: 1, css: () => 'none' };
+            }
+            if (selector === '#send_but') {
+                return {
+                    length: 1,
+                    attr: (name) => (name === 'title' ? 'Stop generating' : ''),
+                    text: () => '',
+                    find: () => ({ length: 0 }),
+                };
+            }
+            return { length: 0 };
+        });
+
+        expect(contextFacade.isSendButtonInStopMode()).toBe(true);
+
+        globalThis.$ = vi.fn(() => {
+            throw new Error('missing DOM');
+        });
+
+        expect(contextFacade.isSendButtonInStopMode()).toBe(false);
     });
 });

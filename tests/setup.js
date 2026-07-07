@@ -45,6 +45,7 @@ const foundationMocks = vi.hoisted(() => {
         getEventSource: vi.fn(),
         getEventTypes: vi.fn(),
         getStreamingProcessor: vi.fn(),
+        isSendButtonInStopMode: vi.fn(),
     };
 
     const logger = {
@@ -131,6 +132,7 @@ const foundationMocks = vi.hoisted(() => {
         context.getStreamingProcessor.mockImplementation(
             () => getContext().streamingProcessor || null,
         );
+        context.isSendButtonInStopMode.mockImplementation(() => false);
     }
 
     function isDebugEnabled() {

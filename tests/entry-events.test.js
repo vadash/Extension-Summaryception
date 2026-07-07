@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     maybeSummarizeTurns: vi.fn(async () => {}),
     recoverStalePromptFreeze: vi.fn(async () => false),
     resetCatchupDismissed: vi.fn(),
+    resetPromptMutationGuard: vi.fn(),
     updateInjection: vi.fn(),
     repairOrphanedMessages: vi.fn(async () => {}),
     updateUI: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('../src/core/summarizer.js', () => ({
     maybeSummarizeTurns: mocks.maybeSummarizeTurns,
     recoverStalePromptFreeze: mocks.recoverStalePromptFreeze,
     resetCatchupDismissed: mocks.resetCatchupDismissed,
+    resetPromptMutationGuard: mocks.resetPromptMutationGuard,
 }));
 
 vi.mock('../src/features/injection.js', () => ({
@@ -53,6 +55,7 @@ beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
     delete globalThis.window;
+    delete globalThis.document;
     globalThis.summaryceptionFoundationMocks.context.getChat.mockImplementation(mocks.getChat);
 });
 
@@ -60,6 +63,7 @@ afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
     delete globalThis.window;
+    delete globalThis.document;
 });
 
 describe('entry lifecycle events', () => {
@@ -74,22 +78,55 @@ describe('entry lifecycle events', () => {
         expect(mocks.resetCatchupDismissed).toHaveBeenCalledOnce();
     });
 
-    it('binds one beforeunload recovery handler', async () => {
+    it('resets prompt guard state before app-ready reconciliation', async () => {
+        const order = [];
+        mocks.resetPromptMutationGuard.mockImplementationOnce(() => order.push('reset'));
+        mocks.getChatStore.mockImplementationOnce(() => {
+            order.push('store');
+            return { layers: [] };
+        });
+        const { onAppReady } = await import('../src/entry/events.js');
+
+        await onAppReady();
+
+        expect(order.slice(0, 2)).toEqual(['reset', 'store']);
+    });
+
+    it('binds one browser lifecycle recovery set', async () => {
         globalThis.window = {
             addEventListener: vi.fn(),
+        };
+        globalThis.document = {
+            addEventListener: vi.fn(),
+            visibilityState: 'visible',
+            hidden: false,
         };
         const { bindPromptFreezeRecoveryEvents } = await import('../src/entry/events.js');
 
         bindPromptFreezeRecoveryEvents();
         bindPromptFreezeRecoveryEvents();
 
-        expect(globalThis.window.addEventListener).toHaveBeenCalledTimes(1);
-        const [eventName, handler] = globalThis.window.addEventListener.mock.calls[0];
-        expect(eventName).toBe('beforeunload');
+        expect(globalThis.window.addEventListener).toHaveBeenCalledTimes(2);
+        expect(globalThis.document.addEventListener).toHaveBeenCalledTimes(1);
 
-        handler();
+        const windowHandlers = Object.fromEntries(globalThis.window.addEventListener.mock.calls);
+        const documentHandlers = Object.fromEntries(
+            globalThis.document.addEventListener.mock.calls,
+        );
+        expect(Object.keys(windowHandlers)).toEqual(['beforeunload', 'focus']);
+        expect(Object.keys(documentHandlers)).toEqual(['visibilitychange']);
+
+        windowHandlers.beforeunload();
+        windowHandlers.focus();
+        documentHandlers.visibilitychange();
 
         expect(mocks.recoverStalePromptFreeze).toHaveBeenCalledWith('page unload', {
+            refreshUi: mocks.updateUI,
+        });
+        expect(mocks.recoverStalePromptFreeze).toHaveBeenCalledWith('window focus', {
+            refreshUi: mocks.updateUI,
+        });
+        expect(mocks.recoverStalePromptFreeze).toHaveBeenCalledWith('tab visible', {
             refreshUi: mocks.updateUI,
         });
     });

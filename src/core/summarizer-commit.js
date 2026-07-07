@@ -1,5 +1,5 @@
 import { debug, info, trace, warn } from '../foundation/logger.js';
-import { getContext } from '../foundation/context.js';
+import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/context.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
 /** @typedef {'applied' | 'queued'} PromptEffectResult */
@@ -42,6 +42,10 @@ let updateInjectionCallback = null;
 let reassertInjectionCallback = null;
 let requeueCallback = null;
 let generationEpoch = 0;
+let foregroundFreezeStartedAt = 0;
+let staleRecoveryPromise = null;
+
+const FOREGROUND_FREEZE_HEARTBEAT_GRACE_MS = 1000;
 
 /**
  * Register callbacks used by transaction commits.
@@ -68,7 +72,8 @@ export function setCommitCallbacks({ updateInjection, reassertInjection, requeue
  * @returns {boolean}
  */
 export function isPromptMutationFrozen() {
-    return foregroundFrozen;
+    recoverStalePromptFreezeInBackground('prompt mutation check');
+    return foregroundFrozen || Boolean(staleRecoveryPromise);
 }
 
 /**
@@ -85,7 +90,8 @@ export function getPromptMutationEpoch() {
  * @returns {boolean}
  */
 export function canStartPromptMutation(epoch) {
-    return !foregroundFrozen && epoch === generationEpoch;
+    recoverStalePromptFreezeInBackground('prompt mutation start');
+    return !foregroundFrozen && !staleRecoveryPromise && epoch === generationEpoch;
 }
 
 /**
@@ -93,8 +99,9 @@ export function canStartPromptMutation(epoch) {
  * @returns {void}
  */
 export function beginForegroundGeneration() {
-    reassertCommittedInjection();
+    reassertCommittedInjectionIfOpen();
     foregroundFrozen = true;
+    foregroundFreezeStartedAt = Date.now();
     generationEpoch++;
     info('Foreground generation started; prompt-affecting mutations frozen.');
 }
@@ -109,6 +116,7 @@ export async function endForegroundGeneration() {
     }
 
     foregroundFrozen = false;
+    foregroundFreezeStartedAt = 0;
     info(
         'Foreground generation ended; flushing pending Summaryception commits.',
         `commits=${pendingCommits.length}`,
@@ -124,6 +132,10 @@ export async function endForegroundGeneration() {
  * @returns {Promise<CommitResult>}
  */
 export async function commitWhenSafe(commit) {
+    if (foregroundFrozen) {
+        await recoverStalePromptFreeze(`${commit.kind} commit`);
+    }
+
     if (foregroundFrozen) {
         pendingCommits.push(commit);
         debug(`Queued ${commit.kind} commit while foreground generation is active.`);
@@ -154,12 +166,10 @@ export async function updateCommittedInjection(options = {}) {
  * @returns {void}
  */
 export function reassertCommittedInjection() {
-    if (foregroundFrozen) {
+    if (isPromptMutationFrozen()) {
         return;
     }
-    if (reassertInjectionCallback) {
-        reassertInjectionCallback();
-    }
+    reassertCommittedInjectionIfOpen();
 }
 
 /**
@@ -178,6 +188,10 @@ export function queuePromptEffect(effect) {
  * @returns {Promise<PromptEffectResult>}
  */
 export async function runPromptEffect(effect) {
+    if (foregroundFrozen) {
+        await recoverStalePromptFreeze(`${effect.kind} effect`);
+    }
+
     if (foregroundFrozen) {
         queuePromptEffect(effect);
         return 'queued';
@@ -214,7 +228,7 @@ export function getPendingPromptEffectCount() {
  * @returns {boolean}
  */
 export function shouldStopPromptWork() {
-    return foregroundFrozen || pendingCommits.length > 0 || pendingPromptEffects.length > 0;
+    return isPromptMutationFrozen() || pendingCommits.length > 0 || pendingPromptEffects.length > 0;
 }
 
 /**
@@ -224,12 +238,23 @@ export function shouldStopPromptWork() {
  * @returns {Promise<boolean>} True when stale guard state was cleared
  */
 export async function recoverStalePromptFreeze(reason, { refreshUi } = {}) {
-    if (!foregroundFrozen || isForegroundGenerationActive()) {
+    if (staleRecoveryPromise) {
+        await staleRecoveryPromise;
+        if (refreshUi) {
+            refreshUi();
+        }
+        return true;
+    }
+
+    if (!foregroundFrozen || !hasForegroundFreezeGraceElapsed() || isForegroundGenerationActive()) {
         return false;
     }
 
-    warn(`Recovering stale foreground generation freeze before ${reason}.`);
-    await endForegroundGeneration();
+    warn('Stale foreground freeze detected; auto-healing lock', `reason=${reason}`);
+    staleRecoveryPromise = endForegroundGeneration().finally(() => {
+        staleRecoveryPromise = null;
+    });
+    await staleRecoveryPromise;
     if (refreshUi) {
         refreshUi();
     }
@@ -237,17 +262,27 @@ export async function recoverStalePromptFreeze(reason, { refreshUi } = {}) {
 }
 
 /**
+ * Reset transient foreground guard state without clearing registered callbacks.
+ * @returns {void}
+ */
+export function resetPromptMutationGuard() {
+    foregroundFrozen = false;
+    pendingCommits = [];
+    pendingPromptEffects = [];
+    generationEpoch = 0;
+    foregroundFreezeStartedAt = 0;
+    staleRecoveryPromise = null;
+}
+
+/**
  * Reset transient guard state. Intended for tests.
  * @returns {void}
  */
 export function resetCommitStateForTests() {
-    foregroundFrozen = false;
-    pendingCommits = [];
-    pendingPromptEffects = [];
+    resetPromptMutationGuard();
     updateInjectionCallback = null;
     reassertInjectionCallback = null;
     requeueCallback = null;
-    generationEpoch = 0;
 }
 
 /**
@@ -255,16 +290,53 @@ export function resetCommitStateForTests() {
  * @returns {boolean}
  */
 function isForegroundGenerationActive() {
-    const ctx = getContext();
-    if (ctx.streamingProcessor && ctx.streamingProcessor.isFinished === false) {
-        return true;
-    }
-
     try {
-        const stopButton = $('#mes_stop');
-        return stopButton.length > 0 && stopButton.css('display') !== 'none';
+        const streamingProcessor = getStreamingProcessor();
+        if (streamingProcessor?.isFinished === false) {
+            return true;
+        }
+        return isSendButtonInStopMode();
     } catch (_e) {
         return false;
+    }
+}
+
+/**
+ * Avoid healing during the brief gap between SillyTavern's start event and live indicators.
+ * @returns {boolean}
+ */
+function hasForegroundFreezeGraceElapsed() {
+    return (
+        foregroundFreezeStartedAt === 0 ||
+        Date.now() - foregroundFreezeStartedAt >= FOREGROUND_FREEZE_HEARTBEAT_GRACE_MS
+    );
+}
+
+/**
+ * Clear stale freeze state from synchronous guard checks.
+ * @param {string} reason - Context for diagnostic logging
+ * @returns {void}
+ */
+function recoverStalePromptFreezeInBackground(reason) {
+    if (!foregroundFrozen || staleRecoveryPromise) {
+        return;
+    }
+
+    void recoverStalePromptFreeze(reason).catch((error) => {
+        warn('Error while recovering foreground generation freeze:', error);
+    });
+}
+
+/**
+ * Reassert the committed injection only when the guard is already open.
+ * @returns {void}
+ */
+function reassertCommittedInjectionIfOpen() {
+    if (foregroundFrozen || staleRecoveryPromise) {
+        return;
+    }
+    if (reassertInjectionCallback) {
+        reassertInjectionCallback();
     }
 }
 
