@@ -540,8 +540,65 @@ describe('promotion prompt guard', () => {
         expect(getChatStore().layers[1][0].text).toBe('The old setup ended cleanly.');
     });
 
-    it('rejects promotion output that is not smaller than its source memory', async () => {
-        mocks.callSummarizer.mockResolvedValue('x '.repeat(3000));
+    it('repairs promotion output that misses the minimum compression guard', async () => {
+        mocks.callSummarizer
+            .mockResolvedValueOnce('x '.repeat(2500))
+            .mockResolvedValueOnce(
+                'The repaired promotion keeps only the durable macro outcome: the first three memories resolve into a consolidated change in position, resources, and unresolved intent while repeated scene texture, dialogue, and transitional actions are discarded. The chronology remains anchored to the promoted source span and preserves only the consequences needed for future continuity.',
+            );
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            { text: 'a '.repeat(1000) },
+                            { text: 'b '.repeat(1000) },
+                            { text: 'c '.repeat(1000) },
+                            { text: 'extra 1' },
+                            { text: 'extra 2' },
+                            { text: 'extra 3' },
+                            { text: 'extra 4' },
+                            { text: 'extra 5' },
+                            { text: 'extra 6' },
+                            { text: 'extra 7' },
+                            { text: 'tail '.repeat(1000) },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 10,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(2);
+        expect(mocks.callSummarizer.mock.calls[1][2]).toMatchObject({
+            kind: 'promotion',
+            promotionRepair: expect.objectContaining({
+                outputTokens: expect.any(Number),
+                requiredMaxTokens: expect.any(Number),
+                rejectedSummary: expect.stringContaining('x '),
+            }),
+        });
+        expect(getChatStore().layers[0]).toHaveLength(8);
+        expect(getChatStore().layers[1][0]).toMatchObject({
+            text: expect.stringContaining('The repaired promotion keeps only'),
+            mergedCount: 3,
+        });
+    });
+
+    it('rejects promotion output when the repair also misses the minimum compression guard', async () => {
+        mocks.callSummarizer
+            .mockResolvedValueOnce('x '.repeat(2500))
+            .mockResolvedValueOnce('y '.repeat(2400));
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -575,7 +632,7 @@ describe('promotion prompt guard', () => {
 
         await expect(maybePromoteLayer(0)).resolves.toBe(false);
 
-        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(2);
         expect(getChatStore().layers[0]).toHaveLength(11);
         expect(getChatStore().layers[1]).toBeUndefined();
     });

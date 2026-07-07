@@ -36,44 +36,17 @@ describe('getLayer0ResponseTokenCap', () => {
         expect(cap).toBe(384);
     });
 
-    it('scales promotion caps with merged snippet count', () => {
-        const cap3 = getLayer0ResponseTokenCap(
+    it('does not inject Summaryception provider caps for promotions', () => {
+        const cap = getLayer0ResponseTokenCap(
             { snippetsPerPromotion: 3 },
             { kind: 'promotion', mergedSnippetCount: 3, memoryTokensBefore: 1000 },
         );
-        const cap6 = getLayer0ResponseTokenCap(
-            { snippetsPerPromotion: 3 },
-            { kind: 'promotion', mergedSnippetCount: 6, memoryTokensBefore: 1000 },
-        );
-        expect(cap6).toBeGreaterThan(cap3);
+        expect(cap).toBeNull();
     });
 
-    it('never exceeds the promotion maximum', () => {
-        const cap = getLayer0ResponseTokenCap(
-            { snippetsPerPromotion: 20 },
-            { kind: 'promotion', mergedSnippetCount: 20, memoryTokensBefore: 50000 },
-        );
-        expect(cap).toBeLessThanOrEqual(2048);
-    });
-
-    it('never drops below the promotion minimum', () => {
-        const cap = getLayer0ResponseTokenCap(
-            { snippetsPerPromotion: 3 },
-            { kind: 'promotion', mergedSnippetCount: 1, memoryTokensBefore: 50 },
-        );
-        expect(cap).toBeGreaterThanOrEqual(512);
-    });
-
-    it('provides a larger cap for promotions than L0', () => {
-        const l0Cap = getLayer0ResponseTokenCap(
-            { layer0SummaryTokenTarget: 200 },
-            { kind: 'layer0' },
-        );
-        const promoCap = getLayer0ResponseTokenCap(
-            { snippetsPerPromotion: 3 },
-            { kind: 'promotion', mergedSnippetCount: 3, memoryTokensBefore: 1000 },
-        );
-        expect(promoCap).toBeGreaterThan(l0Cap);
+    it('leaves promotion caps unset even when source memory tokens are missing', () => {
+        const cap = getLayer0ResponseTokenCap({ snippetsPerPromotion: 3 }, { kind: 'promotion' });
+        expect(cap).toBeNull();
     });
 });
 
@@ -120,9 +93,34 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_promotion_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('Do not output a [STATE] block');
+        expect(result).toContain('exactly one dense paragraph');
+        expect(result).toContain('no more than 4 to 5 sentences');
+        expect(result).toContain('macro-level durable chronology');
         expect(result).toContain('2024-12-03 06 Wed');
         expect(result).toContain('unknown spans');
         expect(result).toContain('Fold any critical changes in state');
+    });
+
+    it('appends repair feedback for promotion repair calls', () => {
+        const result = appendLayer0PromptConstraints(
+            'prompt',
+            {},
+            {
+                kind: 'promotion',
+                memoryTokensBefore: 1000,
+                promotionRepair: {
+                    outputTokens: 500,
+                    requiredMaxTokens: 350,
+                    rejectedSummary: 'Rejected verbose summary.',
+                },
+            },
+        );
+        expect(result).toContain('Repair task');
+        expect(result).toContain('previous promotion draft failed');
+        expect(result).toContain('500 tokens');
+        expect(result).toContain('350 tokens or fewer');
+        expect(result).toContain('<rejected_promotion_draft>');
+        expect(result).toContain('Rejected verbose summary.');
     });
 
     it('returns prompt unchanged for non-compression calls', () => {

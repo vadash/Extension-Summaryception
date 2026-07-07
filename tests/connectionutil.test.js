@@ -102,7 +102,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('applies a dynamic promotion cap when source memory tokens are known', async () => {
+    it('does not inject a default promotion cap when response length is unset', async () => {
         const generateRaw = installGenerateRaw();
 
         await sendSummarizerRequest(
@@ -121,7 +121,6 @@ describe('connection providers registry', () => {
             prompt: [{ role: 'user', content: 'user prompt' }],
             systemPrompt: 'system prompt',
             trimNames: false,
-            responseLength: 1368,
         });
     });
 
@@ -197,7 +196,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('applies the promotion cap to OpenAI merge max tokens when unset', () => {
+    it('does not inject a default OpenAI promotion cap when merge max tokens are unset', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
                 connectionSource: 'default',
@@ -211,17 +210,17 @@ describe('connection providers registry', () => {
         expect(effective).toMatchObject({
             connectionSource: 'openai',
             openaiModel: 'smart-model',
-            openaiMaxTokens: 1346,
+            openaiMaxTokens: 0,
         });
     });
 
-    it('limits promotion provider caps to the hard response ceiling', () => {
+    it('preserves explicit OpenAI merge max tokens for promotion calls', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
                 connectionSource: 'default',
                 mergeConnectionSource: 'openai',
                 mergeOpenaiModel: 'smart-model',
-                mergeOpenaiMaxTokens: 0,
+                mergeOpenaiMaxTokens: 3000,
             },
             { kind: 'promotion', memoryTokensBefore: 3000 },
         );
@@ -229,7 +228,7 @@ describe('connection providers registry', () => {
         expect(effective).toMatchObject({
             connectionSource: 'openai',
             openaiModel: 'smart-model',
-            openaiMaxTokens: 2048,
+            openaiMaxTokens: 3000,
         });
     });
 
@@ -387,7 +386,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('applies the promotion cap to fallback routes when source memory tokens are known', () => {
+    it('does not inject a default promotion cap into fallback routes', () => {
         const fallback = resolveFallbackSummarizerConnectionSettings(
             {
                 connectionSource: 'profile',
@@ -400,7 +399,7 @@ describe('connection providers registry', () => {
 
         expect(fallback).toMatchObject({
             connectionSource: 'default',
-            summarizerResponseLength: 1346,
+            summarizerResponseLength: 0,
         });
     });
 

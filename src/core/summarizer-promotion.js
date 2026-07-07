@@ -35,6 +35,7 @@ const LAYER0_DEEP_BUDGET_RATIO = 0.5;
 const LAYER1_BUDGET_RATIO = 0.3;
 const DEEP_LAYER_BUDGET_RATIO = 0.2;
 const LAYER0_PROMOTION_RETENTION_FLOOR_RATIO = 0.4;
+const MIN_PROMOTION_COMPRESSION_SAVINGS = 0.25;
 
 /**
  * Promote the shallowest over-limit layer at or after the requested layer.
@@ -256,7 +257,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
     if (!storyTxt) {
         return false;
     }
-    const metaNarrative = await callSummarizer(storyTxt, contextStr, {
+    const promotionMetadata = {
         kind: 'promotion',
         layerIndex,
         mergedSnippetCount: toMerge.length,
@@ -268,24 +269,25 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         overflowTokens: layerTokens,
         overflowTokenQuota: quota,
         sourceState,
-    });
+    };
+    const metaNarrative = await callSummarizer(storyTxt, contextStr, promotionMetadata);
     if (!metaNarrative) {
         return false;
     }
-    const metaSummary = combinePromotedMemory(metaNarrative);
-    if (!metaSummary) {
-        return false;
-    }
-    const promotedSnippet = buildPromotedSnippet(metaSummary, promotedMetadata);
-    if (
-        !(await isPromotionCompressed({
-            layerIndex,
-            mergeCount,
-            promotedSnippet,
-            settings: s,
-            sourceMemoryText,
-        }))
-    ) {
+
+    const promotedSnippet = await buildValidatedPromotionSnippet({
+        layerIndex,
+        mergeCount,
+        settings: s,
+        sourceMemoryText,
+        sourceTokens: memoryTokensBefore,
+        storyTxt,
+        contextStr,
+        metadata: promotionMetadata,
+        narrative: metaNarrative,
+        promotedMetadata,
+    });
+    if (!promotedSnippet) {
         return false;
     }
 
@@ -306,26 +308,105 @@ function combinePromotedMemory(narrative) {
     return parsed.narrative.trim();
 }
 
-async function isPromotionCompressed({
+async function buildValidatedPromotionSnippet({
+    layerIndex,
+    mergeCount,
+    settings,
+    sourceMemoryText,
+    sourceTokens,
+    storyTxt,
+    contextStr,
+    metadata,
+    narrative,
+    promotedMetadata,
+}) {
+    const firstCandidate = buildPromotionCandidate(narrative, promotedMetadata);
+    if (!firstCandidate) {
+        return null;
+    }
+
+    const firstValidation = await validatePromotionCandidate({
+        layerIndex,
+        mergeCount,
+        promotedSnippet: firstCandidate,
+        settings,
+        sourceMemoryText,
+        sourceTokens,
+    });
+    if (firstValidation.valid) {
+        return firstCandidate;
+    }
+
+    if (
+        firstValidation.reason !== 'compression-ratio' ||
+        !firstValidation.outputTokens ||
+        !firstValidation.sourceTokens
+    ) {
+        return null;
+    }
+
+    const repairNarrative = await callSummarizer(storyTxt, contextStr, {
+        ...metadata,
+        promotionRepair: {
+            outputTokens: firstValidation.outputTokens.count,
+            requiredMaxTokens: firstValidation.requiredMaxTokens,
+            sourceTokens: firstValidation.sourceTokens.count,
+            rejectedSummary: firstCandidate.text,
+        },
+    });
+    const repairedCandidate = buildPromotionCandidate(repairNarrative, promotedMetadata);
+    if (!repairedCandidate) {
+        return null;
+    }
+
+    const repairedValidation = await validatePromotionCandidate({
+        layerIndex,
+        mergeCount,
+        promotedSnippet: repairedCandidate,
+        settings,
+        sourceMemoryText,
+        sourceTokens,
+    });
+    return repairedValidation.valid ? repairedCandidate : null;
+}
+
+function buildPromotionCandidate(narrative, promotedMetadata) {
+    const metaSummary = combinePromotedMemory(narrative);
+    if (!metaSummary) {
+        return null;
+    }
+    return buildPromotedSnippet(metaSummary, promotedMetadata);
+}
+
+async function validatePromotionCandidate({
     layerIndex,
     mergeCount,
     promotedSnippet,
     settings,
     sourceMemoryText,
+    sourceTokens: providedSourceTokens,
 }) {
-    const sourceTokens = await countTextTokens(sourceMemoryText);
+    const sourceTokens = providedSourceTokens || (await countTextTokens(sourceMemoryText));
     if (!isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens })) {
-        return false;
+        return { valid: false, reason: 'integrity' };
     }
 
     const outputTokens = await countTextTokens(promotedSnippet.text);
-    if (outputTokens.count >= sourceTokens.count) {
+    const requiredMaxTokens = getPromotionCompressionMaxTokens(sourceTokens.count);
+    if (outputTokens.count > requiredMaxTokens) {
         warn(
-            `Promotion L${layerIndex} rejected: output did not compress source ` +
+            `Promotion L${layerIndex} rejected: output did not meet minimum compression ` +
                 `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
-                `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens).`,
+                `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens; ` +
+                `required <=${formatTokenValue(requiredMaxTokens, sourceTokens.estimated)}).`,
         );
-        return false;
+        return {
+            valid: false,
+            reason: 'compression-ratio',
+            sourceTokens,
+            outputTokens,
+            requiredMaxTokens,
+        };
     }
 
     const store = getChatStore();
@@ -338,7 +419,7 @@ async function isPromotionCompressed({
     );
     const memoryTokensAfter = await getEffectiveMemoryUsage(nextLayers, settings);
     if (memoryTokensAfter.total.count < memoryTokensBefore.total.count) {
-        return true;
+        return { valid: true };
     }
 
     warn(
@@ -352,7 +433,12 @@ async function isPromotionCompressed({
                 memoryTokensAfter.total.estimated,
             )} tokens).`,
     );
-    return false;
+    return { valid: false, reason: 'memory-total' };
+}
+
+function getPromotionCompressionMaxTokens(sourceTokenCount) {
+    const source = Math.max(0, Number(sourceTokenCount) || 0);
+    return Math.floor(source * (1 - MIN_PROMOTION_COMPRESSION_SAVINGS));
 }
 
 function isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens }) {

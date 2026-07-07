@@ -5,10 +5,6 @@ const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
 const MAX_LAYER0_RESPONSE_TOKENS = 384;
-const MIN_PROMOTION_RESPONSE_TOKENS = 512;
-const MAX_PROMOTION_RESPONSE_TOKENS = 2048;
-const PROMOTION_RESPONSE_TOKENS_PER_SNIPPET = 256;
-const PROMOTION_RESPONSE_TOKEN_BUFFER = 200;
 const PROMOTION_TARGET_RATIO = 0.4;
 
 /**
@@ -44,18 +40,7 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
  */
 export function getLayer0ResponseTokenCap(settings = {}, metadata = {}) {
     if (metadata.kind === 'promotion') {
-        const target = getPromotionSummaryTokenTarget(metadata);
-        const effectiveTarget = target === null ? MIN_PROMOTION_RESPONSE_TOKENS : target;
-        const mergedCount =
-            Number(metadata.mergedSnippetCount) || settings.snippetsPerPromotion || 3;
-        const scaledCap =
-            effectiveTarget +
-            mergedCount * PROMOTION_RESPONSE_TOKENS_PER_SNIPPET +
-            PROMOTION_RESPONSE_TOKEN_BUFFER;
-        return Math.min(
-            Math.max(scaledCap, MIN_PROMOTION_RESPONSE_TOKENS),
-            MAX_PROMOTION_RESPONSE_TOKENS,
-        );
+        return null;
     }
     return Math.min(
         getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER,
@@ -127,24 +112,52 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         target === null
             ? 'Target length: make the output significantly shorter than the combined input memories.\n'
             : `Target length: at most about ${target} tokens, roughly 40% of the combined input memories.\n`;
+    const repairLine = buildPromotionRepairLine(metadata);
 
     return (
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_promotion_constraints>\n' +
         targetLine +
+        repairLine +
         'Read the [NARRATIVE] and [STATE] segments of the provided memory snippets.\n' +
         'Output exactly one [NARRATIVE] section. Do not output a [STATE] block.\n' +
-        '[NARRATIVE] must be one dense paragraph with no heading, list, preamble, or markdown.\n' +
+        '[NARRATIVE] must be exactly one dense paragraph with no heading, list, preamble, markdown, or blank line inside it.\n' +
+        '[NARRATIVE] must contain no more than 4 to 5 sentences total.\n' +
         'Fold any critical changes in state, inventory, counters, or character dynamics directly into the prose.\n' +
         'Do not use key-value formatting, bullet lists, tables, or structured state syntax.\n' +
-        'Preserve only durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
+        'Preserve only macro-level durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
         'Preserve anchored source ranges and hour-level 24-hour timestamps already present in memory, e.g. [msgs 100-120; 2024-12-03 06 Wed -> 2024-12-03 09 Wed].\n' +
         'Do not invent broad dates for unknown spans; only clean unknown spans when bounded by explicit neighboring anchors.\n' +
         'Omit physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, and momentary pose/arousal/mood counters.\n' +
         'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
-        'Omit low-impact micro-actions, scene replay, flavor dialogue, sensory detail, and transient atmosphere.\n' +
+        'Omit all dialogue, low-impact micro-actions, scene replay, minor subplots, flavor dialogue, sensory detail, and transient atmosphere.\n' +
         '</summaryception_promotion_constraints>'
+    );
+}
+
+function buildPromotionRepairLine(metadata = {}) {
+    if (!metadata.promotionRepair) {
+        return '';
+    }
+
+    const repair = metadata.promotionRepair;
+    const outputTokens = Number(repair.outputTokens);
+    const requiredMaxTokens = Number(repair.requiredMaxTokens);
+    const tokenLine =
+        Number.isFinite(outputTokens) && Number.isFinite(requiredMaxTokens)
+            ? `The rejected draft was ${outputTokens} tokens; the repaired output must be ${requiredMaxTokens} tokens or fewer.\n`
+            : '';
+    const rejected = String(repair.rejectedSummary || '').trim();
+    const rejectedBlock = rejected
+        ? `<rejected_promotion_draft>\n${rejected}\n</rejected_promotion_draft>\n`
+        : '';
+
+    return (
+        'Repair task: the previous promotion draft failed the minimum compression guard.\n' +
+        tokenLine +
+        'Rewrite it more abstractly instead of appending detail; keep only the durable macro outcome.\n' +
+        rejectedBlock
     );
 }
