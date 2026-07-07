@@ -130,7 +130,8 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
-- **v12:** Focus on stability. Tested on few RP till 2-3k messages. Main problem is STATE gets too big. Good stopping point but I have few ideas. 
+- **v13:** Tweaked few knobs. 10k memory can support 800 messages chat in L0 alone. Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
+- **v12:** Focus on stability. Tested on few RP till 2-3k messages. Main problem is STATE gets too big. Good stopping point but I have few ideas...
 - **v11:** CN output filter (CN models love to add non EN symbols to output) and Dual-Track Architecture test.
 Separate each summary into two tracks:
 1. **Narrative track** -- free-form prose describing what happened (events, actions, dialogue outcomes)
@@ -145,6 +146,8 @@ Refactor debug logging. Add summarizer fallback connection.
 - **v8:** Slop Breaker. Manual tool to forcefully summarize recent chat when the AI gets stuck in repetitive loops or formatting errors.
 - **v7:** Consistent roleplay style. Replaced raw turn counts with the "Verbatim Token Budget" slider, so you control how much recent text the AI sees. Smoother UI when editing snippets.
 - **v6:** The major modular rewrite. Speedups, background processing fixes, global regex support.
+
+For memory testing I use RP with 3000 messages, then upload F12 to ai studio to analyze. L0 model is free gemma4, L1+ model is glm47, fallback glm52
 
 ---
 
