@@ -130,7 +130,11 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
-- **v13:** Tweaked few knobs. 10k memory can support 800 messages chat in L0 alone. Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
+- **v13:** Tweaked few knobs. 
+Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
+Temporal anchors. Each memory has time. So make sure you track date time in RP.
+Guard summarizer output integrity. So long memories cant condense into 1 word due to LLM bug.
+Improve promotion compression repair. You wont see 2000 tokens memory summarize into 1900 tokens. 
 - **v12:** Focus on stability. Tested on few RP till 2-3k messages. Main problem is STATE gets too big. Good stopping point but I have few ideas...
 - **v11:** CN output filter (CN models love to add non EN symbols to output) and Dual-Track Architecture test.
 Separate each summary into two tracks:
