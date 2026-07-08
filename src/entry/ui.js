@@ -84,6 +84,7 @@ function syncSettingsInputs(s) {
     $('#sc_promotion_repair_prompt').val(s.promotionRepairPrompt);
     syncPayloadSchematic(s);
     syncMemoryModeControls(s);
+    syncLLMContextPreview(s);
 }
 
 function syncEnabledContent(s) {
@@ -104,6 +105,61 @@ export function syncPayloadSchematic(s = getSettings()) {
         formatBudgetTokenLabel(getProtectedTailTokens(s.verbatimTokenBudget)),
     );
     $('#sc_payload_tail_part').css('display', isCache ? 'contents' : 'none');
+}
+
+/**
+ * Sync read-only LLM call context preview.
+ * @param {ReturnType<typeof getSettings>} [s]
+ * @returns {void}
+ */
+export function syncLLMContextPreview(s = getSettings()) {
+    const maxL0Source = Number.isFinite(Number(s.maxL0SourceTokens))
+        ? Number(s.maxL0SourceTokens)
+        : 8000;
+    const minSummaryBudget = Number.isFinite(Number(s.minSummaryBudget))
+        ? Number(s.minSummaryBudget)
+        : 8000;
+    const snippetsPerPromotion = Number.isFinite(Number(s.snippetsPerPromotion))
+        ? Number(s.snippetsPerPromotion)
+        : 3;
+    const summaryTarget = Number.isFinite(Number(s.layer0SummaryTokenTarget))
+        ? Number(s.layer0SummaryTokenTarget)
+        : 200;
+
+    const l0Source = Math.min(maxL0Source, minSummaryBudget);
+    const l0Total = l0Source + 2000;
+    const l1Source = snippetsPerPromotion * summaryTarget;
+    const l1Total = l1Source + 1000;
+
+    $('#sc_llm_context_l0').text(
+        `~${l0Total >= 1000 ? `${(l0Total / 1000).toFixed(1)}k` : l0Total} tokens`,
+    );
+    $('#sc_llm_context_l1').text(
+        `~${l1Total >= 1000 ? `${(l1Total / 1000).toFixed(1)}k` : l1Total} tokens`,
+    );
+
+    $('#sc_llm_context_l0').removeClass('sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger');
+    $('#sc_llm_context_l1').removeClass('sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger');
+    $('#sc_llm_context_l0').addClass(getContextColorClass(l0Total));
+    $('#sc_llm_context_l1').addClass(getContextColorClass(l1Total));
+}
+
+/**
+ * Get color class based on token count thresholds.
+ * @param {number} tokens
+ * @returns {string}
+ */
+function getContextColorClass(tokens) {
+    if (tokens > 48000) {
+        return 'sc-ctx-danger';
+    }
+    if (tokens > 32000) {
+        return 'sc-ctx-caution';
+    }
+    if (tokens > 24000) {
+        return 'sc-ctx-warn';
+    }
+    return 'sc-ctx-safe';
 }
 
 /**

@@ -57,6 +57,7 @@ interface ExtensionSettings {
     minSummaryTurns: number;
     maxSummaryTurns: number;
     layer0SummaryTokenTarget: number;
+    maxL0SourceTokens: number;
     minSummaryBudget: number;
     verbatimTokenBudget: number;
     memoryTokenBudget: number;

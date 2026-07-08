@@ -54,6 +54,7 @@ export const defaultSettings = Object.freeze({
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
     layer0SummaryTokenTarget: 200,
+    maxL0SourceTokens: 8000,
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,

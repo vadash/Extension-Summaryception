@@ -622,13 +622,75 @@
                     <div class="sc-tuning-grid">
                         <div class="sc-tuning-group">
                             <div class="sc-tuning-title">
-                                <span class="fa-solid fa-chart-pie"></span>
-                                <span>Token Limits</span>
+                                <span class="fa-solid fa-microchip"></span>
+                                <span>What Goes into the LLM</span>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_max_l0_source_tokens">
+                                    <span>Max Source per Call</span>
+                                    <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_max_l0_source_tokens" min="2000" max="16000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
+                                    <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
+                                </div>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_min_summary_budget">
+                                    <span>Batch Trigger Size</span>
+                                    <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_min_summary_budget" min="2000" max="8000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
+                                    <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
+                                </div>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_max_summary_turns">
+                                    <span>Max Turns per Batch</span>
+                                    <small class="sc-hint">Maximum assistant replies in one batch. Prevents batches from getting too large.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_max_summary_turns" min="3" max="20" step="1" data-sc-slider-setting="maxSummaryTurns" data-sc-partner-input="#sc_max_summary_turns_val" />
+                                    <input id="sc_max_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="maxSummaryTurns" data-sc-partner-input="#sc_max_summary_turns" />
+                                </div>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_layer0_summary_token_target">
+                                    <span>Summary Target Size</span>
+                                    <small class="sc-hint">Target length of each new summary. Shorter = more compression, longer = more detail preserved.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
+                                    <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="text" inputmode="numeric" value="200" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sc-tuning-group">
+                            <div class="sc-tuning-title">
+                                <span class="fa-solid fa-timeline"></span>
+                                <span>When to Summarize</span>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_min_summary_turns">
+                                    <span>Min Turns per Batch</span>
+                                    <small class="sc-hint">Minimum assistant replies before a batch can compress. Prevents summarizing too eagerly.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_min_summary_turns" min="2" max="10" step="1" data-sc-slider-setting="minSummaryTurns" data-sc-partner-input="#sc_min_summary_turns_val" />
+                                    <input id="sc_min_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3" data-sc-slider-setting="minSummaryTurns" data-sc-partner-input="#sc_min_summary_turns" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sc-tuning-group">
+                            <div class="sc-tuning-title">
+                                <span class="fa-solid fa-layer-group"></span>
+                                <span>Memory Structure</span>
                             </div>
                             <div class="sc-row">
                                 <label for="sc_verbatim_token_budget">
-                                    <span>Verbatim Token Budget</span>
-                                    <small class="sc-hint">Recent visible chat kept raw before Layer 0 summarization.</small>
+                                    <span>Live Chat Window</span>
+                                    <small class="sc-hint">How many recent messages stay unsummarized before they're compressed into memory.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_verbatim_token_budget" min="4000" max="64000" step="1000" data-sc-slider-setting="verbatimTokenBudget" data-sc-partner-input="#sc_verbatim_token_budget_val" />
@@ -637,8 +699,8 @@
                             </div>
                             <div class="sc-row">
                                 <label for="sc_memory_token_budget">
-                                    <span>Injected Memory Budget</span>
-                                    <small class="sc-hint">Maximum ceiling for committed memory; actual use can be lower.</small>
+                                    <span>Memory Size Limit</span>
+                                    <small class="sc-hint">Maximum size of all summaries injected into your chat. Larger = more context history.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="memoryTokenBudget" data-sc-partner-input="#sc_memory_token_budget_val" />
@@ -646,55 +708,9 @@
                                 </div>
                             </div>
                             <div class="sc-row">
-                                <label for="sc_layer0_summary_token_target">
-                                    <span>Layer 0 Target Tokens</span>
-                                    <small class="sc-hint">Target size for each raw-chat summary.</small>
-                                </label>
-                                <div class="sc-slider-row">
-                                    <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
-                                    <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="text" inputmode="numeric" value="200" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target" />
-                                </div>
-                            </div>
-                            <div class="sc-row">
-                                <label for="sc_min_summary_budget">
-                                    <span>Minimum Summary Budget</span>
-                                    <small id="sc_min_summary_budget_hint" class="sc-hint">Overflow passage tokens to collect before summarizing short batches.</small>
-                                </label>
-                                <div class="sc-slider-row">
-                                    <input type="range" id="sc_min_summary_budget" min="2000" max="16000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
-                                    <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="sc-tuning-group">
-                            <div class="sc-tuning-title">
-                                <span class="fa-solid fa-timeline"></span>
-                                <span>Cadence & Layers</span>
-                            </div>
-                            <div class="sc-row">
-                                <label for="sc_min_summary_turns">
-                                    <span>Minimum Summary Turns</span>
-                                    <small class="sc-hint">Minimum assistant turns before a budget-ready summary.</small>
-                                </label>
-                                <div class="sc-slider-row">
-                                    <input type="range" id="sc_min_summary_turns" min="2" max="10" step="1" data-sc-slider-setting="minSummaryTurns" data-sc-partner-input="#sc_min_summary_turns_val" />
-                                    <input id="sc_min_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3" data-sc-slider-setting="minSummaryTurns" data-sc-partner-input="#sc_min_summary_turns" />
-                                </div>
-                            </div>
-                            <div class="sc-row">
-                                <label for="sc_max_summary_turns">
-                                    <span>Maximum Summary Turns</span>
-                                    <small class="sc-hint">Maximum assistant turns per Layer 0 summary batch.</small>
-                                </label>
-                                <div class="sc-slider-row">
-                                    <input type="range" id="sc_max_summary_turns" min="3" max="20" step="1" data-sc-slider-setting="maxSummaryTurns" data-sc-partner-input="#sc_max_summary_turns_val" />
-                                    <input id="sc_max_summary_turns_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="maxSummaryTurns" data-sc-partner-input="#sc_max_summary_turns" />
-                                </div>
-                            </div>
-                            <div class="sc-row">
                                 <label for="sc_snippets_per_layer">
                                     <span>Max Memories per Layer</span>
-                                    <small class="sc-hint">Count guard alongside injected-memory token pressure.</small>
+                                    <small class="sc-hint">How many summaries each layer holds before older ones merge into deeper memory.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_snippets_per_layer" min="20" max="40" step="1" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer_val" />
@@ -703,8 +719,8 @@
                             </div>
                             <div class="sc-row">
                                 <label for="sc_snippets_per_promotion">
-                                    <span>Snippets per Promotion</span>
-                                    <small class="sc-hint">Oldest snippets merged when promoting.</small>
+                                    <span>Memories per Merge</span>
+                                    <small class="sc-hint">How many summaries combine at once when merging into deeper layers.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_snippets_per_promotion" min="3" max="4" step="1" data-sc-slider-setting="snippetsPerPromotion" data-sc-partner-input="#sc_snippets_per_promotion_val" />
@@ -713,6 +729,25 @@
                             </div>
                         </div>
                     </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-microchip"></span>
+                            LLM Call Context
+                        </h4>
+                    </div>
+                    <div class="sc-llm-context-grid">
+                        <div class="sc-llm-context-row">
+                            <span class="sc-llm-context-label">L0 Call</span>
+                            <span class="sc-llm-context-value" id="sc_llm_context_l0">~10k tokens</span>
+                        </div>
+                        <div class="sc-llm-context-row">
+                            <span class="sc-llm-context-label">L1+ Merge Call</span>
+                            <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
+                        </div>
+                    </div>
+                    <small class="sc-hint">Estimated max input tokens per LLM call. Overhead is fixed estimate (L0: ~2k, L1+: ~1k).</small>
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">

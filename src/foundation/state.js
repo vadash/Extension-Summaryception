@@ -187,10 +187,20 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
     settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 20);
     settings.layer0SummaryTokenTarget = clampInteger(settings.layer0SummaryTokenTarget, 80, 500);
+    settings.maxL0SourceTokens = clampToStep(settings.maxL0SourceTokens, 2000, 16000, 1000);
     if (settings.maxSummaryTurns < settings.minSummaryTurns) {
         settings.maxSummaryTurns = settings.minSummaryTurns;
     }
-    settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, 16000, 1000);
+    const sourceCap = Math.max(2000, Number(settings.maxL0SourceTokens) || 8000);
+    settings.minSummaryBudget = clampToStep(
+        settings.minSummaryBudget,
+        2000,
+        Math.min(16000, sourceCap),
+        1000,
+    );
+    if (settings.minSummaryBudget > sourceCap) {
+        settings.minSummaryBudget = sourceCap;
+    }
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
     settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);

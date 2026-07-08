@@ -2,7 +2,6 @@ import { getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
-export const MAX_L0_SOURCE_TOKENS = 8000;
 const MIN_L0_SOURCE_TOKENS = 2000;
 const L0_SOURCE_OVERSHOOT_TOLERANCE = 1.15;
 
@@ -39,7 +38,7 @@ export async function buildLayer0Partitions(
         finalSourceEndIdx,
     });
     const totalTokens = sumSegmentTokens(segments);
-    const maxTokens = MAX_L0_SOURCE_TOKENS;
+    const maxTokens = getMaxL0SourceTokens(settings);
     const targetTokens = getTargetSourceTokens(settings);
 
     if (totalTokens <= Math.ceil(targetTokens * L0_SOURCE_OVERSHOOT_TOLERANCE)) {
@@ -195,10 +194,19 @@ function getFinalEndIdx(turnIndex, finalSourceEndIdx) {
     return turnIndex;
 }
 
+function getMaxL0SourceTokens(settings) {
+    const configured = Number(settings.maxL0SourceTokens);
+    if (!Number.isFinite(configured) || configured <= 0) {
+        return 8000;
+    }
+    return Math.max(MIN_L0_SOURCE_TOKENS, Math.round(configured));
+}
+
 function getTargetSourceTokens(settings) {
+    const cap = getMaxL0SourceTokens(settings);
     const budget = Number(settings.minSummaryBudget);
-    const safeBudget = Number.isFinite(budget) ? budget : MAX_L0_SOURCE_TOKENS;
-    return Math.min(MAX_L0_SOURCE_TOKENS, Math.max(MIN_L0_SOURCE_TOKENS, Math.round(safeBudget)));
+    const safeBudget = Number.isFinite(budget) ? budget : cap;
+    return Math.min(cap, Math.max(MIN_L0_SOURCE_TOKENS, Math.round(safeBudget)));
 }
 
 function getMessageLine(message, text) {

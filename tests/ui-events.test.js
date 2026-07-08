@@ -414,6 +414,7 @@ function mockUiEventDependencies() {
     vi.doMock('../src/entry/ui.js', () => ({
         updateUI: mocks.updateUI,
         syncPayloadSchematic: mocks.syncPayloadSchematic,
+        syncLLMContextPreview: vi.fn(),
     }));
     vi.doMock('../src/entry/ui-dialogs.js', () => ({
         clearManualProgressToast: vi.fn(),

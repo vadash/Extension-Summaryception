@@ -30,7 +30,7 @@ import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
-import { updateUI, syncPayloadSchematic } from './ui.js';
+import { updateUI, syncLLMContextPreview, syncPayloadSchematic } from './ui.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -259,6 +259,8 @@ function bindSliderHandlers() {
         afterSave: (settings) => {
             updateInjection();
             syncPayloadSchematic(settings);
+            syncMinSummaryBudgetSliderMax(settings);
+            syncLLMContextPreview(settings);
         },
     });
 
@@ -272,6 +274,30 @@ function enforceRetentionConstraints(changedKey) {
     }
     if (s.maxSummaryTurns < s.minSummaryTurns) {
         s.maxSummaryTurns = s.minSummaryTurns;
+    }
+    if (changedKey === 'maxL0SourceTokens') {
+        const cap = Number(s.maxL0SourceTokens);
+        if (Number.isFinite(cap) && s.minSummaryBudget > cap) {
+            s.minSummaryBudget = cap;
+        }
+    }
+    if (s.minSummaryBudget > s.maxL0SourceTokens) {
+        s.maxL0SourceTokens = s.minSummaryBudget;
+    }
+}
+
+function syncMinSummaryBudgetSliderMax(settings) {
+    const cap = Number(settings.maxL0SourceTokens);
+    if (!Number.isFinite(cap) || cap <= 0) {
+        return;
+    }
+    const $slider = $('#sc_min_summary_budget');
+    if ($slider.length) {
+        $slider.attr('max', String(cap));
+        const currentVal = Number($slider.val());
+        if (currentVal > cap) {
+            $slider.val(String(cap));
+        }
     }
 }
 
@@ -544,6 +570,7 @@ function onResetDefaults() {
     s.customMemoryDepth = preservedCustomMemoryDepth;
     s.minSummaryTurns = defaultSettings.minSummaryTurns;
     s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
+    s.maxL0SourceTokens = defaultSettings.maxL0SourceTokens;
     s.minSummaryBudget = defaultSettings.minSummaryBudget;
     s.verbatimTokenBudget =
         preservedMemoryMode === MEMORY_MODES.CACHE ? 32000 : defaultSettings.verbatimTokenBudget;
