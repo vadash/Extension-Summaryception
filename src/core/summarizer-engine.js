@@ -3,7 +3,7 @@ import { getChat } from '../foundation/context.js';
 import { getChatStore, getSettings } from '../foundation/state.js';
 import { debug, info, trace } from '../foundation/logger.js';
 import { getCacheFriendlyPlan } from './cache-planner.js';
-import { summarizeBatchFromTurns } from './summarizer-batch.js';
+import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summarizer-batch.js';
 import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
 import { getLayer0OverflowPlan } from './verbatim-window.js';
 import { getSlopBreakerPlan } from './slop-breaker.js';
@@ -138,7 +138,19 @@ async function processLayer0Plan(plan) {
  * @returns {Promise<'processed' | 'blocked' | 'failed'>}
  */
 async function processCacheLayer0Plan(plan) {
-    return await processLayer0Turns(plan.batchTurns);
+    const success = await summarizeAtomicLayer0Partitions(plan.partitions, {
+        showToasts: false,
+        catchExceptions: true,
+    });
+
+    if (!success) {
+        debug('Atomic cache batch failed, leaving chat and memory unchanged.');
+        return 'failed';
+    }
+    if (shouldStopPromptWork()) {
+        return 'blocked';
+    }
+    return 'processed';
 }
 
 /**
@@ -213,11 +225,13 @@ async function buildForceTask(options, strategy) {
         isBatchReady: (batch) => Boolean(batch),
         processBatch: strategy.processBatch,
         isComplete: strategy.isComplete,
+        partitions: initialPlan.partitions,
+        getPartitions: () => initialPlan.partitions,
     };
 }
 
-function buildSlopTask(options, strategy) {
-    const initialPlan = getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
+async function buildSlopTask(options, strategy) {
+    const initialPlan = await getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
     if (initialPlan.reason !== 'ready') {
         return null;
     }
@@ -230,8 +244,8 @@ function buildSlopTask(options, strategy) {
         title: 'Summaryception Slop Breaker',
         options,
         targetIndex,
-        getBatch: () =>
-            getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), { targetIndex }),
+        getBatch: async () =>
+            await getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), { targetIndex }),
         isBatchReady: (batch) => batch?.reason === 'ready',
         processBatch: strategy.processBatch,
         isComplete: strategy.isComplete,

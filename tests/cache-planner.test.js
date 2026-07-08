@@ -64,7 +64,7 @@ describe('cache-friendly planner', () => {
         expect(plan.assistantTurns.map((turn) => turn.index)).toEqual([0, 1, 2, 3]);
     });
 
-    it('selects one capped batch from the flushable cache range', async () => {
+    it('selects one token-balanced batch from the flushable cache range', async () => {
         const plan = await getPlan(assistantMessages(12), {
             minSummaryBudget: 3000,
             maxSummaryTurns: 3,
@@ -74,10 +74,17 @@ describe('cache-friendly planner', () => {
         expect(plan.reason).toBe('ready');
         expect(plan.estimatedFlushTokens).toBe(8000);
         expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1, 2]);
+        expect(
+            plan.partitions.map((partition) => partition.turns.map((turn) => turn.index)),
+        ).toEqual([
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7],
+        ]);
         expect(plan.overflowCount).toBe(8);
     });
 
-    it('uses max turn sliders after the initial cache delay', async () => {
+    it('ignores max turn sliders after the initial cache delay when token balance is safe', async () => {
         const plan = await getPlan(assistantMessages(12), {
             minSummaryTurns: 99,
             maxSummaryTurns: 1,
@@ -86,7 +93,7 @@ describe('cache-friendly planner', () => {
         });
 
         expect(plan.reason).toBe('ready');
-        expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0]);
+        expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1, 2]);
         expect(plan.overflowCount).toBe(8);
     });
 });

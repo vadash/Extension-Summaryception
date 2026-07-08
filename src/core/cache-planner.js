@@ -1,6 +1,7 @@
 import { findLastMessage, getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
+import { buildLayer0Partitions } from './partition-planner.js';
 
 /**
  * @typedef {object} CacheFriendlyPlan
@@ -14,6 +15,7 @@ import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-c
  * @property {number} estimatedFlushTokens
  * @property {import('./chatutils.js').AssistantTurn[]} assistantTurns
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions
  * @property {number} overflowCount
  * @property {import('./token-count.js').BudgetStats} liveStats
  * @property {import('./token-count.js').BudgetStats} flushStats
@@ -55,7 +57,8 @@ export async function getCacheFriendlyPlan(chat, store, settings) {
 
     const flushEndIdx = assistantTurns[assistantTurns.length - 1].index;
     const flushStats = getRangeStats(liveData, flushStartIdx, flushEndIdx);
-    const batchTurns = assistantTurns.slice(0, Math.max(1, settings.maxSummaryTurns));
+    const partitions = await buildLayer0Partitions(chat, flushStartIdx, assistantTurns, settings);
+    const batchTurns = partitions[0]?.turns || [];
 
     return empty({
         reason: 'ready',
@@ -63,6 +66,7 @@ export async function getCacheFriendlyPlan(chat, store, settings) {
         tailStartIdx,
         assistantTurns,
         batchTurns,
+        partitions,
         flushStats,
     });
 }
@@ -91,6 +95,7 @@ export function getProtectedTailTokens(verbatimTokenBudget) {
  * @param {number} [p.tailStartIdx]
  * @param {import('./chatutils.js').AssistantTurn[]} [p.assistantTurns]
  * @param {import('./chatutils.js').AssistantTurn[]} [p.batchTurns]
+ * @param {import('./partition-planner.js').SourcePartition[]} [p.partitions]
  * @param {import('./token-count.js').BudgetStats} [p.flushStats]
  * @returns {CacheFriendlyPlan}
  */
@@ -104,6 +109,7 @@ function buildPlan({
     tailStartIdx = -1,
     assistantTurns = [],
     batchTurns = [],
+    partitions = [],
     flushStats = createBudgetStats(),
 }) {
     const normalizedReason = reason === 'ready' ? 'ready' : 'none';
@@ -118,6 +124,7 @@ function buildPlan({
         estimatedFlushTokens: flushStats.finalTokens,
         assistantTurns,
         batchTurns,
+        partitions,
         overflowCount: assistantTurns.length,
         liveStats: liveData.stats,
         flushStats,

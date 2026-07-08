@@ -1,12 +1,14 @@
 import { getAssistantTurns, getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
+import { buildLayer0Partitions } from './partition-planner.js';
 
 /**
  * @typedef {object} Layer0OverflowPlan
  * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions
  * @property {'budget' | 'max' | 'force' | 'repair' | 'none'} reason
  * @property {number} overflowCount - Total eligible assistant turns outside the verbatim window.
  * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
@@ -30,7 +32,7 @@ import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-c
  * Build the current Layer 0 overflow plan from chat state and settings.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
- * @param {VerbatimWindowSettings} settings
+ * @param {ExtensionSettings} settings
  * @param {{ ignoreReadiness?: boolean }} [opts]
  * @returns {Promise<Layer0OverflowPlan>}
  */
@@ -44,21 +46,36 @@ export async function getLayer0OverflowPlan(
     const eligibleTurns = visibleTurns.filter((turn) => turn.index > store.summarizedUpTo);
     const budget = await getTokenBudgetBoundary(chat, settings);
     const overflowTurns = eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex);
-    const batchLimit = Math.max(1, settings.maxSummaryTurns);
-    const candidateTurns = overflowTurns.slice(0, batchLimit);
-    const summaryStats = await getSummaryStats(chat, store, candidateTurns, settings);
+    const candidateTurns = overflowTurns.slice(0, Math.max(1, settings.maxSummaryTurns));
 
     if (candidateTurns.length >= settings.maxSummaryTurns) {
+        const partitions = await buildLayer0Partitions(
+            chat,
+            getPassageStart(store),
+            candidateTurns,
+            settings,
+        );
+        const summaryStats = partitions[0]?.stats || createBudgetStats();
+
         return buildPlan(
             'max',
             visibleTurns,
             eligibleTurns,
             overflowTurns,
-            candidateTurns,
+            partitions[0]?.turns || candidateTurns,
+            partitions,
             budget,
             summaryStats,
         );
     }
+
+    const partitions = await buildLayer0Partitions(
+        chat,
+        getPassageStart(store),
+        overflowTurns,
+        settings,
+    );
+    const summaryStats = partitions[0]?.stats || createBudgetStats();
 
     if (ignoreReadiness && candidateTurns.length > 0) {
         return buildPlan(
@@ -67,6 +84,7 @@ export async function getLayer0OverflowPlan(
             eligibleTurns,
             overflowTurns,
             candidateTurns,
+            partitions,
             budget,
             summaryStats,
         );
@@ -82,6 +100,7 @@ export async function getLayer0OverflowPlan(
             eligibleTurns,
             overflowTurns,
             candidateTurns,
+            partitions,
             budget,
             summaryStats,
         );
@@ -94,12 +113,22 @@ export async function getLayer0OverflowPlan(
             eligibleTurns,
             overflowTurns,
             [],
+            [],
             budget,
             summaryStats,
         );
     }
 
-    return buildPlan('none', visibleTurns, eligibleTurns, overflowTurns, [], budget, summaryStats);
+    return buildPlan(
+        'none',
+        visibleTurns,
+        eligibleTurns,
+        overflowTurns,
+        [],
+        [],
+        budget,
+        summaryStats,
+    );
 }
 
 function getVisibleAssistantTurns(chat) {
@@ -112,6 +141,7 @@ function buildPlan(
     eligibleTurns,
     overflowTurns,
     batchTurns,
+    partitions,
     budget,
     summaryStats,
 ) {
@@ -119,6 +149,7 @@ function buildPlan(
         visibleTurns,
         eligibleTurns,
         batchTurns,
+        partitions,
         reason,
         overflowCount: overflowTurns.length,
         softOverflowCount: Math.max(0, overflowTurns.length - batchTurns.length),
@@ -154,32 +185,8 @@ async function getTokenBudgetBoundary(chat, settings) {
     return { boundaryIndex, exceeded, stats };
 }
 
-async function getSummaryStats(chat, store, candidateTurns, settings) {
-    if (candidateTurns.length === 0) {
-        return createBudgetStats();
-    }
-
-    const startIdx = store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
-    const endIdx = candidateTurns[candidateTurns.length - 1].index;
-    return await countRangeTokens(chat, startIdx, endIdx, settings);
-}
-
-async function countRangeTokens(chat, startIdx, endIdx, settings) {
-    const stats = createBudgetStats();
-    const promptDepths = getPromptDepthsByChatIndex(chat);
-
-    if (endIdx < startIdx) {
-        return stats;
-    }
-
-    for (const { index, message } of iterateChatRange(chat, startIdx, endIdx)) {
-        if (!isPassageCountableMessage(message)) {
-            continue;
-        }
-        addBudgetStats(stats, await countBudgetMessage(message, promptDepths.get(index), settings));
-    }
-
-    return stats;
+function getPassageStart(store) {
+    return store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1;
 }
 
 async function countBudgetMessage(message, depth, settings) {
@@ -218,11 +225,4 @@ function isPromptVisibleMessage(message) {
         return false;
     }
     return !message.is_system && !message.is_hidden;
-}
-
-function isPassageCountableMessage(message) {
-    if (!message?.mes || !String(message.mes).trim()) {
-        return false;
-    }
-    return !(message.is_system || message.is_hidden) || message.extra?.sc_ghosted;
 }

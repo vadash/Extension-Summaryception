@@ -18,6 +18,9 @@ This directory houses the background worker, LLM connections, token counting, an
 
 ## Engine & Summarizer
 - `summarizer-engine.js` owns the Auto, Force, Slop, and Cache execution loops.
+- `partition-planner.js` owns token-balanced L0 source partitioning. All planners (`verbatim-window.js`, `cache-planner.js`, `slop-breaker.js`) must route through `buildLayer0Partitions` so L0 batches never spike because a few huge turns ballooned a fixed turn window.
+- `MAX_L0_SOURCE_TOKENS = 8000` is the internal hard ceiling for the raw source text sent to any single L0 summary call. Planners target `minSummaryBudget` when safe, clamp under the ceiling, and keep slight overshoot as one partition rather than splitting mid-target. A single indivisible assistant turn above the ceiling stays as one partition.
+- Cache auto-flush executes one all-or-nothing atomic L0 transaction via `summarizeAtomicLayer0Partitions` in `summarizer-batch.js`: all partitions share the same frozen memory context, store layers and `summarizedUpTo` are not mutated mid-flight, and any abort/stale/validation failure discards every pending snippet and leaves chat/memory untouched. Use `partition.sourceStartIdx`/`sourceEndIdx` for partition ranges, not just assistant turn indices.
 - Background summarization is coalesced through a single self-draining worker (`SummarizerQueue`).
 - Prompt-affecting commits/effects must be queued during SillyTavern foreground generation; pending commits flush on generation end with injection updates and deferred ghosting.
 - Foreground freeze recovery must stay self-healing: production startup clears only transient guard state, and stale-lock recovery may flush queued commits only after SillyTavern send-button/streaming facades report idle.

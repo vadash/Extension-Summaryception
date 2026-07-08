@@ -380,7 +380,7 @@ async function onSlopBreaker() {
     }
     showManualCacheWarning(s);
 
-    const plan = getSlopBreakerPlan(getChat(), getChatStore(), s);
+    const plan = await getSlopBreakerPlan(getChat(), getChatStore(), s);
     if (plan.reason !== 'ready') {
         showSlopBreakerNoop();
         return;

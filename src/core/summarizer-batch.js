@@ -51,6 +51,27 @@ export async function summarizeBatchFromTurns(
 }
 
 /**
+ * Summarize cache-friendly partitions as one all-or-nothing Layer 0 transaction.
+ * @param {import('./partition-planner.js').SourcePartition[]} partitions
+ * @param {{ showToasts?: boolean, catchExceptions?: boolean }} [opts]
+ * @returns {Promise<boolean>}
+ */
+export async function summarizeAtomicLayer0Partitions(
+    partitions,
+    { showToasts = false, catchExceptions = false } = {},
+) {
+    try {
+        return await summarizeAtomicLayer0PartitionsCore(partitions, { showToasts });
+    } catch (err) {
+        if (!catchExceptions) {
+            throw err;
+        }
+        error('summarizeAtomicLayer0Partitions exception:', err);
+        return false;
+    }
+}
+
+/**
  * Summarize one batch from pre-computed turns with exception catching.
  * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @returns {Promise<boolean>}
@@ -108,6 +129,66 @@ async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
     }
 
     return await summarizeBatchSafely({ batch, chat, store, passageStart, endIdx, opts });
+}
+
+async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
+    const usablePartitions = (partitions || []).filter((partition) => partition?.turns?.length > 0);
+    if (usablePartitions.length === 0) {
+        return false;
+    }
+
+    const chat = getChat();
+    const store = getChatStore();
+    ensureLayer0(store);
+
+    const contextText = buildFullContext(0);
+    const snapshots = [];
+    const pendingSnippets = [];
+    const baseSummarizedUpTo = store.summarizedUpTo;
+
+    for (const partition of usablePartitions) {
+        if (store.summarizedUpTo !== baseSummarizedUpTo) {
+            return false;
+        }
+
+        const snapshot = await captureLayer0Snapshot({
+            chat,
+            store,
+            passageStart: partition.sourceStartIdx,
+            endIdx: partition.sourceEndIdx,
+            contextText,
+        });
+        tracePassageTokens(snapshot);
+        if (!snapshot.passageText.trim()) {
+            return false;
+        }
+
+        const summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
+            kind: 'layer0',
+            sourceRange: snapshot.sourceRange,
+            assistantTurnCount: partition.turns.length,
+            regexStats: snapshot.passageStats,
+        });
+        if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
+            return false;
+        }
+
+        snapshots.push(snapshot);
+        pendingSnippets.push(buildLayer0Snippet(snapshot, summary));
+    }
+
+    const result = await commitWhenSafe({
+        kind: 'layer0-atomic-cache',
+        snapshot: snapshots[0],
+        apply: async () =>
+            await commitAtomicLayer0Snippets({
+                snapshots,
+                pendingSnippets,
+                showToasts,
+            }),
+    });
+
+    return result !== 'stale';
 }
 
 /**
@@ -223,12 +304,13 @@ async function traceTextTokens(label, text) {
  * @param {SummaryceptionStore} p.store
  * @param {number} p.passageStart
  * @param {number} p.endIdx
+ * @param {string} [p.contextText]
  * @returns {Promise<import('./summarizer-commit.js').SummarizationJobSnapshot>}
  */
-async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
+async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contextText }) {
     const ctx = getContext();
     const passage = await buildPassageFromRangeWithStats(chat, passageStart, endIdx);
-    const contextText = buildFullContext(0);
+    const resolvedContextText = contextText ?? buildFullContext(0);
 
     return {
         chatId: getChatIdentity(ctx),
@@ -239,7 +321,7 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx }) {
         summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
         passageText: passage.text,
         passageStats: passage.stats,
-        contextText,
+        contextText: resolvedContextText,
     };
 }
 
@@ -264,14 +346,7 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
         return false;
     }
 
-    const parsed = parseSnippet(summary);
-    store.layers[0].push({
-        text: summary,
-        turnRange: [passageStart, endIdx],
-        sourceRange: [passageStart, endIdx],
-        ...buildSnippetMetadataFromState(parsed.state),
-        timestamp: Date.now(),
-    });
+    store.layers[0].push(buildLayer0Snippet(snapshot, summary));
 
     store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
     bumpSummaryStoreMutationEpoch(store);
@@ -291,6 +366,53 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
     }
 
     return true;
+}
+
+async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToasts }) {
+    if (snapshots.length === 0 || pendingSnippets.length !== snapshots.length) {
+        return false;
+    }
+    if (!snapshots.every(isLayer0SnapshotValid)) {
+        return false;
+    }
+
+    const store = getChatStore();
+    ensureLayer0(store);
+    for (const snippet of pendingSnippets) {
+        store.layers[0].push(snippet);
+    }
+
+    const passageStart = snapshots[0].sourceRange[0];
+    const endIdx = snapshots[snapshots.length - 1].sourceRange[1];
+    store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
+    bumpSummaryStoreMutationEpoch(store);
+
+    await saveChatStore();
+    await updateCommittedInjection({ logMemoryStatus: true });
+    await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
+    await persistChatState({ chatSave: 'deferred' });
+
+    if (showToasts) {
+        toastr.success(
+            `Summary saved (Layer 0: ${store.layers[0].length} snippets)`,
+            'Summaryception',
+            { timeOut: 2000 },
+        );
+    }
+
+    return true;
+}
+
+function buildLayer0Snippet(snapshot, summary) {
+    const [passageStart, endIdx] = snapshot.sourceRange;
+    const parsed = parseSnippet(summary);
+    return {
+        text: summary,
+        turnRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
+        sourceRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
+        ...buildSnippetMetadataFromState(parsed.state),
+        timestamp: Date.now(),
+    };
 }
 
 /**

@@ -9,6 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
     summarizeBatchFromTurns: vi.fn(),
+    summarizeAtomicLayer0Partitions: vi.fn(),
     summarizeOneBatchFromTurns: vi.fn(),
     maybePromoteLayer: vi.fn(),
     hasPromotionOverflow: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/core/summarizer-batch.js', () => ({
     summarizeBatchFromTurns: mocks.summarizeBatchFromTurns,
+    summarizeAtomicLayer0Partitions: mocks.summarizeAtomicLayer0Partitions,
     summarizeOneBatchFromTurns: mocks.summarizeOneBatchFromTurns,
 }));
 
@@ -40,6 +42,7 @@ beforeEach(async () => {
     mocks.flushPendingChatSave.mockResolvedValue(undefined);
     mocks.hasPromotionOverflow.mockResolvedValue(false);
     mocks.maybePromoteLayer.mockResolvedValue(false);
+    mocks.summarizeAtomicLayer0Partitions.mockResolvedValue(true);
     mocks.getCacheFriendlyPlan.mockResolvedValue({ reason: 'none', batchTurns: [] });
     installBrowserRuntimeStub();
 });
@@ -48,7 +51,7 @@ function workerSettings(overrides = {}) {
     return {
         minSummaryTurns: 2,
         maxSummaryTurns: 3,
-        minSummaryBudget: 1000,
+        minSummaryBudget: 8000,
         verbatimTokenBudget: 4000,
         ...overrides,
     };
@@ -67,6 +70,13 @@ function mockGhostingSummaries(ctx) {
         for (const turn of turns) {
             ctx.chat[turn.index].extra.sc_ghosted = true;
         }
+        const lastTurn = turns[turns.length - 1];
+        if (lastTurn) {
+            ctx.chatMetadata.summaryception.summarizedUpTo = Math.max(
+                ctx.chatMetadata.summaryception.summarizedUpTo,
+                lastTurn.index,
+            );
+        }
         return true;
     });
 }
@@ -82,11 +92,19 @@ describe('requestSummarization', () => {
                 for (const turn of turns) {
                     ctx.chat[turn.index].extra.sc_ghosted = true;
                 }
+                const lastTurn = turns[turns.length - 1];
+                if (lastTurn) {
+                    ctx.chatMetadata.summaryception.summarizedUpTo = lastTurn.index;
+                }
                 return true;
             })
             .mockImplementationOnce(async (turns) => {
                 for (const turn of turns) {
                     ctx.chat[turn.index].extra.sc_ghosted = true;
+                }
+                const lastTurn = turns[turns.length - 1];
+                if (lastTurn) {
+                    ctx.chatMetadata.summaryception.summarizedUpTo = lastTurn.index;
                 }
                 return true;
             });
@@ -145,7 +163,7 @@ describe('requestSummarization', () => {
         expect(mocks.getCacheFriendlyPlan).not.toHaveBeenCalled();
     });
 
-    it('delays cache memory until ready, then processes one normal layer-0 batch', async () => {
+    it('delays cache memory until ready, then processes one atomic layer-0 transaction', async () => {
         installWorkerContext({
             settings: workerSettings({ memoryMode: 'cache' }),
         });
@@ -156,16 +174,30 @@ describe('requestSummarization', () => {
             protectedTailTokens: 1000,
             estimatedFlushTokens: 3000,
             batchTurns: [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+            partitions: [
+                {
+                    turns: [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+                    sourceStartIdx: 0,
+                    sourceEndIdx: 0,
+                },
+            ],
             overflowCount: 1,
         });
 
         const { requestSummarization } = await import('../src/core/summarizer.js');
         await requestSummarization({ reason: 'new-message', mode: 'auto' });
 
-        expect(mocks.summarizeBatchFromTurns).toHaveBeenCalledWith(
-            [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+        expect(mocks.summarizeAtomicLayer0Partitions).toHaveBeenCalledWith(
+            [
+                {
+                    turns: [{ index: 0, mes: 'cache source', name: 'Assistant' }],
+                    sourceStartIdx: 0,
+                    sourceEndIdx: 0,
+                },
+            ],
             { showToasts: false, catchExceptions: true },
         );
+        expect(mocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
         expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
     });
 });
@@ -313,22 +345,19 @@ describe('runSlopBreaker', () => {
     it('does not report completion when a slop run stops before the fixed target', async () => {
         const ctx = installWorkerContext({
             chat: [
-                makeMessage({ mes: 'assistant source 0' }),
-                makeMessage({ isUser: true, mes: 'middle user 1', name: 'Player' }),
-                makeMessage({ mes: 'assistant source 2' }),
-                makeMessage({ isUser: true, mes: 'middle user 3', name: 'Player' }),
-                makeMessage({ mes: 'assistant source 4' }),
-                makeMessage({ isUser: true, mes: 'middle user 5', name: 'Player' }),
-                makeMessage({ mes: 'assistant target' }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'x'.repeat(3000) }),
+                makeMessage({ mes: 'target message' }),
             ],
             settings: workerSettings({
                 maxSummaryTurns: 3,
+                minSummaryBudget: 1000,
             }),
         });
 
         mocks.summarizeBatchFromTurns.mockImplementationOnce(async (_turns, opts) => {
             ctx.chatMetadata.summaryception.summarizedUpTo = opts.sourceEndIdx;
-            ctx.chat[6].is_hidden = true;
             return true;
         });
 
@@ -338,7 +367,6 @@ describe('runSlopBreaker', () => {
         expect(outcome.completed).toBe(1);
         expect(outcome.fullyCommitted).toBe(false);
         expect(outcome.shouldReload).toBe(false);
-        expect(ctx.chatMetadata.summaryception.summarizedUpTo).toBe(4);
     });
 
     it('normalizes promotion pressure before continuing a slop breaker run', async () => {

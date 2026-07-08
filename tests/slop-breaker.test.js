@@ -1,23 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { makeMessage } from './test-helpers.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { installSillyTavernStub, makeMessage } from './test-helpers.js';
 import { getSlopBreakerPlan } from '../src/core/slop-breaker.js';
 
 const settings = {
+    minSummaryTurns: 2,
     maxSummaryTurns: 2,
+    minSummaryBudget: 20,
+    applyRegexScripts: false,
 };
 
-function getPlan(chat, store = { summarizedUpTo: -1 }, targetIndex) {
-    return getSlopBreakerPlan(chat, store, settings, { targetIndex });
+beforeEach(() => {
+    vi.resetModules();
+    installSillyTavernStub({ getTokenCountAsync: async (text) => String(text || '').length });
+});
+
+async function getPlan(chat, store = { summarizedUpTo: -1 }, targetIndex) {
+    installSillyTavernStub({ chat, getTokenCountAsync: async (text) => String(text || '').length });
+    return await getSlopBreakerPlan(chat, store, settings, { targetIndex });
 }
 
 describe('getSlopBreakerPlan', () => {
-    it('summarizes through the latest assistant message', () => {
+    it('summarizes through the latest assistant message', async () => {
         const chat = [
             makeMessage({ isUser: true, mes: 'u0', name: 'Player' }),
             makeMessage({ mes: 'a1' }),
         ];
 
-        const plan = getPlan(chat);
+        const plan = await getPlan(chat);
 
         expect(plan.reason).toBe('ready');
         expect(plan.targetIndex).toBe(1);
@@ -25,14 +34,14 @@ describe('getSlopBreakerPlan', () => {
         expect(plan.sourceEndIdx).toBe(1);
     });
 
-    it('preserves exactly the newest trailing user message', () => {
+    it('preserves exactly the newest trailing user message', async () => {
         const chat = [
             makeMessage({ mes: 'a0' }),
             makeMessage({ isUser: true, mes: 'u1', name: 'Player' }),
             makeMessage({ isUser: true, mes: 'u2', name: 'Player' }),
         ];
 
-        const plan = getPlan(chat);
+        const plan = await getPlan(chat);
 
         expect(plan.reason).toBe('ready');
         expect(plan.targetIndex).toBe(1);
@@ -40,7 +49,7 @@ describe('getSlopBreakerPlan', () => {
         expect(plan.sourceEndIdx).toBe(1);
     });
 
-    it('caps batches by maxSummaryTurns and lets the final batch run below the cap', () => {
+    it('uses token partitions and lets the final batch run below the cap', async () => {
         const chat = [
             makeMessage({ mes: 'a0' }),
             makeMessage({ isUser: true, mes: 'u1', name: 'Player' }),
@@ -49,30 +58,34 @@ describe('getSlopBreakerPlan', () => {
             makeMessage({ mes: 'a4' }),
         ];
 
-        const first = getPlan(chat);
-        const second = getPlan(chat, { summarizedUpTo: 2 }, first.targetIndex);
+        const first = await getPlan(chat);
+        const remaining = first.partitions[1]?.turns || [];
+        const second = await getPlan(chat, { summarizedUpTo: 2 }, first.targetIndex);
 
-        expect(first.batchTurns.map((turn) => turn.index)).toEqual([0, 2]);
-        expect(first.sourceEndIdx).toBe(2);
-        expect(first.totalBatches).toBe(2);
+        expect(first.batchTurns.map((turn) => turn.index)).toEqual([0, 2, 4]);
+        expect(first.sourceEndIdx).toBe(4);
+        expect(first.totalBatches).toBe(1);
+        expect(remaining).toHaveLength(0);
         expect(second.reason).toBe('ready');
-        expect(second.batchTurns.map((turn) => turn.index)).toEqual([4]);
-        expect(second.sourceEndIdx).toBe(4);
     });
 
-    it('is a no-op for empty, hidden-only, user-only, or assistant-free target ranges', () => {
-        expect(getPlan([]).reason).toBe('none');
-        expect(getPlan([makeMessage({ mes: 'hidden', isHidden: true })]).reason).toBe('none');
-        expect(getPlan([makeMessage({ isUser: true, mes: 'u0', name: 'Player' })]).reason).toBe(
+    it('is a no-op for empty, hidden-only, user-only, or assistant-free target ranges', async () => {
+        expect((await getPlan([])).reason).toBe('none');
+        expect((await getPlan([makeMessage({ mes: 'hidden', isHidden: true })])).reason).toBe(
             'none',
         );
         expect(
-            getPlan(
-                [
-                    makeMessage({ mes: 'a0' }),
-                    makeMessage({ isUser: true, mes: 'u1', name: 'Player' }),
-                ],
-                { summarizedUpTo: 0 },
+            (await getPlan([makeMessage({ isUser: true, mes: 'u0', name: 'Player' })])).reason,
+        ).toBe('none');
+        expect(
+            (
+                await getPlan(
+                    [
+                        makeMessage({ mes: 'a0' }),
+                        makeMessage({ isUser: true, mes: 'u1', name: 'Player' }),
+                    ],
+                    { summarizedUpTo: 0 },
+                )
             ).reason,
         ).toBe('none');
     });
