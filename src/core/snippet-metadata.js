@@ -50,8 +50,7 @@ export function buildPromotedSnippetMetadata(snippets = []) {
 export function extractSnippetMetadata(snippet = {}) {
     return compactMetadata({
         sourceRange: normalizeRange(snippet.sourceRange),
-        currentDateTime:
-            knownStateValue(snippet.currentDateTime) || knownStateValue(snippet.timelineEnd),
+        currentDateTime: knownStateValue(snippet.currentDateTime),
     });
 }
 

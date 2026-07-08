@@ -9,7 +9,6 @@ import {
     hasFrozenPromptMutations,
     maybeSummarizeTurns,
     recoverStalePromptFreeze,
-    resetCatchupDismissed,
     resetPromptMutationGuard,
 } from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
@@ -48,7 +47,6 @@ export function onMessageReceived(messageIndex) {
 export function onChatChanged() {
     debug('Chat changed.');
     recoverPromptFreeze('chat change');
-    resetCatchupDismissed();
     scheduleLoadedChatReconciliation();
 }
 

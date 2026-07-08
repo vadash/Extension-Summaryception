@@ -89,7 +89,6 @@ export const defaultSettings = Object.freeze({
     traceMode: false,
     promptInputLogMode: false,
     promptOutputLogMode: false,
-    promptLogMode: false,
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile' | 'ollama' | 'openai'

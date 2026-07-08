@@ -1,20 +1,3 @@
-import { getSettings } from '../foundation/state.js';
-
-/**
- * Show a non-blocking notice for large automatic backlog catch-up.
- * @param {import('../core/verbatim-window.js').Layer0OverflowPlan} plan
- * @returns {void}
- */
-export function showAutoBacklogNotice(plan) {
-    toastr.info(
-        `${plan.eligibleTurns.length} old turns are ready for summary. ` +
-            'Summaryception will keep processing background batches while the chat is idle; ' +
-            'use Force Summarize for a cancelable catch-up.',
-        'Summaryception',
-        { timeOut: 6000 },
-    );
-}
-
 /**
  * Show the Slop Breaker no-op toast.
  * @returns {void}
@@ -196,68 +179,6 @@ export function confirmSlopBreaker() {
 }
 
 /**
- * Show the backlog catch-up dialog with process/skip/partial options.
- * @param {number} overflowCount - Number of unsummarized turns beyond the dynamic window
- * @param {number} estimatedCalls - Estimated number of summarizer calls required
- * @returns {Promise<string>} 'catchup' | 'skip' | 'partial'
- */
-export async function showCatchupDialog(overflowCount, estimatedCalls) {
-    return new Promise((resolve) => {
-        const s = getSettings();
-        const partialBatchSize = s.maxSummaryTurns;
-
-        const $overlay = $('<div class="sc-catchup-overlay">')
-            .html(
-                `
-        <div class="sc-catchup-modal">
-        <h3><i class="fa-solid fa-layer-group"></i> Summaryception Backlog Detected</h3>
-        <div class="sc-catchup-dialog">
-        <p>Summaryception detected <strong>${overflowCount} unsummarized turns</strong>
-        in this chat (beyond your dynamic verbatim window).</p>
-        <p>This will require approximately <strong>${estimatedCalls} summarizer calls</strong> to process.</p>
-        <hr>
-        <div class="sc-catchup-options">
-        <button id="sc_catchup_full" class="menu_button">
-        <i class="fa-solid fa-forward-fast"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Process Entire Backlog</span>
-        <span class="sc-btn-desc">Summarize all ${overflowCount} turns - cancelable at any time</span>
-        </div>
-        </button>
-        <button id="sc_catchup_skip" class="menu_button">
-        <i class="fa-solid fa-forward-step"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Skip Backlog</span>
-        <span class="sc-btn-desc">Ignore old turns, only summarize new ones going forward</span>
-        </div>
-        </button>
-        <button id="sc_catchup_partial" class="menu_button">
-        <i class="fa-solid fa-play"></i>
-        <div class="sc-btn-text">
-        <span class="sc-btn-label">Just One Batch</span>
-        <span class="sc-btn-desc">Summarize up to ${partialBatchSize} turns now, deal with the rest later</span>
-        </div>
-        </button>
-        </div>
-        </div>
-        </div>
-        `,
-            )
-            .appendTo('body');
-
-        $overlay
-            .find('#sc_catchup_full')
-            .on('click', () => resolveCatchup($overlay, resolve, 'catchup'));
-        $overlay
-            .find('#sc_catchup_skip')
-            .on('click', () => resolveCatchup($overlay, resolve, 'skip'));
-        $overlay
-            .find('#sc_catchup_partial')
-            .on('click', () => resolveCatchup($overlay, resolve, 'partial'));
-    });
-}
-
-/**
  * Build manual run progress text.
  * @param {import('../core/summarizer-manual.js').ManualRunProgress} progress
  * @returns {string}
@@ -266,16 +187,4 @@ function getProgressText(progress) {
     const pct = Math.round((progress.completed / progress.totalBatches) * 100);
     const failStr = progress.failed > 0 ? ` | ${progress.failed} failed` : '';
     return `${progress.label}: ${progress.completed} / ${progress.totalBatches} batches (${pct}%)${failStr}`;
-}
-
-/**
- * Resolve and close the catch-up dialog.
- * @param {object} $overlay
- * @param {(value: string) => void} resolve
- * @param {string} value
- * @returns {void}
- */
-function resolveCatchup($overlay, resolve, value) {
-    $overlay.remove();
-    resolve(value);
 }

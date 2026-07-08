@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
     hasFrozenPromptMutations: vi.fn(() => false),
     maybeSummarizeTurns: vi.fn(async () => {}),
     recoverStalePromptFreeze: vi.fn(async () => false),
-    resetCatchupDismissed: vi.fn(),
     resetPromptMutationGuard: vi.fn(),
     updateInjection: vi.fn(),
     repairOrphanedMessages: vi.fn(async () => {}),
@@ -34,7 +33,6 @@ vi.mock('../src/core/summarizer.js', () => ({
     hasFrozenPromptMutations: mocks.hasFrozenPromptMutations,
     maybeSummarizeTurns: mocks.maybeSummarizeTurns,
     recoverStalePromptFreeze: mocks.recoverStalePromptFreeze,
-    resetCatchupDismissed: mocks.resetCatchupDismissed,
     resetPromptMutationGuard: mocks.resetPromptMutationGuard,
 }));
 
@@ -75,7 +73,6 @@ describe('entry lifecycle events', () => {
         expect(mocks.recoverStalePromptFreeze).toHaveBeenCalledWith('chat change', {
             refreshUi: mocks.updateUI,
         });
-        expect(mocks.resetCatchupDismissed).toHaveBeenCalledOnce();
     });
 
     it('resets prompt guard state before app-ready reconciliation', async () => {

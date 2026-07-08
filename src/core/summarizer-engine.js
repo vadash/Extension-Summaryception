@@ -42,10 +42,10 @@ export const ELASTIC_STRATEGIES = Object.freeze({
 /**
  * Run one automatic elastic summarization action.
  * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
- * @param {{ refreshUi?: () => void, showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [opts]
+ * @param {{ refreshUi?: () => void }} [opts]
  * @returns {Promise<'processed' | 'idle' | 'blocked' | 'failed'>}
  */
-export async function runElasticAutoCycle(queue, { refreshUi, showAutoBacklogNotice } = {}) {
+export async function runElasticAutoCycle(queue, { refreshUi } = {}) {
     await recoverStalePromptFreeze('auto worker', { refreshUi });
 
     if (shouldStopPromptWork()) {
@@ -74,7 +74,7 @@ export async function runElasticAutoCycle(queue, { refreshUi, showAutoBacklogNot
 
     if (plan.reason !== 'none') {
         queue.setPhase('layer0');
-        return await processLayer0Plan(plan, s, { showAutoBacklogNotice });
+        return await processLayer0Plan(plan);
     }
 
     return 'idle';
@@ -125,16 +125,9 @@ async function runElasticCacheCycle(queue, s) {
 /**
  * Process one Layer 0 plan.
  * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
- * @param {ExtensionSettings} s
- * @param {{ showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [opts]
  * @returns {Promise<'processed' | 'blocked' | 'failed'>}
  */
-async function processLayer0Plan(plan, s, { showAutoBacklogNotice } = {}) {
-    const backlogThreshold = s.maxSummaryTurns * 2;
-    if (plan.eligibleTurns.length > backlogThreshold) {
-        showAutoBacklogNotice?.(plan);
-    }
-
+async function processLayer0Plan(plan) {
     const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
     return await processLayer0Turns(turns);
 }

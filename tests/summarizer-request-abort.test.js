@@ -30,19 +30,42 @@ const VALID_L0_SUMMARY = [
     'timeline_end: 2024-12-03 06 Wed',
 ].join('\n');
 
+function customPromptSettings(settings) {
+    const presets = {};
+    if (Object.hasOwn(settings, 'summarizerSystemPrompt')) {
+        presets.summarizerSystemPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'summarizerUserPrompt')) {
+        presets.promptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'summarizerRepairPrompt')) {
+        presets.summarizerRepairPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionSystemPrompt')) {
+        presets.promotionSystemPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionUserPrompt')) {
+        presets.promotionPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionRepairPrompt')) {
+        presets.promotionRepairPromptPreset = 'custom';
+    }
+    return { ...presets, ...settings };
+}
+
 beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     installBrowserRuntimeStub();
     installSillyTavernStub({
-        settings: {
+        settings: customPromptSettings({
             summarizerSystemPrompt: 'SYS',
             summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
             promotionSystemPrompt: 'PROMO_SYS',
             promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
             stripPatterns: [],
             stripChineseIdeographs: false,
-        },
+        }),
     });
     mocks.resolveFallbackSummarizerConnectionSettings.mockReturnValue(null);
 });
@@ -93,13 +116,13 @@ describe('callSummarizer abort signal plumbing', () => {
 
     it('uses promotion prompts for promotion calls', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 summarizerSystemPrompt: 'L0_SYS',
                 summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
                 promotionSystemPrompt: 'PROMO_SYS',
                 promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue('summary text');
 
@@ -129,14 +152,14 @@ describe('callSummarizer abort signal plumbing', () => {
 
     it('uses promotion repair prompts for promotion repair calls', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 summarizerSystemPrompt: 'L0_SYS',
                 summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
                 promotionSystemPrompt: 'PROMO_SYS',
                 promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
                 promotionRepairPrompt: 'PROMO_REPAIR {{context_str}} MEMORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue('summary text');
 
@@ -183,14 +206,14 @@ describe('callSummarizer abort signal plumbing', () => {
 
     it('adds runtime compression constraints to Layer 0 and promotion prompts', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 layer0SummaryTokenTarget: 120,
                 summarizerSystemPrompt: 'L0_SYS',
                 summarizerUserPrompt: 'CUSTOM {{context_str}} STORY {{story_txt}}',
                 promotionSystemPrompt: 'PROMO_SYS',
                 promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest
             .mockResolvedValueOnce(VALID_L0_SUMMARY)
@@ -231,14 +254,14 @@ describe('callSummarizer abort signal plumbing', () => {
     it('switches Layer 0 validation retries to the repair prompt', async () => {
         vi.useFakeTimers();
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 layer0SummaryTokenTarget: 120,
                 summarizerSystemPrompt: 'L0_SYS',
                 summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
                 summarizerRepairPrompt: 'L0_REPAIR {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
                 stripChineseIdeographs: false,
-            },
+            }),
         });
         mocks.sendSummarizerRequest
             .mockResolvedValueOnce('invalid unstructured output')
@@ -473,12 +496,12 @@ describe('callSummarizer abort signal plumbing', () => {
     it('retries when Strip CN sees more than ten percent Chinese ideographs', async () => {
         vi.useFakeTimers();
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
                 stripChineseIdeographs: true,
-            },
+            }),
         });
         mocks.sendSummarizerRequest
             .mockResolvedValueOnce('漢字漢字漢字 ok')
@@ -500,12 +523,12 @@ describe('callSummarizer abort signal plumbing', () => {
 
     it('strips Chinese ideographs without retrying at exactly ten percent', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
                 stripChineseIdeographs: true,
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue('漢abcdefghi');
 

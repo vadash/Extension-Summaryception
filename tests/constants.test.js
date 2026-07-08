@@ -46,13 +46,9 @@ describe('constants', () => {
         expect(defaultSettings.snippetsPerLayer).toBeGreaterThan(
             defaultSettings.snippetsPerPromotion,
         );
-        expect(defaultSettings.maxLayers).toBeUndefined();
         expect(defaultSettings.promptInputLogMode).toBe(false);
         expect(defaultSettings.promptOutputLogMode).toBe(false);
-        expect(defaultSettings.promptLogMode).toBe(false);
         expect(defaultSettings.stripChineseIdeographs).toBe(true);
-        expect(defaultSettings.savedCustomPrompts).toBeUndefined();
-        expect(defaultSettings.savedCustomPromotionPrompts).toBeUndefined();
     });
 
     it('uses the Summaryception memory wrapper by default', () => {
@@ -97,7 +93,6 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('YYYY-MM-DD HH ddd');
         expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMPT_PRESETS.narrative).toContain('static character background/profile facts');
-        expect(PROMPT_PRESETS).not.toHaveProperty('gamestate');
         expect(Object.keys(SUMMARIZER_REPAIR_PROMPT_PRESETS).sort()).toEqual([
             'custom',
             'narrative',

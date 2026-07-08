@@ -8,7 +8,6 @@ const foundationMocks = vi.hoisted(() => {
         traceMode: false,
         promptInputLogMode: false,
         promptOutputLogMode: false,
-        promptLogMode: false,
     };
 
     function getContext() {
@@ -56,7 +55,6 @@ const foundationMocks = vi.hoisted(() => {
         isPromptLogEnabled: vi.fn(),
         info: vi.fn(),
         debug: vi.fn(),
-        log: vi.fn(),
         trace: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
@@ -145,19 +143,11 @@ const foundationMocks = vi.hoisted(() => {
     }
 
     function isPromptInputLogEnabled() {
-        const settings = getDebugSettings();
-        if (Object.hasOwn(settings, 'promptInputLogMode')) {
-            return Boolean(settings.promptInputLogMode);
-        }
-        return Boolean(settings.promptLogMode);
+        return Boolean(getDebugSettings().promptInputLogMode);
     }
 
     function isPromptOutputLogEnabled() {
-        const settings = getDebugSettings();
-        if (Object.hasOwn(settings, 'promptOutputLogMode')) {
-            return Boolean(settings.promptOutputLogMode);
-        }
-        return Boolean(settings.promptLogMode);
+        return Boolean(getDebugSettings().promptOutputLogMode);
     }
 
     function isPromptLogEnabled() {
@@ -176,11 +166,6 @@ const foundationMocks = vi.hoisted(() => {
             }
         });
         logger.debug.mockImplementation((...args) => {
-            if (isDebugEnabled()) {
-                console.log(LOG_PREFIX, '[DEBUG]', ...args);
-            }
-        });
-        logger.log.mockImplementation((...args) => {
             if (isDebugEnabled()) {
                 console.log(LOG_PREFIX, '[DEBUG]', ...args);
             }

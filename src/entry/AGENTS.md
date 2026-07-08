@@ -18,4 +18,4 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 - `settings-help.js` owns metadata-driven help and the shared hover/focus tooltip; it may annotate controls after render, but must not rename HTML IDs or saved setting keys.
 - The shared help tooltip is appended to `<body>` and positioned from viewport rectangles so SillyTavern sidebar scrolling cannot clip or offset it.
 - The snippet browser uses a keyed jQuery renderer to preserve scroll/focus/edit state during background refreshes; skip rows with a focused `.sc-snippet-edit`.
-- Manual Force Summarize and Slop Breaker flows show persistent cancelable progress toasts, and successful commits force a browser reload to rebuild SillyTavern prompt state cleanly.
+- Manual Force Summarize and Slop Breaker flows show persistent cancelable progress toasts. Successful manual commits and UI Clear Memory force a browser reload to rebuild SillyTavern prompt state cleanly.

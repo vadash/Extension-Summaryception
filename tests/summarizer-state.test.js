@@ -357,7 +357,7 @@ describe('summarizer-state', () => {
         });
     });
 
-    it('parses and merges temporal state keys with latest Layer 0 time winning', () => {
+    it('parses current_date_time while discarding start/end timeline fields', () => {
         expect(
             compileGlobalState([
                 [
@@ -385,8 +385,6 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             current_date_time: '2024-12-08 10 Sun',
-            timeline_start: 'unknown',
-            timeline_end: 'unknown',
         });
     });
 

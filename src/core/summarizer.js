@@ -3,12 +3,7 @@ import { abortCurrentSummarizerRequest } from './summarizer-request.js';
 import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
 import { flushPendingChatSave } from './persist-state.js';
-import {
-    resetCatchupDismissed as resetAutoCatchupDismissed,
-    runAutoWorkerCycle,
-    setAutoWorkerNotifiers,
-    yieldWorkerCycle,
-} from './summarizer-auto.js';
+import { runAutoWorkerCycle, yieldWorkerCycle } from './summarizer-auto.js';
 import {
     beginForegroundGeneration as beginCommitFreeze,
     endForegroundGeneration as endCommitFreeze,
@@ -61,23 +56,6 @@ export function hasFrozenPromptMutations() {
  */
 export function setUiUpdater(callback) {
     uiUpdater = callback;
-}
-
-/**
- * Register UI callbacks used by summarizer orchestration.
- * @param {{ showAutoBacklogNotice?: (plan: import('./verbatim-window.js').Layer0OverflowPlan) => void }} [notifiers]
- * @returns {void}
- */
-export function setSummarizerNotifiers(notifiers = {}) {
-    setAutoWorkerNotifiers(notifiers);
-}
-
-/**
- * Reset the catch-up dismissed flag so the dialog shows again.
- * @returns {void}
- */
-export function resetCatchupDismissed() {
-    resetAutoCatchupDismissed();
 }
 
 /**

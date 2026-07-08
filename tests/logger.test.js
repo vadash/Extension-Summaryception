@@ -8,14 +8,12 @@ const debugSettings = {
     traceMode: true,
     promptInputLogMode: true,
     promptOutputLogMode: true,
-    promptLogMode: true,
 };
 const quietSettings = {
     debugMode: false,
     traceMode: false,
     promptInputLogMode: false,
     promptOutputLogMode: false,
-    promptLogMode: false,
 };
 
 let activeSettings = { ...quietSettings };
@@ -26,7 +24,6 @@ let info;
 let isPromptInputLogEnabled;
 let isPromptLogEnabled;
 let isPromptOutputLogEnabled;
-let log;
 let trace;
 let warn;
 let debugVisibleTurns;
@@ -39,7 +36,6 @@ beforeAll(async () => {
         isPromptInputLogEnabled,
         isPromptLogEnabled,
         isPromptOutputLogEnabled,
-        log,
         trace,
         warn,
         debugVisibleTurns,
@@ -103,15 +99,12 @@ describe('logger', () => {
         expect(out).toHaveLength(0);
     });
 
-    it('debug and its log alias emit debug-tagged output', () => {
+    it('debug emits debug-tagged output', () => {
         activeSettings = { ...debugSettings };
         debug('hello');
-        log('alias');
-        expect(out).toHaveLength(2);
+        expect(out).toHaveLength(1);
         expect(out[0]).toContain('[DEBUG]');
         expect(out[0]).toContain('hello');
-        expect(out[1]).toContain('[DEBUG]');
-        expect(out[1]).toContain('alias');
     });
 
     it('trace emits only when both debugMode and traceMode are true', () => {
@@ -148,17 +141,9 @@ describe('logger', () => {
             traceMode: false,
             promptInputLogMode: true,
             promptOutputLogMode: false,
-            promptLogMode: false,
         };
         expect(isPromptInputLogEnabled()).toBe(true);
         expect(isPromptOutputLogEnabled()).toBe(false);
-        expect(isPromptLogEnabled()).toBe(true);
-    });
-
-    it('falls back to legacy prompt log mode when split settings are absent', () => {
-        activeSettings = { debugMode: false, traceMode: false, promptLogMode: true };
-        expect(isPromptInputLogEnabled()).toBe(true);
-        expect(isPromptOutputLogEnabled()).toBe(true);
         expect(isPromptLogEnabled()).toBe(true);
     });
 

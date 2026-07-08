@@ -47,13 +47,10 @@ const PROMPT_SETTING_BINDINGS = Object.freeze([
  */
 export function getSettings() {
     const extensionSettings = getExtensionSettings();
-    if (!extensionSettings[MODULE_NAME]) {
+    if (!isPlainObject(extensionSettings[MODULE_NAME])) {
         extensionSettings[MODULE_NAME] = structuredClone(defaultSettings);
     }
     const settings = extensionSettings[MODULE_NAME];
-    const legacyPromptLogMode = Boolean(settings.promptLogMode);
-    const hadPromptInputLogMode = Object.hasOwn(settings, 'promptInputLogMode');
-    const hadPromptOutputLogMode = Object.hasOwn(settings, 'promptOutputLogMode');
     const settingsRecord = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (settings)
     );
@@ -66,12 +63,7 @@ export function getSettings() {
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
-    const promptLogMigrated = ensurePromptLogSettingsMigrated(settings, {
-        legacyPromptLogMode,
-        hadPromptInputLogMode,
-        hadPromptOutputLogMode,
-    });
-    if (promptSettingsNormalized || promptLogMigrated) {
+    if (promptSettingsNormalized) {
         saveSettingsDebounced();
     }
     return settings;
@@ -90,13 +82,8 @@ export function saveSettings() {
  */
 export function getChatStore() {
     const chatMetadata = getChatMetadata();
-    if (!chatMetadata[MODULE_NAME]) {
-        chatMetadata[MODULE_NAME] = {
-            layers: [],
-            summarizedUpTo: -1,
-            ghostedIndices: [],
-            mutationEpoch: 0,
-        };
+    if (!isPlainObject(chatMetadata[MODULE_NAME])) {
+        chatMetadata[MODULE_NAME] = createDefaultChatStore();
     }
     return normalizeChatStore(chatMetadata[MODULE_NAME]);
 }
@@ -217,43 +204,31 @@ function normalizePromptSettings(settings) {
         const settingsRecord = /** @type {Record<string, unknown>} */ (
             /** @type {unknown} */ (settings)
         );
-        if (!isSettingValue(PROMPT_PRESET_VALUES, settingsRecord[binding.presetKey])) {
+        const preset = settingsRecord[binding.presetKey];
+        const isCustom = preset === 'custom';
+
+        if (!isSettingValue(PROMPT_PRESET_VALUES, preset)) {
             settingsRecord[binding.presetKey] = defaults[binding.presetKey];
             settingsRecord[binding.promptKey] = defaults[binding.promptKey];
             changed = true;
             continue;
         }
-        const isDefaultPrompt = settingsRecord[binding.presetKey] !== 'custom';
+
         const promptText = settingsRecord[binding.promptKey];
-        if (typeof promptText !== 'string' || (isDefaultPrompt && !promptText.trim())) {
+        if (isCustom && typeof promptText === 'string' && promptText.trim()) {
+            continue;
+        }
+
+        if (settingsRecord[binding.presetKey] !== defaults[binding.presetKey]) {
+            settingsRecord[binding.presetKey] = defaults[binding.presetKey];
+            changed = true;
+        }
+        if (settingsRecord[binding.promptKey] !== defaults[binding.promptKey]) {
             settingsRecord[binding.promptKey] = defaults[binding.promptKey];
             changed = true;
         }
     }
     return changed;
-}
-
-/**
- * Split the legacy combined prompt log setting into input/output toggles.
- * @param {ExtensionSettings} settings
- * @param {{ legacyPromptLogMode: boolean, hadPromptInputLogMode: boolean, hadPromptOutputLogMode: boolean }} state
- * @returns {boolean}
- */
-function ensurePromptLogSettingsMigrated(
-    settings,
-    { legacyPromptLogMode, hadPromptInputLogMode, hadPromptOutputLogMode },
-) {
-    if (!legacyPromptLogMode || (hadPromptInputLogMode && hadPromptOutputLogMode)) {
-        return false;
-    }
-
-    if (!hadPromptInputLogMode) {
-        settings.promptInputLogMode = true;
-    }
-    if (!hadPromptOutputLogMode) {
-        settings.promptOutputLogMode = true;
-    }
-    return true;
 }
 
 function clampInteger(value, min, max) {
@@ -284,6 +259,15 @@ function normalizeLayers(layers) {
         }
         return layer.filter(isValidSnippet);
     });
+}
+
+function createDefaultChatStore() {
+    return {
+        layers: [],
+        summarizedUpTo: -1,
+        ghostedIndices: [],
+        mutationEpoch: 0,
+    };
 }
 
 /**

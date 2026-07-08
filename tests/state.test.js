@@ -47,51 +47,45 @@ describe('state.js', () => {
     });
 
     it.each([
-        ['', PROMPT_PRESETS.narrative, true],
-        ['Summarize only named locations.', 'Summarize only named locations.', false],
-    ])(
-        'backfills a missing prompt preset without migrating legacy text',
-        (prompt, saved, saves) => {
-            const ctx = installSillyTavernStub({ settings: { summarizerUserPrompt: prompt } });
-            ctx.saveSettingsDebounced = vi.fn();
+        ['', PROMPT_PRESETS.narrative],
+        ['Summarize only named locations.', PROMPT_PRESETS.narrative],
+    ])('resets a missing prompt preset to the default prompt text', (prompt, saved) => {
+        const ctx = installSillyTavernStub({ settings: { summarizerUserPrompt: prompt } });
+        ctx.saveSettingsDebounced = vi.fn();
 
-            const settings = getSettings();
+        const settings = getSettings();
 
-            expect(settings.promptPreset).toBe('narrative');
-            expect(settings.summarizerUserPrompt).toBe(saved);
-            expect(settings.promotionPromptPreset).toBe('narrative');
-            expect(ctx.saveSettingsDebounced).toHaveBeenCalledTimes(saves ? 1 : 0);
-        },
-    );
+        expect(settings.promptPreset).toBe('narrative');
+        expect(settings.summarizerUserPrompt).toBe(saved);
+        expect(settings.promotionPromptPreset).toBe('narrative');
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
 
     it.each([
-        ['', PROMOTION_PROMPT_PRESETS.narrative, true],
-        ['Merge only unresolved goals.', 'Merge only unresolved goals.', false],
-    ])(
-        'backfills a missing promotion prompt preset without migrating legacy text',
-        (prompt, saved, saves) => {
-            const ctx = installSillyTavernStub({
-                settings: {
-                    promptPreset: 'narrative',
-                    promotionUserPrompt: prompt,
-                },
-            });
-            ctx.saveSettingsDebounced = vi.fn();
-
-            const settings = getSettings();
-
-            expect(settings.promotionPromptPreset).toBe('narrative');
-            expect(settings.promotionUserPrompt).toBe(saved);
-            expect(ctx.saveSettingsDebounced).toHaveBeenCalledTimes(saves ? 1 : 0);
-        },
-    );
-
-    it('normalizes removed prompt presets to defaults', () => {
+        ['', PROMOTION_PROMPT_PRESETS.narrative],
+        ['Merge only unresolved goals.', PROMOTION_PROMPT_PRESETS.narrative],
+    ])('resets a missing promotion prompt preset to the default prompt text', (prompt, saved) => {
         const ctx = installSillyTavernStub({
             settings: {
-                promptPreset: 'gamestate',
+                promptPreset: 'narrative',
+                promotionUserPrompt: prompt,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        const settings = getSettings();
+
+        expect(settings.promotionPromptPreset).toBe('narrative');
+        expect(settings.promotionUserPrompt).toBe(saved);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it('normalizes invalid prompt presets to defaults', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                promptPreset: 'invalid',
                 promotionPromptPreset: 'narrative',
-                summarizerUserPrompt: 'Old game-state prompt text.',
+                summarizerUserPrompt: 'Unexpected prompt text.',
             },
         });
         ctx.saveSettingsDebounced = vi.fn();
@@ -103,12 +97,12 @@ describe('state.js', () => {
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
-    it('normalizes removed promotion prompt presets to defaults', () => {
+    it('normalizes invalid promotion prompt presets to defaults', () => {
         const ctx = installSillyTavernStub({
             settings: {
                 promptPreset: 'narrative',
-                promotionPromptPreset: 'oldmerge',
-                promotionUserPrompt: 'Old promotion prompt text.',
+                promotionPromptPreset: 'invalid',
+                promotionUserPrompt: 'Unexpected promotion prompt text.',
             },
         });
         ctx.saveSettingsDebounced = vi.fn();
@@ -117,19 +111,6 @@ describe('state.js', () => {
 
         expect(settings.promotionPromptPreset).toBe('narrative');
         expect(settings.promotionUserPrompt).toBe(PROMOTION_PROMPT_PRESETS.narrative);
-        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
-    });
-
-    it('migrates legacy combined prompt logging into input and output toggles', () => {
-        const ctx = installSillyTavernStub({
-            settings: { promptPreset: 'narrative', promptLogMode: true },
-        });
-        ctx.saveSettingsDebounced = vi.fn();
-
-        const settings = getSettings();
-
-        expect(settings.promptInputLogMode).toBe(true);
-        expect(settings.promptOutputLogMode).toBe(true);
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
@@ -167,8 +148,8 @@ describe('state.js', () => {
         });
     });
 
-    it('keeps existing narrative prompts untouched when settings are loaded', () => {
-        const legacyPrompt =
+    it('resets edited stock prompts when settings are loaded', () => {
+        const editedPrompt =
             'Detailed step-by-step actions\n' +
             'Conditional Environmental & Physical State\n' +
             'Output a single, highly dense chronological paragraph';
@@ -176,15 +157,15 @@ describe('state.js', () => {
             settings: {
                 promptPreset: 'narrative',
                 promotionPromptPreset: 'narrative',
-                summarizerUserPrompt: legacyPrompt,
+                summarizerUserPrompt: editedPrompt,
             },
         });
         ctx.saveSettingsDebounced = vi.fn();
 
         const settings = getSettings();
 
-        expect(settings.summarizerUserPrompt).toBe(legacyPrompt);
-        expect(ctx.saveSettingsDebounced).not.toHaveBeenCalled();
+        expect(settings.summarizerUserPrompt).toBe(PROMPT_PRESETS.narrative);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
     it('allows maximum summary turns up to twenty', () => {

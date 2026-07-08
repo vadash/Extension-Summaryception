@@ -91,7 +91,7 @@ describe('assembleSummaryBlock', () => {
         );
     });
 
-    it('renders chronology anchors from snippet metadata without backfilling legacy snippets', async () => {
+    it('renders chronology anchors from snippet metadata without backfilling unanchored snippets', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -100,12 +100,10 @@ describe('assembleSummaryBlock', () => {
                             {
                                 text: '[NARRATIVE]\nanchored recent\n\n[STATE]',
                                 sourceRange: [100, 120],
-                                timelineStart: '2024-12-03 06 Wed',
-                                timelineEnd: '2024-12-03 09 Wed',
                                 currentDateTime: '2024-12-03 10 Wed',
                             },
                             {
-                                text: '[NARRATIVE]\nlegacy recent\n\n[STATE]\ntimeline_start: 2024-12-01 06 Mon',
+                                text: '[NARRATIVE]\nunanchored recent\n\n[STATE]',
                             },
                         ],
                     ],
@@ -119,13 +117,13 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
 
         expect(assembleSummaryBlock()).toContain(
-            '[msgs 100-120; current 2024-12-03 10 Wed] anchored recent\nlegacy recent',
+            '[msgs 100-120; current 2024-12-03 10 Wed] anchored recent\nunanchored recent',
         );
         expect(assembleSummaryBlock()).not.toContain('[msgs unknown');
         expect(assembleSummaryBlock()).not.toContain('2024-12-03 06 Wed ->');
     });
 
-    it('strips a legacy leading anchor when metadata provides the rendered anchor', async () => {
+    it('strips a stored leading anchor when metadata provides the rendered anchor', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -137,8 +135,6 @@ describe('assembleSummaryBlock', () => {
                                     '[msgs 0-139; 2024-07-04 14 Thu -> unknown] anchored event\n\n' +
                                     '[STATE]',
                                 sourceRange: [0, 139],
-                                timelineStart: '2024-07-04 14 Thu',
-                                timelineEnd: '2024-07-05 12 Fri',
                                 currentDateTime: '2024-07-05 12 Fri',
                             },
                         ],
@@ -158,7 +154,7 @@ describe('assembleSummaryBlock', () => {
         expect(assembled).not.toContain('-> unknown] anchored event');
     });
 
-    it('renders export-shaped legacy timeline metadata using only current time', async () => {
+    it('renders current time metadata without start/end ranges', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({
@@ -167,7 +163,6 @@ describe('assembleSummaryBlock', () => {
                             {
                                 text: '[NARRATIVE]\nlatest event\n\n[STATE]\ncurrent_date_time: 2024-07-10 19 Wed',
                                 sourceRange: [283, 298],
-                                timelineStart: '2024-07-04 14 Thu',
                                 currentDateTime: '2024-07-10 19 Wed',
                             },
                         ],
@@ -186,7 +181,7 @@ describe('assembleSummaryBlock', () => {
         expect(assembled).not.toContain('2024-07-04 14 Thu -> unknown');
     });
 
-    it('strips repeated leading old and current-style anchors when rendering', async () => {
+    it('strips repeated leading anchors when rendering', async () => {
         installSillyTavernStub({
             metadata: {
                 summaryception: makeSummaryStore({

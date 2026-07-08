@@ -22,7 +22,6 @@ import {
     getIsSummarizing,
     hasActiveAbortController,
     maybeSummarizeTurns,
-    resetCatchupDismissed,
     runCatchup,
     runSlopBreaker,
 } from '../core/summarizer.js';
@@ -323,8 +322,6 @@ async function onForceSummarize() {
         .prop('disabled', true)
         .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
-        resetCatchupDismissed();
-
         const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
 
         if (plan.reason === 'none') {
@@ -457,6 +454,10 @@ function reloadAfterManualRun(outcome) {
     if (!outcome?.shouldReload) {
         return;
     }
+    reloadPage();
+}
+
+function reloadPage() {
     const reload = globalThis.location?.reload;
     if (typeof reload === 'function') {
         reload.call(globalThis.location);
@@ -561,7 +562,6 @@ function onResetDefaults() {
     s.traceMode = defaultSettings.traceMode;
     s.promptInputLogMode = defaultSettings.promptInputLogMode;
     s.promptOutputLogMode = defaultSettings.promptOutputLogMode;
-    s.promptLogMode = defaultSettings.promptLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
     s.stripChineseIdeographs = defaultSettings.stripChineseIdeographs;
 
@@ -597,8 +597,22 @@ function bindClickHandlers() {
             return;
         }
 
-        await clearSummaryceptionMemory({ updateUi: true });
-        toastr.success('Memory cleared & messages unghosted', 'Summaryception');
+        try {
+            await clearSummaryceptionMemory({ updateUi: true });
+            toastr.success(
+                'Memory cleared & messages unghosted. Reloading chat context.',
+                'Summaryception',
+                { timeOut: 2000 },
+            );
+            reloadPage();
+        } catch (e) {
+            error('Clear memory failed:', e);
+            toastr.error(
+                'Clear failed. Open F12 and update Summaryception if this repeats.',
+                'Summaryception',
+                { timeOut: 8000 },
+            );
+        }
     });
 
     $(document).on('click', '#sc_force_summarize', onForceSummarize);

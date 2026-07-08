@@ -32,11 +32,7 @@ export function isTraceEnabled() {
  * @returns {boolean}
  */
 export function isPromptInputLogEnabled() {
-    const s = getDebugSettings();
-    if (Object.hasOwn(s, 'promptInputLogMode')) {
-        return Boolean(s.promptInputLogMode);
-    }
-    return Boolean(s.promptLogMode);
+    return Boolean(getDebugSettings().promptInputLogMode);
 }
 
 /**
@@ -44,11 +40,7 @@ export function isPromptInputLogEnabled() {
  * @returns {boolean}
  */
 export function isPromptOutputLogEnabled() {
-    const s = getDebugSettings();
-    if (Object.hasOwn(s, 'promptOutputLogMode')) {
-        return Boolean(s.promptOutputLogMode);
-    }
-    return Boolean(s.promptLogMode);
+    return Boolean(getDebugSettings().promptOutputLogMode);
 }
 
 /**
@@ -79,15 +71,6 @@ export function debug(...args) {
     if (isDebugEnabled()) {
         console.log(LOG_PREFIX, '[DEBUG]', ...args);
     }
-}
-
-/**
- * Backward-compatible debug log alias.
- * @param {...unknown} args - Console arguments
- * @returns {void}
- */
-export function log(...args) {
-    debug(...args);
 }
 
 /**

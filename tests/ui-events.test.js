@@ -7,6 +7,7 @@ import {
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 
 const mocks = vi.hoisted(() => ({
+    clearSummaryceptionMemory: vi.fn(),
     updateInjection: vi.fn(),
     updateUI: vi.fn(),
     syncPayloadSchematic: vi.fn(),
@@ -24,6 +25,7 @@ afterEach(() => {
     globalThis.__summaryceptionRestoreDownloads?.();
     delete globalThis.document;
     delete globalThis.confirm;
+    delete globalThis.location;
     delete globalThis.__summaryceptionDownloads;
     delete globalThis.__summaryceptionRestoreDownloads;
 });
@@ -276,6 +278,44 @@ describe('ui prompt/reset events', () => {
 
         expect(ctx.extensionSettings.summaryception.stripChineseIdeographs).toBe(true);
     });
+
+    it('reloads after clearing memory from the UI', async () => {
+        const settings = structuredClone(defaultSettings);
+        installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+        const reload = vi.fn();
+        globalThis.location = { reload };
+
+        globalThis.confirm = vi.fn(() => true);
+        await ui.trigger('click', '#sc_clear_memory');
+
+        expect(mocks.clearSummaryceptionMemory).toHaveBeenCalledWith({ updateUi: true });
+        expect(globalThis.toastr.success).toHaveBeenCalledWith(
+            'Memory cleared & messages unghosted. Reloading chat context.',
+            'Summaryception',
+            { timeOut: 2000 },
+        );
+        expect(reload).toHaveBeenCalledOnce();
+    });
+
+    it('shows an update/F12 error when clearing memory fails', async () => {
+        const settings = structuredClone(defaultSettings);
+        installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+        const reload = vi.fn();
+        globalThis.location = { reload };
+        mocks.clearSummaryceptionMemory.mockRejectedValueOnce(new Error('save failed'));
+
+        globalThis.confirm = vi.fn(() => true);
+        await ui.trigger('click', '#sc_clear_memory');
+
+        expect(globalThis.toastr.error).toHaveBeenCalledWith(
+            'Clear failed. Open F12 and update Summaryception if this repeats.',
+            'Summaryception',
+            { timeOut: 8000 },
+        );
+        expect(reload).not.toHaveBeenCalled();
+    });
 });
 
 async function installUiEventsHarness(harnessOptions = {}) {
@@ -353,7 +393,6 @@ function mockUiEventDependencies() {
         getIsSummarizing: vi.fn(() => false),
         hasActiveAbortController: vi.fn(() => false),
         maybeSummarizeTurns: vi.fn(async () => {}),
-        resetCatchupDismissed: vi.fn(),
         runCatchup: vi.fn(async () => ({})),
         runSlopBreaker: vi.fn(async () => ({})),
     }));
@@ -370,7 +409,7 @@ function mockUiEventDependencies() {
         persistAndRefresh: vi.fn(),
     }));
     vi.doMock('../src/features/memory.js', () => ({
-        clearSummaryceptionMemory: vi.fn(),
+        clearSummaryceptionMemory: mocks.clearSummaryceptionMemory,
     }));
     vi.doMock('../src/entry/ui.js', () => ({
         updateUI: mocks.updateUI,

@@ -81,14 +81,37 @@ function findJsonLog(type) {
     return null;
 }
 
+function customPromptSettings(settings) {
+    const presets = {};
+    if (Object.hasOwn(settings, 'summarizerSystemPrompt')) {
+        presets.summarizerSystemPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'summarizerUserPrompt')) {
+        presets.promptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'summarizerRepairPrompt')) {
+        presets.summarizerRepairPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionSystemPrompt')) {
+        presets.promotionSystemPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionUserPrompt')) {
+        presets.promotionPromptPreset = 'custom';
+    }
+    if (Object.hasOwn(settings, 'promotionRepairPrompt')) {
+        presets.promotionRepairPromptPreset = 'custom';
+    }
+    return { ...presets, ...settings };
+}
+
 function installDebugContext() {
     const ctx = installSillyTavernStub({
-        settings: {
+        settings: customPromptSettings({
             debugMode: true,
             summarizerSystemPrompt: 'SYS',
             summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
             stripPatterns: [],
-        },
+        }),
     });
     ctx.getTokenCountAsync = vi.fn();
     return ctx;
@@ -97,13 +120,13 @@ function installDebugContext() {
 describe('summarizer usage logging', () => {
     it('logs full Layer 0 input without output when input logging is enabled', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 promptInputLogMode: true,
                 promptOutputLogMode: false,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 
@@ -141,13 +164,13 @@ describe('summarizer usage logging', () => {
 
     it('logs cleaned output without raw response or prompt content when output logging is enabled', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 promptInputLogMode: false,
                 promptOutputLogMode: true,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue(
             `<thinking>private provider trace</thinking>${VALID_L0_SUMMARY}`,
@@ -180,7 +203,7 @@ describe('summarizer usage logging', () => {
 
     it('logs both input and output for promotions when both toggles are enabled', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 promptInputLogMode: true,
                 promptOutputLogMode: true,
                 summarizerSystemPrompt: 'SYS',
@@ -188,7 +211,7 @@ describe('summarizer usage logging', () => {
                 promotionSystemPrompt: 'PROMO_SYS',
                 promotionUserPrompt: 'PROMO {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue('summary text');
 
@@ -222,12 +245,12 @@ describe('summarizer usage logging', () => {
 
     it('logs failed prompt and response attempts with error details', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 promptOutputLogMode: true,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         const { RETRY_CONFIG } = await import('../src/foundation/constants.js');
         const originalMaxRetries = RETRY_CONFIG.maxRetries;
@@ -260,13 +283,13 @@ describe('summarizer usage logging', () => {
 
     it('logs the final preprocessed input text passed to the provider', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 applyRegexScripts: true,
                 promptInputLogMode: true,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 
@@ -320,14 +343,14 @@ describe('summarizer usage logging', () => {
 
     it('uses promotion prompts for promotion usage token estimates', async () => {
         const ctx = installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 debugMode: true,
                 summarizerSystemPrompt: 'L0_SYS',
                 summarizerUserPrompt: 'L0 {{context_str}} STORY {{story_txt}}',
                 promotionSystemPrompt: 'PROMO_SYS',
                 promotionUserPrompt: 'PROMO {{context_str}} MEMORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         ctx.getTokenCountAsync = vi
             .fn()
@@ -412,12 +435,12 @@ describe('summarizer usage logging', () => {
 
     it('marks fallback token estimates when the tokenizer is unavailable', async () => {
         installSillyTavernStub({
-            settings: {
+            settings: customPromptSettings({
                 debugMode: true,
                 summarizerSystemPrompt: 'SYS',
                 summarizerUserPrompt: 'CTX {{context_str}} STORY {{story_txt}}',
                 stripPatterns: [],
-            },
+            }),
         });
         mocks.sendSummarizerRequest.mockResolvedValue(VALID_L0_SUMMARY);
 

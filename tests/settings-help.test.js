@@ -106,11 +106,6 @@ describe('settings help metadata', () => {
     it('keeps prompt presets limited to default and custom choices', () => {
         expect(SETTINGS_HTML).toContain('<option value="narrative">Default</option>');
         expect(SETTINGS_HTML).toContain('<option value="custom">Custom</option>');
-        expect(SETTINGS_HTML).not.toContain('value="gamestate"');
-        expect(SETTINGS_HTML).not.toContain('Game State');
-        expect(SETTINGS_HTML).not.toContain('Saved Custom Prompts');
-        expect(SETTINGS_HTML).not.toContain('sc_custom_prompt');
-        expect(SETTINGS_HELP.prompt_preset.detail).not.toContain('game-state');
     });
 
     it('documents Layer 0 output caps separately from merge and fallback provider defaults', () => {

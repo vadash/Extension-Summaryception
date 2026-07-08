@@ -320,22 +320,17 @@ describe('promotion prompt guard', () => {
                                     '[msgs 10-12; 2024-12-03 06 Wed -> unknown] First event.\n\n' +
                                     '[STATE]\nlocation: tower\nhooks: open gate',
                                 sourceRange: [10, 12],
-                                timelineStart: '2024-12-03 06 Wed',
-                                timelineEnd: '2024-12-03 07 Wed',
                                 currentDateTime: '2024-12-03 07 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nSecond event.\n\n[STATE]\nplace: dock\ninventory: key',
                                 sourceRange: [13, 14],
-                                timelineStart: '2024-12-03 08 Wed',
-                                timelineEnd: '2024-12-03 08 Wed',
                                 currentDateTime: '2024-12-03 08 Wed',
                             },
                             {
                                 text: '[NARRATIVE]\nThird event.\n\n[STATE]\nhooks: resolved\ncounters: score 2',
                                 sourceRange: [15, 16],
                                 currentDateTime: '2024-12-03 09 Wed',
-                                timelineEnd: '2024-12-03 09 Wed',
                             },
                             { text: '[NARRATIVE]\nExtra 1.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 2.\n\n[STATE]' },
@@ -400,8 +395,6 @@ describe('promotion prompt guard', () => {
                                     'First event. '.repeat(400),
                                     '[STATE]',
                                     'current_date_time: 2024-12-06 21 Fri',
-                                    'timeline_start: 2024-12-06 20 Fri',
-                                    'timeline_end: 2024-12-06 21 Fri',
                                     'location: theater',
                                     'characters: Zoe: sitting',
                                     'hooks: rent: pending payment',
@@ -443,8 +436,6 @@ describe('promotion prompt guard', () => {
         });
         expect(remaining.state).not.toHaveProperty('location');
         expect(remaining.state).not.toHaveProperty('characters');
-        expect(remaining.state).not.toHaveProperty('timeline_start');
-        expect(remaining.state).not.toHaveProperty('timeline_end');
     });
 
     it('strips LLM-produced state when promotion output includes [STATE]', async () => {

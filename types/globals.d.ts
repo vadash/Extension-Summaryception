@@ -32,8 +32,6 @@ interface SummaryceptionSnippet {
     text: string;
     turnRange?: [number, number];
     sourceRange?: [number, number];
-    timelineStart?: string;
-    timelineEnd?: string;
     currentDateTime?: string;
     promoted?: boolean;
     seedFromLayer?: number;
@@ -84,7 +82,6 @@ interface ExtensionSettings {
     traceMode: boolean;
     promptInputLogMode: boolean;
     promptOutputLogMode: boolean;
-    promptLogMode: boolean;
     connectionSource: string;
     summarizerResponseLength: number;
     connectionProfileId: string;

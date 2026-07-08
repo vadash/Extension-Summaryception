@@ -11,5 +11,5 @@ This directory contains globals, constants, state management, and retry utilitie
 - Layer data lives in `chatMetadata[MODULE_NAME]`.
 - Settings are cross-chat (`extensionSettings[MODULE_NAME]`).
 - `getSettings()` normalizes persisted settings in place; keep these bounds aligned with matching `settings.html` controls.
-- Prompt defaults live in `prompt-constants.js`; `getSettings()` should only backfill/normalize prompt fields, not migrate legacy prompt text.
+- Prompt defaults live in `prompt-constants.js`; `getSettings()` resets non-custom prompt presets to current defaults. Only `custom` presets preserve edited prompt text.
 - `getChatStore()` normalizes saved chat metadata.

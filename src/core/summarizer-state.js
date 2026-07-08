@@ -8,6 +8,7 @@ const STATE_ENTRY_LIMIT = 10;
 const STATE_VALUE_LENGTH_CEILING = 1000;
 const STALE_TRANSIENT_LAYER_MIN = 2;
 const COMPOSITE_MERGE_KEYS = new Set(['characters', 'inventory', 'counters', 'dynamics', 'hooks']);
+const IGNORED_STATE_KEYS = new Set(['timeline_start', 'timeline_end', 'start_time', 'end_time']);
 const COMPOSITE_ENTRY_RE = /^([a-zA-Z0-9 _-]+?)\s*[:=]\s*(.+)$/;
 const STATIC_PROFILE_KEY_PARTS = [
     'origin',
@@ -60,10 +61,6 @@ const KEY_ALIASES = Object.freeze({
     current_date_time: 'current_date_time',
     current_datetime: 'current_date_time',
     current_time: 'current_date_time',
-    timeline_start: 'timeline_start',
-    start_time: 'timeline_start',
-    timeline_end: 'timeline_end',
-    end_time: 'timeline_end',
 });
 const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
 
@@ -135,7 +132,7 @@ export function serializeState(state) {
     for (const [rawKey, rawValue] of Object.entries(state || {})) {
         const key = normalizeKey(rawKey);
         const value = normalizeSerializedStateValue(rawValue);
-        if (!value || isNullifyValue(value)) {
+        if (IGNORED_STATE_KEYS.has(key) || !value || isNullifyValue(value)) {
             continue;
         }
         lines.push(`${key}: ${value}`);
@@ -250,7 +247,11 @@ function parseStateLines(lines) {
             unclassified.push(trimmed);
             continue;
         }
-        state[normalizeKey(match[1])] = match[2].trim();
+        const key = normalizeKey(match[1]);
+        if (IGNORED_STATE_KEYS.has(key)) {
+            continue;
+        }
+        state[key] = match[2].trim();
     }
 
     const notes = dedupeNotes(unclassified);
@@ -313,6 +314,9 @@ function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
     }
     if (key === 'unclassified_notes') {
         allUnclassified.push(...splitUnclassifiedNotes(value));
+        return;
+    }
+    if (IGNORED_STATE_KEYS.has(key)) {
         return;
     }
     if (options.filterStaticProfile && isStaticProfileKey(key)) {
