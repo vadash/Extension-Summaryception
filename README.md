@@ -130,6 +130,7 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
+- **v14:** Easy mode - easy life. 
 - **v13:** Tweaked few knobs. 
 Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
 Temporal anchors. Each memory has time. So make sure you track date time in RP.
