@@ -96,4 +96,14 @@ describe('cache-friendly planner', () => {
         expect(plan.batchTurns.map((turn) => turn.index)).toEqual([0, 1, 2]);
         expect(plan.overflowCount).toBe(8);
     });
+
+    it('degrades gracefully when no assistant turns survive filtering', async () => {
+        const plan = await getPlan([makeMessage({ mes: '[1000]', isHidden: true })], {
+            verbatimTokenBudget: 5000,
+        });
+
+        expect(plan.reason).toBe('none');
+        expect(plan.batchTurns).toEqual([]);
+        expect(plan.partitions).toEqual([]);
+    });
 });

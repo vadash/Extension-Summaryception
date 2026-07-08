@@ -291,4 +291,61 @@ describe('summarizeAtomicLayer0Partitions', () => {
         expect(store.summarizedUpTo).toBe(-1);
         expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
     });
+
+    it('rolls back all pending snippets when post-save persistence fails', async () => {
+        const ctx = installBatchContext({
+            chat: [makeMessage({ mes: 'first turn' }), makeMessage({ mes: 'second turn' })],
+        });
+        mocks.callSummarizer
+            .mockResolvedValueOnce(VALID_L0_SUMMARY)
+            .mockResolvedValueOnce(VALID_L0_SUMMARY);
+        mocks.ghostMessagesInRange.mockRejectedValueOnce(new Error('boom'));
+
+        const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+        const { summarizeAtomicLayer0Partitions } = await import('../src/core/summarizer-batch.js');
+        const success = await summarizeAtomicLayer0Partitions(
+            [
+                { turns: [{ index: 0, mes: 'first turn' }], sourceStartIdx: 0, sourceEndIdx: 0 },
+                { turns: [{ index: 1, mes: 'second turn' }], sourceStartIdx: 1, sourceEndIdx: 1 },
+            ],
+            { catchExceptions: true },
+        );
+
+        const store = ctx.chatMetadata.summaryception;
+        expect(success).toBe(false);
+        expect(store.layers[0]).toEqual([]);
+        expect(store.summarizedUpTo).toBe(-1);
+        expect(store.mutationEpoch).toBe(0);
+        expect(mocks.ghostMessagesInRange).toHaveBeenCalledTimes(1);
+    });
+
+    it('aborts and discards all snippets when summarizedUpTo mutates mid-flight', async () => {
+        const ctx = installBatchContext({
+            chat: [makeMessage({ mes: 'first turn' }), makeMessage({ mes: 'second turn' })],
+        });
+        mocks.callSummarizer
+            .mockImplementationOnce(async () => {
+                ctx.chatMetadata.summaryception.summarizedUpTo = 5;
+                return VALID_L0_SUMMARY;
+            })
+            .mockResolvedValueOnce(VALID_L0_SUMMARY);
+
+        const { resetCommitStateForTests } = await import('../src/core/summarizer-commit.js');
+        resetCommitStateForTests();
+        const { summarizeAtomicLayer0Partitions } = await import('../src/core/summarizer-batch.js');
+        const success = await summarizeAtomicLayer0Partitions(
+            [
+                { turns: [{ index: 0, mes: 'first turn' }], sourceStartIdx: 0, sourceEndIdx: 0 },
+                { turns: [{ index: 1, mes: 'second turn' }], sourceStartIdx: 1, sourceEndIdx: 1 },
+            ],
+            { catchExceptions: true },
+        );
+
+        const store = ctx.chatMetadata.summaryception;
+        expect(success).toBe(false);
+        expect(store.layers[0]).toEqual([]);
+        expect(mocks.callSummarizer).toHaveBeenCalledTimes(1);
+        expect(mocks.ghostMessagesInRange).not.toHaveBeenCalled();
+    });
 });

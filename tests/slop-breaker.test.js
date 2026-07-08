@@ -89,4 +89,17 @@ describe('getSlopBreakerPlan', () => {
             ).reason,
         ).toBe('none');
     });
+
+    it('degrades gracefully when target range contains only non-countable messages', async () => {
+        const chat = [
+            makeMessage({ isUser: true, mes: 'u0', name: 'Player' }),
+            makeMessage({ mes: 'hidden assistant', isHidden: true }),
+        ];
+
+        const plan = await getPlan(chat, { summarizedUpTo: -1 });
+
+        expect(plan.reason).toBe('none');
+        expect(plan.batchTurns).toEqual([]);
+        expect(plan.partitions).toEqual([]);
+    });
 });

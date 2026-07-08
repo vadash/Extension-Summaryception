@@ -346,24 +346,23 @@ async function commitLayer0Snippet({ snapshot, summary, showToasts }) {
         return false;
     }
 
+    const rollbackPoint = captureStoreRollbackPoint(store);
     store.layers[0].push(buildLayer0Snippet(snapshot, summary));
 
     store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
     bumpSummaryStoreMutationEpoch(store);
     trace('  Updated store.summarizedUpTo to:', store.summarizedUpTo);
 
-    await saveChatStore();
-    await updateCommittedInjection({ logMemoryStatus: true });
-    await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
-    await persistChatState({ chatSave: 'deferred' });
-
-    if (showToasts) {
-        toastr.success(
-            `Summary saved (Layer 0: ${store.layers[0].length} snippets)`,
-            'Summaryception',
-            { timeOut: 2000 },
-        );
-    }
+    await runCommitPersistence({
+        store,
+        passageStart,
+        endIdx,
+        showToasts,
+        rollbackPoint,
+        onRollback: () => {
+            debug('Layer 0 commit rolled back: post-save persistence failed.');
+        },
+    });
 
     return true;
 }
@@ -378,6 +377,8 @@ async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToas
 
     const store = getChatStore();
     ensureLayer0(store);
+
+    const rollbackPoint = captureStoreRollbackPoint(store);
     for (const snippet of pendingSnippets) {
         store.layers[0].push(snippet);
     }
@@ -387,10 +388,74 @@ async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToas
     store.summarizedUpTo = Math.max(store.summarizedUpTo, endIdx);
     bumpSummaryStoreMutationEpoch(store);
 
-    await saveChatStore();
-    await updateCommittedInjection({ logMemoryStatus: true });
-    await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
-    await persistChatState({ chatSave: 'deferred' });
+    await runCommitPersistence({
+        store,
+        passageStart,
+        endIdx,
+        showToasts,
+        rollbackPoint,
+        onRollback: () => {
+            debug('Atomic Layer 0 commit rolled back: post-save persistence failed.');
+        },
+    });
+
+    return true;
+}
+
+/**
+ * Capture the mutable Layer 0 store fields needed to roll back a commit.
+ * Call BEFORE mutating the store so the returned point reflects pre-commit state.
+ * @param {SummaryceptionStore} store
+ * @returns {{ layers0: object[], summarizedUpTo: number, mutationEpoch: number }}
+ */
+function captureStoreRollbackPoint(store) {
+    return {
+        layers0: [...store.layers[0]],
+        summarizedUpTo: store.summarizedUpTo,
+        mutationEpoch: store.mutationEpoch,
+    };
+}
+
+/**
+ * Persist a completed commit with rollback on post-save failure.
+ *
+ * Runs saveChatStore and its downstream effects (ghosting, injection update,
+ * chat-file persist). If any of those steps throw, the rollbackPoint captured
+ * before mutation is restored and metadata is re-saved so the in-memory state
+ * and persisted metadata stay consistent. The original error is always re-thrown
+ * so the caller can treat the commit as failed.
+ *
+ * @param {object} p
+ * @param {SummaryceptionStore} p.store
+ * @param {number} p.passageStart
+ * @param {number} p.endIdx
+ * @param {boolean} p.showToasts
+ * @param {{ layers0: object[], summarizedUpTo: number, mutationEpoch: number }} p.rollbackPoint
+ * @param {() => void} [p.onRollback]
+ * @returns {Promise<void>}
+ */
+async function runCommitPersistence({
+    store,
+    passageStart,
+    endIdx,
+    showToasts,
+    rollbackPoint,
+    onRollback,
+}) {
+    try {
+        await saveChatStore();
+        await updateCommittedInjection({ logMemoryStatus: true });
+        await ghostMessagesInRange(passageStart, endIdx, { chatSave: 'deferred' });
+        await persistChatState({ chatSave: 'deferred' });
+    } catch (err) {
+        store.layers[0] = rollbackPoint.layers0;
+        store.summarizedUpTo = rollbackPoint.summarizedUpTo;
+        store.mutationEpoch = rollbackPoint.mutationEpoch;
+        onRollback?.();
+        error('Layer 0 commit persistence failed, rolling back store state:', err);
+        await saveChatStore();
+        throw err;
+    }
 
     if (showToasts) {
         toastr.success(
@@ -399,8 +464,6 @@ async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToas
             { timeOut: 2000 },
         );
     }
-
-    return true;
 }
 
 function buildLayer0Snippet(snapshot, summary) {
