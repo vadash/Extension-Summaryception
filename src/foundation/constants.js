@@ -35,6 +35,12 @@ export const EASY_MEMORY_LIMITS = Object.freeze({
     STEP: 1000,
 });
 
+export const L0_SOURCE_LIMITS = Object.freeze({
+    MIN: 4000,
+    MAX: 32000,
+    STEP: 1000,
+});
+
 export const MEMORY_POSITIONS = Object.freeze({
     BEFORE_PROMPT: 'before_prompt',
     IN_PROMPT: 'in_prompt',
@@ -80,7 +86,7 @@ export const defaultSettings = Object.freeze({
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
     layer0SummaryTokenTarget: 200,
-    maxL0SourceTokens: 8000,
+    maxL0SourceTokens: 16000,
     minSummaryBudget: 8000,
     verbatimTokenBudget: 16000,
     memoryTokenBudget: 10000,

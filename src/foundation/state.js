@@ -1,6 +1,7 @@
 import {
     EASY_CONTEXT_LIMITS,
     EASY_MEMORY_LIMITS,
+    L0_SOURCE_LIMITS,
     MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
@@ -229,17 +230,20 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
     settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 20);
     settings.layer0SummaryTokenTarget = clampInteger(settings.layer0SummaryTokenTarget, 80, 500);
-    settings.maxL0SourceTokens = clampToStep(settings.maxL0SourceTokens, 2000, 16000, 1000);
+    settings.maxL0SourceTokens = clampToStep(
+        settings.maxL0SourceTokens,
+        L0_SOURCE_LIMITS.MIN,
+        L0_SOURCE_LIMITS.MAX,
+        L0_SOURCE_LIMITS.STEP,
+    );
     if (settings.maxSummaryTurns < settings.minSummaryTurns) {
         settings.maxSummaryTurns = settings.minSummaryTurns;
     }
-    const sourceCap = Math.max(2000, Number(settings.maxL0SourceTokens) || 8000);
-    settings.minSummaryBudget = clampToStep(
-        settings.minSummaryBudget,
-        2000,
-        Math.min(16000, sourceCap),
-        1000,
+    const sourceCap = Math.max(
+        L0_SOURCE_LIMITS.MIN,
+        Number(settings.maxL0SourceTokens) || defaultSettings.maxL0SourceTokens,
     );
+    settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, sourceCap, 1000);
     if (settings.minSummaryBudget > sourceCap) {
         settings.minSummaryBudget = sourceCap;
     }
@@ -303,7 +307,10 @@ function deriveEasySourceCap(contextTokens) {
         EASY_CONTEXT_LIMITS.MAX,
         EASY_CONTEXT_LIMITS.STEP,
     );
-    return Math.min(16000, Math.max(2000, Math.floor(context * 0.5)));
+    return Math.min(
+        L0_SOURCE_LIMITS.MAX,
+        Math.max(L0_SOURCE_LIMITS.MIN, Math.floor(context * 0.5)),
+    );
 }
 
 function copyFallbackRouteSettings(effective, settings) {

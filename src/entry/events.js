@@ -83,7 +83,12 @@ export function bindPromptFreezeRecoveryEvents() {
 /**
  *
  */
-export function onGenerationStarted() {
+export function onGenerationStarted(...args) {
+    const dryRun = args[2] === true;
+    if (dryRun) {
+        debug('Ignoring generation start from SillyTavern dry run.');
+        return;
+    }
     if (hasActiveAbortController()) {
         debug('Ignoring generation start from active Summaryception request.');
         return;

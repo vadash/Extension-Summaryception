@@ -362,6 +362,9 @@
     border-radius: 7px;
     background: rgba(0, 0, 0, 0.08);
 }
+.sc-llm-context-row-wide {
+    grid-column: 1 / -1;
+}
 .sc-llm-context-label {
     overflow: hidden;
     min-width: 0;
@@ -370,11 +373,21 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.sc-llm-context-actions {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 6px;
+}
 .sc-llm-context-value {
     flex: 0 0 auto;
     font-size: 0.9em;
     font-weight: 700;
     white-space: nowrap;
+}
+.sc-llm-context-button {
+    min-height: 24px;
+    max-height: 26px;
 }
 .sc-llm-context-value.sc-ctx-safe { color: #2ecc71; }
 .sc-llm-context-value.sc-ctx-warn { color: #f1c40f; }

@@ -473,6 +473,7 @@ function mockUiEventDependencies() {
         clearSummaryceptionMemory: mocks.clearSummaryceptionMemory,
     }));
     vi.doMock('../src/entry/ui.js', () => ({
+        refreshMainLLMContextEstimate: vi.fn(),
         updateUI: mocks.updateUI,
         syncPayloadSchematic: mocks.syncPayloadSchematic,
         syncLLMContextPreview: vi.fn(),

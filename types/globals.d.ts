@@ -202,6 +202,9 @@ interface SillyTavernPromptManager {
 interface SillyTavernEventSource {
     on(event: string, handler: (...args: unknown[]) => void): void;
     off(event: string, handler: (...args: unknown[]) => void): void;
+    removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+    addEventListener?: (event: string, handler: (...args: unknown[]) => void) => void;
+    removeEventListener?: (event: string, handler: (...args: unknown[]) => void) => void;
 }
 
 interface SillyTavernStreamingProcessor {
@@ -228,7 +231,14 @@ interface SillyTavernContext {
         options: Record<string, unknown>,
     ): Promise<void>;
     generateRaw(options: GenerateRawOptions): Promise<string>;
-    getTokenCountAsync?: (text: string) => Promise<number>;
+    generate?: (
+        type: string,
+        options: Record<string, unknown>,
+        dryRun: boolean,
+    ) => Promise<unknown>;
+    getTokenCountAsync?: (text: string, padding?: number) => Promise<number>;
+    getTokenizerModel?: () => string;
+    powerUserSettings?: { token_padding?: number };
     promptManager?: SillyTavernPromptManager;
     saveChat?: () => Promise<void>;
     ConnectionManagerRequestService?: ConnectionManagerRequestService;
@@ -236,6 +246,7 @@ interface SillyTavernContext {
     SlashCommand?: SlashCommand;
     name1?: string;
     eventSource?: SillyTavernEventSource;
+    eventTypes?: Record<string, string>;
     event_types?: Record<string, string>;
     streamingProcessor?: SillyTavernStreamingProcessor;
     renderExtensionTemplateAsync?: (

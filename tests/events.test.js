@@ -94,3 +94,33 @@ describe('loaded chat reconciliation', () => {
         expect(repairMissingGhostingForSummaries).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('generation lifecycle events', () => {
+    it('ignores SillyTavern dry-run generation starts', async () => {
+        const beginForegroundGeneration = vi.fn();
+        vi.doMock('../src/core/summarizer.js', () => ({
+            beginForegroundGeneration,
+            endForegroundGeneration: vi.fn(async () => {}),
+            hasActiveAbortController: vi.fn(() => false),
+            hasFrozenPromptMutations: vi.fn(() => false),
+            maybeSummarizeTurns: vi.fn(async () => {}),
+            recoverStalePromptFreeze: vi.fn(async () => {}),
+            resetPromptMutationGuard: vi.fn(),
+        }));
+        vi.doMock('../src/features/injection.js', () => ({
+            updateInjection: vi.fn(),
+        }));
+        vi.doMock('../src/features/maintenance.js', () => ({
+            repairOrphanedMessages: vi.fn(),
+        }));
+        vi.doMock('../src/entry/ui.js', () => ({
+            updateUI: vi.fn(),
+        }));
+
+        const { onGenerationStarted } = await import('../src/entry/events.js');
+        onGenerationStarted('normal', {}, true);
+        onGenerationStarted('normal', {}, false);
+
+        expect(beginForegroundGeneration).toHaveBeenCalledOnce();
+    });
+});

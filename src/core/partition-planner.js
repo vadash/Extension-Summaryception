@@ -1,3 +1,4 @@
+import { defaultSettings } from '../foundation/constants.js';
 import { getPromptDepthsByChatIndex, iterateChatRange } from './chatutils.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
@@ -197,7 +198,7 @@ function getFinalEndIdx(turnIndex, finalSourceEndIdx) {
 function getMaxL0SourceTokens(settings) {
     const configured = Number(settings.maxL0SourceTokens);
     if (!Number.isFinite(configured) || configured <= 0) {
-        return 8000;
+        return defaultSettings.maxL0SourceTokens;
     }
     return Math.max(MIN_L0_SOURCE_TOKENS, Math.round(configured));
 }

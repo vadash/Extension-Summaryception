@@ -74,7 +74,7 @@ describe('state.js', () => {
 
         expect(raw).toMatchObject({
             memoryMode: 'custom',
-            maxL0SourceTokens: 2000,
+            maxL0SourceTokens: 4000,
             memoryTokenBudget: 32000,
         });
         expect(effective).toMatchObject({
@@ -208,6 +208,32 @@ describe('state.js', () => {
             memoryTokenBudget: 7000,
             snippetsPerLayer: 20,
             snippetsPerPromotion: 3,
+        });
+    });
+
+    it('caps Layer 0 source and batch trigger to the current source range', () => {
+        installSillyTavernStub({
+            settings: {
+                maxL0SourceTokens: 999999,
+                minSummaryBudget: 999999,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            maxL0SourceTokens: 32000,
+            minSummaryBudget: 32000,
+        });
+
+        installSillyTavernStub({
+            settings: {
+                maxL0SourceTokens: 1,
+                minSummaryBudget: 999999,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            maxL0SourceTokens: 4000,
+            minSummaryBudget: 4000,
         });
     });
 

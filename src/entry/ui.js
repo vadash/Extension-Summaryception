@@ -1,5 +1,14 @@
-import { MEMORY_MODES, MEMORY_POSITIONS, UI_MODES } from '../foundation/constants.js';
-import { getChat } from '../foundation/context.js';
+import {
+    MEMORY_MODES,
+    MEMORY_POSITIONS,
+    UI_MODES,
+    defaultSettings,
+} from '../foundation/constants.js';
+import {
+    estimateMainPromptTokens,
+    getChat,
+    isSendButtonInStopMode,
+} from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
 import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
@@ -23,6 +32,7 @@ import {
 } from './ui-bind.js';
 
 const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [data-sc-setting]';
+const CONTEXT_COLOR_CLASSES = 'sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger';
 
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
@@ -132,35 +142,98 @@ function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
  * @returns {void}
  */
 export function syncLLMContextPreview(s = getEffectiveSettings()) {
-    const maxL0Source = Number.isFinite(Number(s.maxL0SourceTokens))
-        ? Number(s.maxL0SourceTokens)
-        : 8000;
-    const minSummaryBudget = Number.isFinite(Number(s.minSummaryBudget))
-        ? Number(s.minSummaryBudget)
-        : 8000;
-    const snippetsPerPromotion = Number.isFinite(Number(s.snippetsPerPromotion))
-        ? Number(s.snippetsPerPromotion)
-        : 3;
-    const summaryTarget = Number.isFinite(Number(s.layer0SummaryTokenTarget))
-        ? Number(s.layer0SummaryTokenTarget)
-        : 200;
+    const maxL0Source = readTokenSetting(s.maxL0SourceTokens, defaultSettings.maxL0SourceTokens);
+    const minSummaryBudget = readTokenSetting(s.minSummaryBudget, defaultSettings.minSummaryBudget);
+    const memoryBudget = readTokenSetting(s.memoryTokenBudget, defaultSettings.memoryTokenBudget);
+    const verbatimBudget = readTokenSetting(
+        s.verbatimTokenBudget,
+        defaultSettings.verbatimTokenBudget,
+    );
+    const snippetsPerPromotion = readTokenSetting(
+        s.snippetsPerPromotion,
+        defaultSettings.snippetsPerPromotion,
+    );
+    const summaryTarget = readTokenSetting(
+        s.layer0SummaryTokenTarget,
+        defaultSettings.layer0SummaryTokenTarget,
+    );
 
+    const mainBudget = memoryBudget + verbatimBudget;
     const l0Source = Math.min(maxL0Source, minSummaryBudget);
     const l0Total = l0Source + 2000;
     const l1Source = snippetsPerPromotion * summaryTarget;
     const l1Total = l1Source + 1000;
 
-    $('#sc_llm_context_l0').text(
-        `~${l0Total >= 1000 ? `${(l0Total / 1000).toFixed(1)}k` : l0Total} tokens`,
-    );
-    $('#sc_llm_context_l1').text(
-        `~${l1Total >= 1000 ? `${(l1Total / 1000).toFixed(1)}k` : l1Total} tokens`,
-    );
+    $('#sc_llm_context_main').text(`~${formatContextTokenCount(mainBudget)} + ST prompt`);
+    $('#sc_llm_context_l0').text(`~${formatContextTokenCount(l0Total)} tokens`);
+    $('#sc_llm_context_l1').text(`~${formatContextTokenCount(l1Total)} tokens`);
 
-    $('#sc_llm_context_l0').removeClass('sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger');
-    $('#sc_llm_context_l1').removeClass('sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger');
-    $('#sc_llm_context_l0').addClass(getContextColorClass(l0Total));
-    $('#sc_llm_context_l1').addClass(getContextColorClass(l1Total));
+    setContextValueColor($('#sc_llm_context_main'), mainBudget);
+    setContextValueColor($('#sc_llm_context_l0'), l0Total);
+    setContextValueColor($('#sc_llm_context_l1'), l1Total);
+}
+
+/**
+ * Refresh the current SillyTavern main prompt estimate on demand.
+ * @returns {Promise<void>}
+ */
+export async function refreshMainLLMContextEstimate() {
+    const $value = $('#sc_llm_context_main');
+    const $button = $('#sc_estimate_main_context');
+    if (!$value.length) {
+        return;
+    }
+    if (isSendButtonInStopMode()) {
+        $value.text('Busy').removeClass(CONTEXT_COLOR_CLASSES).addClass('sc-ctx-caution');
+        return;
+    }
+
+    setMainEstimateButtonBusy($button, true);
+    $value.text('Estimating...').removeClass(CONTEXT_COLOR_CLASSES);
+    try {
+        const tokens = await estimateMainPromptTokens();
+        if (typeof tokens !== 'number' || !Number.isFinite(tokens)) {
+            $value.text('Unavailable').addClass('sc-ctx-caution');
+            return;
+        }
+        $value.text(`~${formatContextTokenCount(tokens)} tokens`);
+        setContextValueColor($value, tokens);
+    } catch (e) {
+        warn('Main prompt estimate failed:', e);
+        $value.text('Unavailable').addClass('sc-ctx-caution');
+    } finally {
+        setMainEstimateButtonBusy($button, false);
+    }
+}
+
+function readTokenSetting(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+}
+
+function formatContextTokenCount(tokens) {
+    if (tokens >= 1000) {
+        const value = tokens / 1000;
+        return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}k`;
+    }
+    return String(Math.max(0, Math.round(tokens)));
+}
+
+function setContextValueColor($element, tokens) {
+    $element.removeClass(CONTEXT_COLOR_CLASSES).addClass(getContextColorClass(tokens));
+}
+
+function setMainEstimateButtonBusy($button, busy) {
+    if (!$button.length) {
+        return;
+    }
+    $button.prop('disabled', busy);
+    const $icon = $button.find('i');
+    if (busy) {
+        $icon.removeClass('fa-calculator').addClass('fa-spinner fa-spin');
+    } else {
+        $icon.removeClass('fa-spinner fa-spin').addClass('fa-calculator');
+    }
 }
 
 /**

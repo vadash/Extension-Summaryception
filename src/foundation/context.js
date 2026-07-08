@@ -127,6 +127,20 @@ export async function callTokenCountAsync(text) {
 }
 
 /**
+ * Estimate the current foreground ST prompt by running Generate in dry-run mode.
+ * This is intentionally button-driven UI work because prompt assembly can be slow.
+ * @param {{ timeoutMs?: number }} [options] - Optional timeout in milliseconds
+ * @returns {Promise<number | null>} Token count, or null when ST cannot expose it
+ */
+export async function estimateMainPromptTokens(options = {}) {
+    const payload = await captureMainPromptPayload(options);
+    if (payload === null || payload === undefined) {
+        return null;
+    }
+    return await countPromptPayloadTokens(payload);
+}
+
+/**
  * Get request headers including ST's CSRF token if available.
  * @returns {Record<string, string>}
  */
@@ -183,11 +197,11 @@ export function getEventSource() {
 }
 
 /**
- * Get SillyTavern's event_types enum, or null if unavailable.
+ * Get SillyTavern's event types enum, or null if unavailable.
  * @returns {Record<string, string> | null}
  */
 export function getEventTypes() {
-    return getContext().event_types || null;
+    return getContextEventTypes(getContext());
 }
 
 /**
@@ -260,6 +274,206 @@ function hasStopButtonMarker(element) {
         .join(' ')
         .toLowerCase();
     return text.includes('fa-stop') || text.includes('fa-circle-stop') || text.includes('stop');
+}
+
+async function captureMainPromptPayload({ timeoutMs = 15000 } = {}) {
+    const ctx = getContext();
+    const eventSource = ctx.eventSource;
+    const eventName = getContextEventTypes(ctx)?.GENERATE_AFTER_DATA;
+    if (typeof ctx.generate !== 'function' || !eventSource || !eventName) {
+        return null;
+    }
+
+    let promptPayload = null;
+    const handler = (generateData, dryRun) => {
+        if (dryRun) {
+            promptPayload = extractPromptPayload(generateData);
+        }
+    };
+    if (!addRuntimeListener(eventSource, eventName, handler)) {
+        return null;
+    }
+
+    const controller = createAbortController();
+    const timeout = createDryRunTimeout(timeoutMs, () => controller?.abort());
+    try {
+        await Promise.race([
+            ctx.generate.call(ctx, 'normal', controller ? { signal: controller.signal } : {}, true),
+            timeout.promise,
+        ]);
+    } catch (_e) {
+        return null;
+    } finally {
+        timeout.cleanup();
+        removeRuntimeListener(eventSource, eventName, handler);
+    }
+    return timeout.didTimeout() ? null : promptPayload;
+}
+
+function getContextEventTypes(ctx) {
+    return ctx.eventTypes || ctx.event_types || null;
+}
+
+function extractPromptPayload(generateData) {
+    if (!generateData || typeof generateData !== 'object') {
+        return null;
+    }
+    if (Object.hasOwn(generateData, 'prompt')) {
+        return generateData.prompt;
+    }
+    if (Object.hasOwn(generateData, 'input')) {
+        return generateData.input;
+    }
+    return null;
+}
+
+async function countPromptPayloadTokens(payload) {
+    if (Array.isArray(payload)) {
+        const endpointCount = await countChatPromptTokensViaEndpoint(payload);
+        if (endpointCount !== null) {
+            return endpointCount;
+        }
+    }
+    return await countPromptStringTokens(stringifyPromptPayload(payload));
+}
+
+async function countChatPromptTokensViaEndpoint(messages) {
+    if (typeof fetch !== 'function') {
+        return null;
+    }
+    const model = getTokenizerModelQuery();
+    try {
+        const response = await fetch(`/api/tokenizers/openai/count${model}`, {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify(messages),
+        });
+        if (response && typeof response.ok === 'boolean' && !response.ok) {
+            return null;
+        }
+        const data = await response.json();
+        return normalizeTokenCount(data?.token_count);
+    } catch (_e) {
+        return null;
+    }
+}
+
+async function countPromptStringTokens(text) {
+    const ctx = getContext();
+    if (typeof ctx.getTokenCountAsync !== 'function') {
+        return null;
+    }
+    try {
+        const padding = Number(ctx.powerUserSettings?.token_padding);
+        const count = await ctx.getTokenCountAsync(
+            text,
+            Number.isFinite(padding) ? padding : undefined,
+        );
+        return normalizeTokenCount(count);
+    } catch (_e) {
+        return null;
+    }
+}
+
+function getTokenizerModelQuery() {
+    try {
+        const ctx = getContext();
+        const model = typeof ctx.getTokenizerModel === 'function' ? ctx.getTokenizerModel() : '';
+        return model ? `?model=${encodeURIComponent(String(model))}` : '';
+    } catch (_e) {
+        return '';
+    }
+}
+
+function stringifyPromptPayload(payload) {
+    if (typeof payload === 'string') {
+        return payload;
+    }
+    if (Array.isArray(payload)) {
+        return payload.map(stringifyPromptMessage).join('\n\n');
+    }
+    return safeJsonStringify(payload);
+}
+
+function stringifyPromptMessage(message) {
+    if (!message || typeof message !== 'object') {
+        return String(message ?? '');
+    }
+    const role = message.role ? `[${message.role}]` : '';
+    const name = message.name ? `${message.name}: ` : '';
+    const content = stringifyPromptContent(message.content);
+    return [role, `${name}${content}`].filter(Boolean).join('\n');
+}
+
+function stringifyPromptContent(content) {
+    if (typeof content === 'string') {
+        return content;
+    }
+    if (Array.isArray(content)) {
+        return content.map(stringifyPromptContent).join('\n');
+    }
+    return safeJsonStringify(content);
+}
+
+function safeJsonStringify(value) {
+    try {
+        return JSON.stringify(value ?? '') || '';
+    } catch (_e) {
+        return String(value ?? '');
+    }
+}
+
+function normalizeTokenCount(count) {
+    const number = Number(count);
+    if (!Number.isFinite(number)) {
+        return null;
+    }
+    return Math.max(0, Math.ceil(number));
+}
+
+function addRuntimeListener(eventSource, eventName, handler) {
+    if (typeof eventSource.on === 'function') {
+        eventSource.on(eventName, handler);
+        return true;
+    }
+    if (typeof eventSource.addEventListener === 'function') {
+        eventSource.addEventListener(eventName, handler);
+        return true;
+    }
+    return false;
+}
+
+function removeRuntimeListener(eventSource, eventName, handler) {
+    if (typeof eventSource.removeListener === 'function') {
+        eventSource.removeListener(eventName, handler);
+    } else if (typeof eventSource.removeEventListener === 'function') {
+        eventSource.removeEventListener(eventName, handler);
+    }
+}
+
+function createAbortController() {
+    if (typeof AbortController !== 'function') {
+        return null;
+    }
+    return new AbortController();
+}
+
+function createDryRunTimeout(timeoutMs, onTimeout) {
+    let timedOut = false;
+    const ms = Math.max(1000, Number(timeoutMs) || 15000);
+    let timer = null;
+    const promise = new Promise((resolve) => {
+        timer = setTimeout(() => {
+            timedOut = true;
+            onTimeout();
+            resolve(null);
+        }, ms);
+    });
+    return {
+        promise,
+        cleanup: () => clearTimeout(timer),
+        didTimeout: () => timedOut,
+    };
 }
 
 /**

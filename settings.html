@@ -832,8 +832,8 @@
                                         <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_max_l0_source_tokens" min="2000" max="16000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
-                                        <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
+                                        <input type="range" id="sc_max_l0_source_tokens" min="4000" max="32000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
+                                        <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
                                     </div>
                                 </div>
                                 <div class="sc-row">
@@ -842,7 +842,7 @@
                                         <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_min_summary_budget" min="2000" max="8000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
+                                        <input type="range" id="sc_min_summary_budget" min="2000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
                                         <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
                                     </div>
                                 </div>
@@ -942,6 +942,15 @@
                         </h4>
                     </div>
                     <div class="sc-llm-context-grid">
+                        <div class="sc-llm-context-row sc-llm-context-row-wide">
+                            <span class="sc-llm-context-label">Main Chat Call</span>
+                            <span class="sc-llm-context-actions">
+                                <span class="sc-llm-context-value" id="sc_llm_context_main">~26k + ST prompt</span>
+                                <button id="sc_estimate_main_context" class="menu_button sc-icon-button sc-llm-context-button" title="Estimate current SillyTavern prompt" aria-label="Estimate current SillyTavern prompt" type="button">
+                                    <i class="fa-solid fa-calculator"></i>
+                                </button>
+                            </span>
+                        </div>
                         <div class="sc-llm-context-row">
                             <span class="sc-llm-context-label">L0 Call</span>
                             <span class="sc-llm-context-value" id="sc_llm_context_l0">~10k tokens</span>
@@ -951,7 +960,7 @@
                             <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
                         </div>
                     </div>
-                    <small class="sc-hint">Estimated max input tokens per LLM call. Overhead is fixed estimate (L0: ~2k, L1+: ~1k).</small>
+                    <small class="sc-hint">Main call budget is memory + live chat + ST prompt. L1+ merges stored summaries, not raw chat: memories per merge x summary target + ~1k prompt/deeper-memory overhead.</small>
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">

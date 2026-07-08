@@ -32,7 +32,12 @@ import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
-import { updateUI, syncLLMContextPreview, syncPayloadSchematic } from './ui.js';
+import {
+    refreshMainLLMContextEstimate,
+    updateUI,
+    syncLLMContextPreview,
+    syncPayloadSchematic,
+} from './ui.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -729,6 +734,7 @@ function bindClickHandlers() {
     });
 
     $(document).on('click', '#sc_refresh_preview', () => updateUI());
+    $(document).on('click', '#sc_estimate_main_context', () => refreshMainLLMContextEstimate());
 
     $(document).on('click', '#sc_export', function () {
         const store = getChatStore();

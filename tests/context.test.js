@@ -103,6 +103,64 @@ describe('context.js facade', () => {
         expect(contextFacade.getRequestHeaders()).toEqual({ 'Content-Type': 'application/json' });
     });
 
+    it('estimateMainPromptTokens captures and counts a dry-run text prompt', async () => {
+        const eventSource = makeEventSource();
+        const getTokenCountAsync = vi.fn(async (text, padding) => String(text).length + padding);
+        const generate = vi.fn(async (_type, _options, dryRun) => {
+            await eventSource.emit('generate_after_data', { prompt: 'hello world' }, dryRun);
+        });
+        installSillyTavernStub({
+            eventSource,
+            eventTypes: { GENERATE_AFTER_DATA: 'generate_after_data' },
+            generate,
+            getTokenCountAsync,
+            powerUserSettings: { token_padding: 2 },
+        });
+
+        await expect(contextFacade.estimateMainPromptTokens()).resolves.toBe(13);
+        expect(generate).toHaveBeenCalledWith('normal', expect.any(Object), true);
+        expect(getTokenCountAsync).toHaveBeenCalledWith('hello world', 2);
+    });
+
+    it('estimateMainPromptTokens counts chat prompts with ST tokenizer endpoint', async () => {
+        const eventSource = makeEventSource();
+        const messages = [{ role: 'system', content: 'prompt' }];
+        const generate = vi.fn(async (_type, _options, dryRun) => {
+            await eventSource.emit('generate_after_data', { prompt: messages }, dryRun);
+        });
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ token_count: 77 }),
+        }));
+        installSillyTavernStub({
+            eventSource,
+            eventTypes: { GENERATE_AFTER_DATA: 'generate_after_data' },
+            generate,
+            getRequestHeaders: () => ({ 'Content-Type': 'application/json', 'X-CSRF': 'token' }),
+            getTokenizerModel: () => 'gpt-4o',
+        });
+
+        try {
+            await expect(contextFacade.estimateMainPromptTokens()).resolves.toBe(77);
+            expect(globalThis.fetch).toHaveBeenCalledWith(
+                '/api/tokenizers/openai/count?model=gpt-4o',
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify(messages),
+                }),
+            );
+        } finally {
+            globalThis.fetch = previousFetch;
+        }
+    });
+
+    it('estimateMainPromptTokens returns null when dry-run hooks are unavailable', async () => {
+        installSillyTavernStub({});
+
+        await expect(contextFacade.estimateMainPromptTokens()).resolves.toBeNull();
+    });
+
     it('detects send button stop mode defensively', () => {
         globalThis.$ = vi.fn((selector) => {
             if (selector === '#mes_stop') {
@@ -128,3 +186,26 @@ describe('context.js facade', () => {
         expect(contextFacade.isSendButtonInStopMode()).toBe(false);
     });
 });
+
+function makeEventSource() {
+    const listeners = new Map();
+    return {
+        on(eventName, handler) {
+            const eventListeners = listeners.get(eventName) || [];
+            eventListeners.push(handler);
+            listeners.set(eventName, eventListeners);
+        },
+        removeListener(eventName, handler) {
+            const eventListeners = listeners.get(eventName) || [];
+            listeners.set(
+                eventName,
+                eventListeners.filter((listener) => listener !== handler),
+            );
+        },
+        async emit(eventName, ...args) {
+            for (const listener of listeners.get(eventName) || []) {
+                await listener(...args);
+            }
+        },
+    };
+}

@@ -188,6 +188,7 @@ export function makeContext({
     saveChat,
     setExtensionPrompt = () => {},
     getTokenCountAsync,
+    ...rest
 } = {}) {
     const ctx = {
         chat,
@@ -198,6 +199,7 @@ export function makeContext({
         saveMetadata: async () => {},
         executeSlashCommandsWithOptions,
         setExtensionPrompt,
+        ...rest,
     };
     if (saveChat) {
         ctx.saveChat = saveChat;

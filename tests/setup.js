@@ -36,6 +36,7 @@ const foundationMocks = vi.hoisted(() => {
         setExtensionPrompt: vi.fn(),
         generateRaw: vi.fn(),
         callTokenCountAsync: vi.fn(),
+        estimateMainPromptTokens: vi.fn(),
         getRequestHeaders: vi.fn(),
         getPromptManager: vi.fn(),
         getConnectionManagerRequestService: vi.fn(),
@@ -106,6 +107,7 @@ const foundationMocks = vi.hoisted(() => {
             }
             return await ctx.getTokenCountAsync(text);
         });
+        context.estimateMainPromptTokens.mockImplementation(async () => null);
         context.getRequestHeaders.mockImplementation(() => {
             try {
                 const fn = getContext().getRequestHeaders;
@@ -126,7 +128,9 @@ const foundationMocks = vi.hoisted(() => {
         );
         context.getSlashCommand.mockImplementation(() => getContext().SlashCommand || null);
         context.getEventSource.mockImplementation(() => getContext().eventSource || null);
-        context.getEventTypes.mockImplementation(() => getContext().event_types || null);
+        context.getEventTypes.mockImplementation(
+            () => getContext().eventTypes || getContext().event_types || null,
+        );
         context.getStreamingProcessor.mockImplementation(
             () => getContext().streamingProcessor || null,
         );
