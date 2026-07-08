@@ -19,3 +19,4 @@ It replaces brute-force context stuffing with layered recursive summarization. I
 - **Do not act as a linter.** We use ESLint and Prettier.
 - Never run manual verification checks for linting/formatting unless explicitly asked. Rely on `npm run lint`, `npm run format`, and the husky pre-commit hooks (which automatically fix and re-stage).
 - Run `npm test` to verify behavior changes.
+- **Shell:** This repo runs on Windows. The shell is PowerShell 7+ (modern — `&&` and `||` work, but not bash heredocs, `tail`, `|`, or `;`). Use `;` to chain commands, `Get-Content -Tail` for tail, and pass multi-line strings via variables or single-line flags (e.g. `git commit -m "single line"`).
