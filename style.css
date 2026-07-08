@@ -409,6 +409,9 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
 }
+.sc-ui-mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 .sc-mode-card {
     display: grid;
     grid-template-columns: 16px minmax(0, 1fr) auto;
@@ -420,6 +423,9 @@
     border: 1px solid var(--sc-border);
     border-radius: 7px;
     background: rgba(0, 0, 0, 0.08);
+}
+.sc-off-panel {
+    border-color: color-mix(in srgb, var(--sc-warning) 42%, var(--sc-border));
 }
 .sc-mode-card:has(input:checked) {
     border-color: color-mix(in srgb, var(--sc-accent) 58%, var(--sc-border));

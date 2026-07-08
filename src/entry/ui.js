@@ -1,7 +1,7 @@
-import { MEMORY_MODES, MEMORY_POSITIONS } from '../foundation/constants.js';
+import { MEMORY_MODES, MEMORY_POSITIONS, UI_MODES } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
-import { getSettings, getChatStore } from '../foundation/state.js';
+import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
@@ -31,9 +31,10 @@ const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [d
 export async function updateUI() {
     try {
         const s = getSettings();
+        const effectiveSettings = getEffectiveSettings();
         const store = getChatStore();
 
-        syncSettingsInputs(s);
+        syncSettingsInputs(s, effectiveSettings);
         syncEnabledContent(s);
 
         $('#sc_summarizer_system_prompt_preset').val(s.summarizerSystemPromptPreset);
@@ -52,10 +53,12 @@ export async function updateUI() {
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
         syncConnectionInputs(s);
 
-        await renderOverview(s, store);
-        await renderBudgetStatus(s, store);
-        await renderCacheStatus(s, store);
-        renderLayerStats(s, store);
+        await renderOverview(effectiveSettings, store);
+        await renderEasyOverview(effectiveSettings, store);
+        await renderBudgetStatus(effectiveSettings, store);
+        await renderEasyBudgetStatus(effectiveSettings, store);
+        await renderCacheStatus(effectiveSettings, store);
+        renderLayerStats(effectiveSettings, store);
         await renderPreview();
         updateSnippetBrowser();
     } catch (e) {
@@ -66,10 +69,17 @@ export async function updateUI() {
 /**
  * Sync all static settings inputs from the settings object.
  * @param {ReturnType<typeof getSettings>} s
+ * @param {ReturnType<typeof getEffectiveSettings>} effectiveSettings
  * @returns {void}
  */
-function syncSettingsInputs(s) {
+function syncSettingsInputs(s, effectiveSettings) {
     $('#sc_enabled').prop('checked', s.enabled);
+    $(`input[name="sc_ui_mode"][value="${s.uiMode}"]`).prop('checked', true);
+    $('#sc_easy_connection_source').val(s.easyConnectionSource || 'default');
+    $('#sc_easy_connection_profile').val(s.easyConnectionProfileId || '');
+    $('#sc_easy_merge_connection_source').val(s.easyMergeConnectionSource || 'inherit');
+    $('#sc_easy_merge_connection_profile').val(s.easyMergeConnectionProfileId || '');
+    $(`input[name="sc_easy_memory_mode"][value="${s.easyMemoryMode}"]`).prop('checked', true);
     $(`input[name="sc_memory_mode"][value="${s.memoryMode}"]`).prop('checked', true);
     $('#sc_custom_memory_position').val(s.customMemoryPosition);
     $('#sc_custom_memory_role').val(s.customMemoryRole);
@@ -82,13 +92,17 @@ function syncSettingsInputs(s) {
     $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
     $('#sc_promotion_repair_prompt').val(s.promotionRepairPrompt);
-    syncPayloadSchematic(s);
+    syncPayloadSchematic(effectiveSettings);
+    syncEasyPayloadSchematic(effectiveSettings);
     syncMemoryModeControls(s);
     syncLLMContextPreview(s);
+    syncEasyConnectionPanels(s);
 }
 
 function syncEnabledContent(s) {
-    $('#sc_enabled_content').toggle(Boolean(s.enabled));
+    $('#sc_off_content').toggle(s.uiMode === UI_MODES.OFF);
+    $('#sc_easy_content').toggle(s.uiMode === UI_MODES.EASY);
+    $('#sc_enabled_content').toggle(s.uiMode === UI_MODES.ADVANCED);
 }
 
 /**
@@ -96,7 +110,7 @@ function syncEnabledContent(s) {
  * @param {ReturnType<typeof getSettings>} [s]
  * @returns {void}
  */
-export function syncPayloadSchematic(s = getSettings()) {
+export function syncPayloadSchematic(s = getEffectiveSettings()) {
     const isCache = s.memoryMode === MEMORY_MODES.CACHE;
 
     $('#sc_payload_memory_budget').text(formatBudgetTokenLabel(s.memoryTokenBudget));
@@ -107,12 +121,17 @@ export function syncPayloadSchematic(s = getSettings()) {
     $('#sc_payload_tail_part').css('display', isCache ? 'contents' : 'none');
 }
 
+function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
+    $('#sc_easy_payload_memory_budget').text(formatBudgetTokenLabel(s.memoryTokenBudget));
+    $('#sc_easy_payload_verbatim_budget').text(formatBudgetTokenLabel(s.verbatimTokenBudget));
+}
+
 /**
  * Sync read-only LLM call context preview.
  * @param {ReturnType<typeof getSettings>} [s]
  * @returns {void}
  */
-export function syncLLMContextPreview(s = getSettings()) {
+export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const maxL0Source = Number.isFinite(Number(s.maxL0SourceTokens))
         ? Number(s.maxL0SourceTokens)
         : 8000;
@@ -169,6 +188,10 @@ function getContextColorClass(tokens) {
  */
 function syncConnectionInputs(s) {
     syncDataSettingElements(CONNECTION_DATA_SETTING_SELECTOR, s);
+    $('#sc_easy_connection_source').val(s.easyConnectionSource || 'default');
+    $('#sc_easy_connection_profile').val(s.easyConnectionProfileId || '');
+    $('#sc_easy_merge_connection_source').val(s.easyMergeConnectionSource || 'inherit');
+    $('#sc_easy_merge_connection_profile').val(s.easyMergeConnectionProfileId || '');
     $('#summaryception_connection_source').val(s.connectionSource || 'default');
     $('#summaryception_connection_profile').val(s.connectionProfileId);
     $('#summaryception_ollama_model').val(s.ollamaModel);
@@ -178,6 +201,11 @@ function syncConnectionInputs(s) {
     $('#summaryception_fallback_connection_source').val(s.fallbackConnectionSource || 'disabled');
     $('#summaryception_fallback_connection_profile').val(s.fallbackConnectionProfileId);
     $('#summaryception_fallback_ollama_model').val(s.fallbackOllamaModel);
+}
+
+function syncEasyConnectionPanels(s) {
+    $('#sc_easy_profile_settings').toggle(s.easyConnectionSource === 'profile');
+    $('#sc_easy_merge_profile_settings').toggle(s.easyMergeConnectionSource === 'profile');
 }
 
 async function renderOverview(s, store) {
@@ -192,8 +220,24 @@ async function renderOverview(s, store) {
     $('#sc_status_index').text(String(store.summarizedUpTo ?? -1));
 }
 
+async function renderEasyOverview(s, store) {
+    const metrics = getLayerMetrics(store);
+    const ghostedCount = getGhostedCount();
+
+    $('#sc_easy_status_mode').text(getModeLabel(s));
+    $('#sc_easy_status_worker').text(await getWorkerLabel(s, store));
+    $('#sc_easy_status_snippets').text(String(metrics.totalSnippets));
+    $('#sc_easy_status_ghosted').text(String(ghostedCount));
+}
+
 function getModeLabel(s) {
-    return s.enabled ? 'Enabled' : 'Disabled';
+    if (s.uiMode === UI_MODES.EASY) {
+        return 'Easy';
+    }
+    if (s.uiMode === UI_MODES.ADVANCED) {
+        return 'Advanced';
+    }
+    return 'Off';
 }
 
 async function getWorkerLabel(s, store) {
@@ -325,6 +369,14 @@ async function renderBudgetStatus(s, store) {
     await renderMemoryBudget(s, store);
 }
 
+async function renderEasyBudgetStatus(s, store) {
+    await renderMemoryBudget(s, store, {
+        total: '#sc_easy_memory_budget_total',
+        bar: '#sc_easy_memory_budget_bar',
+        legend: '#sc_easy_memory_budget_legend',
+    });
+}
+
 async function renderVerbatimBudget(s, store) {
     try {
         const view = buildContextBudgetViewModel({
@@ -347,7 +399,15 @@ async function renderVerbatimBudget(s, store) {
     }
 }
 
-async function renderMemoryBudget(s, store) {
+async function renderMemoryBudget(
+    s,
+    store,
+    targets = {
+        total: '#sc_memory_budget_total',
+        bar: '#sc_memory_budget_bar',
+        legend: '#sc_memory_budget_legend',
+    },
+) {
     try {
         const usage = await getEffectiveMemoryUsage(store.layers, s);
         const view = buildContextBudgetViewModel({
@@ -355,18 +415,10 @@ async function renderMemoryBudget(s, store) {
             verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
             layers: orderMemoryBudgetParts(usage.parts),
         });
-        renderBudgetView(view, {
-            total: '#sc_memory_budget_total',
-            bar: '#sc_memory_budget_bar',
-            legend: '#sc_memory_budget_legend',
-        });
+        renderBudgetView(view, targets);
     } catch (e) {
         warn('Memory budget render error:', e);
-        clearBudgetView(
-            '#sc_memory_budget_total',
-            '#sc_memory_budget_bar',
-            '#sc_memory_budget_legend',
-        );
+        clearBudgetView(targets.total, targets.bar, targets.legend);
     }
 }
 

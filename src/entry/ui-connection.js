@@ -14,6 +14,22 @@ const CONNECTION_DATA_SETTING_SELECTOR = '#summaryception_connection_settings [d
 
 const CONNECTION_ROUTE_BINDINGS = Object.freeze([
     {
+        sourceId: 'sc_easy_connection_source',
+        sourceKey: 'easyConnectionSource',
+        sourceFallback: 'default',
+        profileId: 'sc_easy_connection_profile',
+        profileKey: 'easyConnectionProfileId',
+        updatePanels: updateEasyConnectionSubPanels,
+    },
+    {
+        sourceId: 'sc_easy_merge_connection_source',
+        sourceKey: 'easyMergeConnectionSource',
+        sourceFallback: 'inherit',
+        profileId: 'sc_easy_merge_connection_profile',
+        profileKey: 'easyMergeConnectionProfileId',
+        updatePanels: updateEasyMergeConnectionSubPanels,
+    },
+    {
         sourceId: 'summaryception_connection_source',
         sourceKey: 'connectionSource',
         sourceFallback: 'default',
@@ -60,6 +76,8 @@ export function initConnectionUI() {
     bindConnectionButton('summaryception_merge_ollama_refresh', refreshOllamaModels);
     bindConnectionButton('summaryception_fallback_ollama_refresh', refreshOllamaModels);
 
+    updateEasyConnectionSubPanels(settings.easyConnectionSource || 'default');
+    updateEasyMergeConnectionSubPanels(settings.easyMergeConnectionSource || 'inherit');
     updateConnectionSubPanels(settings.connectionSource || 'default');
     updateMergeConnectionSubPanels(settings.mergeConnectionSource || 'inherit');
     updateFallbackConnectionSubPanels(settings.fallbackConnectionSource || 'disabled');
@@ -181,6 +199,20 @@ function bindConnectionButton(elementId, handler) {
  */
 export function updateConnectionSubPanels(source) {
     toggleRouteSubPanels('', source);
+}
+
+/**
+ *
+ */
+export function updateEasyConnectionSubPanels(source) {
+    $('#sc_easy_profile_settings').toggle(source === 'profile');
+}
+
+/**
+ *
+ */
+export function updateEasyMergeConnectionSubPanels(source) {
+    $('#sc_easy_merge_profile_settings').toggle(source === 'profile');
 }
 
 /**

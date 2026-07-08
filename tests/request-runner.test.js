@@ -43,6 +43,33 @@ afterEach(() => {
 });
 
 describe('hard network failure fast-failover', () => {
+    it('blocks oversized Easy mode requests before provider calls', async () => {
+        mocks.resolveFallback.mockReturnValue({ connectionSource: 'fallback' });
+
+        const { RequestRunner } = await import('../src/core/request-runner.js');
+        const runner = new RequestRunner();
+
+        const result = await runner.run({
+            settings: {
+                uiMode: 'easy',
+                easySummarizerContextTokens: 8,
+                connectionSource: 'default',
+            },
+            systemPrompt: 'system prompt that is too long',
+            prompt: 'user prompt that is also too long',
+            signal: new AbortController().signal,
+            metadata: { kind: 'layer0', sourceRange: [1, 2] },
+        });
+
+        expect(result).toBe('');
+        expect(mocks.sendSummarizerRequest).not.toHaveBeenCalled();
+        expect(globalThis.toastr.error).toHaveBeenCalledWith(
+            expect.stringContaining('Easy mode blocked L0 turns 1-2'),
+            'Summaryception',
+            { timeOut: 10000 },
+        );
+    });
+
     it('does not retry on "failed to fetch" and moves to fallback', async () => {
         mocks.sendSummarizerRequest.mockRejectedValueOnce(new TypeError('Failed to fetch'));
         mocks.resolveFallback.mockReturnValue({ connectionSource: 'fallback' });

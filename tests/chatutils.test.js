@@ -5,6 +5,7 @@ import { countTokens, makeMessage } from './test-helpers.js';
 vi.mock('../src/foundation/state.js', () => ({
     getChatStore: vi.fn(() => ({ layers: [] })),
     getSettings: vi.fn(() => ({ applyRegexScripts: false })),
+    getEffectiveSettings: vi.fn(() => ({ applyRegexScripts: false })),
 }));
 
 vi.mock('../src/core/regex-proxy.js', () => ({
@@ -16,6 +17,7 @@ let getTokenCountAsync;
 beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: false });
+    vi.mocked(getEffectiveSettings).mockReturnValue({ applyRegexScripts: false });
     vi.mocked(applyRegexToMessage).mockImplementation(async (text) => text);
     getTokenCountAsync = vi.fn(async (text) => countTokens(text));
     globalThis.SillyTavern = {
@@ -25,7 +27,7 @@ beforeEach(() => {
     };
 });
 
-import { getSettings } from '../src/foundation/state.js';
+import { getEffectiveSettings, getSettings } from '../src/foundation/state.js';
 import { applyRegexToMessage } from '../src/core/regex-proxy.js';
 import {
     findLastMessage,
@@ -213,7 +215,7 @@ describe('buildPassageFromRangeWithStats', () => {
     });
 
     it('reports saved tokens when regex shrinks rendered text', async () => {
-        vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
+        vi.mocked(getEffectiveSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('visible');
 
         const chat = [makeMessage({ mes: 'visible hidden' })];
@@ -234,7 +236,7 @@ describe('buildPassageFromRangeWithStats', () => {
     });
 
     it('reports negative saved tokens when regex expands rendered text', async () => {
-        vi.mocked(getSettings).mockReturnValue({ applyRegexScripts: true });
+        vi.mocked(getEffectiveSettings).mockReturnValue({ applyRegexScripts: true });
         vi.mocked(applyRegexToMessage).mockResolvedValue('short expanded');
 
         const chat = [makeMessage({ mes: 'short' })];
@@ -264,6 +266,7 @@ describe('buildFullContext', () => {
         vi.resetModules();
         vi.doMock('../src/foundation/state.js', () => ({
             getSettings: () => ({ applyRegexScripts: false }),
+            getEffectiveSettings: () => ({ applyRegexScripts: false }),
             getChatStore: () => ({
                 layers: [[{ text: 'tip 1' }, { text: 'tip 2' }], [{ text: 'meta 1' }]],
             }),

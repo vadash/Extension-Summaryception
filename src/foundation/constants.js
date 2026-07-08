@@ -17,6 +17,24 @@ export const MEMORY_MODES = Object.freeze({
     CUSTOM: 'custom',
 });
 
+export const UI_MODES = Object.freeze({
+    OFF: 'off',
+    EASY: 'easy',
+    ADVANCED: 'advanced',
+});
+
+export const EASY_CONTEXT_LIMITS = Object.freeze({
+    MIN: 8000,
+    MAX: 64000,
+    STEP: 1000,
+});
+
+export const EASY_MEMORY_LIMITS = Object.freeze({
+    MIN: 4000,
+    MAX: 16000,
+    STEP: 1000,
+});
+
 export const MEMORY_POSITIONS = Object.freeze({
     BEFORE_PROMPT: 'before_prompt',
     IN_PROMPT: 'in_prompt',
@@ -47,6 +65,14 @@ export const INTERNAL_MAX_LAYER_DEPTH = 20;
 
 export const defaultSettings = Object.freeze({
     enabled: true,
+    uiMode: UI_MODES.EASY,
+    easySummarizerContextTokens: 16000,
+    easyMemoryTokenBudget: 10000,
+    easyMemoryMode: MEMORY_MODES.STANDARD,
+    easyConnectionSource: 'default', // 'default' | 'profile'
+    easyConnectionProfileId: '',
+    easyMergeConnectionSource: 'inherit', // 'inherit' | 'profile'
+    easyMergeConnectionProfileId: '',
     memoryMode: MEMORY_MODES.STANDARD,
     customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
     customMemoryRole: MEMORY_ROLES.SYSTEM,

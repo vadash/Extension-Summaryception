@@ -1,4 +1,4 @@
-import { getSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ const STATE_HEADER_RE = /^\s*\[STATE\]\s*$/i;
 export function cleanSummarizerOutput(raw, options = {}) {
     let text = raw;
 
-    const s = getSettings();
+    const s = getEffectiveSettings();
 
     // Remove configurable strip patterns
     for (const pattern of s.stripPatterns || []) {

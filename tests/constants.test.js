@@ -12,6 +12,7 @@ import {
     DEFAULT_PROMPT_PRESET,
     DEFAULT_PROMOTION_PROMPT_PRESET,
     RETRY_CONFIG,
+    UI_MODES,
 } from '../src/foundation/constants.js';
 
 describe('constants', () => {
@@ -29,6 +30,12 @@ describe('constants', () => {
 
     it('provides sane dynamic verbatim window defaults', () => {
         expect(defaultSettings.memoryMode).toBe('standard');
+        expect(defaultSettings.uiMode).toBe(UI_MODES.EASY);
+        expect(defaultSettings.easySummarizerContextTokens).toBe(16000);
+        expect(defaultSettings.easyMemoryTokenBudget).toBe(10000);
+        expect(defaultSettings.easyMemoryMode).toBe('standard');
+        expect(defaultSettings.easyConnectionSource).toBe('default');
+        expect(defaultSettings.easyMergeConnectionSource).toBe('inherit');
         expect(defaultSettings.customMemoryPosition).toBe('in_prompt');
         expect(defaultSettings.customMemoryRole).toBe('system');
         expect(defaultSettings.customMemoryDepth).toBe(0);

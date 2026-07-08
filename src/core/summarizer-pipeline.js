@@ -1,6 +1,6 @@
 import { defaultSettings } from '../foundation/constants.js';
 import { warn, isTraceEnabled, trace } from '../foundation/logger.js';
-import { getPlayerName, getSettings } from '../foundation/state.js';
+import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import {
     applyChineseOutputPolicy,
@@ -22,7 +22,7 @@ export async function buildSummarizerPipelineInput(
     storyTxt,
     contextStr,
     metadata = {},
-    settings = getSettings(),
+    settings = getEffectiveSettings(),
 ) {
     const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);

@@ -31,6 +31,51 @@ afterEach(() => {
 });
 
 describe('ui prompt/reset events', () => {
+    it('saves top-level Off/Easy/Advanced mode changes', async () => {
+        const settings = structuredClone(defaultSettings);
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness();
+
+        ui.element('#sc_mode_off').val('off');
+        ui.trigger('change', 'input[name="sc_ui_mode"]', ui.element('#sc_mode_off'));
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            uiMode: 'off',
+            enabled: false,
+        });
+        expect(mocks.updateInjection).toHaveBeenCalledOnce();
+
+        ui.element('#sc_mode_advanced').val('advanced');
+        ui.trigger('change', 'input[name="sc_ui_mode"]', ui.element('#sc_mode_advanced'));
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            uiMode: 'advanced',
+            enabled: true,
+        });
+    });
+
+    it('saves Easy slider settings without touching advanced budgets', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.maxL0SourceTokens = 4000;
+        settings.memoryTokenBudget = 32000;
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness(
+            makeSliderHarnessOptions(['easyContext', 'easyMemory']),
+        );
+
+        ui.element('#sc_easy_summarizer_context').val('31500');
+        ui.trigger('input', '#sc_easy_summarizer_context');
+        ui.element('#sc_easy_memory_token_budget_val').val('12k');
+        ui.trigger('change', '#sc_easy_memory_token_budget_val');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            easySummarizerContextTokens: 32000,
+            easyMemoryTokenBudget: 12000,
+            maxL0SourceTokens: 4000,
+            memoryTokenBudget: 32000,
+        });
+    });
+
     it('saves simple checkbox settings through shared bindings', async () => {
         const settings = structuredClone(defaultSettings);
         const ctx = installSillyTavernStub({ settings });
@@ -354,6 +399,22 @@ function makeSliderHarnessOptions(names) {
             min: '3',
             max: '20',
             step: '1',
+        }),
+        easyContext: sliderFixture({
+            id: 'sc_easy_summarizer_context',
+            partner: '#sc_easy_summarizer_context_val',
+            key: 'easySummarizerContextTokens',
+            min: '8000',
+            max: '64000',
+            step: '1000',
+        }),
+        easyMemory: sliderFixture({
+            id: 'sc_easy_memory_token_budget',
+            partner: '#sc_easy_memory_token_budget_val',
+            key: 'easyMemoryTokenBudget',
+            min: '4000',
+            max: '16000',
+            step: '1000',
         }),
     };
 

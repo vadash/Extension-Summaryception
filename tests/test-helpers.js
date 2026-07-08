@@ -41,6 +41,14 @@ export function makeLongMessages(count, length = 3000) {
 export function makeSummarySettings(overrides = {}) {
     return {
         enabled: true,
+        uiMode: 'advanced',
+        easySummarizerContextTokens: 16000,
+        easyMemoryTokenBudget: 10000,
+        easyMemoryMode: 'standard',
+        easyConnectionSource: 'default',
+        easyConnectionProfileId: '',
+        easyMergeConnectionSource: 'inherit',
+        easyMergeConnectionProfileId: '',
         memoryMode: 'standard',
         customMemoryPosition: 'in_prompt',
         customMemoryRole: 'system',

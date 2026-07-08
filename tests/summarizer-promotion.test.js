@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     installBrowserRuntimeStub,
-    installSillyTavernStub,
+    installSillyTavernStub as installBaseSillyTavernStub,
     makeSummaryStore,
 } from './test-helpers.js';
 import { parseSnippet } from '../src/core/summarizer-state.js';
@@ -23,6 +23,14 @@ beforeEach(async () => {
     installBrowserRuntimeStub();
     mocks.callSummarizer.mockResolvedValue(VALID_PROMOTION_SUMMARY);
 });
+
+function installSillyTavernStub(options = {}) {
+    const settings =
+        options.settings && !Object.hasOwn(options.settings, 'uiMode')
+            ? { uiMode: 'advanced', enabled: true, ...options.settings }
+            : options.settings;
+    return installBaseSillyTavernStub({ ...options, settings });
+}
 
 describe('promotion prompt guard', () => {
     it('updates injection for queued promotion commits only after unfreeze', async () => {

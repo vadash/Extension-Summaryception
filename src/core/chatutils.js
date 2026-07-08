@@ -1,4 +1,4 @@
-import { getChatStore, getSettings } from '../foundation/state.js';
+import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { buildMemoryInjection } from './memory-injection.js';
 import { countMessageTokens } from './token-count.js';
@@ -187,7 +187,7 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
     let rawTokensEstimated = false;
     let finalTokensEstimated = false;
     const promptDepths = getPromptDepthsByChatIndex(chat);
-    const applyRegexScripts = getSettings().applyRegexScripts;
+    const applyRegexScripts = getEffectiveSettings().applyRegexScripts;
 
     for (let i = startIdx; i <= endIdx; i++) {
         const m = chat[i];

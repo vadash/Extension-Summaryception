@@ -2,7 +2,7 @@ import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import {
     bumpSummaryStoreMutationEpoch,
-    getSettings,
+    getEffectiveSettings,
     getChatStore,
     saveChatStore,
 } from '../foundation/state.js';
@@ -45,7 +45,7 @@ const MIN_PROMOTION_COMPRESSION_SAVINGS = 0.25;
  * @returns {Promise<boolean>} True when promotion work applied or queued.
  */
 export async function maybePromoteLayer(layerIndex = 0) {
-    const s = getSettings();
+    const s = getEffectiveSettings();
     const candidate = await getNextPromotionCandidate(layerIndex, s);
     if (!candidate) {
         return false;
@@ -71,7 +71,7 @@ export async function maybePromoteLayer(layerIndex = 0) {
  * @returns {Promise<boolean>}
  */
 export async function hasPromotionOverflow(startLayer = 0) {
-    return Boolean(await getNextPromotionCandidate(startLayer, getSettings()));
+    return Boolean(await getNextPromotionCandidate(startLayer, getEffectiveSettings()));
 }
 
 /**

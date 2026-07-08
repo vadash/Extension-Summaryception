@@ -9,6 +9,7 @@ import {
     bumpSummaryStoreMutationEpoch,
     calculateContiguousSummarizedUpTo,
     getChatStore,
+    getEffectiveSettings,
     getSummaryStoreMutationEpoch,
     getPlayerName,
     getSettings,
@@ -37,12 +38,74 @@ describe('state.js', () => {
         }
         expect(settings).toMatchObject({
             enabled: false,
+            uiMode: 'off',
             minSummaryTurns: 4,
             maxSummaryTurns: 7,
             minSummaryBudget: 8000,
             verbatimTokenBudget: 32000,
             memoryTokenBudget: 12000,
             mergeConnectionSource: 'inherit',
+        });
+    });
+
+    it('derives Easy effective settings without clobbering advanced tuning', () => {
+        installSillyTavernStub({
+            settings: {
+                uiMode: 'easy',
+                enabled: true,
+                easySummarizerContextTokens: 32000,
+                easyMemoryTokenBudget: 12000,
+                easyMemoryMode: 'cache',
+                easyConnectionSource: 'profile',
+                easyConnectionProfileId: 'fast-profile',
+                easyMergeConnectionSource: 'profile',
+                easyMergeConnectionProfileId: 'smart-profile',
+                memoryMode: 'custom',
+                maxL0SourceTokens: 2000,
+                minSummaryBudget: 2000,
+                memoryTokenBudget: 32000,
+                fallbackConnectionSource: 'profile',
+                fallbackConnectionProfileId: 'backup-profile',
+            },
+        });
+
+        const raw = getSettings();
+        const effective = getEffectiveSettings();
+
+        expect(raw).toMatchObject({
+            memoryMode: 'custom',
+            maxL0SourceTokens: 2000,
+            memoryTokenBudget: 32000,
+        });
+        expect(effective).toMatchObject({
+            enabled: true,
+            uiMode: 'easy',
+            memoryMode: 'cache',
+            verbatimTokenBudget: 32000,
+            memoryTokenBudget: 12000,
+            maxL0SourceTokens: 16000,
+            minSummaryBudget: 16000,
+            connectionSource: 'profile',
+            connectionProfileId: 'fast-profile',
+            mergeConnectionSource: 'profile',
+            mergeConnectionProfileId: 'smart-profile',
+            fallbackConnectionSource: 'profile',
+            fallbackConnectionProfileId: 'backup-profile',
+        });
+    });
+
+    it('clamps Easy sliders to safe ranges', () => {
+        installSillyTavernStub({
+            settings: {
+                uiMode: 'easy',
+                easySummarizerContextTokens: 999999,
+                easyMemoryTokenBudget: 100000,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            easySummarizerContextTokens: 64000,
+            easyMemoryTokenBudget: 16000,
         });
     });
 

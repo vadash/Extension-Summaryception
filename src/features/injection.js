@@ -7,7 +7,7 @@ import {
     MODULE_NAME,
 } from '../foundation/constants.js';
 import { setExtensionPrompt } from '../foundation/context.js';
-import { getChatStore, getSettings } from '../foundation/state.js';
+import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildEffectiveMemoryText } from '../core/memory-budget.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
@@ -20,7 +20,7 @@ import { countTextTokens, formatTokenCount } from '../core/token-count.js';
  * @returns {string} The assembled summary block, or '' if no snippets exist
  */
 export function assembleSummaryBlock() {
-    const s = getSettings();
+    const s = getEffectiveSettings();
     const store = getChatStore();
     return buildEffectiveMemoryText(store.layers, s);
 }
@@ -89,7 +89,7 @@ export function reassertInjectionSnapshot() {
  * @param {ExtensionSettings} [settings]
  * @returns {{ position: number, depth: number, scan: boolean, role: number }}
  */
-export function getMemoryInjectionOptions(settings = getSettings()) {
+export function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
     if (settings.memoryMode !== MEMORY_MODES.CUSTOM) {
         return getStandardInjectionOptions();
     }
@@ -110,7 +110,7 @@ export function getMemoryInjectionOptions(settings = getSettings()) {
  * @returns {string}
  */
 function buildEnabledInjectionText() {
-    const s = getSettings();
+    const s = getEffectiveSettings();
     if (!s.enabled) {
         return '';
     }

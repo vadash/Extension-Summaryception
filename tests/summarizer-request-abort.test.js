@@ -50,7 +50,7 @@ function customPromptSettings(settings) {
     if (Object.hasOwn(settings, 'promotionRepairPrompt')) {
         presets.promotionRepairPromptPreset = 'custom';
     }
-    return { ...presets, ...settings };
+    return { uiMode: 'advanced', enabled: true, ...presets, ...settings };
 }
 
 beforeEach(() => {

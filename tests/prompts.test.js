@@ -5,6 +5,7 @@ const getSettingsMock = vi.fn(() => ({ stripPatterns: ['<thinking>', '</thinking
 
 vi.mock('../src/foundation/state.js', () => ({
     getSettings: () => getSettingsMock(),
+    getEffectiveSettings: () => getSettingsMock(),
 }));
 
 function setStripPatterns(patterns) {
@@ -68,7 +69,7 @@ describe('cleanSummarizerOutput', () => {
     });
 });
 
-it('invokes getSettings to read strip patterns', () => {
+it('invokes effective settings to read strip patterns', () => {
     getSettingsMock.mockClear();
     setStripPatterns([]);
     cleanSummarizerOutput('test');

@@ -1,6 +1,6 @@
 import { MEMORY_MODES } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
-import { getChatStore, getSettings } from '../foundation/state.js';
+import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, info, trace } from '../foundation/logger.js';
 import { getCacheFriendlyPlan } from './cache-planner.js';
 import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summarizer-batch.js';
@@ -53,7 +53,7 @@ export async function runElasticAutoCycle(queue, { refreshUi } = {}) {
         return 'blocked';
     }
 
-    const s = getSettings();
+    const s = getEffectiveSettings();
     if (!s.enabled) {
         queue.setPhase('paused');
         return 'idle';
@@ -231,7 +231,7 @@ async function buildForceTask(options, strategy) {
 }
 
 async function buildSlopTask(options, strategy) {
-    const initialPlan = await getSlopBreakerPlan(getChat(), getChatStore(), getSettings());
+    const initialPlan = await getSlopBreakerPlan(getChat(), getChatStore(), getEffectiveSettings());
     if (initialPlan.reason !== 'ready') {
         return null;
     }
@@ -245,7 +245,9 @@ async function buildSlopTask(options, strategy) {
         options,
         targetIndex,
         getBatch: async () =>
-            await getSlopBreakerPlan(getChat(), getChatStore(), getSettings(), { targetIndex }),
+            await getSlopBreakerPlan(getChat(), getChatStore(), getEffectiveSettings(), {
+                targetIndex,
+            }),
         isBatchReady: (batch) => batch?.reason === 'ready',
         processBatch: strategy.processBatch,
         isComplete: strategy.isComplete,
@@ -354,7 +356,7 @@ async function processSlopBatch(plan) {
 }
 
 async function getForcePlan() {
-    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getSettings(), {
+    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getEffectiveSettings(), {
         ignoreReadiness: true,
     });
 
@@ -363,7 +365,7 @@ async function getForcePlan() {
 }
 
 function estimateForceBatches(plan) {
-    const batchLimit = Math.max(1, getSettings().maxSummaryTurns);
+    const batchLimit = Math.max(1, getEffectiveSettings().maxSummaryTurns);
     const readyTurns = plan.batchTurns.length + plan.softOverflowCount;
     return Math.max(1, Math.ceil(readyTurns / batchLimit));
 }

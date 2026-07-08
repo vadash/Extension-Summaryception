@@ -18,6 +18,10 @@ function countTokens(text) {
     return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
+function advancedSettings(settings = {}) {
+    return { uiMode: 'advanced', enabled: true, ...settings };
+}
+
 describe('assembleSummaryBlock', () => {
     it('returns an empty string when no layers contain snippets', async () => {
         installSillyTavernStub({
@@ -50,9 +54,9 @@ describe('assembleSummaryBlock', () => {
                     ],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: 'BEGIN\n{{summary}}\nEND',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -79,9 +83,9 @@ describe('assembleSummaryBlock', () => {
                     layers: [[{ text: 'recent summary' }]],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: 'custom prefix\n{{summary}}\ncustom suffix',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -109,9 +113,9 @@ describe('assembleSummaryBlock', () => {
                     ],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: '{{summary}}',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -141,9 +145,9 @@ describe('assembleSummaryBlock', () => {
                     ],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: '{{summary}}',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -169,9 +173,9 @@ describe('assembleSummaryBlock', () => {
                     ],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: '{{summary}}',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -200,9 +204,9 @@ describe('assembleSummaryBlock', () => {
                     ],
                 }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: '{{summary}}',
-            },
+            }),
         });
 
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
@@ -232,9 +236,9 @@ describe('assembleSummaryBlock', () => {
             metadata: {
                 summaryception: makeSummaryStore({ layers }),
             },
-            settings: {
+            settings: advancedSettings({
                 injectionTemplate: 'BEGIN\n{{summary}}\nEND',
-            },
+            }),
             getTokenCountAsync: async (text) => countTokens(text),
         });
 
@@ -267,9 +271,9 @@ describe('injection diagnostics', () => {
                     ghostedIndices: [],
                 },
             },
-            settings: {
+            settings: advancedSettings({
                 debugMode: true,
-            },
+            }),
             setExtensionPrompt,
         });
         ctx.getTokenCountAsync = vi.fn(async (text) => countTokens(text));

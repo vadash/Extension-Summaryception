@@ -102,14 +102,18 @@ const HELP_ENTRIES = [
     [
         'enabled',
         basicHelp({
-            selector: selectorFor('sc_enabled'),
-            title: 'Enable Summaryception',
-            short: 'Turn memory injection and automatic summarizing on.',
-            controls: [controlFor('sc_enabled')],
+            selector: selectorFor('sc_mode_easy'),
+            title: 'Summaryception Mode',
+            short: 'Choose Off, Easy, or Advanced operation.',
+            controls: [
+                controlFor('sc_mode_off'),
+                controlFor('sc_mode_easy'),
+                controlFor('sc_mode_advanced'),
+            ],
             controlsText:
-                'Controls whether committed Summaryception memory is injected and background summarizing can run.',
+                'Controls whether Summaryception is off, uses safe Easy controls, or exposes all Advanced settings.',
             when: 'when you want this chat to use layered memory.',
-            risk: 'turning it off stops new memory injection until it is enabled again.',
+            risk: 'Off stops memory injection and background summarizing until another mode is selected.',
         }),
     ],
     [

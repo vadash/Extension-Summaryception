@@ -1,4 +1,4 @@
-import { getSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 import { buildMemoryInjectionParts } from './memory-injection.js';
 import { countTextTokens } from './token-count.js';
 
@@ -27,7 +27,7 @@ import { countTextTokens } from './token-count.js';
  * @param {ExtensionSettings} [settings]
  * @returns {string}
  */
-export function buildEffectiveMemoryText(layers, settings = getSettings()) {
+export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings()) {
     const memory = buildMemoryInjectionParts(layers).memoryText;
     if (!memory) {
         return '';
@@ -41,7 +41,7 @@ export function buildEffectiveMemoryText(layers, settings = getSettings()) {
  * @param {ExtensionSettings} [settings]
  * @returns {Promise<EffectiveMemoryUsage>}
  */
-export async function getEffectiveMemoryUsage(layers, settings = getSettings()) {
+export async function getEffectiveMemoryUsage(layers, settings = getEffectiveSettings()) {
     const injectionParts = buildMemoryInjectionParts(layers);
     const text = injectionParts.memoryText
         ? String(settings.injectionTemplate || '{{summary}}').replace(

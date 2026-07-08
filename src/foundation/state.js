@@ -1,8 +1,11 @@
 import {
+    EASY_CONTEXT_LIMITS,
+    EASY_MEMORY_LIMITS,
     MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
+    UI_MODES,
     defaultSettings,
 } from './constants.js';
 import {
@@ -55,18 +58,36 @@ export function getSettings() {
         /** @type {unknown} */ (settings)
     );
     const defaultsRecord = /** @type {Record<string, unknown>} */ (defaultSettings);
+    const hadUiMode = Object.hasOwn(settings, 'uiMode');
     for (const key of Object.keys(defaultSettings)) {
         if (!Object.hasOwn(settings, key)) {
             settingsRecord[key] = defaultsRecord[key];
         }
     }
+    const modeSettingsNormalized = normalizeModeSettings(settings, hadUiMode);
     normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
-    if (promptSettingsNormalized) {
+    if (modeSettingsNormalized || promptSettingsNormalized) {
         saveSettingsDebounced();
     }
     return settings;
+}
+
+/**
+ * Get settings after applying the selected Easy/Advanced operating mode.
+ * Runtime code should use this when behavior must follow the visible mode.
+ * @returns {ExtensionSettings}
+ */
+export function getEffectiveSettings() {
+    const settings = getSettings();
+    if (settings.uiMode === UI_MODES.ADVANCED) {
+        return settings;
+    }
+    if (settings.uiMode === UI_MODES.OFF) {
+        return { ...settings, enabled: false };
+    }
+    return buildEasyEffectiveSettings(settings);
 }
 
 /**
@@ -159,6 +180,15 @@ function normalizeMemorySettings(settings) {
     if (!isSettingValue(Object.values(MEMORY_MODES), settings.memoryMode)) {
         settings.memoryMode = defaultSettings.memoryMode;
     }
+    if (!isSettingValue([MEMORY_MODES.STANDARD, MEMORY_MODES.CACHE], settings.easyMemoryMode)) {
+        settings.easyMemoryMode = defaultSettings.easyMemoryMode;
+    }
+    if (!isSettingValue(['default', 'profile'], settings.easyConnectionSource)) {
+        settings.easyConnectionSource = defaultSettings.easyConnectionSource;
+    }
+    if (!isSettingValue(['inherit', 'profile'], settings.easyMergeConnectionSource)) {
+        settings.easyMergeConnectionSource = defaultSettings.easyMergeConnectionSource;
+    }
     if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
     }
@@ -184,6 +214,18 @@ function isSettingValue(values, value) {
  * @returns {void}
  */
 function normalizeVerbatimWindowSettings(settings) {
+    settings.easySummarizerContextTokens = clampToStep(
+        settings.easySummarizerContextTokens,
+        EASY_CONTEXT_LIMITS.MIN,
+        EASY_CONTEXT_LIMITS.MAX,
+        EASY_CONTEXT_LIMITS.STEP,
+    );
+    settings.easyMemoryTokenBudget = clampToStep(
+        settings.easyMemoryTokenBudget,
+        EASY_MEMORY_LIMITS.MIN,
+        EASY_MEMORY_LIMITS.MAX,
+        EASY_MEMORY_LIMITS.STEP,
+    );
     settings.minSummaryTurns = clampInteger(settings.minSummaryTurns, 2, 10);
     settings.maxSummaryTurns = clampInteger(settings.maxSummaryTurns, 3, 20);
     settings.layer0SummaryTokenTarget = clampInteger(settings.layer0SummaryTokenTarget, 80, 500);
@@ -205,6 +247,79 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
     settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);
     settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
+}
+
+function normalizeModeSettings(settings, hadMode) {
+    if (!hadMode || !isSettingValue(Object.values(UI_MODES), settings.uiMode)) {
+        settings.uiMode = settings.enabled === false ? UI_MODES.OFF : defaultSettings.uiMode;
+    }
+
+    const nextEnabled = settings.uiMode !== UI_MODES.OFF;
+    const changed = !hadMode || settings.enabled !== nextEnabled;
+    settings.enabled = nextEnabled;
+    return changed;
+}
+
+function buildEasyEffectiveSettings(settings) {
+    const effective = /** @type {ExtensionSettings} */ ({
+        ...structuredClone(defaultSettings),
+        uiMode: UI_MODES.EASY,
+        enabled: true,
+        easySummarizerContextTokens: settings.easySummarizerContextTokens,
+        easyMemoryTokenBudget: settings.easyMemoryTokenBudget,
+        easyMemoryMode: settings.easyMemoryMode,
+        easyConnectionSource: settings.easyConnectionSource,
+        easyConnectionProfileId: settings.easyConnectionProfileId,
+        easyMergeConnectionSource: settings.easyMergeConnectionSource,
+        easyMergeConnectionProfileId: settings.easyMergeConnectionProfileId,
+    });
+
+    const sourceCap = deriveEasySourceCap(settings.easySummarizerContextTokens);
+    effective.maxL0SourceTokens = sourceCap;
+    effective.minSummaryBudget = sourceCap;
+    effective.memoryMode = settings.easyMemoryMode;
+    effective.verbatimTokenBudget =
+        settings.easyMemoryMode === MEMORY_MODES.CACHE
+            ? 32000
+            : defaultSettings.verbatimTokenBudget;
+    effective.memoryTokenBudget = settings.easyMemoryTokenBudget;
+    effective.connectionSource = settings.easyConnectionSource;
+    effective.connectionProfileId =
+        settings.easyConnectionSource === 'profile' ? settings.easyConnectionProfileId : '';
+    effective.mergeConnectionSource = settings.easyMergeConnectionSource;
+    effective.mergeConnectionProfileId =
+        settings.easyMergeConnectionSource === 'profile'
+            ? settings.easyMergeConnectionProfileId
+            : '';
+
+    copyFallbackRouteSettings(effective, settings);
+    return effective;
+}
+
+function deriveEasySourceCap(contextTokens) {
+    const context = clampToStep(
+        contextTokens,
+        EASY_CONTEXT_LIMITS.MIN,
+        EASY_CONTEXT_LIMITS.MAX,
+        EASY_CONTEXT_LIMITS.STEP,
+    );
+    return Math.min(16000, Math.max(2000, Math.floor(context * 0.5)));
+}
+
+function copyFallbackRouteSettings(effective, settings) {
+    if (settings.fallbackConnectionSource === 'disabled') {
+        return;
+    }
+    effective.ollamaUrl = settings.ollamaUrl;
+    effective.ollamaModelsCache = settings.ollamaModelsCache;
+    effective.openaiUrl = settings.openaiUrl;
+    effective.openaiKey = settings.openaiKey;
+    effective.fallbackConnectionSource = settings.fallbackConnectionSource;
+    effective.fallbackSummarizerResponseLength = settings.fallbackSummarizerResponseLength;
+    effective.fallbackConnectionProfileId = settings.fallbackConnectionProfileId;
+    effective.fallbackOllamaModel = settings.fallbackOllamaModel;
+    effective.fallbackOpenaiModel = settings.fallbackOpenaiModel;
+    effective.fallbackOpenaiMaxTokens = settings.fallbackOpenaiMaxTokens;
 }
 
 function normalizePromptSettings(settings) {

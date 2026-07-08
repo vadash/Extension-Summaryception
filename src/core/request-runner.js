@@ -1,4 +1,4 @@
-import { LOG_PREFIX } from '../foundation/constants.js';
+import { LOG_PREFIX, UI_MODES } from '../foundation/constants.js';
 import {
     debug,
     error as logError,
@@ -21,7 +21,7 @@ import {
     processSummarizerResponse,
     recordSuccessfulSummarizerUsage,
 } from './summarizer-pipeline.js';
-import { countTextTokens, formatTokenCount } from './token-count.js';
+import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 
 const PRIMARY_HEALTH_BUCKETS = {
     layer0: 'layer0',
@@ -281,6 +281,14 @@ export class RequestRunner {
         try {
             if (attempt > 0) {
                 debug(`${routeLabel} retry attempt ${attempt}/${maxRetries}`);
+            }
+
+            const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, metadata);
+            if (!guard.ok) {
+                const guardError = buildEasyContextGuardError(guard, metadata);
+                warn(guardError.message);
+                toastr.error(guardError.message, 'Summaryception', { timeOut: 10000 });
+                return buildAttemptFailure(guardError, false, 'easy-context-guard');
             }
 
             await traceSummarizerRequest({ settings, systemPrompt, prompt, metadata });
@@ -684,12 +692,26 @@ function abortWithToast() {
 }
 
 /**
+ * @typedef {Error & {
+ *   status?: number,
+ *   response?: { status?: number },
+ *   easyContextGuard?: boolean,
+ * }} SummarizerFailureError
+ */
+
+/**
  * Toast and log a terminal summarization failure.
- * @param {Error & { status?: number, response?: { status?: number } }} lastError
+ * @param {SummarizerFailureError} lastError
  * @param {{ retriesExhausted?: boolean }} [options]
  * @returns {string} Always ''
  */
 function failSummarization(lastError, { retriesExhausted = true } = {}) {
+    if (lastError?.easyContextGuard) {
+        logError('Summarization blocked by Easy context guard:', lastError);
+        trace('<<< EXITING callSummarizer WITH EASY CONTEXT GUARD');
+        return '';
+    }
+
     const status = lastError?.status || lastError?.response?.status || '';
     const retryText = retriesExhausted ? ` after ${RETRY_CONFIG.maxRetries} retries` : '';
     logError(`Summarization failed${retryText}:`, lastError);
@@ -700,6 +722,44 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
     );
     trace('<<< EXITING callSummarizer WITH FAILURE');
     return '';
+}
+
+async function checkEasyContextGuard(settings, systemPrompt, prompt, metadata = {}) {
+    if (settings.uiMode !== UI_MODES.EASY) {
+        return { ok: true };
+    }
+
+    const limit = Number(settings.easySummarizerContextTokens);
+    if (!Number.isFinite(limit) || limit <= 0) {
+        return { ok: true };
+    }
+
+    const requestText = `${systemPrompt || ''}\n\n${prompt || ''}`;
+    const tokens = await countTextTokens(requestText);
+    if (tokens.count <= limit) {
+        return { ok: true };
+    }
+
+    return {
+        ok: false,
+        limit,
+        tokens,
+        label: describePromptLogCall(metadata),
+    };
+}
+
+function buildEasyContextGuardError(guard, metadata = {}) {
+    const label = guard.label || describePromptLogCall(metadata);
+    const message =
+        `Easy mode blocked ${label}: summarizer request is ` +
+        `${formatTokenValue(guard.tokens.count, guard.tokens.estimated)} tokens, above the ` +
+        `${formatTokenValue(guard.limit)} Easy Summarizer Context cap. ` +
+        'Raise the Easy context slider or switch to Advanced.';
+    const error = /** @type {ConnectionError & { easyContextGuard?: boolean }} */ (
+        new ConnectionError(message, { retryable: false })
+    );
+    error.easyContextGuard = true;
+    return error;
 }
 
 /**

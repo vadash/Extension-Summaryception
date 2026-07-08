@@ -6,12 +6,14 @@ import {
     PROMPT_PRESETS,
     SUMMARIZER_REPAIR_PROMPT_PRESETS,
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
+    UI_MODES,
     defaultSettings,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { error, warn } from '../foundation/logger.js';
 import {
     bumpSummaryStoreMutationEpoch,
+    getEffectiveSettings,
     getSettings,
     saveSettings,
     getChatStore,
@@ -107,12 +109,37 @@ const PROMPT_FIELDS = [
  * @returns {void}
  */
 export function bindUIEvents() {
+    bindModeHandlers();
     bindToggleHandlers();
     bindMemoryModeHandlers();
     bindSliderHandlers();
     bindTextareaHandlers();
     bindClickHandlers();
     bindPromptProfileHandlers();
+}
+
+function bindModeHandlers() {
+    $(document).on('change', 'input[name="sc_ui_mode"]', function () {
+        const mode = String($(this).val());
+        if (!(/** @type {string[]} */ (Object.values(UI_MODES)).includes(mode))) {
+            return;
+        }
+
+        const s = getSettings();
+        if (s.uiMode === mode) {
+            return;
+        }
+
+        s.uiMode = mode;
+        s.enabled = mode !== UI_MODES.OFF;
+        saveSettings();
+        updateInjection();
+        updateUI();
+
+        if (s.enabled) {
+            requestAutoSummaryRefresh('mode changed');
+        }
+    });
 }
 
 /**
@@ -123,6 +150,7 @@ function bindToggleHandlers() {
     $(document).on('change', '#sc_enabled', function () {
         const s = getSettings();
         s.enabled = $(this).prop('checked');
+        s.uiMode = s.enabled ? UI_MODES.EASY : UI_MODES.OFF;
         saveSettings();
         updateInjection();
         updateUI();
@@ -157,6 +185,23 @@ function bindToggleHandlers() {
  * @returns {void}
  */
 function bindMemoryModeHandlers() {
+    $(document).on('change', 'input[name="sc_easy_memory_mode"]', function () {
+        const mode = String($(this).val());
+        if (mode !== MEMORY_MODES.STANDARD && mode !== MEMORY_MODES.CACHE) {
+            return;
+        }
+
+        const s = getSettings();
+        if (s.easyMemoryMode === mode) {
+            return;
+        }
+
+        s.easyMemoryMode = mode;
+        saveSettings();
+        updateInjection();
+        updateUI();
+    });
+
     $(document).on('change', 'input[name="sc_memory_mode"]', function () {
         const mode = String($(this).val());
         const s = getSettings();
@@ -173,6 +218,30 @@ function bindMemoryModeHandlers() {
 
     /** @type {Array<{ eventName: string, selector: string, key: string, read: (source: object) => unknown }>} */
     const customPlacementBindings = [
+        {
+            eventName: 'change',
+            selector: '#sc_easy_connection_source',
+            key: 'easyConnectionSource',
+            read: readString,
+        },
+        {
+            eventName: 'change',
+            selector: '#sc_easy_connection_profile',
+            key: 'easyConnectionProfileId',
+            read: readString,
+        },
+        {
+            eventName: 'change',
+            selector: '#sc_easy_merge_connection_source',
+            key: 'easyMergeConnectionSource',
+            read: readString,
+        },
+        {
+            eventName: 'change',
+            selector: '#sc_easy_merge_connection_profile',
+            key: 'easyMergeConnectionProfileId',
+            read: readString,
+        },
         {
             eventName: 'change',
             selector: '#sc_custom_memory_position',
@@ -196,12 +265,12 @@ function bindMemoryModeHandlers() {
     for (const binding of customPlacementBindings) {
         bindDocumentSetting({
             ...binding,
-            afterSave: refreshCustomMemoryPlacement,
+            afterSave: refreshEffectiveSettings,
         });
     }
 }
 
-function refreshCustomMemoryPlacement() {
+function refreshEffectiveSettings() {
     updateInjection();
     updateUI();
 }
@@ -258,9 +327,9 @@ function bindSliderHandlers() {
         beforeSave: (_settings, _value, _source, key) => enforceRetentionConstraints(key),
         afterSave: (settings) => {
             updateInjection();
-            syncPayloadSchematic(settings);
+            syncPayloadSchematic(getEffectiveSettings());
             syncMinSummaryBudgetSliderMax(settings);
-            syncLLMContextPreview(settings);
+            syncLLMContextPreview(getEffectiveSettings());
         },
     });
 
@@ -334,7 +403,7 @@ function cancelManualRun(controller) {
  * @returns {Promise<void>}
  */
 async function onForceSummarize() {
-    const s = getSettings();
+    const s = getEffectiveSettings();
     if (!s.enabled) {
         toastr.warning('Enable Summaryception first.');
         return;
@@ -395,7 +464,7 @@ async function onForceSummarize() {
  * @returns {Promise<void>}
  */
 async function onSlopBreaker() {
-    const s = getSettings();
+    const s = getEffectiveSettings();
     if (!s.enabled) {
         toastr.warning('Enable Summaryception first.');
         return;
@@ -642,10 +711,10 @@ function bindClickHandlers() {
         }
     });
 
-    $(document).on('click', '#sc_force_summarize', onForceSummarize);
-    $(document).on('click', '#sc_slop_breaker', onSlopBreaker);
+    $(document).on('click', '#sc_force_summarize, #sc_easy_force_summarize', onForceSummarize);
+    $(document).on('click', '#sc_slop_breaker, #sc_easy_slop_breaker', onSlopBreaker);
 
-    $(document).on('click', '#sc_stop_summarize', function () {
+    $(document).on('click', '#sc_stop_summarize, #sc_easy_stop_summarize', function () {
         if (!getIsSummarizing() && !hasActiveAbortController()) {
             toastr.info('Nothing is running.', 'Summaryception');
             return;

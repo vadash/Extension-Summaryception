@@ -1,5 +1,5 @@
 import { debug, trace } from '../foundation/logger.js';
-import { getSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 import { RequestRunner } from './request-runner.js';
 import { buildSummarizerPipelineInput, traceSummarizerInputTokens } from './summarizer-pipeline.js';
 
@@ -36,7 +36,7 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     trace('>>> ENTERING callSummarizer');
     await traceSummarizerInputTokens(storyTxt, contextStr);
 
-    const settings = getSettings();
+    const settings = getEffectiveSettings();
     trace('  settings loaded:', {
         connectionSource: settings.connectionSource,
         enabled: settings.enabled,

@@ -9,17 +9,217 @@
         </div>
         <div class="inline-drawer-content">
             <section class="sc-section sc-enable-section">
-                <div class="sc-toggle-list">
-                    <label class="checkbox_label sc-toggle-row" for="sc_enabled">
-                        <span class="sc-toggle-icon fa-solid fa-circle-check"></span>
+                <input type="checkbox" id="sc_enabled" class="sc-sr-only" />
+                <div class="sc-mode-grid sc-ui-mode-grid" role="radiogroup" aria-label="Summaryception mode">
+                    <label class="checkbox_label sc-mode-card" for="sc_mode_off">
+                        <span class="sc-toggle-icon fa-solid fa-power-off"></span>
                         <span class="sc-toggle-copy">
-                            <span class="sc-toggle-title">Enable Summaryception</span>
-                            <small class="sc-hint">Inject committed summary memory into the active chat.</small>
+                            <span class="sc-toggle-title">Off</span>
+                            <small class="sc-hint">No memory injection or background summarizing.</small>
                         </span>
-                        <input type="checkbox" id="sc_enabled" />
+                        <input type="radio" id="sc_mode_off" name="sc_ui_mode" value="off" />
+                    </label>
+                    <label class="checkbox_label sc-mode-card" for="sc_mode_easy">
+                        <span class="sc-toggle-icon fa-solid fa-gauge-high"></span>
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Easy</span>
+                            <small class="sc-hint">Safe context limits with the main controls visible.</small>
+                        </span>
+                        <input type="radio" id="sc_mode_easy" name="sc_ui_mode" value="easy" />
+                    </label>
+                    <label class="checkbox_label sc-mode-card" for="sc_mode_advanced">
+                        <span class="sc-toggle-icon fa-solid fa-sliders"></span>
+                        <span class="sc-toggle-copy">
+                            <span class="sc-toggle-title">Advanced</span>
+                            <small class="sc-hint">Full routing, prompts, diagnostics, and engine tuning.</small>
+                        </span>
+                        <input type="radio" id="sc_mode_advanced" name="sc_ui_mode" value="advanced" />
                     </label>
                 </div>
             </section>
+            <div id="sc_off_content" class="sc-section sc-off-panel" style="display: none;">
+                <div class="sc-section-header">
+                    <h4 class="sc-section-title">
+                        <span class="fa-solid fa-power-off"></span>
+                        Summaryception Off
+                    </h4>
+                </div>
+                <small class="sc-help-text">Memory injection and automatic summarizing are disabled. Existing summaries remain stored.</small>
+            </div>
+            <div id="sc_easy_content" style="display: none;">
+                <div class="sc-console-header" aria-label="Summaryception easy status">
+                    <span id="sc_easy_status_mode" class="sc-console-value">Easy</span>
+                    <span class="sc-status-separator" aria-hidden="true">·</span>
+                    <span id="sc_easy_status_worker" class="sc-console-value">Idle</span>
+                    <span class="sc-status-separator" aria-hidden="true">·</span>
+                    <span class="sc-console-value"><strong id="sc_easy_status_snippets">0</strong> snippets</span>
+                    <span class="sc-status-separator" aria-hidden="true">·</span>
+                    <span class="sc-console-value"><strong id="sc_easy_status_ghosted">0</strong> ghosted</span>
+                </div>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-plug"></span>
+                            Easy Setup
+                        </h4>
+                    </div>
+                    <div class="sc-settings-grid">
+                        <div class="sc-setting-row">
+                            <label for="sc_easy_connection_source">
+                                <span>Fast Summarizer</span>
+                                <small>Main route for raw chat summaries.</small>
+                            </label>
+                            <select id="sc_easy_connection_source" class="text_pole">
+                                <option value="default">Main API</option>
+                                <option value="profile">Connection Profile</option>
+                            </select>
+                        </div>
+                        <div class="sc-setting-row">
+                            <label for="sc_easy_merge_connection_source">
+                                <span>Smart Deep Memory</span>
+                                <small>Optional route for Layer 1+ merges.</small>
+                            </label>
+                            <select id="sc_easy_merge_connection_source" class="text_pole">
+                                <option value="inherit">Inherit Fast Summarizer</option>
+                                <option value="profile">Connection Profile</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="sc_easy_profile_settings" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="sc_easy_connection_profile">
+                                <span>Fast Summarizer Profile</span>
+                            </label>
+                            <select id="sc_easy_connection_profile" class="text_pole">
+                                <option value="">-- Select a Profile --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="sc_easy_merge_profile_settings" class="sc-sub-panel" style="display: none;">
+                        <div class="sc-setting-row">
+                            <label for="sc_easy_merge_connection_profile">
+                                <span>Smart Deep Memory Profile</span>
+                            </label>
+                            <select id="sc_easy_merge_connection_profile" class="text_pole">
+                                <option value="">-- Select a Profile --</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-shield-halved"></span>
+                            Context Limits
+                        </h4>
+                    </div>
+                    <div class="sc-tuning-grid">
+                        <div class="sc-tuning-group">
+                            <div class="sc-row">
+                                <label for="sc_easy_summarizer_context">
+                                    <span>Summarizer Context</span>
+                                    <small class="sc-hint">Maximum context window for summary model calls.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_easy_summarizer_context" min="8000" max="64000" step="1000" data-sc-slider-setting="easySummarizerContextTokens" data-sc-partner-input="#sc_easy_summarizer_context_val" />
+                                    <input id="sc_easy_summarizer_context_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="easySummarizerContextTokens" data-sc-partner-input="#sc_easy_summarizer_context" />
+                                </div>
+                            </div>
+                            <div class="sc-row">
+                                <label for="sc_easy_memory_token_budget">
+                                    <span>Injected Memory</span>
+                                    <small class="sc-hint">Maximum Summaryception memory added to the main chat prompt.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_easy_memory_token_budget" min="4000" max="16000" step="1000" data-sc-slider-setting="easyMemoryTokenBudget" data-sc-partner-input="#sc_easy_memory_token_budget_val" />
+                                    <input id="sc_easy_memory_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="10k" data-sc-slider-setting="easyMemoryTokenBudget" data-sc-partner-input="#sc_easy_memory_token_budget" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sc-tuning-group">
+                            <div class="sc-tuning-title">
+                                <span class="fa-solid fa-clock-rotate-left"></span>
+                                <span>Memory Style</span>
+                            </div>
+                            <div class="sc-radio-grid" role="radiogroup" aria-label="Easy Memory Style">
+                                <label class="checkbox_label sc-toggle-row" for="sc_easy_memory_mode_standard">
+                                    <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
+                                    <span class="sc-toggle-copy">
+                                        <span class="sc-toggle-title">Standard</span>
+                                        <small class="sc-hint">Continuous summaries with the regular live window.</small>
+                                    </span>
+                                    <input type="radio" id="sc_easy_memory_mode_standard" name="sc_easy_memory_mode" value="standard" />
+                                </label>
+                                <label class="checkbox_label sc-toggle-row" for="sc_easy_memory_mode_cache">
+                                    <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
+                                    <span class="sc-toggle-copy">
+                                        <span class="sc-toggle-title">Cache Friendly</span>
+                                        <small class="sc-hint">Stable memory prefix plus a larger live chat window.</small>
+                                    </span>
+                                    <input type="radio" id="sc_easy_memory_mode_cache" name="sc_easy_memory_mode" value="cache" />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-chart-pie"></span>
+                            Context Payload
+                        </h4>
+                    </div>
+                    <div class="sc-payload-rail" aria-label="Easy context payload order">
+                        <div class="sc-payload-part sc-payload-part-source">
+                            <span class="fa-solid fa-terminal"></span>
+                            <span>ST Context</span>
+                        </div>
+                        <span class="sc-payload-arrow fa-solid fa-arrow-right" aria-hidden="true"></span>
+                        <div class="sc-payload-part">
+                            <span class="fa-solid fa-layer-group"></span>
+                            <span>Memory</span>
+                            <strong id="sc_easy_payload_memory_budget">0</strong>
+                        </div>
+                        <span class="sc-payload-arrow fa-solid fa-arrow-right" aria-hidden="true"></span>
+                        <div class="sc-payload-part">
+                            <span class="fa-solid fa-message"></span>
+                            <span>Verbatim</span>
+                            <strong id="sc_easy_payload_verbatim_budget">0</strong>
+                        </div>
+                    </div>
+                    <div class="sc-section-header sc-budget-subheader">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-layer-group"></span>
+                            Injected Memory
+                        </h4>
+                        <span id="sc_easy_memory_budget_total" class="sc-context-total">0 / 0</span>
+                    </div>
+                    <div id="sc_easy_memory_budget_bar" class="sc-context-bar" aria-label="Easy injected memory token usage"></div>
+                    <div id="sc_easy_memory_budget_legend" class="sc-context-legend"></div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-bolt"></span>
+                            Operations
+                        </h4>
+                    </div>
+                    <div class="sc-button-row sc-action-row">
+                        <button id="sc_easy_force_summarize" class="menu_button" title="Summarize backlog outside the verbatim window. Keeps recent chat live.">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>Force Summarize</span>
+                        </button>
+                        <button id="sc_easy_slop_breaker" class="menu_button" title="Summarize the live context too. Use when the AI is stuck repeating patterns.">
+                            <i class="fa-solid fa-broom"></i>
+                            <span>Slop Breaker</span>
+                        </button>
+                        <button id="sc_easy_stop_summarize" class="menu_button menu_button_danger">
+                            <i class="fa-solid fa-stop"></i>
+                            <span>Stop</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
             <div id="sc_enabled_content">
             <div class="sc-console-header" aria-label="Summaryception status">
                 <span id="sc_status_enabled" class="sc-console-value">Disabled</span>
