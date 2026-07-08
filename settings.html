@@ -842,7 +842,7 @@
                                         <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_min_summary_budget" min="2000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
+                                        <input type="range" id="sc_min_summary_budget" min="2000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" data-sc-slider-max-setting="maxL0SourceTokens" />
                                         <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
                                     </div>
                                 </div>

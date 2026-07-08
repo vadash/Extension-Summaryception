@@ -330,10 +330,9 @@ function readStripPatterns($element) {
 function bindSliderHandlers() {
     bindSliderSettingPairs(SETTING_SLIDER_SELECTOR, {
         beforeSave: (_settings, _value, _source, key) => enforceRetentionConstraints(key),
-        afterSave: (settings) => {
+        afterSave: () => {
             updateInjection();
             syncPayloadSchematic(getEffectiveSettings());
-            syncMinSummaryBudgetSliderMax(settings);
             syncLLMContextPreview(getEffectiveSettings());
         },
     });
@@ -349,29 +348,9 @@ function enforceRetentionConstraints(changedKey) {
     if (s.maxSummaryTurns < s.minSummaryTurns) {
         s.maxSummaryTurns = s.minSummaryTurns;
     }
-    if (changedKey === 'maxL0SourceTokens') {
-        const cap = Number(s.maxL0SourceTokens);
-        if (Number.isFinite(cap) && s.minSummaryBudget > cap) {
-            s.minSummaryBudget = cap;
-        }
-    }
+    const cap = Number(s.maxL0SourceTokens);
     if (s.minSummaryBudget > s.maxL0SourceTokens) {
-        s.maxL0SourceTokens = s.minSummaryBudget;
-    }
-}
-
-function syncMinSummaryBudgetSliderMax(settings) {
-    const cap = Number(settings.maxL0SourceTokens);
-    if (!Number.isFinite(cap) || cap <= 0) {
-        return;
-    }
-    const $slider = $('#sc_min_summary_budget');
-    if ($slider.length) {
-        $slider.attr('max', String(cap));
-        const currentVal = Number($slider.val());
-        if (currentVal > cap) {
-            $slider.val(String(cap));
-        }
+        s.minSummaryBudget = Number.isFinite(cap) && cap > 0 ? cap : s.maxL0SourceTokens;
     }
 }
 

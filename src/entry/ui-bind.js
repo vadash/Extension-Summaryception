@@ -204,7 +204,12 @@ function collectSliderSettingBindings(selector) {
         if (!key || !partnerSelector || !sliderSelector) {
             return;
         }
-        bindings.push({ key, sliderSelector, partnerSelector });
+        bindings.push({
+            key,
+            sliderSelector,
+            partnerSelector,
+            maxSetting: readSliderMaxSettingKey($slider),
+        });
     });
     return bindings;
 }
@@ -217,6 +222,10 @@ function readPartnerInputSelector($element) {
     return String($element.attr('data-sc-partner-input') ?? '').trim();
 }
 
+function readSliderMaxSettingKey($element) {
+    return String($element.attr('data-sc-slider-max-setting') ?? '').trim();
+}
+
 function getIdSelector($element) {
     const id = String($element.attr('id') ?? '').trim();
     return id ? `#${id}` : '';
@@ -224,7 +233,9 @@ function getIdSelector($element) {
 
 function writeSliderSetting(binding, $source, options) {
     const settings = getSettings();
-    const value = normalizeSliderValue($source.val(), $(binding.sliderSelector));
+    const $slider = $(binding.sliderSelector);
+    applyDynamicSliderMax(binding, $slider, settings);
+    const value = normalizeSliderValue($source.val(), $slider);
     settings[binding.key] = value;
     options.beforeSave?.(settings, value, $source, binding.key);
     syncSliderSettingPairs(SETTING_SLIDER_SELECTOR, settings);
@@ -234,9 +245,21 @@ function writeSliderSetting(binding, $source, options) {
 
 function syncSliderSettingPair(binding, settings) {
     const $slider = $(binding.sliderSelector);
-    const value = settings[binding.key];
+    applyDynamicSliderMax(binding, $slider, settings);
+    const value = normalizeSliderValue(settings[binding.key], $slider);
     $slider.val(value);
     $(binding.partnerSelector).val(formatSliderChipValue(value, $slider));
+}
+
+function applyDynamicSliderMax(binding, $slider, settings) {
+    if (!binding.maxSetting) {
+        return;
+    }
+    const max = Number(settings[binding.maxSetting]);
+    if (!Number.isFinite(max) || max <= 0) {
+        return;
+    }
+    $slider.attr('max', String(max));
 }
 
 /**

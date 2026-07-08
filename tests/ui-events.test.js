@@ -151,6 +151,27 @@ describe('ui prompt/reset events', () => {
         expect(ui.element('#sc_max_summary_turns_val').getValue()).toBe('10');
     });
 
+    it('caps Batch Trigger edits to the Max Source ceiling', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.maxL0SourceTokens = 16000;
+        settings.minSummaryBudget = 8000;
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness(
+            makeSliderHarnessOptions(['maxSource', 'minBudget']),
+        );
+
+        ui.element('#sc_min_summary_budget_val').val('32k');
+        ui.trigger('change', '#sc_min_summary_budget_val');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            maxL0SourceTokens: 16000,
+            minSummaryBudget: 16000,
+        });
+        expect(ui.element('#sc_min_summary_budget').attr('max')).toBe('16000');
+        expect(ui.element('#sc_min_summary_budget').getValue()).toBe(16000);
+        expect(ui.element('#sc_min_summary_budget_val').getValue()).toBe('16k');
+    });
+
     it('refreshes injection and UI after custom memory depth changes', async () => {
         const settings = structuredClone(defaultSettings);
         const ctx = installSillyTavernStub({ settings });
@@ -400,6 +421,23 @@ function makeSliderHarnessOptions(names) {
             max: '20',
             step: '1',
         }),
+        maxSource: sliderFixture({
+            id: 'sc_max_l0_source_tokens',
+            partner: '#sc_max_l0_source_tokens_val',
+            key: 'maxL0SourceTokens',
+            min: '4000',
+            max: '32000',
+            step: '1000',
+        }),
+        minBudget: sliderFixture({
+            id: 'sc_min_summary_budget',
+            partner: '#sc_min_summary_budget_val',
+            key: 'minSummaryBudget',
+            min: '2000',
+            max: '32000',
+            step: '1000',
+            maxSetting: 'maxL0SourceTokens',
+        }),
         easyContext: sliderFixture({
             id: 'sc_easy_summarizer_context',
             partner: '#sc_easy_summarizer_context_val',
@@ -430,7 +468,7 @@ function makeSliderHarnessOptions(names) {
     return { attributes, collections };
 }
 
-function sliderFixture({ id, partner, key, min, max, step }) {
+function sliderFixture({ id, partner, key, min, max, step, maxSetting = '' }) {
     return {
         selector: `#${id}`,
         attributes: {
@@ -440,6 +478,7 @@ function sliderFixture({ id, partner, key, min, max, step }) {
             step,
             'data-sc-slider-setting': key,
             'data-sc-partner-input': partner,
+            ...(maxSetting ? { 'data-sc-slider-max-setting': maxSetting } : {}),
         },
     };
 }

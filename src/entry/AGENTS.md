@@ -11,7 +11,7 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 - Keep budget/status visuals compact and read-only.
 - Keep the top enable toggle outside gated content; when disabled, hide the rest of the UI.
 - Display token counts compactly with lowercase `k` in status/budget surfaces.
-- Use `ui-bind.js` metadata helpers for simple setting persistence: `data-sc-setting` for plain inputs and `data-sc-slider-setting`/`data-sc-partner-input` for slider-chip pairs; keep handlers with workflow side effects explicit.
+- Use `ui-bind.js` metadata helpers for simple setting persistence: `data-sc-setting` for plain inputs and `data-sc-slider-setting`/`data-sc-partner-input` for slider-chip pairs. Add `data-sc-slider-max-setting` when a slider's maximum depends on another setting; keep handlers with workflow side effects explicit.
 - Status payload schematics derive from settings/runtime state; do not add save behavior there.
 - Slider value chips may show compact `k` values; always clamp them to the paired range min/max/step before saving the setting.
 - Range sliders save live on `input`; paired numeric chips save on `change`/blur, accept compact values such as `12k`, and must enforce min/max summary-turn constraints in the UI.
