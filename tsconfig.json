@@ -31,6 +31,6 @@
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "typeRoots": ["./node_modules/@types", "./types"]
     },
-    "include": ["src/**/*.js", "types/**/*.d.ts"],
+    "include": ["index.js", "src/**/*.js", "types/**/*.d.ts"],
     "exclude": ["node_modules", "dist", "report"]
 }
