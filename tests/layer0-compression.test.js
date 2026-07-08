@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-    getLayer0ResponseTokenCap,
     getLayer0SummaryTokenTarget,
     isLayer0CompressionCall,
     appendLayer0PromptConstraints,
@@ -16,37 +15,6 @@ describe('getLayer0SummaryTokenTarget', () => {
 
     it('falls back to the default when missing', () => {
         expect(getLayer0SummaryTokenTarget({})).toBe(defaultSettings.layer0SummaryTokenTarget);
-    });
-});
-
-describe('getLayer0ResponseTokenCap', () => {
-    it('caps L0 summaries with a small buffer', () => {
-        const cap = getLayer0ResponseTokenCap(
-            { layer0SummaryTokenTarget: 200 },
-            { kind: 'layer0' },
-        );
-        expect(cap).toBe(250);
-    });
-
-    it('caps L0 at MAX_LAYER0_RESPONSE_TOKENS even for large targets', () => {
-        const cap = getLayer0ResponseTokenCap(
-            { layer0SummaryTokenTarget: 500 },
-            { kind: 'layer0' },
-        );
-        expect(cap).toBe(384);
-    });
-
-    it('does not inject Summaryception provider caps for promotions', () => {
-        const cap = getLayer0ResponseTokenCap(
-            { snippetsPerPromotion: 3 },
-            { kind: 'promotion', mergedSnippetCount: 3, memoryTokensBefore: 1000 },
-        );
-        expect(cap).toBeNull();
-    });
-
-    it('leaves promotion caps unset even when source memory tokens are missing', () => {
-        const cap = getLayer0ResponseTokenCap({ snippetsPerPromotion: 3 }, { kind: 'promotion' });
-        expect(cap).toBeNull();
     });
 });
 

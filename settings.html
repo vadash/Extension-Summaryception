@@ -448,9 +448,9 @@
                     <div class="sc-setting-row">
                         <label for="sc_summarizer_response_length">
                             <span>Layer 0 Response Length</span>
-                            <small>0 uses the Layer 0 target plus a safety buffer. Lower values override that cap.</small>
+                            <small>0 uses the selected provider default. Use a positive value only when you need an explicit cap.</small>
                         </label>
-                        <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = target + buffer" />
+                        <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = provider default" />
                     </div>
                     </div>
                     <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
@@ -514,9 +514,9 @@
                         <div class="sc-setting-row">
                             <label for="summaryception_openai_max_tokens">
                                 <span>Max Tokens</span>
-                                <small>0 uses the Layer 0 target plus a safety buffer. Lower values override that cap.</small>
+                                <small>0 uses the provider default. Use a positive value only when your endpoint needs max_tokens.</small>
                             </label>
-                            <input id="summaryception_openai_max_tokens" type="number" class="text_pole" min="0" step="100" placeholder="0 = target + buffer" data-sc-setting="openaiMaxTokens" data-sc-type="number" data-sc-fallback="0" />
+                            <input id="summaryception_openai_max_tokens" type="number" class="text_pole" min="0" step="100" placeholder="0 = provider default" data-sc-setting="openaiMaxTokens" data-sc-type="number" data-sc-fallback="0" />
                         </div>
                         <div class="sc-setting-row">
                             <button id="summaryception_openai_test" class="menu_button" title="Test the OpenAI-compatible connection" type="button">

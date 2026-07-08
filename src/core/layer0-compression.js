@@ -3,8 +3,6 @@ import { defaultSettings } from '../foundation/constants.js';
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
-const LAYER0_RESPONSE_TOKEN_BUFFER = 50;
-const MAX_LAYER0_RESPONSE_TOKENS = 384;
 const PROMOTION_TARGET_RATIO = 0.4;
 
 /**
@@ -30,22 +28,6 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
     const fallback = defaultSettings.layer0SummaryTokenTarget;
     const value = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
     return Math.min(MAX_LAYER0_TARGET_TOKENS, Math.max(MIN_LAYER0_TARGET_TOKENS, value));
-}
-
-/**
- * Compute the provider response cap for a summary or promotion.
- * @param {Partial<ExtensionSettings>} [settings]
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @returns {number|null}
- */
-export function getLayer0ResponseTokenCap(settings = {}, metadata = {}) {
-    if (metadata.kind === 'promotion') {
-        return null;
-    }
-    return Math.min(
-        getLayer0SummaryTokenTarget(settings) + LAYER0_RESPONSE_TOKEN_BUFFER,
-        MAX_LAYER0_RESPONSE_TOKENS,
-    );
 }
 
 /**

@@ -145,8 +145,7 @@
     opacity: 0.72;
     vertical-align: baseline;
 }
-.sc-help-target:hover .sc-help-icon,
-.sc-help-target:focus-within .sc-help-icon {
+.sc-help-icon:hover {
     color: var(--sc-accent);
     opacity: 1;
 }

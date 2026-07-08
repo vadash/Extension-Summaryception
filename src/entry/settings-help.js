@@ -1,6 +1,7 @@
 const HELP_EVENT_NS = '.summaryceptionSettingsHelp';
 const HELP_TOOLTIP_ID = 'sc_help_tooltip';
 const HELP_TARGET_SELECTOR = '.sc-help-target';
+const HELP_ICON_SELECTOR = '.sc-help-icon';
 const HELP_FOCUS_SELECTOR = [
     '.sc-help-target',
     '.sc-help-target input',
@@ -8,9 +9,12 @@ const HELP_FOCUS_SELECTOR = [
     '.sc-help-target textarea',
     '[data-sc-help-control]',
 ].join(', ');
+const HELP_TOOLTIP_DELAY_MS = 500;
 
 const selectorFor = (id) => `label[for="${id}"]`;
 const controlFor = (id) => `#${id}`;
+
+let helpTooltipTimer = null;
 
 const sliderHelp = ({ selector, title, short, meaning, higher, lower, defaultText, controls }) => ({
     selector,
@@ -43,8 +47,8 @@ const CONNECTION_GROUPS = [
         openaiModelId: 'summaryception_openai_model',
         openaiMaxTokensId: 'summaryception_openai_max_tokens',
         sourceRisk: 'a weak or misconfigured route makes every new summary worse.',
-        responseDefault: '0 uses the Layer 0 target plus a safety buffer.',
-        openaiDefault: '0 uses the Layer 0 target plus a safety buffer.',
+        responseDefault: '0 uses the selected provider default.',
+        openaiDefault: '0 leaves the provider default.',
     },
     {
         key: 'merge',
@@ -975,26 +979,39 @@ function bindHelpTooltip($settings, $tooltip) {
     $settings.off(HELP_EVENT_NS);
     $(document).off(HELP_EVENT_NS);
     $(window).off(HELP_EVENT_NS);
+    clearTooltipTimer();
 
-    $settings.on(`mouseenter${HELP_EVENT_NS}`, HELP_TARGET_SELECTOR, function () {
-        showTooltip($settings, $tooltip, $(this), this);
+    const hide = () => {
+        clearTooltipTimer();
+        hideTooltip($tooltip);
+    };
+
+    $settings.on(`mouseenter${HELP_EVENT_NS}`, HELP_ICON_SELECTOR, function () {
+        clearTooltipTimer();
+        const icon = this;
+        helpTooltipTimer = setTimeout(() => {
+            helpTooltipTimer = null;
+            const $target = getHelpTarget($(icon));
+            showTooltip($settings, $tooltip, $target, icon);
+        }, HELP_TOOLTIP_DELAY_MS);
     });
-    $settings.on(`mouseleave${HELP_EVENT_NS}`, HELP_TARGET_SELECTOR, () => hideTooltip($tooltip));
-    $settings.on(`focusin${HELP_EVENT_NS}`, HELP_FOCUS_SELECTOR, function () {
-        const $target = getHelpTarget($(this));
-        showTooltip($settings, $tooltip, $target, this);
-    });
-    $settings.on(`focusout${HELP_EVENT_NS}`, HELP_FOCUS_SELECTOR, () => hideTooltip($tooltip));
-    $settings.on(`click${HELP_EVENT_NS}`, '.sc-tab-button, .sc-prompt-segment-button', () =>
-        hideTooltip($tooltip),
-    );
-    $settings.on(`scroll${HELP_EVENT_NS}`, () => hideTooltip($tooltip));
-    $(window).on(`scroll${HELP_EVENT_NS} resize${HELP_EVENT_NS}`, () => hideTooltip($tooltip));
+    $settings.on(`mouseleave${HELP_EVENT_NS}`, HELP_ICON_SELECTOR, hide);
+    $settings.on(`focusout${HELP_EVENT_NS}`, HELP_FOCUS_SELECTOR, hide);
+    $settings.on(`click${HELP_EVENT_NS}`, '.sc-tab-button, .sc-prompt-segment-button', hide);
+    $settings.on(`scroll${HELP_EVENT_NS}`, hide);
+    $(window).on(`scroll${HELP_EVENT_NS} resize${HELP_EVENT_NS}`, hide);
     $(document).on(`keydown${HELP_EVENT_NS}`, (event) => {
         if (event.key === 'Escape') {
-            hideTooltip($tooltip);
+            hide();
         }
     });
+}
+
+function clearTooltipTimer() {
+    if (helpTooltipTimer !== null) {
+        clearTimeout(helpTooltipTimer);
+        helpTooltipTimer = null;
+    }
 }
 
 function getHelpTarget($element) {

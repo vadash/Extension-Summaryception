@@ -125,7 +125,7 @@ export const defaultSettings = Object.freeze({
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile' | 'ollama' | 'openai'
-    summarizerResponseLength: 0, // 0 = Layer 0 target plus safety buffer at runtime
+    summarizerResponseLength: 0, // 0 = provider/profile default
     connectionProfileId: '', // ID of selected ST Connection Profile
     ollamaUrl: 'http://localhost:11434',
     ollamaModel: '',
@@ -133,7 +133,7 @@ export const defaultSettings = Object.freeze({
     openaiUrl: '',
     openaiKey: '',
     openaiModel: '',
-    openaiMaxTokens: 0, // 0 = Layer 0 target plus safety buffer at runtime
+    openaiMaxTokens: 0, // 0 = provider default
 
     // Optional Layer 1+ promotion merge connection. 'inherit' uses the Layer 0 connection above.
     mergeConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile' | 'ollama' | 'openai'

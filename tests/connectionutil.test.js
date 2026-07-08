@@ -255,7 +255,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('keeps lower explicit Layer 0 response caps', () => {
+    it('preserves explicit Layer 0 response caps', () => {
         const settings = {
             connectionSource: 'default',
             summarizerResponseLength: 64,
@@ -269,7 +269,7 @@ describe('connection providers registry', () => {
         });
     });
 
-    it('applies the default Layer 0 target cap when response length is unset', () => {
+    it('leaves Layer 0 response length unset when configured as provider default', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
                 connectionSource: 'default',
@@ -281,11 +281,11 @@ describe('connection providers registry', () => {
 
         expect(effective).toMatchObject({
             connectionSource: 'default',
-            summarizerResponseLength: 200,
+            summarizerResponseLength: 0,
         });
     });
 
-    it('limits Layer 0 provider caps to the hard response ceiling', () => {
+    it('does not derive provider caps from large Layer 0 targets', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
                 connectionSource: 'default',
@@ -297,11 +297,11 @@ describe('connection providers registry', () => {
 
         expect(effective).toMatchObject({
             connectionSource: 'default',
-            summarizerResponseLength: 384,
+            summarizerResponseLength: 0,
         });
     });
 
-    it('passes the Layer 0 target cap to the default provider', async () => {
+    it('omits responseLength for default-provider Layer 0 calls when set to 0', async () => {
         const generateRaw = installGenerateRaw();
 
         await sendSummarizerRequest(
@@ -320,11 +320,10 @@ describe('connection providers registry', () => {
             prompt: [{ role: 'user', content: 'user prompt' }],
             systemPrompt: 'system prompt',
             trimNames: false,
-            responseLength: 200,
         });
     });
 
-    it('applies the Layer 0 target cap to OpenAI max tokens', () => {
+    it('leaves OpenAI max tokens unset for Layer 0 calls when configured as provider default', () => {
         const effective = resolveSummarizerConnectionSettings(
             {
                 connectionSource: 'openai',
@@ -336,7 +335,23 @@ describe('connection providers registry', () => {
 
         expect(effective).toMatchObject({
             connectionSource: 'openai',
-            openaiMaxTokens: 170,
+            openaiMaxTokens: 0,
+        });
+    });
+
+    it('preserves explicit OpenAI max tokens for Layer 0 calls', () => {
+        const effective = resolveSummarizerConnectionSettings(
+            {
+                connectionSource: 'openai',
+                openaiMaxTokens: 2048,
+                layer0SummaryTokenTarget: 120,
+            },
+            { kind: 'layer0' },
+        );
+
+        expect(effective).toMatchObject({
+            connectionSource: 'openai',
+            openaiMaxTokens: 2048,
         });
     });
 
@@ -356,7 +371,7 @@ describe('connection providers registry', () => {
         expect(fallback).toMatchObject({
             connectionSource: 'profile',
             connectionProfileId: 'backup-profile',
-            summarizerResponseLength: 200,
+            summarizerResponseLength: 512,
         });
     });
 

@@ -108,12 +108,12 @@ describe('settings help metadata', () => {
         expect(SETTINGS_HTML).toContain('<option value="custom">Custom</option>');
     });
 
-    it('documents Layer 0 output caps separately from merge and fallback provider defaults', () => {
+    it('documents provider defaults consistently for Layer 0, merge, and fallback output caps', () => {
         expect(SETTINGS_HELP.layer0_response_length.detail).toContain(
-            '0 uses the Layer 0 target plus a safety buffer',
+            '0 uses the selected provider default',
         );
         expect(SETTINGS_HELP.layer0_openai_max_tokens.detail).toContain(
-            '0 uses the Layer 0 target plus a safety buffer',
+            '0 leaves the provider default',
         );
         expect(SETTINGS_HELP.merge_openai_max_tokens.detail).toContain(
             '0 leaves the provider default',
@@ -121,7 +121,7 @@ describe('settings help metadata', () => {
         expect(SETTINGS_HELP.fallback_openai_max_tokens.detail).toContain(
             '0 leaves the provider default',
         );
-        expect(SETTINGS_HTML).toContain('placeholder="0 = target + buffer"');
+        expect(SETTINGS_HTML).toContain('placeholder="0 = provider default"');
     });
 
     it('keeps tooltip placement inside the viewport and settings width', () => {

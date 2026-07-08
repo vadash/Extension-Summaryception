@@ -15,7 +15,7 @@ This directory handles the UI, Event bindings, and settings panels. Workflow mut
 - Status payload schematics derive from settings/runtime state; do not add save behavior there.
 - Slider value chips may show compact `k` values; always clamp them to the paired range min/max/step before saving the setting.
 - Range sliders save live on `input`; paired numeric chips save on `change`/blur, accept compact values such as `12k`, and must enforce min/max summary-turn constraints in the UI.
-- `settings-help.js` owns metadata-driven help and the shared hover/focus tooltip; it may annotate controls after render, but must not rename HTML IDs or saved setting keys.
+- `settings-help.js` owns metadata-driven help and the shared delayed help-icon tooltip; it may annotate controls after render, but must not rename HTML IDs or saved setting keys.
 - The shared help tooltip is appended to `<body>` and positioned from viewport rectangles so SillyTavern sidebar scrolling cannot clip or offset it.
 - The snippet browser uses a keyed jQuery renderer to preserve scroll/focus/edit state during background refreshes; skip rows with a focused `.sc-snippet-edit`.
 - Manual Force Summarize and Slop Breaker flows show persistent cancelable progress toasts. Successful manual commits and UI Clear Memory force a browser reload to rebuild SillyTavern prompt state cleanly.
