@@ -5,6 +5,29 @@ import jsdocPlugin from 'eslint-plugin-jsdoc';
 import unicornPlugin from 'eslint-plugin-unicorn';
 import boundariesPlugin from 'eslint-plugin-boundaries';
 
+const jsdocDefinedTypes = [
+    'ChatMessage',
+    'ConnectionManagerRequestService',
+    'ConnectionProfileMessage',
+    'ConnectionProfileResponse',
+    'ConnectionProvider',
+    'ConnectionTestResult',
+    'ExtensionSettings',
+    'GenerateRawOptions',
+    'IterableIterator',
+    'OpenAIChatCompletionChunk',
+    'ReadableStreamReadResult',
+    'ReadonlyArray',
+    'SillyTavernContext',
+    'SillyTavernEventSource',
+    'SillyTavernPromptManager',
+    'SillyTavernStreamingProcessor',
+    'SlashCommand',
+    'SlashCommandParser',
+    'SummaryceptionSnippet',
+    'SummaryceptionStore',
+];
+
 export default [
     {
         ignores: ['node_modules/**', 'dist/**', 'build/**', '.git/**'],
@@ -117,6 +140,7 @@ export default [
             'jsdoc/require-returns-type': 'warn',
             'jsdoc/check-types': 'warn',
             'jsdoc/valid-types': 'warn',
+            'jsdoc/no-undefined-types': ['warn', { definedTypes: jsdocDefinedTypes }],
             'jsdoc/require-description': 'off',
             'jsdoc/require-returns-description': 'off',
             'jsdoc/tag-lines': 'off',
@@ -278,6 +302,7 @@ export default [
             'jsdoc/require-returns-type': 'warn',
             'jsdoc/check-types': 'warn',
             'jsdoc/valid-types': 'warn',
+            'jsdoc/no-undefined-types': ['warn', { definedTypes: jsdocDefinedTypes }],
             'jsdoc/require-description': 'off',
             'jsdoc/require-returns-description': 'off',
             'jsdoc/tag-lines': 'off',

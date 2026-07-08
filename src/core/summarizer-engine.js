@@ -20,23 +20,23 @@ export const ELASTIC_STRATEGIES = Object.freeze({
 
 /**
  * @typedef {object} ManualRunOutcome
- * @property {boolean} cancelled
- * @property {boolean} blocked
- * @property {number} completed
- * @property {number} failed
- * @property {number} totalBatches
- * @property {boolean} fullyCommitted
- * @property {boolean} shouldReload
- * @property {boolean} failureLimitReached
+ * @property {boolean} cancelled - Whether the manual run was cancelled.
+ * @property {boolean} blocked - Whether the prompt guard blocked completion.
+ * @property {number} completed - Number of committed batches.
+ * @property {number} failed - Number of failed batches.
+ * @property {number} totalBatches - Estimated total batches for the run.
+ * @property {boolean} fullyCommitted - Whether all requested work was committed and normalized.
+ * @property {boolean} shouldReload - Whether the caller should reload chat/UI state.
+ * @property {boolean} failureLimitReached - Whether consecutive failures halted the run.
  */
 
 /**
  * @typedef {object} ManualRunProgress
- * @property {number} completed
- * @property {number} failed
- * @property {number} totalBatches
- * @property {string} label
- * @property {string} title
+ * @property {number} completed - Number of committed batches so far.
+ * @property {number} failed - Number of failed batches so far.
+ * @property {number} totalBatches - Estimated total batches for the run.
+ * @property {string} label - Short progress label for the active operation.
+ * @property {string} title - User-visible progress title.
  */
 
 /**

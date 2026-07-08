@@ -7,10 +7,10 @@ const L0_SOURCE_OVERSHOOT_TOLERANCE = 1.15;
 
 /**
  * @typedef {object} SourcePartition
- * @property {import('./chatutils.js').AssistantTurn[]} turns
- * @property {number} sourceStartIdx
- * @property {number} sourceEndIdx
- * @property {import('./token-count.js').BudgetStats} stats
+ * @property {import('./chatutils.js').AssistantTurn[]} turns - Assistant turns included in this source slice.
+ * @property {number} sourceStartIdx - Inclusive first chat index in the source slice.
+ * @property {number} sourceEndIdx - Inclusive final chat index in the source slice.
+ * @property {import('./token-count.js').BudgetStats} stats - Token stats for the source slice.
  */
 
 /**

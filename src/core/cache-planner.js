@@ -5,21 +5,21 @@ import { buildLayer0Partitions } from './partition-planner.js';
 
 /**
  * @typedef {object} CacheFriendlyPlan
- * @property {'ready' | 'none'} reason
- * @property {number} flushStartIdx
- * @property {number} flushEndIdx
- * @property {number} tailStartIdx
- * @property {number} liveTokens
- * @property {number} cacheBudget
- * @property {number} protectedTailTokens
- * @property {number} estimatedFlushTokens
- * @property {import('./chatutils.js').AssistantTurn[]} assistantTurns
- * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
- * @property {import('./partition-planner.js').SourcePartition[]} partitions
- * @property {number} overflowCount
- * @property {import('./token-count.js').BudgetStats} liveStats
- * @property {import('./token-count.js').BudgetStats} flushStats
- * @property {boolean} tokenBudgetExceeded
+ * @property {'ready' | 'none'} reason - Whether the plan is ready to flush or idle.
+ * @property {number} flushStartIdx - First live chat index considered for cache flush.
+ * @property {number} flushEndIdx - Inclusive final chat index selected for flushing.
+ * @property {number} tailStartIdx - First chat index preserved in the protected live tail.
+ * @property {number} liveTokens - Total tokens in the visible live context.
+ * @property {number} cacheBudget - Verbatim cache budget from settings.
+ * @property {number} protectedTailTokens - Token target reserved for recent live chat.
+ * @property {number} estimatedFlushTokens - Estimated tokens selected for Layer 0 flush.
+ * @property {import('./chatutils.js').AssistantTurn[]} assistantTurns - Eligible assistant turns before the protected tail.
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns - Assistant turns in the next Layer 0 partition.
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions - Token-balanced flush partitions.
+ * @property {number} overflowCount - Count of eligible assistant turns available to flush.
+ * @property {import('./token-count.js').BudgetStats} liveStats - Token stats for the visible live context.
+ * @property {import('./token-count.js').BudgetStats} flushStats - Token stats for the selected flush source.
+ * @property {boolean} tokenBudgetExceeded - Whether live tokens exceed the cache budget.
  */
 
 /**

@@ -170,7 +170,7 @@ function normalizeMemorySettings(settings) {
 
 /**
  * Check whether a persisted setting is one of the allowed string values.
- * @param {readonly string[]} values
+ * @param {ReadonlyArray<string>} values
  * @param {unknown} value
  * @returns {boolean}
  */

@@ -4,23 +4,23 @@ export const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setti
 
 /**
  * @typedef {object} SettingBinding
- * @property {string} key
- * @property {(source: object) => unknown} read
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave]
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave]
+ * @property {string} key - Settings key to persist.
+ * @property {(source: object) => unknown} read - Reads the value from the source element.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Optional hook before saving the value.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Optional hook after saving the value.
  */
 
 /**
  * @typedef {object} DataSettingOptions
- * @property {string} [eventName]
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave]
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave]
+ * @property {string} [eventName] - DOM event used to persist the setting.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Optional hook before saving the value.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Optional hook after saving the value.
  */
 
 /**
  * @typedef {object} SliderSettingBindingOptions
- * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [beforeSave]
- * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSave]
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [beforeSave] - Optional hook before saving the slider value.
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSave] - Optional hook after saving the slider value.
  */
 
 /**

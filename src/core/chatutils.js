@@ -47,6 +47,7 @@ export function findLastMessage(chat, startIndex, predicate, minIndex = 0) {
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @param {number} startIndex - Requested start index
  * @param {number} endIndex - Requested end index
+ * @yields {IndexedChatMessage} Indexed messages in traversal order
  * @returns {IterableIterator<IndexedChatMessage>} Indexed messages in traversal order
  */
 export function* iterateChatRange(chat, startIndex, endIndex) {

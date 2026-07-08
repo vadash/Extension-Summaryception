@@ -7,7 +7,7 @@ import { buildLayer0Partitions } from './partition-planner.js';
  * @property {number} targetIndex - Fixed chat index the run should summarize through
  * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns - Assistant turns in target range
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns - Next capped assistant batch
- * @property {import('./partition-planner.js').SourcePartition[]} partitions
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions - Token-balanced source partitions for the fixed cut
  * @property {number} sourceEndIdx - End of the source passage for the next batch
  * @property {number} totalBatches - Estimated batches needed for the full cut
  */

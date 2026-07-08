@@ -5,27 +5,27 @@ import { buildLayer0Partitions } from './partition-planner.js';
 
 /**
  * @typedef {object} Layer0OverflowPlan
- * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns
- * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns
- * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
- * @property {import('./partition-planner.js').SourcePartition[]} partitions
- * @property {'budget' | 'max' | 'force' | 'repair' | 'none'} reason
+ * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns - Assistant turns currently visible in live chat.
+ * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns - Visible assistant turns after the summary cursor.
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns - Assistant turns selected for the next Layer 0 batch.
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions - Token-balanced source partitions for eligible turns.
+ * @property {'budget' | 'max' | 'force' | 'repair' | 'none'} reason - Trigger that selected the plan.
  * @property {number} overflowCount - Total eligible assistant turns outside the verbatim window.
  * @property {number} softOverflowCount - Overflow turns not selected in the current batch.
- * @property {number} visibleTurnCount
- * @property {number} tokenBoundaryIndex
- * @property {import('./token-count.js').BudgetStats} budgetStats
- * @property {import('./token-count.js').BudgetStats} summaryStats
- * @property {boolean} tokenBudgetExceeded
+ * @property {number} visibleTurnCount - Count of currently visible assistant turns.
+ * @property {number} tokenBoundaryIndex - Oldest chat index beyond the verbatim token budget.
+ * @property {import('./token-count.js').BudgetStats} budgetStats - Token stats for the live verbatim window.
+ * @property {import('./token-count.js').BudgetStats} summaryStats - Token stats for the selected summary source.
+ * @property {boolean} tokenBudgetExceeded - Whether live chat exceeds the verbatim token budget.
  */
 
 /**
  * @typedef {object} VerbatimWindowSettings
- * @property {number} minSummaryTurns
- * @property {number} maxSummaryTurns
- * @property {number} minSummaryBudget
- * @property {number} verbatimTokenBudget
- * @property {boolean} applyRegexScripts
+ * @property {number} minSummaryTurns - Minimum assistant turns required for automatic summary.
+ * @property {number} maxSummaryTurns - Maximum assistant turns per Layer 0 batch.
+ * @property {number} minSummaryBudget - Minimum source tokens required for automatic summary.
+ * @property {number} verbatimTokenBudget - Live-context token ceiling.
+ * @property {boolean} applyRegexScripts - Whether regex scripts apply while counting source text.
  */
 
 /**

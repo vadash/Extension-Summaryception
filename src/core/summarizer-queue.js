@@ -9,13 +9,13 @@
 
 /**
  * @typedef {object} SummarizerQueueDependencies
- * @property {(ctx: SummarizerQueueContext) => Promise<SummarizerQueueCycleResult>} drainOneCycle
- * @property {() => void} abort
- * @property {() => void} refreshUi
- * @property {<T>(label: string, callback: () => Promise<T>) => Promise<T>} withUsageRun
- * @property {{ log?: (...args: unknown[]) => void } | ((...args: unknown[]) => void)} [logger]
- * @property {() => Promise<void>} [yieldCycle]
- * @property {() => Promise<void>} [afterDrain]
+ * @property {(ctx: SummarizerQueueContext) => Promise<SummarizerQueueCycleResult>} drainOneCycle - Runs one automatic queue cycle.
+ * @property {() => void} abort - Aborts the current summarizer request.
+ * @property {() => void} refreshUi - Refreshes visible extension UI state.
+ * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
+ * @property {{ log?: (...args: unknown[]) => void } | ((...args: unknown[]) => void)} [logger] - Optional queue logger.
+ * @property {() => Promise<void>} [yieldCycle] - Yields between processed work units.
+ * @property {() => Promise<void>} [afterDrain] - Runs after the worker drain completes.
  */
 
 /**

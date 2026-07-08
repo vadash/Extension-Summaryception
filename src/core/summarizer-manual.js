@@ -8,16 +8,16 @@ import { ELASTIC_STRATEGIES, runElasticManual } from './summarizer-engine.js';
 
 /**
  * @typedef {object} ManualRunOptions
- * @property {AbortSignal} [signal]
- * @property {(progress: ManualRunProgress) => void} [onStart]
- * @property {(progress: ManualRunProgress) => void} [onProgress]
+ * @property {AbortSignal} [signal] - Abort signal for cancelling the manual run.
+ * @property {(progress: ManualRunProgress) => void} [onStart] - Called with initial progress.
+ * @property {(progress: ManualRunProgress) => void} [onProgress] - Called after batch progress changes.
  */
 
 /**
  * @typedef {object} ManualRunnerDeps
- * @property {import('./summarizer-queue.js').SummarizerQueue} queue
- * @property {() => void} refreshUi
- * @property {<T>(label: string, callback: () => Promise<T>) => Promise<T>} withUsageRun
+ * @property {import('./summarizer-queue.js').SummarizerQueue} queue - Shared summarizer queue.
+ * @property {() => void} refreshUi - Refreshes visible extension UI state.
+ * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
  */
 
 /**

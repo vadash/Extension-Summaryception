@@ -16,6 +16,7 @@ import { updateInjection } from './injection.js';
  * @typedef {{ status: 'ready', range: [number, number], snippet: SummaryceptionSnippet, context: string }} RegenerationTarget
  * @typedef {{ status: 'missing' } | { status: 'unsupported' }} RegenerationUnavailable
  * @typedef {{ status: 'regenerated', range: [number, number] } | { status: 'empty-source' } | { status: 'failed' }} RegenerationRunResult
+ * @typedef {{ status: 'regenerated', range: [number, number] } | { status: 'missing' | 'unsupported' | 'busy' | 'empty-source' | 'failed' }} RegenerateSnippetResult
  */
 
 /**
@@ -116,10 +117,7 @@ export async function deleteSnippetAt(layerIndex, snippetIndex) {
  * Regenerate one Layer 0 snippet from its source turns.
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @returns {Promise<
- *   | { status: 'regenerated', range: [number, number] }
- *   | { status: 'missing' | 'unsupported' | 'busy' | 'empty-source' | 'failed' }
- * >}
+ * @returns {Promise<RegenerateSnippetResult>}
  */
 export async function regenerateSnippetAt(layerIndex, snippetIndex) {
     const store = getChatStore();

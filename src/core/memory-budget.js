@@ -4,21 +4,21 @@ import { countTextTokens } from './token-count.js';
 
 /**
  * @typedef {object} EffectiveMemoryTokenPart
- * @property {string} label
- * @property {string} kind
- * @property {number} count
- * @property {boolean} estimated
- * @property {number} [layerIndex]
+ * @property {string} label - Display label for the token part.
+ * @property {string} kind - UI category for the token part.
+ * @property {number} count - Token count for this part.
+ * @property {boolean} estimated - Whether the count came from the fallback estimator.
+ * @property {number} [layerIndex] - Source layer index for layer parts.
  */
 
 /**
  * @typedef {object} EffectiveMemoryUsage
- * @property {{ count: number, estimated: boolean }} total
- * @property {string} text
- * @property {EffectiveMemoryTokenPart | null} state
- * @property {EffectiveMemoryTokenPart[]} layers
- * @property {EffectiveMemoryTokenPart | null} wrapper
- * @property {EffectiveMemoryTokenPart[]} parts
+ * @property {{ count: number, estimated: boolean }} total - Total assembled injection tokens.
+ * @property {string} text - Full injection text after template wrapping.
+ * @property {EffectiveMemoryTokenPart | null} state - Current-state token part, when present.
+ * @property {EffectiveMemoryTokenPart[]} layers - Chronology token parts by layer.
+ * @property {EffectiveMemoryTokenPart | null} wrapper - Template/wrapper token part, when present.
+ * @property {EffectiveMemoryTokenPart[]} parts - Display-ready token parts aligned to the total.
  */
 
 /**

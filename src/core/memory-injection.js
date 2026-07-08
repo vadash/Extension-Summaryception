@@ -3,10 +3,10 @@ import { formatSnippetAnchor, stripLeadingSnippetAnchor } from './snippet-metada
 
 /**
  * @typedef {object} MemoryInjectionParts
- * @property {string} stateText
- * @property {Array<{ layerIndex: number, text: string }>} chronologyParts
- * @property {string} chronologyText
- * @property {string} memoryText
+ * @property {string} stateText - Serialized current-state section.
+ * @property {Array<{ layerIndex: number, text: string }>} chronologyParts - Per-layer chronology sections.
+ * @property {string} chronologyText - Joined chronology section text.
+ * @property {string} memoryText - Final memory body before template wrapping.
  */
 
 /**

@@ -19,13 +19,13 @@ const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
 
 /**
  * @typedef {object} BudgetStats
- * @property {number} rawTokens
- * @property {number} finalTokens
- * @property {number} savedTokens
- * @property {boolean} rawTokensEstimated
- * @property {boolean} finalTokensEstimated
- * @property {boolean} savedTokensEstimated
- * @property {number} changedMessageCount
+ * @property {number} rawTokens - Tokens before regex scripts.
+ * @property {number} finalTokens - Tokens after regex scripts.
+ * @property {number} savedTokens - Raw tokens minus final tokens.
+ * @property {boolean} rawTokensEstimated - Whether raw tokens came from fallback estimation.
+ * @property {boolean} finalTokensEstimated - Whether final tokens came from fallback estimation.
+ * @property {boolean} savedTokensEstimated - Whether saved tokens include fallback estimation.
+ * @property {number} changedMessageCount - Number of messages changed by regex scripts.
  */
 
 /**

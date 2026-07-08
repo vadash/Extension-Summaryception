@@ -267,10 +267,10 @@ function getLayerMetrics(store) {
 
 /**
  * @typedef {object} ContextBudgetTokenPart
- * @property {string} label
- * @property {string} kind
- * @property {number} count
- * @property {boolean} estimated
+ * @property {string} label - Segment label for budget displays.
+ * @property {string} kind - Segment category used for styling and ordering.
+ * @property {number} count - Token count for the segment.
+ * @property {boolean} estimated - Whether the count came from fallback estimation.
  */
 
 /**
