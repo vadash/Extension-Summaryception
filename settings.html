@@ -960,7 +960,7 @@
                             <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
                         </div>
                     </div>
-                    <small class="sc-hint">Main call budget is memory + live chat + ST prompt. L1+ merges stored summaries, not raw chat: memories per merge x summary target + ~1k prompt/deeper-memory overhead.</small>
+                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + injected memory + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">

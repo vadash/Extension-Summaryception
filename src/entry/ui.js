@@ -143,7 +143,6 @@ function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
  */
 export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const maxL0Source = readTokenSetting(s.maxL0SourceTokens, defaultSettings.maxL0SourceTokens);
-    const minSummaryBudget = readTokenSetting(s.minSummaryBudget, defaultSettings.minSummaryBudget);
     const memoryBudget = readTokenSetting(s.memoryTokenBudget, defaultSettings.memoryTokenBudget);
     const verbatimBudget = readTokenSetting(
         s.verbatimTokenBudget,
@@ -158,11 +157,13 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
         defaultSettings.layer0SummaryTokenTarget,
     );
 
+    const BASE_PROMPT_OVERHEAD = 2000;
+    const DEEP_MEMORY_RATIO = 0.5;
+
     const mainBudget = memoryBudget + verbatimBudget;
-    const l0Source = Math.min(maxL0Source, minSummaryBudget);
-    const l0Total = l0Source + 2000;
+    const l0Total = maxL0Source + memoryBudget + BASE_PROMPT_OVERHEAD;
     const l1Source = snippetsPerPromotion * summaryTarget;
-    const l1Total = l1Source + 1000;
+    const l1Total = l1Source + Math.round(memoryBudget * DEEP_MEMORY_RATIO) + 1000;
 
     $('#sc_llm_context_main').text(`~${formatContextTokenCount(mainBudget)} + ST prompt`);
     $('#sc_llm_context_l0').text(`~${formatContextTokenCount(l0Total)} tokens`);
