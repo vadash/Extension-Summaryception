@@ -146,7 +146,7 @@
                                     <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
                                     <span class="sc-toggle-copy">
                                         <span class="sc-toggle-title">Standard</span>
-                                        <small class="sc-hint">Continuous summaries with the regular live window.</small>
+                                        <small class="sc-hint">Use when your provider does not offer cached-input discounts.</small>
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_standard" name="sc_easy_memory_mode" value="standard" />
                                 </label>
@@ -154,7 +154,7 @@
                                     <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
                                     <span class="sc-toggle-copy">
                                         <span class="sc-toggle-title">Cache Friendly</span>
-                                        <small class="sc-hint">Stable memory prefix plus a larger live chat window.</small>
+                                        <small class="sc-hint">Use when your provider discounts cached input. Saves ~70% per turn vs Standard.</small>
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_cache" name="sc_easy_memory_mode" value="cache" />
                                 </label>
@@ -723,7 +723,7 @@
                                 <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
                                 <span class="sc-toggle-copy">
                                     <span class="sc-toggle-title">Standard</span>
-                                    <small class="sc-hint">Continuous summaries with the normal verbatim window.</small>
+                                    <small class="sc-hint">Use when your provider does not offer cached-input discounts.</small>
                                 </span>
                                 <input type="radio" id="sc_memory_mode_standard" name="sc_memory_mode" value="standard" />
                             </label>
@@ -731,7 +731,7 @@
                                 <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
                                 <span class="sc-toggle-copy">
                                     <span class="sc-toggle-title">Cache Friendly</span>
-                                    <small class="sc-hint">Frozen memory plus a larger live chat window.</small>
+                                    <small class="sc-hint">Use when your provider discounts cached input. Saves ~70% per turn vs Standard.</small>
                                 </span>
                                 <input type="radio" id="sc_memory_mode_cache" name="sc_memory_mode" value="cache" />
                             </label>
@@ -747,11 +747,11 @@
                     </div>
                     <div id="sc_memory_help_standard" class="sc-note">
                         <span class="fa-solid fa-circle-info"></span>
-                        <small>Standard mode summarizes continuously once the live chat exceeds the verbatim window and normal turn/budget thresholds.</small>
+                        <small>Standard mode summarizes continuously once the live chat exceeds the verbatim window and normal turn/budget thresholds. Best for providers that do not offer prompt-caching discounts; every turn is billed at full input rate.</small>
                     </div>
                     <div id="sc_memory_help_cache" class="sc-note" style="display: none;">
                         <span class="fa-solid fa-circle-info"></span>
-                        <small>Cache Friendly keeps Prompt | frozen Summaryception memory | growing live chat, uses a 32k live budget, protects a 4k-8k tail, and flushes older live chat in one commit.</small>
+                        <small>Cache Friendly freezes the memory prefix and lets live chat grow to a 32k budget, protecting a 4k-8k tail and flushing older chat in one commit. On providers with prompt-caching discounts this saves roughly 70% per turn compared to Standard. Total context is larger (memory + 32k), so ensure your model handles 40k+ context well.</small>
                     </div>
                     <div id="sc_memory_help_custom" class="sc-note" style="display: none;">
                         <span class="fa-solid fa-circle-info"></span>

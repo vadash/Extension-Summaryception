@@ -9,7 +9,7 @@ It replaces brute-force context stuffing with layered recursive summarization. I
 ## HOW: Working on this codebase
 - **Shell**: This repo runs on Windows. The shell is PowerShell 7+ (modern).
 - **Testing**: Run `npm test` to verify behavior changes. 
-- **Linting & Formatting**: We use ESLint and Prettier. Do not act as a linter or fix formatting manually. Rely on `npm run lint`, `npm run format:check`, and the husky pre-commit hooks.
+- **Linting & Formatting**: ESLint and Prettier run automatically via husky pre-commit hooks. Never run them manually.
 
 ## Progressive Disclosure
 We organize specific context into separate files. Read the relevant files in `agent_docs/` before you start working on a specific part of the system:

@@ -159,7 +159,8 @@ const HELP_ENTRIES = [
             meaning: 'Recent chat kept word-for-word before older turns become Layer 0 summaries.',
             higher: 'keeps more exact recent chat but uses more context.',
             lower: 'summarizes sooner and leaves more room for memory.',
-            defaultText: '16k; Cache Friendly switches this to 32k.',
+            defaultText:
+                '16k; Cache Friendly switches this to 32k and can save ~70% per turn on caching providers.',
         }),
     ],
     [
@@ -276,12 +277,12 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_memory_mode_standard'),
             title: 'Standard',
-            short: 'Normal rolling summaries with the regular live window.',
+            short: 'Use when your provider does not offer cached-input discounts.',
             controls: [controlFor('sc_memory_mode_standard')],
             controlsText:
                 'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
-            when: 'for most chats and providers.',
-            risk: 'provider prompt caching may be less stable than Cache Friendly mode.',
+            when: 'when your provider bills every input token at full rate (no prompt-cache discount).',
+            risk: 'you pay full input price for the entire context on every turn, which is costly for large windows.',
         }),
     ],
     [
@@ -289,12 +290,12 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_memory_mode_cache'),
             title: 'Cache Friendly',
-            short: 'Freeze memory shape and keep a larger live chat window.',
+            short: 'Use when your provider discounts cached input. Saves ~70% per turn vs Standard.',
             controls: [controlFor('sc_memory_mode_cache')],
             controlsText:
-                'Controls whether the prompt keeps a stable memory prefix and lets live chat grow to a larger cache window.',
-            when: 'if your provider rewards stable prompt prefixes.',
-            risk: 'manual summarization or cache flushes can reset some cache savings.',
+                'Controls whether the prompt keeps a stable memory prefix and lets live chat grow to a 32k cache window.',
+            when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
+            risk: 'total context is larger (memory + 32k verbatim), so ensure your model handles 40k+ context. Manual summarization can reset cache savings.',
         }),
     ],
     [
@@ -348,6 +349,32 @@ const HELP_ENTRIES = [
         }),
     ],
     ...CONNECTION_HELP_ENTRIES,
+    [
+        'easy_memory_mode_standard',
+        basicHelp({
+            selector: selectorFor('sc_easy_memory_mode_standard'),
+            title: 'Standard',
+            short: 'Use when your provider does not offer cached-input discounts.',
+            controls: [controlFor('sc_easy_memory_mode_standard')],
+            controlsText:
+                'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
+            when: 'when your provider bills every input token at full rate (no prompt-cache discount).',
+            risk: 'you pay full input price for the entire context on every turn, which is costly for large windows.',
+        }),
+    ],
+    [
+        'easy_memory_mode_cache',
+        basicHelp({
+            selector: selectorFor('sc_easy_memory_mode_cache'),
+            title: 'Cache Friendly',
+            short: 'Use when your provider discounts cached input. Saves ~70% per turn vs Standard.',
+            controls: [controlFor('sc_easy_memory_mode_cache')],
+            controlsText:
+                'Controls whether the prompt keeps a stable memory prefix and lets live chat grow to a 32k cache window.',
+            when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
+            risk: 'total context is larger (memory + 32k verbatim), so ensure your model handles 40k+ context. Manual summarization can reset cache savings.',
+        }),
+    ],
     [
         'layer0_system_prompt_preset',
         basicHelp({
