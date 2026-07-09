@@ -1,152 +1,138 @@
 # Summaryception
 
-### Layered recursive memory for SillyTavern
+Layered recursive memory for SillyTavern.
 
-Your AI remembers thousands of turns in under 20k tokens. No context bloat, no lost plot threads.
+Summaryception is for long roleplay chats that should remember what happened without shoving the whole backstory into every prompt. It runs as a plain browser extension inside [SillyTavern](https://github.com/SillyTavern/SillyTavern). No build step, no server, no database.
 
-Summaryception is a memory system for [SillyTavern](https://github.com/SillyTavern/SillyTavern). Instead of brute-forcing the context window, it compresses older turns into compact summaries arranged in recursive layers. Your most recent conversation stays exactly as written; everything older gets progressively compressed.
+The short version: recent chat stays verbatim. Older chat becomes compact memory. The original messages stay in the chat UI, but Summaryception hides them from the model once they are covered by memory.
 
----
+## Why this exists
 
-## The problem
+Long chats usually fail in one of two boring ways.
 
-Every roleplayer hits the same wall:
+You keep too much raw chat, so every generation drags a huge pile of old prose through the context window. Or you keep one normal summary, watch it blur details together, and start adding more raw chat again to compensate.
 
-| Approach | What happens |
-|---|---|
-| No summary | Context fills up, hard truncation kicks in, everything before the cutoff is gone forever. |
-| Basic summarization | One lossy summary eats the details, so you compensate by keeping 20+ verbatim turns. Context still bloats. |
-| More verbatim turns | 20 turns × 1,500 tokens = 30k tokens of atmospheric prose the LLM has to wade through. Attention degrades, costs rise, coherence drops anyway. |
-
-The conventional wisdom — "just keep more raw turns" — is a band-aid for bad compression.
-
-## The solution
-
-Compress aggressively, lose nothing.
-
-A summarizer prompt looks at each batch of turns against what's already been summarized, and outputs only the new stuff: plot points, state changes, character decisions. Nothing repeated.
-
-Real example. Three turns, roughly 5,200 raw tokens, compressed to:
-
-> Alina kisses Lodactio; he reciprocates; she grows to human size, straddling him; she squeezes his crotch and intends to undo his pants.
-
-27 tokens. About 125:1 compression, with every plot-relevant beat intact.
-
----
-
-## How it works (the "ception")
-
-When Layer 0 fills with summaries, the oldest snippets get summarized again into Layer 1. When Layer 1 fills, they roll up into Layer 2. Each layer multiplies your memory capacity while keeping continuity.
+Summaryception takes the other route. It summarizes older chat in small pieces, then summarizes those summaries again when they pile up. The result is a memory stack: recent text at the bottom, compact turn summaries above it, deeper summaries above those.
 
 ```text
-YOUR CHAT (e.g., 200 turns)
-│
-│  Turns 1-180: Ghosted (hidden from the AI, still readable by you)
-│  Turns 181-200: Kept verbatim (recent chat)
-│
-│  The ghosted turns have been compressed into:
-│
-│  ┌──────────────────────────────────────────┐
-│  │  LAYER 2 (Deep Memory)                   │
-│  │  Ultra-compressed summaries of Layer 1   │
-│  │  Each covers ~27 turns                   │
-│  ├──────────────────────────────────────────┤
-│  │  LAYER 1 (Meta-Summaries)                │
-│  │  Compressed summaries of Layer 0         │
-│  │  Each covers ~9 turns                    │
-│  ├──────────────────────────────────────────┤
-│  │  LAYER 0 (Turn Summaries)                │
-│  │  Direct summaries of conversation turns  │
-│  │  Each covers ~3 turns                    │
-│  ├──────────────────────────────────────────┤
-│  │  VERBATIM TURNS                          │
-│  │  Sent word-for-word to the LLM           │
-│  └──────────────────────────────────────────┘
+Current chat
+|
+|  Older messages: ghosted from the model, still visible to you
+|  Recent messages: sent word for word
+|
+|  Injected memory:
+|
+|  Layer 2+  deep memory from promoted summaries
+|  Layer 1   merged Layer 0 summaries
+|  Layer 0   direct summaries of chat turns
+|  Verbatim  the live recent window
 ```
 
-The math works out to roughly 11,000 turns in 14k tokens. The raw conversation for that would be around 20 million tokens. Compression ratio approaching 1,000:1.
+That sounds abstract until you hit a 2,000 message chat and the model still remembers who promised what, who is injured, where the party left the key, and which subplot was quietly waiting in the corner.
 
----
+## What it does
 
-## Features
+- Keeps a rolling verbatim window for recent chat.
+- Compresses older chat into Layer 0 memories.
+- Promotes older Layer 0 memories into deeper layers when the layer gets crowded.
+- Separates narrative continuity from durable state using `[NARRATIVE]` and `[STATE]`.
+- Ghosts summarized messages with SillyTavern's `/hide`, so they stop reaching the model but remain readable in the UI.
+- Injects the assembled memory through SillyTavern extension prompts, or exposes it as `{{summaryception_memory}}` for custom prompt layouts.
+- Runs background summarization without mutating the prompt during an active generation.
 
-### Ghost mode (non-destructive)
+## Install
 
-Summaryception never deletes your messages. Summarized turns are "ghosted" — hidden from the AI's context window but still visible in your SillyTavern UI. Scroll up any time and the original prose is right there.
+Requirements: SillyTavern 1.16.0 or newer.
 
-### Dual LLM routing (save money, get speed)
+In SillyTavern:
 
-Use a fast, cheap, large-context model (local Llama-3 8B, GPT-4o-mini) for the frequent Layer 0 turn summaries. Reserve a smarter model (Claude 3.5 Sonnet, GPT-4o) for the rarer Layer 1+ promoted merges.
+1. Open Extensions.
+2. Choose Install Extension.
+3. Paste `https://github.com/vadash/Extension-Summaryception`.
+4. Install, then open Summaryception in extension settings.
 
-### Cache-friendly mode
+## First setup
 
-If your API charges for context but offers prompt caching (Anthropic, DeepSeek), turn this on. It freezes your memory block and expands the live chat window, so the cached prefix gets reused across many turns. API costs drop noticeably.
+Start with Easy mode unless you already know what you want to tune.
 
-### Clean prompt isolation
+Set Fast Summarizer to your normal API or a SillyTavern Connection Profile. This model handles raw chat to Layer 0 summaries, so it should be cheap, fast, and good enough at extracting facts.
 
-When Summaryception calls the summarizer, it temporarily disables your ST presets — character cards, scenarios, author's notes, the lot. The summarizer sees only its own prompt. Your preset is restored right after.
+Smart Deep Memory is optional. Use it when you want Layer 1+ merges to use a stronger model than the raw-chat summarizer.
 
-### The Slop Breaker
+Then pick a memory style:
 
-When the AI gets stuck repeating the same phrases or formatting, hit the Slop Breaker button. It forcefully summarizes the live context, wiping the short-term "slop" from the AI's attention while keeping the facts, so it has to generate fresh prose.
+- Standard keeps the main prompt smaller and summarizes overflow continuously.
+- Cache Friendly keeps a larger live window and a stable memory prefix for providers with prompt caching discounts.
 
----
+The defaults are intentionally conservative: 22k recent verbatim tokens, 10k injected memory, 200 token Layer 0 targets, and promotion after old memories stack up.
 
-## Configuration
+## Controls you will actually use
 
-WIP
+Force Summarize processes eligible old chat now instead of waiting for the background worker.
 
----
+Slop Breaker is for the moment when the model starts repeating itself or gets stuck in a bad format. It summarizes through the current live context cut, ghosts that text, and forces the next generation to work from compact memory instead of stale phrasing.
 
-## Installation
+Stop cancels the current summarization run.
 
-**Requirements:** SillyTavern 1.16.0+ (release or staging).
+Clear removes Summaryception memory for the current chat and unghosts messages Summaryception owns. It does not delete chat messages.
 
-### From SillyTavern UI
-1. Open **Extensions** (the block icon) → **Install Extension**
-2. Paste `https://github.com/vadash/Extension-Summaryception`
-3. Click Install
-4. Find Summaryception in your Extensions settings.
+## Advanced mode
 
----
+Advanced mode exposes the knobs Easy mode hides:
 
-## Version history
+- Verbatim and injected memory token budgets.
+- Layer 0 batch sizes and source token caps.
+- Memories per layer and memories per merge.
+- Memory placement: Before Prompt, In Prompt, In Chat, or Macro Only.
+- Memory role: system, user, or assistant.
+- Separate prompts for Layer 0 summaries, Layer 1+ promotions, and repair attempts.
+- Regex cleanup, Chinese ideograph stripping, debug logs, trace logs, and prompt I/O logs.
 
-Switch branches in SillyTavern if you prefer an older version.
+Macro Only is useful when your prompt already has a deliberate memory slot. Add `{{summaryception_memory}}` where you want the assembled memory to appear.
 
-- **v15:** UI/Prompt tweaks
-- **v14:** Easy mode - easy life. 
-- **v13:** Tweaked few knobs. 
-Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
-Temporal anchors. Each memory has time. So make sure you track date time in RP.
-Guard summarizer output integrity. So long memories cant condense into 1 word due to LLM bug.
-Improve promotion compression repair. You wont see 2000 tokens memory summarize into 1900 tokens. 
-- **v12:** Focus on stability. Tested on few RP till 2-3k messages. Main problem is STATE gets too big. Good stopping point but I have few ideas...
-- **v11:** CN output filter (CN models love to add non EN symbols to output) and Dual-Track Architecture test.
-Separate each summary into two tracks:
-1. **Narrative track** -- free-form prose describing what happened (events, actions, dialogue outcomes)
-2. **State track** -- a compact structured block of current durable facts (location, character states, relationships, inventory, unresolved hooks, counters)
-On promotion, the state track is **merged by overwrite** (new values replace old), while the narrative track is **compressed by summarization**. This eliminates the root cause: the LLM no longer needs to guess which parts of prose are state vs events.
-- **v10:** UI & prompt update. Redesigned the settings panel to be cleaner and more compact for ST sidebars. Added completely separate, customizable prompt editors for Layer 0 (recent turns) and Layer 1+ (deep memory merges).
-Refactor debug logging. Add summarizer fallback connection.
-- **v9:** The Elastic & Cache update.
-  - *Dynamic Memory Budget:* you now set a total memory size (e.g., 10k tokens), and the extension balances Layer 0 and Layer 1+ to fit.
-  - *Dual LLM Profile:* use one cheap API for daily summaries and a smart API for deep merges.
-  - *Cache-Friendly Mode:* locks memory in place to take advantage of prompt caching on APIs like Anthropic.
-- **v8:** Slop Breaker. Manual tool to forcefully summarize recent chat when the AI gets stuck in repetitive loops or formatting errors.
-- **v7:** Consistent roleplay style. Replaced raw turn counts with the "Verbatim Token Budget" slider, so you control how much recent text the AI sees. Smoother UI when editing snippets.
-- **v6:** The major modular rewrite. Speedups, background processing fixes, global regex support.
+## Connection routes
 
-For memory testing I use RP with 3000 messages, then upload F12 to ai studio to analyze. L0 model is free gemma4, L1+ model is glm47, fallback glm52
+Summaryception can use:
 
----
+- SillyTavern's active main API.
+- SillyTavern Connection Profiles.
+- Ollama.
+- OpenAI-compatible endpoints.
 
-Built out of frustration with context limits and love for long-form roleplay.
-If this saves your 500-turn adventure from amnesia, consider starring the repo.
+There are three routes:
 
-**License:** AGPL-3.0
+- Layer 0 for new raw-chat summaries.
+- Merge for deeper Layer 1+ promotion work.
+- Fallback for retryable failures after the primary route gives up.
 
-## new UI (v11+)
+OpenAI-compatible local endpoints may need SillyTavern's CORS proxy. Streaming responses must finish with `data: [DONE]`; incomplete streams are treated as failed attempts.
+
+## Slash commands
+
+`/sc-status` shows the current summarized index and layer counts.
+
+`/sc-preview` prints the memory block that would be injected.
+
+`/sc-clear` clears Summaryception memory for the current chat and unghosts Summaryception-owned messages.
+
+## Safety notes
+
+Summaryception is designed to be non-destructive. Summaries live in chat metadata. Settings live in extension settings. Ghosted messages are marked with `extra.sc_ghosted`, so the extension can tell its own hidden messages apart from messages you hid yourself.
+
+If something looks off, use Clear or `/sc-clear`. That removes Summaryception's memory and ownership flags for the current chat, then unghosts the messages it owns.
+
+## Latest changelog
+
+### v16.4.0
+
+- Refactored summarization routing so Standard, Cache Friendly, Force Summarize, and Slop Breaker use one normalized route plan.
+- Split memory style from memory placement. Choosing Standard or Cache Friendly is no longer tangled with where the memory block is injected.
+- Added assistant role masking for chat-completion requests. When enabled, text-only user-role prompt blocks are rewritten as assistant-role blocks for the outgoing request only. Saved chat is not edited.
+- Cleaned up tuning UI and help text around context estimates, cache behavior, and memory placement.
+
+Older notes before v16 are intentionally trimmed here. The current README tracks the latest release line instead of carrying a long stale changelog.
+
+## Screenshots
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/f1fda4c0-282e-4bbf-8924-98755fb461e0" width="180" alt="1" />
@@ -155,3 +141,7 @@ If this saves your 500-turn adventure from amnesia, consider starring the repo.
   <img src="https://github.com/user-attachments/assets/cd7a255c-4d52-4082-9e62-af6c40798a0a" width="180" alt="4" />
   <img src="https://github.com/user-attachments/assets/88f5de03-4414-4b7d-8b1a-3bfa60b5d3f8" width="180" alt="5" />
 </p>
+
+## License
+
+AGPL-3.0. See [LICENSE](LICENSE).
