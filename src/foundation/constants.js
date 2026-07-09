@@ -88,7 +88,7 @@ export const defaultSettings = Object.freeze({
     layer0SummaryTokenTarget: 200,
     maxL0SourceTokens: 16000,
     minSummaryBudget: 8000,
-    verbatimTokenBudget: 16000,
+    verbatimTokenBudget: 22000,
     memoryTokenBudget: 10000,
     snippetsPerLayer: 24,
     snippetsPerPromotion: 3,

@@ -215,7 +215,7 @@ function bindMemoryModeHandlers() {
         }
 
         s.memoryMode = mode;
-        s.verbatimTokenBudget = mode === MEMORY_MODES.CACHE ? 32000 : 16000;
+        s.verbatimTokenBudget = mode === MEMORY_MODES.CACHE ? 32000 : 22000;
         saveSettings();
         updateInjection();
         updateUI();

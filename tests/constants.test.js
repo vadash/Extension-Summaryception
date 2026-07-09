@@ -47,7 +47,7 @@ describe('constants', () => {
             defaultSettings.minSummaryTurns,
         );
         expect(defaultSettings.minSummaryBudget).toBe(8000);
-        expect(defaultSettings.verbatimTokenBudget).toBe(16000);
+        expect(defaultSettings.verbatimTokenBudget).toBe(22000);
         expect(defaultSettings.memoryTokenBudget).toBe(10000);
         expect(defaultSettings.snippetsPerLayer).toBe(24);
         expect(defaultSettings.snippetsPerPromotion).toBe(3);

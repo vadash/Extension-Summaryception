@@ -160,7 +160,7 @@ const HELP_ENTRIES = [
             higher: 'keeps more exact recent chat but uses more context.',
             lower: 'summarizes sooner and leaves more room for memory.',
             defaultText:
-                '16k; Cache Friendly switches this to 32k and can save ~70% per turn on caching providers.',
+                '22k; Cache Friendly switches this to 32k and can save ~70% per turn on caching providers.',
         }),
     ],
     [
