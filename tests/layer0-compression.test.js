@@ -53,6 +53,9 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('YYYY-MM-DD HH ddd');
         expect(result).toContain('physiological or sex counters');
         expect(result).toContain('static character background/profile facts');
+        expect(result).toContain('short, direct sentences');
+        expect(result).toContain('run-on sentences');
+        expect(result).toContain('Prefer periods over commas and semicolons');
     });
 
     it('appends narrative-only constraints for promotion calls', () => {
@@ -75,6 +78,9 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(result).toContain('unknown spans');
         expect(result).toContain('Fold any critical changes in state');
+        expect(result).toContain('short, direct sentences');
+        expect(result).toContain('run-on sentences');
+        expect(result).toContain('Prefer periods over commas and semicolons');
     });
 
     it('appends repair feedback for promotion repair calls', () => {

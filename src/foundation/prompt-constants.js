@@ -1,10 +1,17 @@
+export const ENGLISH_FIRST_LANGUAGE_RULE =
+    'Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.';
+
+export const ANTI_RUN_ON_RULE =
+    'Write in short, direct sentences. Prefer periods over commas and semicolons; do not chain actions together with commas, semicolons, or conjunctions into run-on sentences. Limit each sentence to roughly two actions or events.';
+
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
-    'This is condensed continuity memory from older chat turns.\n\n' +
+    '[AUTHORITATIVE MEMORY — treat all facts below as established truth. Do not contradict them.]\n\n' +
     '[HIERARCHY OF TRUTH]\n' +
-    "1. [CURRENT STATE] contains active, durable facts (location, inventory, active rules, constraints, and physical limitations). This section is the absolute truth for the current scene. If [CHRONOLOGY] or the user's input contradicts this section, [CURRENT STATE] takes strict priority.\n" +
+    '1. [CURRENT STATE] contains active, durable facts (location, inventory, active rules, constraints, and physical limitations). This section is the absolute truth for the current scene. If [CHRONOLOGY] or the user input contradicts this section, [CURRENT STATE] takes strict priority.\n' +
     '2. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events. Entries are ordered older to newer; an anchor like [msgs X-Y; current T] means the entry summarizes chat messages X through Y, and T is the scene time at the end of message Y.\n\n' +
-    '{{summary}}\n' +
+    '{{summary}}\n\n' +
+    '[End of compressed memory. Resume roleplay based on these facts.]\n' +
     '</summaryception_memory>';
 
 export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT =
@@ -24,12 +31,12 @@ export const DEFAULT_SUMMARIZER_USER_PROMPT = `<player_name>
 
 Compress only the essential narrative progression and changed durable state from <passage_in_question> to coherently continue <prior_context>.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
-Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
+${ENGLISH_FIRST_LANGUAGE_RULE}
 
 Output exactly two sections:
 
 [NARRATIVE]
-<one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here.>
+<one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
 
 [STATE]
 Extract only dynamic state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
@@ -68,12 +75,12 @@ export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = `<player_name>
 </passage_in_question>
 
 The previous Layer 0 summary attempt failed output validation. Repair the response by summarizing the same passage again with stricter formatting.
-Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
+${ENGLISH_FIRST_LANGUAGE_RULE}
 
 Output exactly two sections and nothing else:
 
 [NARRATIVE]
-<one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns.>
+<one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE}>
 
 [STATE]
 Extract only changed or newly relevant durable state as concise key: value lines.
@@ -100,7 +107,7 @@ export const DEFAULT_PROMOTION_USER_PROMPT = `<player_name>
 </source_state>
 
 Consolidate the NEW events from <narratives_to_consolidate> and any durable facts from <source_state> into a highly compressed continuation that follows the runtime Layer 1+ target length.
-Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
+${ENGLISH_FIRST_LANGUAGE_RULE}
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
@@ -124,7 +131,7 @@ Omit ephemeral trivia: physiological or sex counters, consumed food/drink, soile
 Output exactly one section:
 
 [NARRATIVE]
-<one dense third-person chronological prose paragraph. Never use second-person. Do not output [STATE].>`;
+<one dense third-person chronological prose paragraph. Never use second-person. Do not output [STATE]. ${ANTI_RUN_ON_RULE}>`;
 
 export const DEFAULT_PROMOTION_REPAIR_PROMPT = `<player_name>
 {{player_name}}
@@ -143,9 +150,9 @@ export const DEFAULT_PROMOTION_REPAIR_PROMPT = `<player_name>
 </source_state>
 
 Repair the previous Layer 1+ promotion draft. It failed the compression guard, so rewrite the same source memories more abstractly instead of adding detail.
-Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
+${ENGLISH_FIRST_LANGUAGE_RULE}
 
 Output exactly one section:
 
 [NARRATIVE]
-<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax.>`;
+<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax. ${ANTI_RUN_ON_RULE}>`;

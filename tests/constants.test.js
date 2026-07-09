@@ -61,6 +61,7 @@ describe('constants', () => {
 
     it('uses the Summaryception memory wrapper by default', () => {
         expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
+        expect(defaultSettings.injectionTemplate).toContain('[AUTHORITATIVE MEMORY');
         expect(defaultSettings.injectionTemplate).toContain('[HIERARCHY OF TRUTH]');
         expect(defaultSettings.injectionTemplate).toContain('[CURRENT STATE]');
         expect(defaultSettings.injectionTemplate).toContain('[CHRONOLOGY]');
@@ -68,6 +69,7 @@ describe('constants', () => {
         expect(defaultSettings.injectionTemplate).toContain('[msgs X-Y; current T]');
         expect(defaultSettings.injectionTemplate).toContain('scene time at the end of message Y');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
+        expect(defaultSettings.injectionTemplate).toContain('[End of compressed memory');
     });
 
     it('configures exponential-backoff retry within 2s..60s bounds', () => {
