@@ -31,6 +31,19 @@ describe('summarizer-state', () => {
         });
     });
 
+    it('parses inline dual-track headers from model output drift', () => {
+        const parsed = parseSnippet(
+            '[NARRATIVE] They reached the tower. [STATE] current_date_time: 2026-07-09 02 Thu',
+        );
+
+        expect(parsed).toEqual({
+            narrative: 'They reached the tower.',
+            state: {
+                current_date_time: '2026-07-09 02 Thu',
+            },
+        });
+    });
+
     it('falls back to narrative-only when no state block exists', () => {
         expect(parseSnippet('Plain legacy summary.')).toEqual({
             narrative: 'Plain legacy summary.',
@@ -40,6 +53,7 @@ describe('summarizer-state', () => {
 
     it('detects only explicit state sections', () => {
         expect(hasStateSection('[NARRATIVE]\nScene.\n\n[STATE]\nlocation: dock')).toBe(true);
+        expect(hasStateSection('[NARRATIVE] Scene. [STATE] location: dock')).toBe(true);
         expect(hasStateSection('Scene.\nlocation: dock')).toBe(false);
     });
 

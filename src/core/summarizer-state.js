@@ -1,3 +1,5 @@
+import { normalizeStructuralHeaderLines } from './structural-headers.js';
+
 const STATE_LINE_RE = /^\s*[-*]?\s*([a-zA-Z_][\w\s]*?)\s*[:=-]\s*(.+?)\s*$/;
 const STATE_HEADER_RE = /^\s*\[STATE\]\s*$/i;
 const NARRATIVE_HEADER_RE = /^\s*\[NARRATIVE\]\s*$/i;
@@ -70,7 +72,7 @@ const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
  * @returns {boolean}
  */
 export function hasStateSection(text) {
-    return String(text || '')
+    return normalizeStructuralHeaderLines(text)
         .split(/\r?\n/)
         .some((line) => STATE_HEADER_RE.test(line));
 }
@@ -81,7 +83,7 @@ export function hasStateSection(text) {
  * @returns {{ narrative: string, state: Record<string, string> }}
  */
 export function parseSnippet(text) {
-    const source = String(text || '').trim();
+    const source = normalizeStructuralHeaderLines(text).trim();
     if (!source) {
         return { narrative: '', state: {} };
     }

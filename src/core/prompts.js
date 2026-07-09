@@ -1,4 +1,5 @@
 import { getEffectiveSettings } from '../foundation/state.js';
+import { normalizeStructuralHeaderLines } from './structural-headers.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export function cleanSummarizerOutput(raw, options = {}) {
             text = text.replace(regex, '');
         }
     }
+
+    text = normalizeStructuralHeaderLines(text);
 
     if (options.stripStructuralMarkers) {
         text = text.replace(/^\s*\[NARRATIVE\]\s*$/gim, '');

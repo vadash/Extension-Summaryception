@@ -47,6 +47,21 @@ describe('cleanSummarizerOutput', () => {
         ).toBe('Merged summary.');
     });
 
+    it('canonicalizes inline structural headers before validation/storage', () => {
+        expect(
+            cleanSummarizerOutput(
+                '[NARRATIVE] Scene summary. [STATE] current_date_time: 2026-07-09 02 Thu',
+            ),
+        ).toBe(
+            [
+                '[NARRATIVE]',
+                'Scene summary.',
+                '[STATE]',
+                'current_date_time: 2026-07-09 02 Thu',
+            ].join('\n'),
+        );
+    });
+
     it('removes multiple reasoning-tag variants', () => {
         const raw = [
             '<reasoning>scratch</reasoning>',
@@ -163,6 +178,20 @@ describe('validateSummarizerOutputIntegrity', () => {
 
         expect(
             validateSummarizerOutputIntegrity(output, {
+                kind: 'layer0',
+                regexStats: { finalTokens: 120 },
+            }),
+        ).toEqual({ valid: true, error: null });
+    });
+
+    it('accepts L0 output with inline structural markers after cleanup', () => {
+        const output =
+            '[NARRATIVE] The group reviewed the plan, crossed the bridge, and secured the gate before nightfall. [STATE] current_date_time: 2026-07-09 02 Thu';
+
+        const cleaned = cleanSummarizerOutput(output);
+
+        expect(
+            validateSummarizerOutputIntegrity(cleaned, {
                 kind: 'layer0',
                 regexStats: { finalTokens: 120 },
             }),
