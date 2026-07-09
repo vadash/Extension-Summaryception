@@ -288,6 +288,13 @@
     border-radius: 7px;
     background: var(--sc-field);
 }
+.sc-context-bar-over {
+    border-color: color-mix(in srgb, var(--sc-danger) 64%, var(--sc-border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sc-danger) 34%, transparent);
+}
+.sc-context-total-over {
+    color: var(--sc-danger);
+}
 .sc-context-segment {
     display: flex;
     align-items: center;
@@ -418,7 +425,7 @@
 }
 .sc-mode-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
 }
 .sc-ui-mode-grid {
@@ -499,6 +506,11 @@
 }
 .sc-expert-tuning .sc-tuning-grid {
     margin-top: 7px;
+}
+.sc-placement-panel {
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px solid var(--sc-border);
 }
 .sc-settings label { font-weight: 600; }
 .sc-disabled {

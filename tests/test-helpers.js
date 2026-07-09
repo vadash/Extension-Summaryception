@@ -298,6 +298,7 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
         css: {},
         children: [],
         visible: true,
+        classes: new Set(),
     };
     const node = { id };
     const api = {
@@ -362,6 +363,40 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
             state.children.push(child);
             return api;
         },
+        appendTo(parent) {
+            parent.append(api);
+            return api;
+        },
+        empty() {
+            state.children = [];
+            state.text = '';
+            state.html = '';
+            return api;
+        },
+        addClass(classNames) {
+            for (const className of splitClassNames(classNames)) {
+                state.classes.add(className);
+            }
+            return api;
+        },
+        removeClass(classNames) {
+            for (const className of splitClassNames(classNames)) {
+                state.classes.delete(className);
+            }
+            return api;
+        },
+        toggleClass(className, force) {
+            const shouldAdd = force === undefined ? !state.classes.has(className) : Boolean(force);
+            if (shouldAdd) {
+                state.classes.add(className);
+            } else {
+                state.classes.delete(className);
+            }
+            return api;
+        },
+        hasClass(className) {
+            return state.classes.has(className);
+        },
         add(other) {
             return createJQueryHarnessCollection([api, other]);
         },
@@ -397,4 +432,8 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
 
 function splitEventNames(eventNames) {
     return String(eventNames).split(/\s+/).filter(Boolean);
+}
+
+function splitClassNames(classNames) {
+    return String(classNames).split(/\s+/).filter(Boolean);
 }

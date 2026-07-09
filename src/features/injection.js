@@ -1,12 +1,11 @@
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
-    MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
 } from '../foundation/constants.js';
-import { setExtensionPrompt } from '../foundation/context.js';
+import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildEffectiveMemoryText } from '../core/memory-budget.js';
@@ -30,6 +29,9 @@ export function assembleSummaryBlock() {
 let _lastInjectionKey = '';
 let _activeInjectionSnapshot = null;
 let _activeInjectionOptions = null;
+let _memoryMacroRegistered = false;
+
+export const MEMORY_MACRO_NAME = 'summaryception_memory';
 
 /**
  * Update the committed memory injection.
@@ -43,8 +45,9 @@ export function updateInjection({ logMemoryStatus = false } = {}) {
         }
 
         const store = getChatStore();
-        const nextInjection = buildEnabledInjectionText();
-        const nextOptions = getMemoryInjectionOptions();
+        const settings = getEffectiveSettings();
+        const nextInjection = buildDirectInjectionText(settings);
+        const nextOptions = getMemoryInjectionOptions(settings);
         _activeInjectionSnapshot = nextInjection;
         _activeInjectionOptions = nextOptions;
 
@@ -71,7 +74,7 @@ export function updateInjection({ logMemoryStatus = false } = {}) {
 export function reassertInjectionSnapshot() {
     try {
         if (_activeInjectionSnapshot === null) {
-            _activeInjectionSnapshot = buildEnabledInjectionText();
+            _activeInjectionSnapshot = buildDirectInjectionText();
         }
         if (_activeInjectionOptions === null) {
             _activeInjectionOptions = getMemoryInjectionOptions();
@@ -85,13 +88,35 @@ export function reassertInjectionSnapshot() {
 }
 
 /**
- * Resolve SillyTavern extension prompt options from the configured memory mode.
+ * Register the Summaryception memory macro for prompt templates.
+ * @returns {Promise<boolean>} Whether ST accepted the macro registration.
+ */
+export async function registerSummaryceptionMemoryMacro() {
+    if (_memoryMacroRegistered) {
+        return true;
+    }
+
+    _memoryMacroRegistered = await registerMacro(
+        MEMORY_MACRO_NAME,
+        () => buildEnabledMemoryText(),
+        'Returns the current Summaryception memory block.',
+    );
+    return _memoryMacroRegistered;
+}
+
+/**
+ * Resolve SillyTavern extension prompt options from the configured memory placement.
  * @param {ExtensionSettings} [settings]
  * @returns {{ position: number, depth: number, scan: boolean, role: number }}
  */
 export function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
-    if (settings.memoryMode !== MEMORY_MODES.CUSTOM) {
-        return getStandardInjectionOptions();
+    if (settings.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY) {
+        return {
+            position: EXTENSION_PROMPT_POSITIONS.NONE,
+            depth: 0,
+            scan: false,
+            role: EXTENSION_PROMPT_ROLES.SYSTEM,
+        };
     }
 
     return {
@@ -107,23 +132,21 @@ export function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
 
 /**
  * Build the prompt text that should be committed for the current store/settings.
+ * @param {ExtensionSettings} [settings]
  * @returns {string}
  */
-function buildEnabledInjectionText() {
-    const s = getEffectiveSettings();
-    if (!s.enabled) {
+function buildDirectInjectionText(settings = getEffectiveSettings()) {
+    if (!settings.enabled || settings.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY) {
+        return '';
+    }
+    return buildEnabledMemoryText(settings);
+}
+
+function buildEnabledMemoryText(settings = getEffectiveSettings()) {
+    if (!settings.enabled) {
         return '';
     }
     return assembleSummaryBlock() || '';
-}
-
-function getStandardInjectionOptions() {
-    return {
-        position: EXTENSION_PROMPT_POSITIONS.IN_PROMPT,
-        depth: 0,
-        scan: false,
-        role: EXTENSION_PROMPT_ROLES.SYSTEM,
-    };
 }
 
 function mapMemoryPosition(position) {

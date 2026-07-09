@@ -315,12 +315,12 @@ describe('memory injection options', () => {
         });
     });
 
-    it('maps custom in-chat role and depth settings', async () => {
+    it('maps independent in-chat role and depth settings', async () => {
         const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
 
         expect(
             getMemoryInjectionOptions({
-                memoryMode: 'custom',
+                memoryMode: 'cache',
                 customMemoryPosition: 'in_chat',
                 customMemoryRole: 'user',
                 customMemoryDepth: 42,
@@ -333,12 +333,12 @@ describe('memory injection options', () => {
         });
     });
 
-    it('ignores custom depth outside in-chat placement', async () => {
+    it('ignores depth outside in-chat placement', async () => {
         const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
 
         expect(
             getMemoryInjectionOptions({
-                memoryMode: 'custom',
+                memoryMode: 'standard',
                 customMemoryPosition: 'before_prompt',
                 customMemoryRole: 'assistant',
                 customMemoryDepth: 42,
@@ -349,5 +349,74 @@ describe('memory injection options', () => {
             scan: false,
             role: 2,
         });
+    });
+
+    it('maps macro-only placement to a cleared direct extension prompt', async () => {
+        const { getMemoryInjectionOptions } = await import('../src/features/injection.js');
+
+        expect(
+            getMemoryInjectionOptions({
+                memoryMode: 'cache',
+                customMemoryPosition: 'macro_only',
+                customMemoryRole: 'assistant',
+                customMemoryDepth: 42,
+            }),
+        ).toEqual({
+            position: -1,
+            depth: 0,
+            scan: false,
+            role: 0,
+        });
+    });
+});
+
+describe('memory macro', () => {
+    it('registers the Summaryception macro through the ST facade fallback', async () => {
+        const registerMacro = vi.fn();
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'macro summary' }]],
+                }),
+            },
+            settings: advancedSettings({
+                injectionTemplate: 'BEGIN\n{{summary}}\nEND',
+            }),
+            registerMacro,
+        });
+
+        const { MEMORY_MACRO_NAME, registerSummaryceptionMemoryMacro } =
+            await import('../src/features/injection.js');
+
+        await expect(registerSummaryceptionMemoryMacro()).resolves.toBe(true);
+        expect(registerMacro).toHaveBeenCalledWith(
+            MEMORY_MACRO_NAME,
+            expect.any(Function),
+            'Returns the current Summaryception memory block.',
+        );
+
+        const handler = registerMacro.mock.calls[0][1];
+        expect(handler()).toBe(['BEGIN', '[CHRONOLOGY]', 'macro summary', 'END'].join('\n'));
+    });
+
+    it('clears direct injection when placement is macro only', async () => {
+        const setExtensionPrompt = vi.fn();
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'macro-only summary' }]],
+                }),
+            },
+            settings: advancedSettings({
+                customMemoryPosition: 'macro_only',
+                injectionTemplate: '{{summary}}',
+            }),
+            setExtensionPrompt,
+        });
+
+        const { updateInjection } = await import('../src/features/injection.js');
+        updateInjection();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith('summaryception', '', -1, 0, false, 0);
     });
 });

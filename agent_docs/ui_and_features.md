@@ -16,6 +16,6 @@
 
 ## Features & Workflows (`src/features/`)
 
-- **Injection:** Handled via `setExtensionPrompt()` utilizing the last committed summary snapshot.
+- **Injection:** Direct placements use `setExtensionPrompt()`; Macro Only registers `{{summaryception_memory}}` and clears direct prompt injection.
 - **Maintenance:** Orphaned hidden messages (hidden but no longer owned by Summaryception) should be repaired and unhidden.
 - Leave toastr wording/UI refresh decisions to `src/entry/`.

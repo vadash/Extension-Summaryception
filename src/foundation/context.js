@@ -7,6 +7,8 @@
  * return null or a safe fallback instead of throwing.
  */
 
+const SILLYTAVERN_MACRO_SYSTEM_PATH = '/scripts/macros/macro-system.js';
+
 /**
  * Get the raw SillyTavern context object.
  * @returns {SillyTavernContext} The current SillyTavern context
@@ -101,6 +103,32 @@ export function setExtensionPrompt(name, text, options = {}) {
 }
 
 /**
+ * Register a SillyTavern macro, preferring the current registry and falling back to the legacy context bridge.
+ * @param {string} name - Macro identifier without braces.
+ * @param {(context?: object) => string} handler - Macro expansion handler.
+ * @param {string} [description] - Macro description for ST docs/autocomplete.
+ * @returns {Promise<boolean>} Whether a macro API accepted the registration.
+ */
+export async function registerMacro(name, handler, description = '') {
+    if (await registerMacroWithRegistry(name, handler, description)) {
+        return true;
+    }
+    return registerMacroWithLegacyBridge(name, handler, description);
+}
+
+/**
+ * Unregister a SillyTavern macro when a runtime API is available.
+ * @param {string} name - Macro identifier without braces.
+ * @returns {Promise<boolean>} Whether a macro API accepted the unregister request.
+ */
+export async function unregisterMacro(name) {
+    if (await unregisterMacroWithRegistry(name)) {
+        return true;
+    }
+    return unregisterMacroWithLegacyBridge(name);
+}
+
+/**
  * Call SillyTavern's active generateRaw function, preserving `this` binding.
  * @param {GenerateRawOptions} options - Generate options
  * @returns {Promise<string>}
@@ -111,6 +139,63 @@ export async function generateRaw(options) {
         throw new Error('generateRaw is not available in the current context.');
     }
     return await ctx.generateRaw(options);
+}
+
+async function registerMacroWithRegistry(name, handler, description) {
+    try {
+        const macroSystem = await import(SILLYTAVERN_MACRO_SYSTEM_PATH);
+        const register = macroSystem?.macros?.register;
+        if (typeof register !== 'function') {
+            return false;
+        }
+        register(name, {
+            category: macroSystem.MacroCategory?.CHAT || 'chat',
+            description,
+            handler: () => handler(),
+        });
+        return true;
+    } catch (_e) {
+        return false;
+    }
+}
+
+function registerMacroWithLegacyBridge(name, handler, description) {
+    try {
+        const ctx = getContext();
+        if (typeof ctx.registerMacro !== 'function') {
+            return false;
+        }
+        ctx.registerMacro(name, () => handler(), description);
+        return true;
+    } catch (_e) {
+        return false;
+    }
+}
+
+async function unregisterMacroWithRegistry(name) {
+    try {
+        const macroSystem = await import(SILLYTAVERN_MACRO_SYSTEM_PATH);
+        const unregister = macroSystem?.macros?.registry?.unregisterMacro;
+        if (typeof unregister !== 'function') {
+            return false;
+        }
+        return Boolean(unregister.call(macroSystem.macros.registry, name));
+    } catch (_e) {
+        return false;
+    }
+}
+
+function unregisterMacroWithLegacyBridge(name) {
+    try {
+        const ctx = getContext();
+        if (typeof ctx.unregisterMacro !== 'function') {
+            return false;
+        }
+        ctx.unregisterMacro(name);
+        return true;
+    } catch (_e) {
+        return false;
+    }
 }
 
 /**

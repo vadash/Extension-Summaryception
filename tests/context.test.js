@@ -69,6 +69,27 @@ describe('context.js facade', () => {
         );
     });
 
+    it('registers and unregisters macros through the legacy context bridge when registry import is unavailable', async () => {
+        const registerMacro = vi.fn();
+        const unregisterMacro = vi.fn();
+        installSillyTavernStub({ registerMacro, unregisterMacro });
+
+        const handler = () => 'macro text';
+
+        await expect(
+            contextFacade.registerMacro('summaryception_memory', handler, 'desc'),
+        ).resolves.toBe(true);
+        expect(registerMacro).toHaveBeenCalledWith(
+            'summaryception_memory',
+            expect.any(Function),
+            'desc',
+        );
+        expect(registerMacro.mock.calls[0][1]()).toBe('macro text');
+
+        await expect(contextFacade.unregisterMacro('summaryception_memory')).resolves.toBe(true);
+        expect(unregisterMacro).toHaveBeenCalledWith('summaryception_memory');
+    });
+
     it('generateRaw delegates or throws when unavailable', async () => {
         const generateRaw = vi.fn(async () => 'result');
         installSillyTavernStub({});

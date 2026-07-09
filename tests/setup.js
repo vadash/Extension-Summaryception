@@ -34,6 +34,8 @@ const foundationMocks = vi.hoisted(() => {
         saveChat: vi.fn(),
         executeSlashCommandsWithOptions: vi.fn(),
         setExtensionPrompt: vi.fn(),
+        registerMacro: vi.fn(),
+        unregisterMacro: vi.fn(),
         generateRaw: vi.fn(),
         callTokenCountAsync: vi.fn(),
         estimateMainPromptTokens: vi.fn(),
@@ -92,6 +94,22 @@ const foundationMocks = vi.hoisted(() => {
         context.setExtensionPrompt.mockImplementation((name, text, options = {}) => {
             const { position = 0, depth = 0, scan = false, role = 0 } = options;
             getContext().setExtensionPrompt(name, text, position, depth, scan, role);
+        });
+        context.registerMacro.mockImplementation(async (name, handler, description = '') => {
+            const fn = getContext().registerMacro;
+            if (typeof fn !== 'function') {
+                return false;
+            }
+            fn(name, () => handler(), description);
+            return true;
+        });
+        context.unregisterMacro.mockImplementation(async (name) => {
+            const fn = getContext().unregisterMacro;
+            if (typeof fn !== 'function') {
+                return false;
+            }
+            fn(name);
+            return true;
         });
         context.generateRaw.mockImplementation(async (options) => {
             const ctx = getContext();

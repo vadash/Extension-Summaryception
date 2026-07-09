@@ -316,42 +316,12 @@
                     <div class="sc-section-header sc-budget-subheader">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-layer-group"></span>
-                            Injected Memory
+                            Memory Block
                         </h4>
                         <span id="sc_memory_budget_total" class="sc-context-total">0 / 0</span>
                     </div>
-                    <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Injected memory token usage"></div>
+                    <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Memory block token usage"></div>
                     <div id="sc_memory_budget_legend" class="sc-context-legend"></div>
-                </section>
-                <section id="sc_cache_status_section" class="sc-section" style="display: none;">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-box-archive"></span>
-                            Cache Mode
-                        </h4>
-                    </div>
-                    <div class="sc-status-grid sc-cache-grid" aria-label="Cache-friendly memory status">
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Live Tokens</span>
-                            <strong id="sc_cache_live_tokens">0</strong>
-                        </div>
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Cache Budget</span>
-                            <strong id="sc_cache_budget">0</strong>
-                        </div>
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Protected Tail</span>
-                            <strong id="sc_cache_tail_tokens">0</strong>
-                        </div>
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Flush Size</span>
-                            <strong id="sc_cache_flush_tokens">0</strong>
-                        </div>
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Ready</span>
-                            <strong id="sc_cache_ready_state">Within cache budget</strong>
-                        </div>
-                    </div>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
@@ -735,14 +705,6 @@
                                 </span>
                                 <input type="radio" id="sc_memory_mode_cache" name="sc_memory_mode" value="cache" />
                             </label>
-                            <label class="checkbox_label sc-mode-card" for="sc_memory_mode_custom">
-                                <span class="sc-toggle-icon fa-solid fa-location-dot"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Custom</span>
-                                    <small class="sc-hint">Choose where committed memory is injected.</small>
-                                </span>
-                                <input type="radio" id="sc_memory_mode_custom" name="sc_memory_mode" value="custom" />
-                            </label>
                         </div>
                     </div>
                     <div id="sc_memory_help_standard" class="sc-note">
@@ -752,38 +714,6 @@
                     <div id="sc_memory_help_cache" class="sc-note" style="display: none;">
                         <span class="fa-solid fa-circle-info"></span>
                         <small>Cache Friendly freezes the memory prefix and lets live chat grow to a 32k budget, protecting a 4k-8k tail and flushing older chat in one commit. On cached-input providers this is much cheaper per turn, but total context is larger (memory + 32k).</small>
-                    </div>
-                    <div id="sc_memory_help_custom" class="sc-note" style="display: none;">
-                        <span class="fa-solid fa-circle-info"></span>
-                        <small>Custom changes only the injection placement, role, and chat depth; summarization cadence stays standard.</small>
-                    </div>
-                    <div id="sc_custom_memory_controls" class="sc-sub-panel sc-settings-grid" style="display: none;">
-                        <div class="sc-setting-row">
-                            <label for="sc_custom_memory_position">
-                                <span>Memory Position</span>
-                            </label>
-                            <select id="sc_custom_memory_position" class="text_pole">
-                                <option value="before_prompt">Before Prompt</option>
-                                <option value="in_prompt">In Prompt</option>
-                                <option value="in_chat">In Chat</option>
-                            </select>
-                        </div>
-                        <div class="sc-setting-row">
-                            <label for="sc_custom_memory_role">
-                                <span>Memory Role</span>
-                            </label>
-                            <select id="sc_custom_memory_role" class="text_pole">
-                                <option value="system">System</option>
-                                <option value="user">User</option>
-                                <option value="assistant">Assistant</option>
-                            </select>
-                        </div>
-                        <div id="sc_custom_memory_depth_row" class="sc-setting-row" style="display: none;">
-                            <label for="sc_custom_memory_depth">
-                                <span>Chat Depth</span>
-                            </label>
-                            <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
-                        </div>
                     </div>
                 </section>
                 <section class="sc-section">
@@ -877,7 +807,7 @@
                                 <div class="sc-row">
                                     <label for="sc_memory_token_budget">
                                         <span>Memory Size Limit</span>
-                                        <small class="sc-hint">Maximum size of all summaries injected into your chat. Larger = more context history.</small>
+                                        <small class="sc-hint">Maximum size of all summaries sent as Summaryception memory. Larger = more context history.</small>
                                     </label>
                                     <div class="sc-slider-row">
                                         <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="memoryTokenBudget" data-sc-partner-input="#sc_memory_token_budget_val" />
@@ -951,6 +881,50 @@
                             </div>
                         </div>
                     </details>
+                    <div class="sc-placement-panel">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-location-dot"></span>
+                                Memory Position
+                            </h4>
+                        </div>
+                        <div id="sc_custom_memory_controls" class="sc-sub-panel sc-settings-grid">
+                            <div class="sc-setting-row">
+                                <label for="sc_custom_memory_position">
+                                    <span>Memory Position</span>
+                                    <small class="sc-hint">Where Summaryception memory is placed in the ST prompt.</small>
+                                </label>
+                                <select id="sc_custom_memory_position" class="text_pole">
+                                    <option value="before_prompt">Before Prompt</option>
+                                    <option value="in_prompt">In Prompt</option>
+                                    <option value="in_chat">In Chat</option>
+                                    <option value="macro_only">Macro Only</option>
+                                </select>
+                            </div>
+                            <div id="sc_custom_memory_role_row" class="sc-setting-row">
+                                <label for="sc_custom_memory_role">
+                                    <span>Memory Role</span>
+                                    <small class="sc-hint">Message role used when memory is injected as chat or prompt text.</small>
+                                </label>
+                                <select id="sc_custom_memory_role" class="text_pole">
+                                    <option value="system">System</option>
+                                    <option value="user">User</option>
+                                    <option value="assistant">Assistant</option>
+                                </select>
+                            </div>
+                            <div id="sc_custom_memory_depth_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_custom_memory_depth">
+                                    <span>Chat Depth</span>
+                                    <small class="sc-hint">How far back memory is inserted when using In Chat.</small>
+                                </label>
+                                <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
+                            </div>
+                        </div>
+                        <div id="sc_macro_memory_note" class="sc-note" style="display: none;">
+                            <span class="fa-solid fa-circle-info"></span>
+                            <small>Macro Only exposes <code>{{summaryception_memory}}</code> and skips direct prompt injection.</small>
+                        </div>
+                    </div>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
@@ -978,7 +952,7 @@
                             <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
                         </div>
                     </div>
-                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + injected memory + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
+                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + memory block + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">

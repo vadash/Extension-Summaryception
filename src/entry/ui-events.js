@@ -211,6 +211,10 @@ function bindMemoryModeHandlers() {
 
     $(document).on('change', 'input[name="sc_memory_mode"]', function () {
         const mode = String($(this).val());
+        if (mode !== MEMORY_MODES.STANDARD && mode !== MEMORY_MODES.CACHE) {
+            return;
+        }
+
         const s = getSettings();
         if (s.memoryMode === mode) {
             return;

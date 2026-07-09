@@ -18,7 +18,11 @@ import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
 import { initSettingsHelp } from './src/entry/settings-help.js';
 import { initSettingsTabs } from './src/entry/ui-tabs.js';
-import { reassertInjectionSnapshot, updateInjection } from './src/features/injection.js';
+import {
+    registerSummaryceptionMemoryMacro,
+    reassertInjectionSnapshot,
+    updateInjection,
+} from './src/features/injection.js';
 import {
     bindPromptFreezeRecoveryEvents,
     onChatChanged,
@@ -53,6 +57,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     bindPromptFreezeRecoveryEvents();
     initSettingsTabs();
     initConnectionUI();
+    await registerSummaryceptionMemoryMacro();
 
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);

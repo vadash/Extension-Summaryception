@@ -226,6 +226,8 @@ interface SillyTavernContext {
     saveSettingsDebounced(): void;
     saveMetadata(): Promise<void>;
     getRequestHeaders?: () => Record<string, string>;
+    registerMacro?: (name: string, handler: () => string, description?: string) => void;
+    unregisterMacro?: (name: string) => void;
     executeSlashCommandsWithOptions(
         command: string,
         options: Record<string, unknown>,

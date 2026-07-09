@@ -200,7 +200,7 @@ const HELP_ENTRIES = [
                 controlFor('sc_memory_token_budget_val'),
             ],
             meaning:
-                'Maximum ceiling for committed Summaryception memory injected into the prompt; actual use may sit below it after compression and promotion cycles.',
+                'Maximum ceiling for committed Summaryception memory sent through direct injection or the macro; actual use may sit below it after compression and promotion cycles.',
             higher: 'keeps more detailed memory before promotion pressure rises.',
             lower: 'promotes and compresses memory sooner; 4k is the hard ceiling where consolidation becomes aggressive.',
             defaultText: '10k.',
@@ -315,28 +315,16 @@ const HELP_ENTRIES = [
         }),
     ],
     [
-        'memory_mode_custom',
-        basicHelp({
-            selector: selectorFor('sc_memory_mode_custom'),
-            title: 'Custom',
-            short: 'Choose where and how the memory block is injected.',
-            controls: [controlFor('sc_memory_mode_custom')],
-            controlsText:
-                'Controls whether you can override the memory position, role, and chat depth.',
-            when: 'if a preset or model needs memory placed differently.',
-            risk: 'a poor placement can make the model ignore or over-weight memory.',
-        }),
-    ],
-    [
         'custom_memory_position',
         basicHelp({
             selector: selectorFor('sc_custom_memory_position'),
             title: 'Memory Position',
-            short: 'Where custom memory is placed in the ST prompt.',
+            short: 'Where Summaryception memory is placed in the ST prompt.',
             controls: [controlFor('sc_custom_memory_position')],
-            controlsText: 'Controls where the combined memory block is inserted.',
-            when: 'only in Custom mode when your prompt layout needs a specific location.',
-            risk: 'placing memory too late or too early can change how strongly the model follows it.',
+            controlsText:
+                'Controls whether the combined memory block is inserted directly or exposed as {{summaryception_memory}}.',
+            when: 'when your prompt layout needs a specific location.',
+            risk: 'placing memory too late, too early, or only in an unused macro can make the model ignore it.',
         }),
     ],
     [
@@ -467,7 +455,7 @@ const HELP_ENTRIES = [
             short: 'Wrapper text around the combined memory block.',
             controls: [controlFor('sc_injection_template')],
             controlsText:
-                'Controls the wrapper around injected memory and must include {{summary}}.',
+                'Controls the wrapper around Summaryception memory and must include {{summary}}.',
             when: 'if your model follows a different memory tag or framing better.',
             risk: 'removing {{summary}} means no memory text is injected.',
         }),

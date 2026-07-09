@@ -66,10 +66,10 @@ export function getSettings() {
         }
     }
     const modeSettingsNormalized = normalizeModeSettings(settings, hadUiMode);
-    normalizeMemorySettings(settings);
+    const memorySettingsNormalized = normalizeMemorySettings(settings);
     normalizeVerbatimWindowSettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
-    if (modeSettingsNormalized || promptSettingsNormalized) {
+    if (modeSettingsNormalized || memorySettingsNormalized || promptSettingsNormalized) {
         saveSettingsDebounced();
     }
     return settings;
@@ -175,28 +175,40 @@ function normalizeChatStore(store) {
 /**
  * Normalize memory placement settings in place.
  * @param {ExtensionSettings} settings
- * @returns {void}
+ * @returns {boolean} Whether settings were changed.
  */
 function normalizeMemorySettings(settings) {
-    if (!isSettingValue(Object.values(MEMORY_MODES), settings.memoryMode)) {
+    let changed = false;
+    if (!isSettingValue([MEMORY_MODES.STANDARD, MEMORY_MODES.CACHE], settings.memoryMode)) {
         settings.memoryMode = defaultSettings.memoryMode;
+        changed = true;
     }
     if (!isSettingValue([MEMORY_MODES.STANDARD, MEMORY_MODES.CACHE], settings.easyMemoryMode)) {
         settings.easyMemoryMode = defaultSettings.easyMemoryMode;
+        changed = true;
     }
     if (!isSettingValue(['default', 'profile'], settings.easyConnectionSource)) {
         settings.easyConnectionSource = defaultSettings.easyConnectionSource;
+        changed = true;
     }
     if (!isSettingValue(['inherit', 'profile'], settings.easyMergeConnectionSource)) {
         settings.easyMergeConnectionSource = defaultSettings.easyMergeConnectionSource;
+        changed = true;
     }
     if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
+        changed = true;
     }
     if (!isSettingValue(Object.values(MEMORY_ROLES), settings.customMemoryRole)) {
         settings.customMemoryRole = defaultSettings.customMemoryRole;
+        changed = true;
     }
-    settings.customMemoryDepth = clampInteger(settings.customMemoryDepth, 0, 10000);
+    const customMemoryDepth = clampInteger(settings.customMemoryDepth, 0, 10000);
+    if (settings.customMemoryDepth !== customMemoryDepth) {
+        settings.customMemoryDepth = customMemoryDepth;
+        changed = true;
+    }
+    return changed;
 }
 
 /**

@@ -61,6 +61,7 @@ describe('state.js', () => {
                 easyMergeConnectionSource: 'profile',
                 easyMergeConnectionProfileId: 'smart-profile',
                 memoryMode: 'custom',
+                customMemoryPosition: 'macro_only',
                 maxL0SourceTokens: 2000,
                 minSummaryBudget: 2000,
                 memoryTokenBudget: 32000,
@@ -73,7 +74,7 @@ describe('state.js', () => {
         const effective = getEffectiveSettings();
 
         expect(raw).toMatchObject({
-            memoryMode: 'custom',
+            memoryMode: 'standard',
             maxL0SourceTokens: 4000,
             memoryTokenBudget: 32000,
         });
@@ -87,6 +88,7 @@ describe('state.js', () => {
             minSummaryBudget: 16000,
             connectionSource: 'profile',
             connectionProfileId: 'fast-profile',
+            customMemoryPosition: 'in_prompt',
             mergeConnectionSource: 'profile',
             mergeConnectionProfileId: 'smart-profile',
             fallbackConnectionSource: 'profile',
@@ -209,6 +211,26 @@ describe('state.js', () => {
             snippetsPerLayer: 20,
             snippetsPerPromotion: 3,
         });
+    });
+
+    it('migrates legacy custom memory mode to standard while preserving placement', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                memoryMode: 'custom',
+                customMemoryPosition: 'in_chat',
+                customMemoryRole: 'user',
+                customMemoryDepth: 7,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        expect(getSettings()).toMatchObject({
+            memoryMode: 'standard',
+            customMemoryPosition: 'in_chat',
+            customMemoryRole: 'user',
+            customMemoryDepth: 7,
+        });
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
     it('caps Layer 0 source and batch trigger to the current source range', () => {

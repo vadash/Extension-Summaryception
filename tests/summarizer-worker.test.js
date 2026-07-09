@@ -149,7 +149,7 @@ describe('requestSummarization', () => {
         expect(mocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
     });
 
-    it('routes custom memory through the standard automatic engine path', async () => {
+    it('routes legacy custom memory mode through the standard automatic engine path', async () => {
         const ctx = installWorkerContext({
             chat: makeLongMessages(4),
             settings: workerSettings({ memoryMode: 'custom' }),

@@ -13,7 +13,7 @@ import { warn } from '../foundation/logger.js';
 import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
-import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
+import { getProtectedTailTokens } from '../core/cache-planner.js';
 import { buildAutoSummaryRoutePlan } from '../core/summarization-routes.js';
 import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -67,7 +67,6 @@ export async function updateUI() {
         await renderEasyOverview(effectiveSettings, store);
         await renderBudgetStatus(effectiveSettings, store);
         await renderEasyBudgetStatus(effectiveSettings, store);
-        await renderCacheStatus(effectiveSettings, store);
         renderLayerStats(effectiveSettings, store);
         await renderPreview();
         updateSnippetBrowser();
@@ -353,17 +352,14 @@ async function getVisibleBacklogCount(s, store) {
 
 function syncMemoryModeControls(s) {
     const isCache = s.memoryMode === MEMORY_MODES.CACHE;
-    const isCustom = s.memoryMode === MEMORY_MODES.CUSTOM;
+    const isMacroOnly = s.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY;
 
-    $('#sc_custom_memory_controls').toggle(isCustom);
-    $('#sc_custom_memory_depth_row').toggle(
-        isCustom && s.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT,
-    );
+    $('#sc_custom_memory_depth_row').toggle(s.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT);
+    $('#sc_custom_memory_role_row').toggle(!isMacroOnly);
+    $('#sc_macro_memory_note').toggle(isMacroOnly);
     $('#sc_memory_help_standard').toggle(s.memoryMode === MEMORY_MODES.STANDARD);
     $('#sc_memory_help_cache').toggle(isCache);
-    $('#sc_memory_help_custom').toggle(isCustom);
     $('#sc_manual_cache_warning').toggle(isCache);
-    $('#sc_cache_status_section').toggle(isCache);
     $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', false);
     $('#sc_min_summary_turns, #sc_max_summary_turns').closest('.sc-row').removeClass('sc-disabled');
     $('#sc_min_summary_budget_hint').text(SETTINGS_HELP.min_summary_budget.short);
@@ -506,34 +502,6 @@ async function renderMemoryBudget(
     }
 }
 
-async function renderCacheStatus(s, store) {
-    if (s.memoryMode !== MEMORY_MODES.CACHE) {
-        return;
-    }
-
-    try {
-        const plan = await getCacheFriendlyPlan(getChat(), store, s);
-        $('#sc_cache_live_tokens').text(formatBudgetTokenLabel(plan.liveTokens));
-        $('#sc_cache_budget').text(formatBudgetTokenLabel(plan.cacheBudget));
-        $('#sc_cache_tail_tokens').text(formatBudgetTokenLabel(plan.protectedTailTokens));
-        $('#sc_cache_flush_tokens').text(formatBudgetTokenLabel(plan.estimatedFlushTokens));
-        $('#sc_cache_ready_state').text(getCacheReadyStateText(plan));
-    } catch (e) {
-        warn('Cache status render error:', e);
-        $('#sc_cache_ready_state').text('Unavailable');
-    }
-}
-
-function getCacheReadyStateText(plan) {
-    if (plan.reason === 'ready') {
-        return `${plan.batchTurns.length} / ${plan.overflowCount}`;
-    }
-    if (plan.tokenBudgetExceeded) {
-        return 'Waiting';
-    }
-    return 'Within budget';
-}
-
 async function getVerbatimBudgetPart(s, store) {
     const plan = await buildAutoSummaryRoutePlan(getChat(), store, s);
     return {
@@ -566,8 +534,12 @@ function getMemoryBudgetPartOrder(part) {
 }
 
 function renderBudgetView(view, targets) {
-    $(targets.total).text(getContextBudgetTotalText(view));
-    const bar = $(targets.bar).empty();
+    $(targets.total)
+        .text(getContextBudgetTotalText(view))
+        .toggleClass('sc-context-total-over', view.overage > 0);
+    const bar = $(targets.bar)
+        .empty()
+        .toggleClass('sc-context-bar-over', view.overage > 0);
     const legend = $(targets.legend).empty();
 
     for (const segment of view.segments) {

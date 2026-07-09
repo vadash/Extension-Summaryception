@@ -45,6 +45,7 @@ export const MEMORY_POSITIONS = Object.freeze({
     BEFORE_PROMPT: 'before_prompt',
     IN_PROMPT: 'in_prompt',
     IN_CHAT: 'in_chat',
+    MACRO_ONLY: 'macro_only',
 });
 
 export const MEMORY_ROLES = Object.freeze({
@@ -54,6 +55,7 @@ export const MEMORY_ROLES = Object.freeze({
 });
 
 export const EXTENSION_PROMPT_POSITIONS = Object.freeze({
+    NONE: -1,
     IN_PROMPT: 0,
     IN_CHAT: 1,
     BEFORE_PROMPT: 2,
