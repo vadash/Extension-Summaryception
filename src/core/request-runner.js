@@ -242,6 +242,7 @@ export class RequestRunner {
         /** @type {Error & { status?: number, response?: { status?: number } }} */
         let lastError = new Error('no error');
         let useRepairPrompt = false;
+        let repairFeedback = '';
         const series = {
             settings,
             systemPrompt,
@@ -262,6 +263,7 @@ export class RequestRunner {
                 series,
                 attempt,
                 useRepairPrompt,
+                repairFeedback,
             );
 
             if (attemptResult.success) {
@@ -293,6 +295,7 @@ export class RequestRunner {
 
             if (shouldUseRepairPrompt) {
                 useRepairPrompt = true;
+                repairFeedback = attemptResult.repairFeedback || '';
             }
 
             await notifyRetryAndWait(lastError, attempt, signal, maxRetries);
@@ -306,8 +309,12 @@ export class RequestRunner {
         });
     }
 
-    async executePreparedAttempt(series, attempt, useRepairPrompt) {
-        const promptContext = getAttemptPromptContext({ series, useRepairPrompt });
+    async executePreparedAttempt(series, attempt, useRepairPrompt, repairFeedback) {
+        const promptContext = getAttemptPromptContext({
+            series,
+            useRepairPrompt,
+            repairFeedback,
+        });
         return await this.executeAttempt({
             settings: series.settings,
             systemPrompt: series.systemPrompt,
@@ -333,7 +340,7 @@ export class RequestRunner {
      * @param {string} p.routeLabel - Human-readable route label for trace logs
      * @param {number} p.maxRetries - Maximum retry count for this route
      * @param {number} p.timeoutMs - Timeout in milliseconds for this attempt
-     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string }>}
+     * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string, repairFeedback?: string }>}
      */
     async executeAttempt({
         settings,
@@ -443,10 +450,10 @@ function buildSeriesFailureResult({ error, retryable, retriesExhausted, hardFail
     };
 }
 
-function getAttemptPromptContext({ series, useRepairPrompt }) {
+function getAttemptPromptContext({ series, useRepairPrompt, repairFeedback = '' }) {
     if (useRepairPrompt && series.repairPrompt) {
         return {
-            prompt: series.repairPrompt,
+            prompt: appendRepairFeedback(series.repairPrompt, repairFeedback),
             metadata: { ...series.metadata, layer0Repair: true },
         };
     }
@@ -454,6 +461,14 @@ function getAttemptPromptContext({ series, useRepairPrompt }) {
         prompt: series.prompt,
         metadata: series.metadata,
     };
+}
+
+function appendRepairFeedback(prompt, repairFeedback) {
+    const feedback = String(repairFeedback || '').trim();
+    if (!feedback) {
+        return prompt;
+    }
+    return `${String(prompt || '').trimEnd()}\n\n${feedback}`;
 }
 
 async function runSingleAttempt(params) {
@@ -504,12 +519,13 @@ async function sendAttemptRequest({ settings, systemPrompt, prompt, signal, meta
 }
 
 async function processAttemptResult({ rawResult, settings, systemPrompt, prompt, metadata }) {
-    const processed = processSummarizerResponse(rawResult, settings, metadata);
+    const processed = await processSummarizerResponse(rawResult, settings, metadata);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
         return {
             ...buildAttemptFailure(processed.error, true, processed.status),
             cleanedResult: processed.text,
+            repairFeedback: processed.repairFeedback,
         };
     }
 
@@ -528,6 +544,8 @@ function logProcessedAttemptFailure(status) {
         debug('Empty response from LLM, treating as retryable');
     } else if (status === 'integrity-rejected') {
         debug('Summarizer output failed integrity validation, treating as retryable');
+    } else if (status === 'size-rejected') {
+        debug('Summarizer output failed size validation, treating as retryable');
     }
 }
 

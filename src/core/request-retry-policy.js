@@ -93,7 +93,12 @@ export function isHardNetworkError(error) {
 }
 
 function isValidationFailureStatus(status) {
-    return status === 'empty' || status === 'cn-rejected' || status === 'integrity-rejected';
+    return (
+        status === 'empty' ||
+        status === 'cn-rejected' ||
+        status === 'integrity-rejected' ||
+        status === 'size-rejected'
+    );
 }
 
 /**

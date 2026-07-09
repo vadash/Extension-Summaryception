@@ -17,6 +17,7 @@ import {
     cleanSummarizerOutput,
     getChineseIdeographStats,
     stripChineseIdeographs,
+    validateLayer0OutputSize,
     validateSummarizerOutputIntegrity,
 } from '../src/core/prompts.js';
 
@@ -196,5 +197,66 @@ describe('validateSummarizerOutputIntegrity', () => {
                 regexStats: { finalTokens: 120 },
             }),
         ).toEqual({ valid: true, error: null });
+    });
+});
+
+describe('validateLayer0OutputSize', () => {
+    it('rejects oversized Layer 0 outputs as retryable with repair feedback', async () => {
+        const output = [
+            '[NARRATIVE]',
+            'Verbose scene replay. '.repeat(160),
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+        ].join('\n');
+
+        const result = await validateLayer0OutputSize(
+            output,
+            { layer0SummaryTokenTarget: 200 },
+            { kind: 'layer0', sourceTokensBefore: 100 },
+        );
+
+        expect(result.valid).toBe(false);
+        expect(result.error?.message).toContain('too-long');
+        expect(result.error?.retryable).toBe(true);
+        expect(result.repairFeedback).toContain('Accepted range: 66-600 tokens');
+    });
+
+    it('rejects short Layer 0 outputs only for substantial source text', async () => {
+        const output = [
+            '[NARRATIVE]',
+            'The party regrouped near the bridge and agreed to keep watch while the gate remained unsafe.',
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+        ].join('\n');
+
+        await expect(
+            validateLayer0OutputSize(
+                output,
+                { layer0SummaryTokenTarget: 200 },
+                { kind: 'layer0', sourceTokensBefore: 900 },
+            ),
+        ).resolves.toMatchObject({
+            valid: false,
+            repairFeedback: expect.stringContaining('too-short'),
+        });
+        await expect(
+            validateLayer0OutputSize(
+                output,
+                { layer0SummaryTokenTarget: 200 },
+                { kind: 'layer0', sourceTokensBefore: 100 },
+            ),
+        ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
+    });
+
+    it('does not apply L0 size bounds to promotion outputs', async () => {
+        await expect(
+            validateLayer0OutputSize(
+                'Verbose promotion. '.repeat(400),
+                { layer0SummaryTokenTarget: 200 },
+                { kind: 'promotion', memoryTokensBefore: 1000 },
+            ),
+        ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
     });
 });

@@ -1,5 +1,11 @@
 import { getEffectiveSettings } from '../foundation/state.js';
+import {
+    buildLayer0SizeRepairFeedback,
+    getLayer0SummaryTokenBounds,
+    isLayer0SizeGuardCall,
+} from './layer0-compression.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
+import { countTextTokens } from './token-count.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
@@ -117,6 +123,40 @@ export function validateSummarizerOutputIntegrity(text, metadata = {}) {
     }
 
     return { valid: true, error: null };
+}
+
+/**
+ * Validate exact Layer 0 output size after structural validation.
+ * @param {string} text - Cleaned summarizer output
+ * @param {Partial<ExtensionSettings>} settings - Active settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string }>}
+ */
+export async function validateLayer0OutputSize(text, settings, metadata = {}) {
+    if (!isLayer0SizeGuardCall(metadata)) {
+        return { valid: true, error: null, repairFeedback: '' };
+    }
+
+    const outputTokens = await countTextTokens(text);
+    const bounds = getLayer0SummaryTokenBounds(settings);
+    if (outputTokens.count > bounds.max) {
+        return rejectLayer0Size({
+            reason: 'too-long',
+            outputTokens: outputTokens.count,
+            bounds,
+        });
+    }
+
+    const sourceTokens = getSourceTokenCount(metadata);
+    if (sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD && outputTokens.count < bounds.min) {
+        return rejectLayer0Size({
+            reason: 'too-short',
+            outputTokens: outputTokens.count,
+            bounds,
+        });
+    }
+
+    return { valid: true, error: null, repairFeedback: '' };
 }
 
 /**
@@ -238,4 +278,26 @@ function rejectIntegrity(reason) {
     );
     error.retryable = true;
     return { valid: false, error };
+}
+
+/**
+ * @param {object} p
+ * @param {'too-short' | 'too-long'} p.reason
+ * @param {number} p.outputTokens
+ * @param {{ target: number, min: number, max: number }} p.bounds
+ * @returns {{ valid: false, error: Error & { retryable?: boolean }, repairFeedback: string }}
+ */
+function rejectLayer0Size({ reason, outputTokens, bounds }) {
+    const error = /** @type {Error & { retryable?: boolean }} */ (
+        new Error(
+            `Summarizer response failed L0 size validation: ${reason} ` +
+                `(${outputTokens} tokens, accepted ${bounds.min}-${bounds.max}, target ${bounds.target})`,
+        )
+    );
+    error.retryable = true;
+    return {
+        valid: false,
+        error,
+        repairFeedback: buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }),
+    };
 }

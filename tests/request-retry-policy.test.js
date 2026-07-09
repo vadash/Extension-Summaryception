@@ -90,6 +90,14 @@ describe('request retry policy', () => {
                 repairPrompt: 'repair',
             }),
         ).toBe(false);
+        expect(
+            shouldSwitchToRepairPrompt({
+                attemptResult: { shouldRetry: true, failureStatus: 'size-rejected' },
+                attempt: 0,
+                maxRetries: 1,
+                repairPrompt: 'repair',
+            }),
+        ).toBe(true);
     });
 
     it('returns explicit retry stop reasons for runner logging', () => {

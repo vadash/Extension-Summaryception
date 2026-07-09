@@ -5,6 +5,7 @@ import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import {
     applyChineseOutputPolicy,
     cleanSummarizerOutput,
+    validateLayer0OutputSize,
     validateSummarizerOutputIntegrity,
 } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
@@ -66,9 +67,9 @@ export async function buildSummarizerPipelineInput({
  * @param {string} rawResult - Raw provider output
  * @param {ExtensionSettings} settings - Active settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
- * @returns {{ status: 'success', text: string, error: null } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected', text: string, error: Error & { retryable?: boolean } }}
+ * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>}
  */
-export function processSummarizerResponse(rawResult, settings, metadata = {}) {
+export async function processSummarizerResponse(rawResult, settings, metadata = {}) {
     const cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), {
         stripStructuralMarkers: false,
     });
@@ -80,6 +81,7 @@ export function processSummarizerResponse(rawResult, settings, metadata = {}) {
             status: 'cn-rejected',
             text: '',
             error: chinesePolicyResult.error,
+            repairFeedback: '',
         };
     }
 
@@ -88,6 +90,7 @@ export function processSummarizerResponse(rawResult, settings, metadata = {}) {
             status: 'empty',
             text: '',
             error: new Error('Empty response from summarizer'),
+            repairFeedback: '',
         };
     }
 
@@ -98,6 +101,18 @@ export function processSummarizerResponse(rawResult, settings, metadata = {}) {
             status: 'integrity-rejected',
             text: '',
             error: integrityResult.error,
+            repairFeedback: '',
+        };
+    }
+
+    const sizeResult = await validateLayer0OutputSize(chinesePolicyResult.text, settings, metadata);
+    if (!sizeResult.valid) {
+        warn(sizeResult.error.message);
+        return {
+            status: 'size-rejected',
+            text: chinesePolicyResult.text,
+            error: sizeResult.error,
+            repairFeedback: sizeResult.repairFeedback,
         };
     }
 
@@ -105,6 +120,7 @@ export function processSummarizerResponse(rawResult, settings, metadata = {}) {
         status: 'success',
         text: chinesePolicyResult.text,
         error: null,
+        repairFeedback: '',
     };
 }
 

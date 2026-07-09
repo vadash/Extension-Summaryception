@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+    buildLayer0SizeRepairFeedback,
+    getLayer0SummaryTokenBounds,
     getLayer0SummaryTokenTarget,
+    isLayer0SizeGuardCall,
     isLayer0CompressionCall,
     appendLayer0PromptConstraints,
 } from '../src/core/layer0-compression.js';
@@ -18,6 +21,16 @@ describe('getLayer0SummaryTokenTarget', () => {
     });
 });
 
+describe('getLayer0SummaryTokenBounds', () => {
+    it('derives the accepted output range from the configured target', () => {
+        expect(getLayer0SummaryTokenBounds({ layer0SummaryTokenTarget: 200 })).toEqual({
+            target: 200,
+            min: 66,
+            max: 600,
+        });
+    });
+});
+
 describe('isLayer0CompressionCall', () => {
     it('returns true for layer0, regenerate, and promotion', () => {
         expect(isLayer0CompressionCall({ kind: 'layer0' })).toBe(true);
@@ -28,6 +41,33 @@ describe('isLayer0CompressionCall', () => {
     it('returns false for unknown kinds', () => {
         expect(isLayer0CompressionCall({ kind: 'other' })).toBe(false);
         expect(isLayer0CompressionCall({})).toBe(false);
+    });
+});
+
+describe('isLayer0SizeGuardCall', () => {
+    it('returns true only for Layer 0 summary outputs', () => {
+        expect(isLayer0SizeGuardCall({ kind: 'layer0' })).toBe(true);
+        expect(isLayer0SizeGuardCall({ kind: 'regenerate' })).toBe(true);
+        expect(isLayer0SizeGuardCall({ kind: 'promotion' })).toBe(false);
+        expect(isLayer0SizeGuardCall({})).toBe(false);
+    });
+});
+
+describe('buildLayer0SizeRepairFeedback', () => {
+    it('includes the rejected size and accepted range', () => {
+        const result = buildLayer0SizeRepairFeedback({
+            reason: 'too-long',
+            outputTokens: 725,
+            bounds: { target: 200, min: 66, max: 600 },
+        });
+
+        expect(result).toContain('summaryception_l0_repair_feedback');
+        expect(result).toContain('too-long');
+        expect(result).toContain('725 tokens');
+        expect(result).toContain('200 tokens');
+        expect(result).toContain('66-600 tokens');
+        expect(result).toContain('[NARRATIVE]');
+        expect(result).toContain('[STATE]');
     });
 });
 

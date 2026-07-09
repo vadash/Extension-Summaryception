@@ -3,6 +3,7 @@
 ## Memory Layers & State
 
 - **Layer 0 (L0):** Turn summaries selected by the dynamic verbatim window. Output preserves `[NARRATIVE]` and `[STATE]` markers.
+- **L0 output size:** Enforce target-length bands after response cleanup/validation; do not derive provider caps from `layer0SummaryTokenTarget`.
 - **Layers 1+ (L1+):** Meta-summaries promoted from lower layers. They fold durable state into narrative continuity.
 - **Promotion:** Only merges when an over-limit layer has `>= snippetsPerPromotion`.
 - **Atomicity:** Any code that changes `store.layers` or snippet fields must call `bumpSummaryStoreMutationEpoch()`.

@@ -230,3 +230,52 @@ describe('hard network failure fast-failover', () => {
         }
     });
 });
+
+describe('validation repair feedback', () => {
+    it('appends L0 size feedback to the existing repair prompt on retry', async () => {
+        vi.useFakeTimers();
+        mocks.resolveFallback.mockReturnValue(null);
+        mocks.sendSummarizerRequest
+            .mockResolvedValueOnce('oversized draft')
+            .mockResolvedValueOnce('fixed draft');
+        mocks.processSummarizerResponse
+            .mockReturnValueOnce({
+                status: 'size-rejected',
+                text: 'oversized draft',
+                error: Object.assign(new Error('too long'), { retryable: true }),
+                repairFeedback:
+                    '<summaryception_l0_repair_feedback>Accepted range: 66-600 tokens</summaryception_l0_repair_feedback>',
+            })
+            .mockReturnValueOnce({
+                status: 'success',
+                text: 'fixed summary',
+                error: null,
+                repairFeedback: '',
+            });
+
+        const { RequestRunner } = await import('../src/core/request-runner.js');
+        const runner = new RequestRunner();
+
+        const resultPromise = runner.run({
+            settings: { connectionSource: 'default' },
+            systemPrompt: 'sys',
+            prompt: 'normal prompt',
+            repairPrompt: 'repair prompt',
+            signal: new AbortController().signal,
+            metadata: { kind: 'layer0' },
+        });
+        await vi.runAllTimersAsync();
+
+        await expect(resultPromise).resolves.toBe('fixed summary');
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
+        expect(mocks.sendSummarizerRequest.mock.calls[0][2]).toBe('normal prompt');
+        expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toContain('repair prompt');
+        expect(mocks.sendSummarizerRequest.mock.calls[1][2]).toContain(
+            '<summaryception_l0_repair_feedback>',
+        );
+        expect(mocks.sendSummarizerRequest.mock.calls[1][4]).toMatchObject({
+            kind: 'layer0',
+            layer0Repair: true,
+        });
+    });
+});

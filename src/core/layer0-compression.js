@@ -3,6 +3,8 @@ import { ENGLISH_FIRST_LANGUAGE_RULE, ANTI_RUN_ON_RULE } from '../foundation/pro
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
+const LAYER0_MIN_OUTPUT_RATIO = 1 / 3;
+const LAYER0_MAX_OUTPUT_RATIO = 3;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const PROMOTION_TARGET_RATIO = 0.4;
 const ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE = ENGLISH_FIRST_LANGUAGE_RULE + '\n';
@@ -30,6 +32,55 @@ export function getLayer0SummaryTokenTarget(settings = {}) {
     const fallback = defaultSettings.layer0SummaryTokenTarget;
     const value = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
     return Math.min(MAX_LAYER0_TARGET_TOKENS, Math.max(MIN_LAYER0_TARGET_TOKENS, value));
+}
+
+/**
+ * Compute the accepted Layer 0 output-size band for a configured target.
+ * @param {Partial<ExtensionSettings>} [settings]
+ * @returns {{ target: number, min: number, max: number }}
+ */
+export function getLayer0SummaryTokenBounds(settings = {}) {
+    const target = getLayer0SummaryTokenTarget(settings);
+    return {
+        target,
+        min: Math.floor(target * LAYER0_MIN_OUTPUT_RATIO),
+        max: Math.round(target * LAYER0_MAX_OUTPUT_RATIO),
+    };
+}
+
+/**
+ * Check whether a summarizer call should receive Layer 0 size validation.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @returns {boolean}
+ */
+export function isLayer0SizeGuardCall(metadata = {}) {
+    return metadata.kind === 'layer0' || metadata.kind === 'regenerate';
+}
+
+/**
+ * Build attempt-local repair feedback for a rejected Layer 0 output.
+ * @param {object} p
+ * @param {'too-short' | 'too-long'} p.reason
+ * @param {number} p.outputTokens
+ * @param {{ target: number, min: number, max: number }} p.bounds
+ * @returns {string}
+ */
+export function buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }) {
+    const action =
+        reason === 'too-long'
+            ? 'Rewrite it more compactly. Remove scene replay, repeated dialogue, micro-actions, and transient detail. Keep only durable continuity.'
+            : 'Rewrite it with enough essential continuity from the source. Do not pad or invent facts.';
+    return (
+        '<summaryception_l0_repair_feedback>\n' +
+        'The previous Layer 0 draft failed the output-size guard.\n' +
+        `Failure: ${reason}.\n` +
+        `Previous draft length: ${outputTokens} tokens.\n` +
+        `Configured target: ${bounds.target} tokens.\n` +
+        `Accepted range: ${bounds.min}-${bounds.max} tokens.\n` +
+        action +
+        '\nPreserve exactly one [NARRATIVE] section and one [STATE] section.\n' +
+        '</summaryception_l0_repair_feedback>'
+    );
 }
 
 /**
