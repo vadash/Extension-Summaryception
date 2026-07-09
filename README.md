@@ -94,16 +94,7 @@ When the AI gets stuck repeating the same phrases or formatting, hit the Slop Br
 
 ## Configuration
 
-Instead of counting turns, Summaryception uses dynamic token budgets.
-
-- **Verbatim token budget** — how much of the recent chat stays word-for-word. Keep this high enough (8k–16k) that the AI remembers the current scene's style and formatting.
-- **Injected memory budget** — the maximum size of the Summaryception memory block. If it grows past this, deeper-layer promotions fire automatically to compress it back down.
-
-### Prompt presets
-
-- **Narrative State (default)** — best for character RP, drama, thrillers, romance. Focuses on interactions, emotions, relationships, atmosphere.
-- **Game State** — best for RPGs, strategy, mechanical games. Focuses on plot points, quests, locations, inventory.
-- **Custom** — write your own. You can define separate prompts for Layer 0 (turns) and Layer 1+ (deep memory).
+WIP
 
 ---
 
@@ -113,16 +104,9 @@ Instead of counting turns, Summaryception uses dynamic token budgets.
 
 ### From SillyTavern UI
 1. Open **Extensions** (the block icon) → **Install Extension**
-2. Paste `https://github.com/Lodactio/Extension-Summaryception`
+2. Paste `https://github.com/vadash/Extension-Summaryception`
 3. Click Install
 4. Find Summaryception in your Extensions settings.
-
-### Manual install
-```bash
-cd SillyTavern/data/default-user/extensions/third-party/
-git clone https://github.com/Lodactio/Extension-Summaryception
-```
-Restart SillyTavern and enable the extension.
 
 ---
 
@@ -130,6 +114,7 @@ Restart SillyTavern and enable the extension.
 
 Switch branches in SillyTavern if you prefer an older version.
 
+- **v15:** UI/Prompt tweaks
 - **v14:** Easy mode - easy life. 
 - **v13:** Tweaked few knobs. 
 Memory pyramid is now more balanced, 1 L4, 1 L3, 3 L2, 30 L1 wont happen.
@@ -153,15 +138,6 @@ Refactor debug logging. Add summarizer fallback connection.
 - **v6:** The major modular rewrite. Speedups, background processing fixes, global regex support.
 
 For memory testing I use RP with 3000 messages, then upload F12 to ai studio to analyze. L0 model is free gemma4, L1+ model is glm47, fallback glm52
-
----
-
-## Community forks
-
-These forks extend Summaryception with specialized features. Install only one at a time (existing settings and per-chat memory will carry over).
-
-- [Per-Character Memory Banks](https://github.com/dogoo9/Extension-Summaryception) (dogoo9) — keeps separate summary memory for each character card in a group chat, preventing memory bleed.
-- [Lorebook Ingestion](https://github.com/jeromehbonaparte-star/Extension-Summaryception-Lorebook) (Romuromylus) — extracts stable facts (traits, locations) from summaries and turns them into World Info / Lorebook entries.
 
 ---
 
