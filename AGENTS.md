@@ -7,9 +7,9 @@ Summaryception is a non-destructive, context-aware memory system for SillyTavern
 It replaces brute-force context stuffing with layered recursive summarization. It compresses older conversations into ultra-compact summary snippets organized in layers, hiding original messages from the LLM while keeping them visible in the UI.
 
 ## HOW: Working on this codebase
-- **Shell**: This repo runs on Windows. The shell is PowerShell 7+ (modern).
 - **Testing**: Run `npm test` to verify behavior changes. 
-- **Linting & Formatting**: ESLint and Prettier run automatically via husky pre-commit hooks. Never run them manually.
+- **Linting & Formatting**: ESLint and Prettier run auto via husky pre-commit hooks. Never run them manually.
+- **Shell**: Windows, PowerShell 7+. Syntax: Chain with ; (no &&, ||, bash heredocs, |, tail). Use Get-Content -Tail. Pass multi-line strings via variables or single-line flags (e.g., git commit -m "").
 
 ## Progressive Disclosure
 We organize specific context into separate files. Read the relevant files in `agent_docs/` before you start working on a specific part of the system:
