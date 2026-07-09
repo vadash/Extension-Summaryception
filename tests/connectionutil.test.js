@@ -54,6 +54,28 @@ describe('connection providers registry', () => {
         });
     });
 
+    it('accepts object-shaped summarizer requests', async () => {
+        const generateRaw = installGenerateRaw();
+
+        const result = await sendSummarizerRequest({
+            settings: {
+                connectionSource: 'default',
+                summarizerResponseLength: 32,
+            },
+            systemPrompt: 'system prompt',
+            userPrompt: 'user prompt',
+            metadata: { kind: 'layer0' },
+        });
+
+        expect(result).toBe('summary text');
+        expect(generateRaw).toHaveBeenCalledWith({
+            prompt: [{ role: 'user', content: 'user prompt' }],
+            systemPrompt: 'system prompt',
+            trimNames: false,
+            responseLength: 32,
+        });
+    });
+
     it('keeps promotion calls on the Layer 0 connection when merge source inherits', async () => {
         const generateRaw = installGenerateRaw();
 

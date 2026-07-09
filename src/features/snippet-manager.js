@@ -223,18 +223,24 @@ function buildSnippetContext(store, excludeLayerIndex, excludeSnippetIndex) {
         if (!layer) {
             continue;
         }
-        collectLayerContext(contextParts, layer, i, excludeLayerIndex, excludeSnippetIndex);
+        collectLayerContext({
+            contextParts,
+            layer,
+            layerIndex: i,
+            excludeLayerIndex,
+            excludeSnippetIndex,
+        });
     }
     return contextParts.length > 0 ? contextParts.join(' ') : '(none yet)';
 }
 
-function collectLayerContext(
+function collectLayerContext({
     contextParts,
     layer,
     layerIndex,
     excludeLayerIndex,
     excludeSnippetIndex,
-) {
+}) {
     for (let i = 0; i < layer.length; i++) {
         if (layerIndex === excludeLayerIndex && i === excludeSnippetIndex) {
             continue;

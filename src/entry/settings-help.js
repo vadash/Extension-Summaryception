@@ -852,7 +852,7 @@ function annotateHelpEntry($settings, key, entry) {
     updateShortHint($settings, $target, $selected, entry);
     addHelpIcon($target, $selected);
     addHiddenDescription($settings, key, entry);
-    annotateControls($settings, $target, $selected, key, entry);
+    annotateControls({ $settings, $target, $selected, key, entry });
 }
 
 function resolveHelpTarget($selected) {
@@ -954,7 +954,7 @@ function addHiddenDescription($settings, key, entry) {
     $('<span class="sc-sr-only"></span>').attr('id', id).text(text).appendTo($settings);
 }
 
-function annotateControls($settings, $target, $selected, key, entry) {
+function annotateControls({ $settings, $target, $selected, key, entry }) {
     const controls = getControlSelectors($target, $selected, entry);
     const descId = getDescriptionId(key);
 

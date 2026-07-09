@@ -13,7 +13,8 @@ export function normalizeStructuralHeaderLines(text) {
         .replace(INLINE_STATE_HEADER_RE, '\n[STATE]\n');
 }
 
-function normalizeLineStartHeader(match, _prefix, marker, offset, source) {
+function normalizeLineStartHeader(...args) {
+    const [match, _prefix, marker, offset, source] = args;
     const prefix = match.match(/^\r?\n/)?.[0] || '';
     const after = source.slice(offset + match.length);
     const needsTrailingNewline = after.length > 0 && !/^\r?\n/.test(after);

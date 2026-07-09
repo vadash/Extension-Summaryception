@@ -17,7 +17,18 @@ vi.mock('../src/core/connectionutil.js', () => ({
     },
     resolveFallbackSummarizerConnectionSettings: mocks.resolveFallbackSummarizerConnectionSettings,
     resolveSummarizerConnectionSettings: (settings) => settings,
-    sendSummarizerRequest: mocks.sendSummarizerRequest,
+    sendSummarizerRequest: (requestOrSettings, ...legacyArgs) => {
+        if (requestOrSettings?.settings) {
+            return mocks.sendSummarizerRequest(
+                requestOrSettings.settings,
+                requestOrSettings.systemPrompt,
+                requestOrSettings.userPrompt,
+                requestOrSettings.signal,
+                requestOrSettings.metadata,
+            );
+        }
+        return mocks.sendSummarizerRequest(requestOrSettings, ...legacyArgs);
+    },
 }));
 
 const VALID_L0_SUMMARY = [

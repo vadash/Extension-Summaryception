@@ -10,7 +10,7 @@ import {
     trace,
     warn,
 } from '../foundation/logger.js';
-import { RETRY_CONFIG, isRetryableError, parseRetryAfter } from '../foundation/retry.js';
+import { RETRY_CONFIG } from '../foundation/retry.js';
 import {
     ConnectionError,
     resolveFallbackSummarizerConnectionSettings,
@@ -18,16 +18,19 @@ import {
     sendSummarizerRequest,
 } from './connectionutil.js';
 import {
+    ROUTE_CYCLE_RETRY_ATTEMPT,
+    classifyAttemptRetryStatus,
+    computeAttemptTimeoutMs,
+    computeRetryDelay,
+    getPrimaryHealthBucket,
+    getRetryStopReason,
+    shouldSwitchToRepairPrompt,
+} from './request-retry-policy.js';
+import {
     processSummarizerResponse,
     recordSuccessfulSummarizerUsage,
 } from './summarizer-pipeline.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
-
-const PRIMARY_HEALTH_BUCKETS = {
-    layer0: 'layer0',
-    l1plus: 'l1plus',
-};
-const ROUTE_CYCLE_RETRY_ATTEMPT = RETRY_CONFIG.maxRetries;
 
 /**
  * Run summarizer provider requests with retry and fallback routing.
@@ -197,7 +200,9 @@ export class RequestRunner {
                 maxRetries,
                 repairPrompt,
             });
-            if (shouldStopRetrying(attemptResult, attempt, maxRetries)) {
+            const stopReason = getRetryStopReason(attemptResult, attempt, maxRetries);
+            if (stopReason) {
+                logRetryStopReason(stopReason, maxRetries);
                 return buildSeriesFailureResult({
                     error: lastError,
                     retryable: attemptResult.shouldRetry,
@@ -378,7 +383,13 @@ async function sendAttemptRequest({ settings, systemPrompt, prompt, signal, meta
 
     try {
         return await Promise.race([
-            sendSummarizerRequest(settings, systemPrompt, prompt, abortContext.signal, metadata),
+            sendSummarizerRequest({
+                settings,
+                systemPrompt,
+                userPrompt: prompt,
+                signal: abortContext.signal,
+                metadata,
+            }),
             abortContext.promise,
         ]);
     } finally {
@@ -452,33 +463,6 @@ function getAttemptLogStatus(result) {
 }
 
 /**
- * Compute timeout for a specific attempt based on call type and attempt index.
- * L0 (user-facing) gets more patience; L1+ (background promotion) gets less.
- * @param {object} metadata - Call metadata
- * @param {number} attempt - Zero-based attempt index
- * @returns {number} Timeout in milliseconds
- */
-function computeAttemptTimeoutMs(metadata = {}, attempt) {
-    const isPromotion = metadata.kind === 'promotion';
-    if (!isPromotion) {
-        return attempt === 0 ? 120000 : 90000;
-    }
-    return attempt === 0 ? 90000 : 60000;
-}
-
-/**
- * Split primary health tracking by prompt family so Layer 0 and L1+ failures
- * do not influence each other.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
- * @returns {string}
- */
-function getPrimaryHealthBucket(metadata = {}) {
-    return metadata.kind === 'promotion'
-        ? PRIMARY_HEALTH_BUCKETS.l1plus
-        : PRIMARY_HEALTH_BUCKETS.layer0;
-}
-
-/**
  * Trace the summarizer request metadata.
  * @param {object} p
  * @param {ExtensionSettings} p.settings - Settings
@@ -518,7 +502,8 @@ function classifyAttemptError(err, signal) {
         retryable: error?.retryable,
     });
 
-    if (signal.aborted || error.message === 'Aborted by user') {
+    const retryStatus = classifyAttemptRetryStatus(error, signal.aborted);
+    if (retryStatus.aborted) {
         return {
             success: false,
             result: '',
@@ -530,8 +515,7 @@ function classifyAttemptError(err, signal) {
         };
     }
 
-    const isHardNetworkFailure = isHardNetworkError(error);
-    if (isHardNetworkFailure) {
+    if (retryStatus.hardFailover) {
         info('Hard network failure detected; skipping retries for this route.', error.message);
         return {
             success: false,
@@ -544,32 +528,11 @@ function classifyAttemptError(err, signal) {
         };
     }
 
-    const shouldRetry = isRetryableError(error);
-    if (!shouldRetry) {
+    if (!retryStatus.shouldRetry) {
         logError('Non-retryable error:', error);
     }
 
-    return buildAttemptFailure(error, shouldRetry);
-}
-
-/**
- * Detect definitive, non-recoverable connection-level failures that will not
- * succeed on retry and should trigger immediate failover instead.
- * @param {Error & { message?: string, name?: string }} error
- * @returns {boolean}
- */
-function isHardNetworkError(error) {
-    const msg = (error?.message || '').toLowerCase();
-    if (!msg) {
-        return false;
-    }
-    return (
-        msg.includes('failed to fetch') ||
-        msg.includes('econnrefused') ||
-        msg.includes('err_connection_refused') ||
-        msg.includes('err_name_not_resolved') ||
-        msg.includes('err_internet_disconnected')
-    );
+    return buildAttemptFailure(error, retryStatus.shouldRetry, retryStatus.failureStatus);
 }
 
 /**
@@ -591,48 +554,25 @@ function buildAttemptFailure(error, shouldRetry, failureStatus = 'failed') {
     };
 }
 
-function shouldSwitchToRepairPrompt({ attemptResult, attempt, maxRetries, repairPrompt }) {
-    return (
-        Boolean(repairPrompt) &&
-        attempt < maxRetries &&
-        attemptResult.shouldRetry &&
-        isValidationFailureStatus(attemptResult.failureStatus)
-    );
-}
-
-function isValidationFailureStatus(status) {
-    return status === 'empty' || status === 'cn-rejected' || status === 'integrity-rejected';
-}
-
-/**
- * Decide whether retry processing should stop.
- * @param {{ shouldRetry: boolean, hardFailover?: boolean }} attemptResult - Attempt result
- * @param {number} attempt - Zero-based attempt index
- * @param {number} maxRetries - Maximum retry count for this route
- * @returns {boolean}
- */
-function shouldStopRetrying(attemptResult, attempt, maxRetries) {
-    if (attemptResult.hardFailover) {
+function logRetryStopReason(reason, maxRetries) {
+    if (reason === 'hard-failover') {
         trace('  HARD NETWORK FAILURE, SKIPPING RETRIES FOR THIS ROUTE');
-        return true;
+        return;
     }
 
-    if (!attemptResult.shouldRetry) {
+    if (reason === 'non-retryable') {
         trace('  ERROR IS NON-RETRYABLE, BREAKING');
-        return true;
+        return;
     }
 
-    if (attempt >= maxRetries) {
+    if (reason === 'primary-probe-failed' || reason === 'retries-exhausted') {
         trace('  MAX RETRIES EXHAUSTED');
-        if (maxRetries === 0) {
+        if (reason === 'primary-probe-failed') {
             debug('Primary probe failed; trying fallback without additional retries.');
         } else {
             logError(`All ${maxRetries} retries exhausted.`);
         }
-        return true;
     }
-
-    return false;
 }
 
 /**
@@ -734,23 +674,6 @@ async function notifyRouteCycleFailedAndWait({ healthBucket, signal }) {
         { timeOut: delay },
     );
     await sleepUntilOrAborted(delay, signal);
-}
-
-/**
- * Compute the retry delay for a given attempt, honoring Retry-After headers.
- * @param {Error} err - The error from the failed attempt
- * @param {number} attempt - Zero-based attempt index
- * @returns {number} Delay in milliseconds
- */
-function computeRetryDelay(err, attempt) {
-    const retryAfterMs = parseRetryAfter(err);
-    if (retryAfterMs) {
-        return Math.min(retryAfterMs, RETRY_CONFIG.maxDelay);
-    }
-    const exponentialDelay =
-        RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
-    const jitter = Math.random() * RETRY_CONFIG.baseDelay;
-    return Math.min(exponentialDelay + jitter, RETRY_CONFIG.maxDelay);
 }
 
 /**

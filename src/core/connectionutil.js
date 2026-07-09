@@ -43,16 +43,26 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
 });
 
 /**
+ * @typedef {object} SummarizerProviderRequest
+ * @property {ExtensionSettings} settings - The extension settings containing connection config
+ * @property {string} systemPrompt - The system prompt
+ * @property {string} userPrompt - The user prompt
+ * @property {AbortSignal} [signal] - Optional request abort signal
+ * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata
+ */
+
+/**
  * Send a summarization request using the configured connection.
- * @param {ExtensionSettings} settings - The extension settings containing connection config
- * @param {string} systemPrompt - The system prompt
- * @param {string} userPrompt - The user prompt
- * @param {AbortSignal} [signal] - Optional request abort signal
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata
+ * @param {SummarizerProviderRequest|ExtensionSettings} requestOrSettings - Request object, or legacy settings argument
+ * @param {...unknown} legacyArgs - Legacy positional arguments: systemPrompt, userPrompt, signal, metadata
  * @returns {Promise<string>} The generated response text
  * @throws {ConnectionError|Error} If the request fails
  */
-export async function sendSummarizerRequest(settings, systemPrompt, userPrompt, signal, metadata) {
+export async function sendSummarizerRequest(requestOrSettings, ...legacyArgs) {
+    const { settings, systemPrompt, userPrompt, signal, metadata } = normalizeProviderRequest(
+        requestOrSettings,
+        legacyArgs,
+    );
     const effectiveSettings = resolveSummarizerConnectionSettings(settings, metadata);
     const provider = getConnectionProvider(effectiveSettings.connectionSource);
     return await provider.generate({
@@ -61,6 +71,27 @@ export async function sendSummarizerRequest(settings, systemPrompt, userPrompt, 
         userPrompt,
         signal,
     });
+}
+
+function normalizeProviderRequest(requestOrSettings, legacyArgs) {
+    if (isProviderRequest(requestOrSettings)) {
+        return requestOrSettings;
+    }
+
+    const [systemPrompt, userPrompt, signal, metadata] = legacyArgs;
+    return {
+        settings: /** @type {ExtensionSettings} */ (requestOrSettings),
+        systemPrompt: /** @type {string} */ (systemPrompt),
+        userPrompt: /** @type {string} */ (userPrompt),
+        signal: /** @type {AbortSignal|undefined} */ (signal),
+        metadata: /** @type {import('./summarizer-usage.js').SummarizerCallMetadata|undefined} */ (
+            metadata
+        ),
+    };
+}
+
+function isProviderRequest(value) {
+    return Boolean(value && typeof value === 'object' && Object.hasOwn(value, 'settings'));
 }
 
 /**

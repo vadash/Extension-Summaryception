@@ -18,7 +18,18 @@ vi.mock('../src/core/connectionutil.js', () => ({
     },
     resolveSummarizerConnectionSettings: mocks.resolvePrimary,
     resolveFallbackSummarizerConnectionSettings: mocks.resolveFallback,
-    sendSummarizerRequest: mocks.sendSummarizerRequest,
+    sendSummarizerRequest: (requestOrSettings, ...legacyArgs) => {
+        if (requestOrSettings?.settings) {
+            return mocks.sendSummarizerRequest(
+                requestOrSettings.settings,
+                requestOrSettings.systemPrompt,
+                requestOrSettings.userPrompt,
+                requestOrSettings.signal,
+                requestOrSettings.metadata,
+            );
+        }
+        return mocks.sendSummarizerRequest(requestOrSettings, ...legacyArgs);
+    },
 }));
 
 vi.mock('../src/core/summarizer-pipeline.js', () => ({

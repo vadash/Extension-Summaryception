@@ -11,33 +11,44 @@ import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usa
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
 /**
+ * @typedef {object} SummarizerPipelineInputRequest
+ * @property {string} storyTxt - The story text to summarize
+ * @property {string} contextStr - The accumulated context string
+ * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @property {ExtensionSettings} [settings]
+ */
+
+/**
  * Build the prompt-side inputs for a summarizer request.
- * @param {string} storyTxt - The story text to summarize
- * @param {string} contextStr - The accumulated context string
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @param {ExtensionSettings} [settings]
+ * @param {SummarizerPipelineInputRequest} request
  * @returns {Promise<{ settings: ExtensionSettings, systemPrompt: string, prompt: string, repairPrompt: string, metadata: import('./summarizer-usage.js').SummarizerCallMetadata }>}
  */
-export async function buildSummarizerPipelineInput(
+export async function buildSummarizerPipelineInput({
     storyTxt,
     contextStr,
     metadata = {},
     settings = getEffectiveSettings(),
-) {
+}) {
     const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
-    const prompt = buildSummarizerPrompt(
-        promptConfig.userPromptTemplate,
+    const prompt = buildSummarizerPrompt({
+        template: promptConfig.userPromptTemplate,
         storyTxt,
         contextStr,
         settings,
-        usageMetadata,
-    );
+        metadata: usageMetadata,
+    });
     const repairPromptTemplate = resolveLayer0RepairPromptTemplate(settings, usageMetadata);
     const repairPrompt = repairPromptTemplate
-        ? buildSummarizerPrompt(repairPromptTemplate, storyTxt, contextStr, settings, {
-              ...usageMetadata,
-              layer0Repair: true,
+        ? buildSummarizerPrompt({
+              template: repairPromptTemplate,
+              storyTxt,
+              contextStr,
+              settings,
+              metadata: {
+                  ...usageMetadata,
+                  layer0Repair: true,
+              },
           })
         : '';
 
@@ -231,14 +242,15 @@ function getStringSetting(value, fallback) {
 
 /**
  * Build the configured user prompt with runtime substitutions.
- * @param {string} template - User prompt template
- * @param {string} storyTxt - Story text
- * @param {string} contextStr - Context text
- * @param {ExtensionSettings} settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {object} p
+ * @param {string} p.template - User prompt template
+ * @param {string} p.storyTxt - Story text
+ * @param {string} p.contextStr - Context text
+ * @param {ExtensionSettings} p.settings - Active settings
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {string}
  */
-function buildSummarizerPrompt(template, storyTxt, contextStr, settings, metadata) {
+function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, metadata }) {
     const sourceState = metadata.sourceState || '(none)';
     const prompt = template
         .replace('{{player_name}}', getPlayerName())

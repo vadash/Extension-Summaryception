@@ -42,7 +42,12 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
         enabled: settings.enabled,
     });
 
-    const request = await buildSummarizerPipelineInput(storyTxt, contextStr, metadata, settings);
+    const request = await buildSummarizerPipelineInput({
+        storyTxt,
+        contextStr,
+        metadata,
+        settings,
+    });
 
     currentAbortController = new AbortController();
 

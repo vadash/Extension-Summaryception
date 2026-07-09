@@ -304,11 +304,17 @@ function mergeStateInto(merged, allUnclassified, state, options = {}) {
     }
 
     for (const [rawKey, rawValue] of Object.entries(state)) {
-        mergeStateEntry(merged, allUnclassified, rawKey, rawValue, { ...options, state });
+        mergeStateEntry({
+            merged,
+            allUnclassified,
+            rawKey,
+            rawValue,
+            options: { ...options, state },
+        });
     }
 }
 
-function mergeStateEntry(merged, allUnclassified, rawKey, rawValue, options) {
+function mergeStateEntry({ merged, allUnclassified, rawKey, rawValue, options }) {
     const key = normalizeKey(rawKey);
     const value = String(rawValue ?? '').trim();
     if (!value) {
