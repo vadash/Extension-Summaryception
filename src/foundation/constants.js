@@ -110,6 +110,7 @@ export const defaultSettings = Object.freeze({
     promotionRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
     stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
+    maskUserRoleAsAssistant: false, // true = rewrite final text-only user prompt blocks as assistant
 
     stripPatterns: [
         '<|channel>thought',

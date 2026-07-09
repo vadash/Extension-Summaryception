@@ -59,6 +59,7 @@ export async function updateUI() {
         $('#sc_prompt_output_log_mode').prop('checked', s.promptOutputLogMode);
         $('#sc_apply_regex_scripts').prop('checked', s.applyRegexScripts);
         $('#sc_strip_chinese_ideographs').prop('checked', s.stripChineseIdeographs);
+        $('#sc_mask_user_role_as_assistant').prop('checked', s.maskUserRoleAsAssistant);
         $('#sc_strip_patterns').val((s.stripPatterns || []).join('\n'));
         $('#sc_summarizer_response_length').val(s.summarizerResponseLength || 0);
         syncConnectionInputs(s);

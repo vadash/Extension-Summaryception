@@ -173,6 +173,19 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'mask_user_role_as_assistant',
+        basicHelp({
+            selector: selectorFor('sc_mask_user_role_as_assistant'),
+            title: 'Mask User Role',
+            short: 'Send text-only user prompt blocks as assistant blocks.',
+            controls: [controlFor('sc_mask_user_role_as_assistant')],
+            controlsText:
+                'Controls whether final text-only user-role request messages are rewritten to assistant-role messages before the RP model call.',
+            when: 'when you want roleplay prompts to hide the user/assistant split from chat-completion models.',
+            risk: 'this does not edit saved chat, names, or prompt text; prompts that mention the user still reveal that framing, and some providers may normalize or reject unusual role layouts.',
+        }),
+    ],
+    [
         'verbatim_token_budget',
         sliderHelp({
             selector: selectorFor('sc_verbatim_token_budget'),

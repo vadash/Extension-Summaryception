@@ -85,6 +85,11 @@ describe('ui prompt/reset events', () => {
         ui.trigger('change', '#sc_debug_mode');
 
         expect(ctx.extensionSettings.summaryception.debugMode).toBe(true);
+
+        ui.element('#sc_mask_user_role_as_assistant').prop('checked', true);
+        ui.trigger('change', '#sc_mask_user_role_as_assistant');
+
+        expect(ctx.extensionSettings.summaryception.maskUserRoleAsAssistant).toBe(true);
     });
 
     it('saves numeric response length through shared bindings', async () => {
@@ -336,6 +341,7 @@ describe('ui prompt/reset events', () => {
     it('resets Chinese output policy to the enabled default', async () => {
         const settings = structuredClone(defaultSettings);
         settings.stripChineseIdeographs = false;
+        settings.maskUserRoleAsAssistant = true;
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness();
 
@@ -343,6 +349,7 @@ describe('ui prompt/reset events', () => {
         ui.trigger('click', '#sc_reset_defaults');
 
         expect(ctx.extensionSettings.summaryception.stripChineseIdeographs).toBe(true);
+        expect(ctx.extensionSettings.summaryception.maskUserRoleAsAssistant).toBe(false);
     });
 
     it('reloads after clearing memory from the UI', async () => {

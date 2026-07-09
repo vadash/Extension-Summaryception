@@ -175,6 +175,7 @@ function bindToggleHandlers() {
         { selector: '#sc_prompt_output_log_mode', key: 'promptOutputLogMode' },
         { selector: '#sc_apply_regex_scripts', key: 'applyRegexScripts' },
         { selector: '#sc_strip_chinese_ideographs', key: 'stripChineseIdeographs' },
+        { selector: '#sc_mask_user_role_as_assistant', key: 'maskUserRoleAsAssistant' },
     ];
 
     for (const toggle of toggles) {
@@ -650,6 +651,7 @@ function onResetDefaults() {
     s.promptOutputLogMode = defaultSettings.promptOutputLogMode;
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
     s.stripChineseIdeographs = defaultSettings.stripChineseIdeographs;
+    s.maskUserRoleAsAssistant = defaultSettings.maskUserRoleAsAssistant;
 
     saveSettings();
     updateInjection();

@@ -1,7 +1,8 @@
 import { getChat } from '../foundation/context.js';
 import { debug, info, warn } from '../foundation/logger.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { repairIfBranched, repairMissingGhostingForSummaries } from '../core/ghosting-reconcile.js';
+import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import {
     beginForegroundGeneration,
     endForegroundGeneration,
@@ -122,6 +123,30 @@ export function onGenerationEnded() {
             updateInjection();
             updateUI();
         });
+}
+
+/**
+ * Rewrite final foreground prompt roles after ST assembles generation data.
+ * @param {unknown} generateData - Mutable SillyTavern generation payload.
+ * @param {unknown} dryRun - Whether this is a prompt-inspection dry run.
+ * @returns {void}
+ */
+export function onGenerateAfterData(generateData, dryRun) {
+    try {
+        const rewritten = maskUserRoleAsAssistantInGenerateData(
+            generateData,
+            getEffectiveSettings(),
+        );
+        if (rewritten > 0) {
+            debug(
+                'Masked user role prompt blocks as assistant.',
+                `count=${rewritten}`,
+                `dryRun=${Boolean(dryRun)}`,
+            );
+        }
+    } catch (e) {
+        warn('onGenerateAfterData error:', e);
+    }
 }
 
 function onBeforeUnload() {

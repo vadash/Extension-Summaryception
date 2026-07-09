@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
     getChat: vi.fn(() => []),
     getChatStore: vi.fn(() => ({ layers: [] })),
+    getEffectiveSettings: vi.fn(() => ({
+        enabled: true,
+        maskUserRoleAsAssistant: false,
+    })),
     repairIfBranched: vi.fn(async () => {}),
     repairMissingGhostingForSummaries: vi.fn(async () => {}),
     beginForegroundGeneration: vi.fn(),
@@ -19,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/foundation/state.js', () => ({
     getChatStore: mocks.getChatStore,
+    getEffectiveSettings: mocks.getEffectiveSettings,
 }));
 
 vi.mock('../src/core/ghosting-reconcile.js', () => ({
@@ -55,6 +60,10 @@ beforeEach(() => {
     delete globalThis.window;
     delete globalThis.document;
     globalThis.summaryceptionFoundationMocks.context.getChat.mockImplementation(mocks.getChat);
+    mocks.getEffectiveSettings.mockReturnValue({
+        enabled: true,
+        maskUserRoleAsAssistant: false,
+    });
 });
 
 afterEach(() => {
@@ -126,5 +135,30 @@ describe('entry lifecycle events', () => {
         expect(mocks.recoverStalePromptFreeze).toHaveBeenCalledWith('tab visible', {
             refreshUi: mocks.updateUI,
         });
+    });
+
+    it('masks final text-only user prompt roles during generate data events', async () => {
+        mocks.getEffectiveSettings.mockReturnValue({
+            enabled: true,
+            maskUserRoleAsAssistant: true,
+        });
+        const generateData = {
+            prompt: [
+                { role: 'system', content: 'rules' },
+                { role: 'user', content: 'spoken line' },
+                { role: 'user', content: [{ type: 'text', text: 'typed line' }] },
+                { role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:' } }] },
+            ],
+        };
+        const { onGenerateAfterData } = await import('../src/entry/events.js');
+
+        onGenerateAfterData(generateData, true);
+
+        expect(generateData.prompt.map((message) => message.role)).toEqual([
+            'system',
+            'assistant',
+            'assistant',
+            'user',
+        ]);
     });
 });

@@ -27,6 +27,7 @@ import {
     bindPromptFreezeRecoveryEvents,
     onChatChanged,
     onAppReady,
+    onGenerateAfterData,
     onGenerationEnded,
     onGenerationStarted,
     onMessageReceived,
@@ -62,6 +63,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
     eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
+    if (eventTypes.GENERATE_AFTER_DATA) {
+        eventSource.on(eventTypes.GENERATE_AFTER_DATA, onGenerateAfterData);
+    }
     if (eventTypes.GENERATION_ENDED) {
         eventSource.on(eventTypes.GENERATION_ENDED, onGenerationEnded);
     }

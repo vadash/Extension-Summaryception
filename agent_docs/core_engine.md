@@ -10,6 +10,7 @@
 ## Engine execution
 
 - Prompt-affecting commits/effects queue during SillyTavern foreground generation to avoid prompt mutation freezes. Pending commits flush on generation end.
+- Request-only foreground prompt rewrites should hook SillyTavern `GENERATE_AFTER_DATA` and mutate the final payload in place; do not persist those changes into chat history.
 - `partition-planner.js` ensures L0 batches never spike by token-balancing source partitions.
 - `summarization-routes.js` normalizes Standard, Cache, Force, and Slop plans for engine/UI consumers; keep planner-specific countability rules in their planner modules.
 - Shared execution loops live in `summarizer-engine.js`.
