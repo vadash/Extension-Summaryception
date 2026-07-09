@@ -122,12 +122,15 @@ function syncEnabledContent(s) {
  */
 export function syncPayloadSchematic(s = getEffectiveSettings()) {
     const isCache = s.memoryMode === MEMORY_MODES.CACHE;
+    const protectedTail = getProtectedTailTokens(s.verbatimTokenBudget);
 
     $('#sc_payload_memory_budget').text(formatBudgetTokenLabel(s.memoryTokenBudget));
-    $('#sc_payload_verbatim_budget').text(formatBudgetTokenLabel(s.verbatimTokenBudget));
-    $('#sc_payload_tail_budget').text(
-        formatBudgetTokenLabel(getProtectedTailTokens(s.verbatimTokenBudget)),
+    $('#sc_payload_verbatim_budget').text(
+        formatBudgetTokenLabel(
+            isCache ? s.verbatimTokenBudget - protectedTail : s.verbatimTokenBudget,
+        ),
     );
+    $('#sc_payload_tail_budget').text(formatBudgetTokenLabel(protectedTail));
     $('#sc_payload_tail_part').css('display', isCache ? 'contents' : 'none');
 }
 
