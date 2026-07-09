@@ -121,16 +121,21 @@ Summaryception is designed to be non-destructive. Summaries live in chat metadat
 
 If something looks off, use Clear or `/sc-clear`. That removes Summaryception's memory and ownership flags for the current chat, then unghosts the messages it owns.
 
-## Latest changelog
+## Version history
 
-### v16.4.0
+Switch branches in SillyTavern if you prefer an older major version.
 
-- Refactored summarization routing so Standard, Cache Friendly, Force Summarize, and Slop Breaker use one normalized route plan.
-- Split memory style from memory placement. Choosing Standard or Cache Friendly is no longer tangled with where the memory block is injected.
-- Added assistant role masking for chat-completion requests. When enabled, text-only user-role prompt blocks are rewritten as assistant-role blocks for the outgoing request only. Saved chat is not edited.
-- Cleaned up tuning UI and help text around context estimates, cache behavior, and memory placement.
-
-Older notes before v16 are intentionally trimmed here. The current README tracks the latest release line instead of carrying a long stale changelog.
+- **v16:** Current line. Refactored summarization routes, split memory style from memory placement, added assistant-role masking for outgoing chat-completion requests, and cleaned up the tuning UI around context estimates and cache behavior.
+- **v15:** UI and prompt tweaks.
+- **v14:** Easy mode. Fewer controls up front, safer defaults.
+- **v13:** Memory pyramid tuning, temporal anchors, stricter summary integrity checks, and better promotion compression repair. This is the line that stopped long memories from collapsing into tiny broken outputs or promoting into barely smaller summaries.
+- **v12:** Stability pass. Tested on long roleplay chats around 2,000 to 3,000 messages. Main pain point was oversized state.
+- **v11:** Chinese ideograph output filter and the first dual-track memory architecture. Summaries split into narrative and state, with state merged by overwrite during promotion.
+- **v10:** Settings UI and prompt editor update. Layer 0 and Layer 1+ prompts became separate and editable. Debug logging was refactored, and summarizer fallback routing was added.
+- **v9:** Elastic memory budget, dual LLM profiles, and Cache Friendly mode.
+- **v8:** Slop Breaker for manually summarizing recent chat when the model gets stuck repeating itself.
+- **v7:** Replaced raw turn counts with the Verbatim Token Budget slider and improved snippet editing.
+- **v6:** Major modular rewrite with speedups, background processing fixes, and global regex support.
 
 ## Screenshots
 
