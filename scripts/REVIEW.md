@@ -79,7 +79,7 @@ Default memory layer distribution: 60% L0 / 30% L1 / 10% L2.
 | **Tokens per RP turn**   | **~1,017** (derived from L0 input / batch size) |
 
 The ~1,017 tokens/turn is notably high for RP. This means context depletes fast:
-a 16k verbatim window holds only ~15.7 turns of live chat.
+the current 22k verbatim default holds only ~21.6 turns of live chat.
 
 ---
 
@@ -87,7 +87,7 @@ a 16k verbatim window holds only ~15.7 turns of live chat.
 
 These are extracted from the actual source code, not assumed:
 
-- `verbatimTokenBudget`: 4000-64000, step 1000 (default 16000)
+- `verbatimTokenBudget`: 4000-64000, step 1000 (default 22000)
 - `memoryTokenBudget`: 4000-32000, step 1000 (default 10000)
 - `maxL0SourceTokens`: 4000-32000, step 1000 (default 16000)
 - Cache mode forces `verbatimTokenBudget = 32000` (src/foundation/state.js)
@@ -113,14 +113,14 @@ at the expense of RP quality:
 
 | Mode     | Memory | Verbatim | Cost/Turn | TotCtx | Recall | ECQ    | $/kQT  | Vis Turns |
 | -------- | ------ | -------- | --------- | ------ | ------ | ------ | ------ | --------- |
-| Standard | 10,000 | 16,000   | 316,424   | 26,000 | 98.0%  | 22,492 | 14,068 | 15.7      |
+| Standard | 10,000 | 22,000   | 376,424   | 32,000 | 97.5%  | 28,230 | 13,333 | 21.6      |
 | Cache    | 10,000 | 32,000   | 90,291    | 42,000 | 95.2%  | 37,067 | 2,435  | 31.5      |
 
 ### Optimal by Raw Cost (quality-filtered)
 
 | Mode     | Memory | Verbatim | Cost/Turn | Recall | Vis Turns | vs Default             |
 | -------- | ------ | -------- | --------- | ------ | --------- | ---------------------- |
-| Standard | 10,000 | 14,000   | 296,424   | 98.2%  | 13.8      | 6.3% cheaper           |
+| Standard | 10,000 | 14,000   | 296,424   | 98.2%  | 13.8      | 21.3% cheaper          |
 | Cache    | 10,000 | 32,000   | 90,291    | 95.2%  | 31.5      | 0.0% (already optimal) |
 
 Cache vs Standard (raw cost): **69.5% cheaper per turn**.
@@ -129,7 +129,7 @@ Cache vs Standard (raw cost): **69.5% cheaper per turn**.
 
 | Mode     | Memory | Verbatim | Cost/Turn | Recall | ECQ    | $/kQT  | vs Default             |
 | -------- | ------ | -------- | --------- | ------ | ------ | ------ | ---------------------- |
-| Standard | 10,000 | 48,000   | 636,424   | 91.4%  | 50,231 | 12,669 | 9.9% cheaper/kQT       |
+| Standard | 10,000 | 48,000   | 636,424   | 91.4%  | 50,231 | 12,669 | 5.0% cheaper/kQT       |
 | Cache    | 10,000 | 32,000   | 90,291    | 95.2%  | 37,067 | 2,435  | 0.0% (already optimal) |
 
 Cache vs Standard (ECQ): **80.8% cheaper per quality-token**.
@@ -168,10 +168,10 @@ total context is 42k (95.2% recall). This is the fundamental tradeoff.
 
 ### What the output split fix changed
 
-The output split fix reduced costs by ~4% across all configurations. The default
-Standard baseline dropped from 328,628 to 316,424. The default Cache baseline
-dropped from 112,665 to 90,291. This makes the savings numbers more conservative
-and accurate.
+The output split fix reduced costs across all configurations. With the current
+22k Standard default, the baseline is 376,424 cost/turn. The default Cache
+baseline is 90,291. This makes the savings numbers more conservative and
+accurate.
 
 ### What the ECQ model revealed
 
@@ -205,10 +205,10 @@ verbatim. There is nothing to tune. Cache mode is 69.5% cheaper per turn and
 
 ### Standard mode has room to optimize
 
-- **For cost minimizers**: Drop verbatim from 16k to 14k (saves 6.3% per turn,
+- **For cost minimizers**: Drop verbatim from 22k to 14k (saves 21.3% per turn,
   13.8 visible turns, 98.2% recall). This is the raw-cost floor.
-- **For quality maximizers**: Raise verbatim to 22k (21.6 visible turns, 97.5%
-  recall, $13,333/kQT). This is the perfect-recall ceiling.
+- **For quality maximizers**: Keep the current 22k default (21.6 visible turns,
+  97.5% recall, $13,333/kQT). This is the perfect-recall ceiling.
 - **For ECQ optimizers**: Raise verbatim to 48k (47.2 visible turns, 91.4%
   recall, $12,669/kQT). This is the absolute $/kQT minimum, but deep in
   tolerable recall territory.

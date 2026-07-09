@@ -27,8 +27,10 @@ import {
     runCatchup,
     runSlopBreaker,
 } from '../core/summarizer.js';
-import { getSlopBreakerPlan } from '../core/slop-breaker.js';
-import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
+import {
+    buildForceSummaryRoutePlan,
+    buildSlopSummaryRoutePlan,
+} from '../core/summarization-routes.js';
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
@@ -401,9 +403,9 @@ async function onForceSummarize() {
         .prop('disabled', true)
         .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
-        const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
+        const plan = await buildForceSummaryRoutePlan(getChat(), getChatStore(), s);
 
-        if (plan.reason === 'none') {
+        if (!plan.ready) {
             toastr.info(
                 'Nothing to summarize - current chat is within the verbatim window.',
                 'Summaryception',
@@ -411,7 +413,7 @@ async function onForceSummarize() {
             return;
         }
 
-        const overflow = Math.max(plan.eligibleTurns.length, plan.overflowCount);
+        const overflow = Math.max(plan.batchTurns.length, plan.overflowCount);
         toastr.info(`${overflow} turns ready to process. Starting...`, 'Summaryception', {
             timeOut: 2000,
         });
@@ -420,7 +422,7 @@ async function onForceSummarize() {
         let progressToast = null;
         const outcome = await runManualWithProgress(
             () =>
-                runCatchup(plan.visibleTurns, overflow, {
+                runCatchup(plan.rawPlan.visibleTurns, overflow, {
                     signal: controller.signal,
                     onStart: (progress) => {
                         progressToast = createManualProgressToast({
@@ -459,8 +461,8 @@ async function onSlopBreaker() {
     }
     showManualCacheWarning(s);
 
-    const plan = await getSlopBreakerPlan(getChat(), getChatStore(), s);
-    if (plan.reason !== 'ready') {
+    const plan = await buildSlopSummaryRoutePlan(getChat(), getChatStore(), s);
+    if (!plan.ready) {
         showSlopBreakerNoop();
         return;
     }

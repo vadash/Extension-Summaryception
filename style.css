@@ -480,6 +480,26 @@
 .sc-tuning-title .fa-solid {
     color: var(--sc-accent);
 }
+.sc-expert-tuning {
+    margin-top: 7px;
+    border-top: 1px solid var(--sc-border);
+    padding-top: 7px;
+}
+.sc-expert-tuning summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 82%, transparent);
+    font-size: 0.86em;
+    font-weight: 700;
+}
+.sc-expert-tuning summary .fa-solid {
+    color: var(--sc-accent);
+}
+.sc-expert-tuning .sc-tuning-grid {
+    margin-top: 7px;
+}
 .sc-settings label { font-weight: 600; }
 .sc-disabled {
     opacity: 0.56;

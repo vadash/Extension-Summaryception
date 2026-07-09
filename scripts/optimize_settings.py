@@ -25,7 +25,7 @@ Quality model:
       finds the cheapest way to feed high-fidelity information to the model.
 
 Codebase constraints (from src/foundation/constants.js + cache-planner.js):
-    verbatimTokenBudget:  4000-64000, step 1000  (default 16000)
+    verbatimTokenBudget:  4000-64000, step 1000  (default 22000)
     memoryTokenBudget:    4000-32000, step 1000  (default 10000)
     maxL0SourceTokens:    4000-32000, step 1000  (default 16000)
     minSummaryBudget:     default 8000
@@ -84,7 +84,7 @@ CACHE_FORCED_VERBATIM = 32000
 
 # Default app settings (do NOT change; used as reference baseline)
 APP_DEFAULTS = {
-    "verbatimTokenBudget": 16000,
+    "verbatimTokenBudget": 22000,
     "memoryTokenBudget": 10000,
     "maxL0SourceTokens": 16000,
     "minSummaryBudget": 8000,
@@ -490,7 +490,8 @@ def print_report(stats, tokens_per_turn, results):
 
     print(f"\n--- DEFAULT-SETTING BASELINE ---")
     if base_std:
-        print(f"  Standard (mem=10k, vb=16k): cost/turn={fmt(base_std.cost_per_turn)}  "
+        default_vb_label = f"{APP_DEFAULTS['verbatimTokenBudget'] // 1000}k"
+        print(f"  Standard (mem=10k, vb={default_vb_label}): cost/turn={fmt(base_std.cost_per_turn)}  "
               f"totctx={fmt(base_std.total_context)} recall={base_std.recall_pct:.1%}  "
               f"ECQ={fmt(base_std.ecq)}  $/kQT={fmt(base_std.cost_per_quality)}  vis={base_std.visible_turns:.1f}trn")
     if base_cache:

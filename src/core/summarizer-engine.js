@@ -1,15 +1,17 @@
-import { MEMORY_MODES } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, info, trace } from '../foundation/logger.js';
-import { getCacheFriendlyPlan } from './cache-planner.js';
 import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summarizer-batch.js';
 import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
-import { getLayer0OverflowPlan } from './verbatim-window.js';
-import { getSlopBreakerPlan } from './slop-breaker.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { recoverStalePromptFreeze, shouldStopPromptWork } from './summarizer-commit.js';
 import { formatTokenValue } from './token-count.js';
+import {
+    SUMMARY_COMMIT_MODES,
+    buildAutoSummaryRoutePlan,
+    buildForceSummaryRoutePlan,
+    buildSlopSummaryRoutePlan,
+} from './summarization-routes.js';
 
 export const ELASTIC_STRATEGIES = Object.freeze({
     AUTO: 'AUTO',
@@ -65,16 +67,12 @@ export async function runElasticAutoCycle(queue, { refreshUi } = {}) {
         return promotionResult;
     }
 
-    if (s.memoryMode === MEMORY_MODES.CACHE) {
-        return await runElasticCacheCycle(queue, s);
-    }
+    const routePlan = await buildAutoSummaryRoutePlan(getChat(), getChatStore(), s);
+    logRoutePlan(routePlan, s);
 
-    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), s);
-    logOverflowPlan(plan, s);
-
-    if (plan.reason !== 'none') {
-        queue.setPhase('layer0');
-        return await processLayer0Plan(plan);
+    if (routePlan.ready) {
+        queue.setPhase(routePlan.phase);
+        return await processRoutePlan(routePlan);
     }
 
     return 'idle';
@@ -110,41 +108,14 @@ export async function runElasticManual(deps, strategy, options = {}) {
     };
 }
 
-async function runElasticCacheCycle(queue, s) {
-    const plan = await getCacheFriendlyPlan(getChat(), getChatStore(), s);
-    logCachePlan(plan);
-
-    if (plan.reason !== 'ready') {
-        return 'idle';
-    }
-
-    queue.setPhase('layer0');
-    return await processCacheLayer0Plan(plan);
-}
-
-/**
- * Process one Layer 0 plan.
- * @param {import('./verbatim-window.js').Layer0OverflowPlan} plan
- * @returns {Promise<'processed' | 'blocked' | 'failed'>}
- */
-async function processLayer0Plan(plan) {
-    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
-    return await processLayer0Turns(turns);
-}
-
-/**
- * Process one cache-delayed Layer 0 batch.
- * @param {import('./cache-planner.js').CacheFriendlyPlan} plan
- * @returns {Promise<'processed' | 'blocked' | 'failed'>}
- */
-async function processCacheLayer0Plan(plan) {
-    const success = await summarizeAtomicLayer0Partitions(plan.partitions, {
+async function processRoutePlan(routePlan) {
+    const success = await commitRoutePlan(routePlan, {
         showToasts: false,
         catchExceptions: true,
     });
 
     if (!success) {
-        debug('Atomic cache batch failed, leaving chat and memory unchanged.');
+        debug('Route batch failed, stopping summarization cycle to avoid retry loop.');
         return 'failed';
     }
     if (shouldStopPromptWork()) {
@@ -154,24 +125,22 @@ async function processCacheLayer0Plan(plan) {
 }
 
 /**
- * Process one Layer 0 summarization call.
- * @param {import('./chatutils.js').AssistantTurn[]} turns
- * @returns {Promise<'processed' | 'blocked' | 'failed'>}
+ * Commit one normalized route plan.
+ * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
+ * @param {{ showToasts?: boolean, catchExceptions?: boolean }} [options]
+ * @returns {Promise<boolean>}
  */
-async function processLayer0Turns(turns) {
-    const success = await summarizeBatchFromTurns(turns, {
-        showToasts: false,
-        catchExceptions: true,
-    });
-
-    if (!success) {
-        debug('Batch failed, stopping summarization cycle to avoid retry loop.');
-        return 'failed';
+async function commitRoutePlan(routePlan, options = {}) {
+    if (routePlan.commitMode === SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS) {
+        return await summarizeAtomicLayer0Partitions(routePlan.partitions, options);
     }
-    if (shouldStopPromptWork()) {
-        return 'blocked';
+    if (routePlan.commitMode === SUMMARY_COMMIT_MODES.TURNS_WITH_SOURCE_END) {
+        return await summarizeBatchFromTurns(routePlan.batchTurns, {
+            ...options,
+            sourceEndIdx: routePlan.sourceEndIdx,
+        });
     }
-    return 'processed';
+    return await summarizeBatchFromTurns(routePlan.batchTurns, options);
 }
 
 async function processPromotionCycle({ overflowKnown = false } = {}) {
@@ -209,46 +178,48 @@ async function buildManualTask(strategy, options) {
 }
 
 async function buildForceTask(options, strategy) {
-    const initialPlan = await getForcePlan();
-    if (!initialPlan) {
+    const initialRoutePlan = await getForceRoutePlan();
+    if (!initialRoutePlan.ready) {
         return null;
     }
 
     return {
         kind: ELASTIC_STRATEGIES.FORCE,
-        totalBatches: estimateForceBatches(initialPlan),
+        totalBatches: initialRoutePlan.totalBatches,
         label: 'Processing',
         title: 'Summaryception Catch-Up',
         options,
-        targetIndex: initialPlan.tokenBoundaryIndex,
-        getBatch: getForcePlan,
-        isBatchReady: (batch) => Boolean(batch),
+        targetIndex: initialRoutePlan.rawPlan.tokenBoundaryIndex,
+        getBatch: getForceRoutePlan,
+        isBatchReady: (batch) => batch?.ready,
         processBatch: strategy.processBatch,
         isComplete: strategy.isComplete,
-        partitions: initialPlan.partitions,
-        getPartitions: () => initialPlan.partitions,
     };
 }
 
 async function buildSlopTask(options, strategy) {
-    const initialPlan = await getSlopBreakerPlan(getChat(), getChatStore(), getEffectiveSettings());
-    if (initialPlan.reason !== 'ready') {
+    const initialRoutePlan = await buildSlopSummaryRoutePlan(
+        getChat(),
+        getChatStore(),
+        getEffectiveSettings(),
+    );
+    if (!initialRoutePlan.ready) {
         return null;
     }
 
-    const targetIndex = initialPlan.targetIndex;
+    const targetIndex = initialRoutePlan.targetIndex;
     return {
         kind: ELASTIC_STRATEGIES.SLOP,
-        totalBatches: initialPlan.totalBatches,
+        totalBatches: initialRoutePlan.totalBatches,
         label: 'Breaking slop',
         title: 'Summaryception Slop Breaker',
         options,
         targetIndex,
         getBatch: async () =>
-            await getSlopBreakerPlan(getChat(), getChatStore(), getEffectiveSettings(), {
+            await buildSlopSummaryRoutePlan(getChat(), getChatStore(), getEffectiveSettings(), {
                 targetIndex,
             }),
-        isBatchReady: (batch) => batch?.reason === 'ready',
+        isBatchReady: (batch) => batch?.ready,
         processBatch: strategy.processBatch,
         isComplete: strategy.isComplete,
     };
@@ -334,8 +305,7 @@ function shouldStopManualLoop(outcome, result, signal, queue) {
 async function processForceBatch(plan) {
     trace('Processing force batch via elastic engine');
     const beforeIndex = getChatStore().summarizedUpTo;
-    const turns = plan.reason === 'repair' ? plan.visibleTurns : plan.batchTurns;
-    const success = await summarizeBatchFromTurns(turns, { catchExceptions: true });
+    const success = await commitRoutePlan(plan, { catchExceptions: true });
     return {
         success,
         committed: success && getChatStore().summarizedUpTo > beforeIndex,
@@ -343,10 +313,7 @@ async function processForceBatch(plan) {
 }
 
 async function processSlopBatch(plan) {
-    const success = await summarizeBatchFromTurns(plan.batchTurns, {
-        catchExceptions: true,
-        sourceEndIdx: plan.sourceEndIdx,
-    });
+    const success = await commitRoutePlan(plan, { catchExceptions: true });
     const afterIndex = getChatStore().summarizedUpTo;
     return {
         success,
@@ -355,19 +322,15 @@ async function processSlopBatch(plan) {
     };
 }
 
-async function getForcePlan() {
-    const plan = await getLayer0OverflowPlan(getChat(), getChatStore(), getEffectiveSettings(), {
-        ignoreReadiness: true,
-    });
+async function getForceRoutePlan() {
+    const plan = await buildForceSummaryRoutePlan(
+        getChat(),
+        getChatStore(),
+        getEffectiveSettings(),
+    );
 
-    trace(`Current visible turns: ${plan.visibleTurnCount}, plan reason: ${plan.reason}`);
-    return plan.reason === 'none' ? null : plan;
-}
-
-function estimateForceBatches(plan) {
-    const batchLimit = Math.max(1, getEffectiveSettings().maxSummaryTurns);
-    const readyTurns = plan.batchTurns.length + plan.softOverflowCount;
-    return Math.max(1, Math.ceil(readyTurns / batchLimit));
+    trace(`Current visible turns: ${plan.rawPlan.visibleTurnCount}, plan reason: ${plan.reason}`);
+    return plan;
 }
 
 async function normalizeManualMemory(outcome) {
@@ -442,6 +405,14 @@ function isCancelled(signal) {
 
 async function sleep(ms) {
     await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function logRoutePlan(routePlan, s) {
+    if (routePlan.commitMode === SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS) {
+        logCachePlan(routePlan.rawPlan);
+        return;
+    }
+    logOverflowPlan(routePlan.rawPlan, s);
 }
 
 function logOverflowPlan(plan, s) {

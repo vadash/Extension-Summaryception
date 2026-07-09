@@ -11,6 +11,7 @@
 
 - Prompt-affecting commits/effects queue during SillyTavern foreground generation to avoid prompt mutation freezes. Pending commits flush on generation end.
 - `partition-planner.js` ensures L0 batches never spike by token-balancing source partitions.
+- `summarization-routes.js` normalizes Standard, Cache, Force, and Slop plans for engine/UI consumers; keep planner-specific countability rules in their planner modules.
 - Shared execution loops live in `summarizer-engine.js`.
 
 ## LLM Connections

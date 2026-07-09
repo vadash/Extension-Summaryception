@@ -14,7 +14,7 @@ import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/s
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
 import { getCacheFriendlyPlan, getProtectedTailTokens } from '../core/cache-planner.js';
-import { getLayer0OverflowPlan } from '../core/verbatim-window.js';
+import { buildAutoSummaryRoutePlan } from '../core/summarization-routes.js';
 import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import { SETTINGS_HELP } from './settings-help.js';
@@ -344,14 +344,8 @@ async function getWorkerLabel(s, store) {
 
 async function getVisibleBacklogCount(s, store) {
     try {
-        if (s.memoryMode === MEMORY_MODES.CACHE) {
-            const plan = await getCacheFriendlyPlan(getChat(), store, s);
-            return plan.reason === 'ready'
-                ? Math.max(plan.batchTurns.length, plan.overflowCount)
-                : 0;
-        }
-        const plan = await getLayer0OverflowPlan(getChat(), store, s);
-        return plan.reason === 'none' ? 0 : Math.max(plan.batchTurns.length, plan.overflowCount);
+        const plan = await buildAutoSummaryRoutePlan(getChat(), store, s);
+        return plan.ready ? Math.max(plan.batchTurns.length, plan.overflowCount) : 0;
     } catch (_e) {
         return 0;
     }
@@ -541,13 +535,17 @@ function getCacheReadyStateText(plan) {
 }
 
 async function getVerbatimBudgetPart(s, store) {
-    const plan = await getLayer0OverflowPlan(getChat(), store, s);
+    const plan = await buildAutoSummaryRoutePlan(getChat(), store, s);
     return {
         label: 'Verbatim Window',
         kind: 'verbatim',
-        count: plan.budgetStats.finalTokens,
-        estimated: plan.budgetStats.finalTokensEstimated,
+        count: getRouteBudgetStats(plan).finalTokens,
+        estimated: getRouteBudgetStats(plan).finalTokensEstimated,
     };
+}
+
+function getRouteBudgetStats(plan) {
+    return plan.rawPlan.budgetStats || plan.rawPlan.liveStats;
 }
 
 function orderMemoryBudgetParts(parts) {

@@ -32,6 +32,32 @@ const basicHelp = ({ selector, title, short, controls, controlsText, when, risk 
     controls,
 });
 
+const MEMORY_MODE_HELP = Object.freeze({
+    standard: {
+        title: 'Standard',
+        short: 'Keeps the main prompt smaller and steadier by summarizing overflow continuously.',
+        controlsText:
+            'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
+        when: 'when you want steadier context size, higher recall at smaller total context, or your provider lacks useful prompt caching.',
+        risk: 'you pay full input price for the changing prompt on every turn.',
+    },
+    cache: {
+        title: 'Cache Friendly',
+        short: 'Uses a larger 32k live window for providers that discount cached input.',
+        controlsText:
+            'Controls whether the prompt keeps a stable memory prefix and delays flushing until the live cache window fills.',
+        when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
+        risk: 'total context is larger (memory + 32k), and manual summarization can reset cache savings.',
+    },
+});
+
+const memoryModeHelp = ({ selector, controls, mode }) =>
+    basicHelp({
+        selector,
+        controls,
+        ...MEMORY_MODE_HELP[mode],
+    });
+
 const CONNECTION_GROUPS = [
     {
         key: 'layer0',
@@ -274,28 +300,18 @@ const HELP_ENTRIES = [
     ],
     [
         'memory_mode_standard',
-        basicHelp({
+        memoryModeHelp({
             selector: selectorFor('sc_memory_mode_standard'),
-            title: 'Standard',
-            short: 'Use when your provider does not offer cached-input discounts.',
             controls: [controlFor('sc_memory_mode_standard')],
-            controlsText:
-                'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
-            when: 'when your provider bills every input token at full rate (no prompt-cache discount).',
-            risk: 'you pay full input price for the entire context on every turn, which is costly for large windows.',
+            mode: 'standard',
         }),
     ],
     [
         'memory_mode_cache',
-        basicHelp({
+        memoryModeHelp({
             selector: selectorFor('sc_memory_mode_cache'),
-            title: 'Cache Friendly',
-            short: 'Use when your provider discounts cached input. Saves ~70% per turn vs Standard.',
             controls: [controlFor('sc_memory_mode_cache')],
-            controlsText:
-                'Controls whether the prompt keeps a stable memory prefix and lets live chat grow to a 32k cache window.',
-            when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
-            risk: 'total context is larger (memory + 32k verbatim), so ensure your model handles 40k+ context. Manual summarization can reset cache savings.',
+            mode: 'cache',
         }),
     ],
     [
@@ -351,28 +367,18 @@ const HELP_ENTRIES = [
     ...CONNECTION_HELP_ENTRIES,
     [
         'easy_memory_mode_standard',
-        basicHelp({
+        memoryModeHelp({
             selector: selectorFor('sc_easy_memory_mode_standard'),
-            title: 'Standard',
-            short: 'Use when your provider does not offer cached-input discounts.',
             controls: [controlFor('sc_easy_memory_mode_standard')],
-            controlsText:
-                'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
-            when: 'when your provider bills every input token at full rate (no prompt-cache discount).',
-            risk: 'you pay full input price for the entire context on every turn, which is costly for large windows.',
+            mode: 'standard',
         }),
     ],
     [
         'easy_memory_mode_cache',
-        basicHelp({
+        memoryModeHelp({
             selector: selectorFor('sc_easy_memory_mode_cache'),
-            title: 'Cache Friendly',
-            short: 'Use when your provider discounts cached input. Saves ~70% per turn vs Standard.',
             controls: [controlFor('sc_easy_memory_mode_cache')],
-            controlsText:
-                'Controls whether the prompt keeps a stable memory prefix and lets live chat grow to a 32k cache window.',
-            when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
-            risk: 'total context is larger (memory + 32k verbatim), so ensure your model handles 40k+ context. Manual summarization can reset cache savings.',
+            mode: 'cache',
         }),
     ],
     [
