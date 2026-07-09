@@ -57,16 +57,16 @@ export async function getLayer0OverflowPlan(
         );
         const summaryStats = partitions[0]?.stats || createBudgetStats();
 
-        return buildPlan(
-            'max',
+        return buildPlan({
+            reason: 'max',
             visibleTurns,
             eligibleTurns,
             overflowTurns,
-            partitions[0]?.turns || candidateTurns,
+            batchTurns: partitions[0]?.turns || candidateTurns,
             partitions,
             budget,
             summaryStats,
-        );
+        });
     }
 
     const partitions = await buildLayer0Partitions(
@@ -78,64 +78,64 @@ export async function getLayer0OverflowPlan(
     const summaryStats = partitions[0]?.stats || createBudgetStats();
 
     if (ignoreReadiness && candidateTurns.length > 0) {
-        return buildPlan(
-            'force',
+        return buildPlan({
+            reason: 'force',
             visibleTurns,
             eligibleTurns,
             overflowTurns,
-            candidateTurns,
+            batchTurns: candidateTurns,
             partitions,
             budget,
             summaryStats,
-        );
+        });
     }
 
     if (
         candidateTurns.length >= settings.minSummaryTurns &&
         summaryStats.finalTokens >= settings.minSummaryBudget
     ) {
-        return buildPlan(
-            'budget',
+        return buildPlan({
+            reason: 'budget',
             visibleTurns,
             eligibleTurns,
             overflowTurns,
-            candidateTurns,
+            batchTurns: candidateTurns,
             partitions,
             budget,
             summaryStats,
-        );
+        });
     }
 
     if (budget.exceeded && eligibleTurns.length === 0) {
-        return buildPlan(
-            'repair',
+        return buildPlan({
+            reason: 'repair',
             visibleTurns,
             eligibleTurns,
             overflowTurns,
-            [],
-            [],
+            batchTurns: [],
+            partitions: [],
             budget,
             summaryStats,
-        );
+        });
     }
 
-    return buildPlan(
-        'none',
+    return buildPlan({
+        reason: 'none',
         visibleTurns,
         eligibleTurns,
         overflowTurns,
-        [],
-        [],
+        batchTurns: [],
+        partitions: [],
         budget,
         summaryStats,
-    );
+    });
 }
 
 function getVisibleAssistantTurns(chat) {
     return getAssistantTurns(chat).filter((turn) => !chat[turn.index]?.extra?.sc_ghosted);
 }
 
-function buildPlan(
+function buildPlan({
     reason,
     visibleTurns,
     eligibleTurns,
@@ -144,7 +144,7 @@ function buildPlan(
     partitions,
     budget,
     summaryStats,
-) {
+}) {
     return {
         visibleTurns,
         eligibleTurns,

@@ -36,6 +36,11 @@ const ROUTE_SETTING_DEFAULTS = Object.freeze({
     openaiModel: '',
     openaiMaxTokens: 0,
 });
+const ROUTE_IDENTITY_KEYS = Object.freeze({
+    profile: ['connectionProfileId'],
+    ollama: ['ollamaUrl', 'ollamaModel'],
+    openai: ['openaiUrl', 'openaiKey', 'openaiModel'],
+});
 
 /**
  * Send a summarization request using the configured connection.
@@ -220,27 +225,19 @@ function shouldUseFallbackConnection(settings) {
  * @returns {boolean}
  */
 function isSameConnectionRoute(primary, fallback) {
-    if ((primary.connectionSource || 'default') !== (fallback.connectionSource || 'default')) {
+    const source = fallback.connectionSource || 'default';
+    if ((primary.connectionSource || 'default') !== source) {
         return false;
     }
 
-    if (fallback.connectionSource === 'profile') {
-        return (primary.connectionProfileId || '') === (fallback.connectionProfileId || '');
-    }
-    if (fallback.connectionSource === 'ollama') {
-        return (
-            (primary.ollamaUrl || '') === (fallback.ollamaUrl || '') &&
-            (primary.ollamaModel || '') === (fallback.ollamaModel || '')
-        );
-    }
-    if (fallback.connectionSource === 'openai') {
-        return (
-            (primary.openaiUrl || '') === (fallback.openaiUrl || '') &&
-            (primary.openaiKey || '') === (fallback.openaiKey || '') &&
-            (primary.openaiModel || '') === (fallback.openaiModel || '')
-        );
-    }
-    return true;
+    const identityKeys = ROUTE_IDENTITY_KEYS[source] || [];
+    return identityKeys.every(
+        (key) => getRouteIdentityValue(primary, key) === getRouteIdentityValue(fallback, key),
+    );
+}
+
+function getRouteIdentityValue(settings, key) {
+    return String(settings?.[key] || '');
 }
 
 /**

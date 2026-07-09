@@ -20,18 +20,18 @@ const LAYER0_PHASE = /** @type {'layer0'} */ ('layer0');
 
 /**
  * @typedef {object} SummaryRoutePlan
- * @property {string} route
- * @property {boolean} ready
- * @property {string} reason
- * @property {string} commitMode
- * @property {'layer0'} phase
- * @property {import('./chatutils.js').AssistantTurn[]} batchTurns
- * @property {import('./partition-planner.js').SourcePartition[]} partitions
- * @property {number} overflowCount
- * @property {number} totalBatches
- * @property {number} [sourceEndIdx]
- * @property {number} [targetIndex]
- * @property {object} rawPlan
+ * @property {string} route - Selected summarization route identifier.
+ * @property {boolean} ready - Whether the route has work ready to execute.
+ * @property {string} reason - Planner-specific reason for the route state.
+ * @property {string} commitMode - Commit strategy required for the selected route.
+ * @property {'layer0'} phase - Summary engine phase targeted by this route.
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns - Assistant turns selected for the next batch.
+ * @property {import('./partition-planner.js').SourcePartition[]} partitions - Token-balanced source partitions selected by the planner.
+ * @property {number} overflowCount - Count of eligible turns or memories outside the protected window.
+ * @property {number} totalBatches - Estimated number of batches required to drain ready work.
+ * @property {number} [sourceEndIdx] - Inclusive chat index where the selected source range ends.
+ * @property {number} [targetIndex] - Planner target index for single-message or slop repair routes.
+ * @property {object} rawPlan - Original planner output used to build the normalized route.
  */
 
 /**

@@ -7,14 +7,14 @@ import { fetchWithProxyFallback, readErrorText } from './connection-transport.js
  */
 export const OllamaProvider = {
     async generate({ settings, systemPrompt, userPrompt, signal }) {
-        return await sendViaOllama(
-            settings.ollamaUrl,
-            settings.ollamaModel,
+        return await sendViaOllama({
+            url: settings.ollamaUrl,
+            model: settings.ollamaModel,
             systemPrompt,
             userPrompt,
-            settings.summarizerResponseLength,
+            maxTokens: settings.summarizerResponseLength,
             signal,
-        );
+        });
     },
     async testConnection(settings) {
         return await testOllamaConnection(settings.ollamaUrl, settings.ollamaModel);
@@ -25,16 +25,28 @@ export const OllamaProvider = {
 };
 
 /**
+ * @typedef {object} OllamaRequestParams
+ * @property {string} url - The Ollama base URL
+ * @property {string} model - The model name
+ * @property {string} systemPrompt - The system prompt
+ * @property {string} userPrompt - The user prompt
+ * @property {number} [maxTokens] - Optional max generated tokens
+ * @property {AbortSignal} [signal] - Optional request abort signal
+ */
+
+/**
  * Send a request to a local Ollama instance using /api/chat.
- * @param {string} url - The Ollama base URL
- * @param {string} model - The model name
- * @param {string} systemPrompt - The system prompt
- * @param {string} userPrompt - The user prompt
- * @param {number|AbortSignal} [maxTokens] - Optional max generated tokens
- * @param {AbortSignal} [signal] - Optional request abort signal
+ * @param {OllamaRequestParams} params
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTokens = 0, signal) {
+export async function sendViaOllama({
+    url,
+    model,
+    systemPrompt,
+    userPrompt,
+    maxTokens = 0,
+    signal,
+}) {
     if (!url) {
         throw new ConnectionError(
             'Ollama URL is not configured. Please set it in Summaryception settings.',
@@ -48,8 +60,7 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTok
         );
     }
 
-    const requestSignal = isAbortSignal(maxTokens) ? maxTokens : signal;
-    const tokenLimit = isAbortSignal(maxTokens) ? 0 : Number(maxTokens) || 0;
+    const tokenLimit = Number(maxTokens) || 0;
     const baseUrl = url.replace(/\/+$/, '');
     const targetUrl = `${baseUrl}/api/chat`;
     const options = { temperature: 0.3 };
@@ -72,7 +83,7 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTok
         response = await fetchWithProxyFallback(targetUrl, {
             method: 'POST',
             body,
-            signal: requestSignal,
+            signal,
         });
     } catch (e) {
         if (/** @type {{ name?: string }} */ (e)?.name === 'AbortError') {
@@ -103,14 +114,6 @@ export async function sendViaOllama(url, model, systemPrompt, userPrompt, maxTok
     }
 
     return data.message.content;
-}
-
-/**
- * @param {unknown} value
- * @returns {value is AbortSignal}
- */
-function isAbortSignal(value) {
-    return Boolean(value && typeof value === 'object' && 'aborted' in value);
 }
 
 /**

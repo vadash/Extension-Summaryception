@@ -9,13 +9,13 @@ import { trace, warn } from '../foundation/logger.js';
  */
 export const ProfileProvider = {
     async generate({ settings, systemPrompt, userPrompt, signal }) {
-        return await sendViaProfile(
-            settings.connectionProfileId,
+        return await sendViaProfile({
+            profileId: settings.connectionProfileId,
             systemPrompt,
             userPrompt,
-            settings.summarizerResponseLength,
+            maxTokens: settings.summarizerResponseLength,
             signal,
-        );
+        });
     },
     async testConnection(settings) {
         return await testProfileConnection(settings.connectionProfileId);
@@ -26,15 +26,26 @@ export const ProfileProvider = {
 };
 
 /**
+ * @typedef {object} ProfileRequestParams
+ * @property {string} profileId - The connection profile identifier
+ * @property {string} systemPrompt - The system prompt
+ * @property {string} userPrompt - The user prompt
+ * @property {number} [maxTokens] - Max tokens for the response, or 0 to use the profile preset
+ * @property {AbortSignal} [signal] - Optional request abort signal
+ */
+
+/**
  * Uses ST's ConnectionManagerRequestService to send a request via a saved profile.
- * @param {string} profileId - The connection profile identifier
- * @param {string} systemPrompt - The system prompt
- * @param {string} userPrompt - The user prompt
- * @param {number} maxTokens - Max tokens for the response, or 0 to use the profile preset
- * @param {AbortSignal} [signal] - Optional request abort signal
+ * @param {ProfileRequestParams} params
  * @returns {Promise<string>} The generated response content
  */
-export async function sendViaProfile(profileId, systemPrompt, userPrompt, maxTokens = 0, signal) {
+export async function sendViaProfile({
+    profileId,
+    systemPrompt,
+    userPrompt,
+    maxTokens = 0,
+    signal,
+}) {
     if (!profileId) {
         throw new ConnectionError(
             'No Connection Profile selected. Please select one in Summaryception settings.',

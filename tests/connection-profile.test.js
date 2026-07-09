@@ -26,18 +26,26 @@ function installProfileService(raw) {
 async function expectProfileResponse(raw, expected) {
     installProfileService(raw);
 
-    await expect(sendViaProfile('profile-1', 'system prompt', 'user prompt')).resolves.toBe(
-        expected,
-    );
+    await expect(
+        sendViaProfile({
+            profileId: 'profile-1',
+            systemPrompt: 'system prompt',
+            userPrompt: 'user prompt',
+        }),
+    ).resolves.toBe(expected);
 }
 
 describe('sendViaProfile', () => {
     it('returns string responses from sendRequest', async () => {
         const sendRequest = installProfileService('string response');
 
-        await expect(sendViaProfile('profile-1', 'system prompt', 'user prompt')).resolves.toBe(
-            'string response',
-        );
+        await expect(
+            sendViaProfile({
+                profileId: 'profile-1',
+                systemPrompt: 'system prompt',
+                userPrompt: 'user prompt',
+            }),
+        ).resolves.toBe('string response');
 
         expect(sendRequest).toHaveBeenCalledWith(
             'profile-1',
@@ -55,7 +63,12 @@ describe('sendViaProfile', () => {
         const sendRequest = installProfileService('string response');
 
         await expect(
-            sendViaProfile('profile-1', 'system prompt', 'user prompt', 0, controller.signal),
+            sendViaProfile({
+                profileId: 'profile-1',
+                systemPrompt: 'system prompt',
+                userPrompt: 'user prompt',
+                signal: controller.signal,
+            }),
         ).resolves.toBe('string response');
 
         expect(sendRequest).toHaveBeenCalledWith(
@@ -84,7 +97,11 @@ describe('sendViaProfile', () => {
         installProfileService({ unexpected: true });
 
         await expect(
-            sendViaProfile('profile-1', 'system prompt', 'user prompt'),
+            sendViaProfile({
+                profileId: 'profile-1',
+                systemPrompt: 'system prompt',
+                userPrompt: 'user prompt',
+            }),
         ).rejects.toMatchObject({
             name: 'ConnectionError',
             retryable: false,

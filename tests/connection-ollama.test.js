@@ -27,12 +27,12 @@ describe('sendViaOllama', () => {
     it('sends chat requests through the proxy fallback transport', async () => {
         stubJsonResponse({ message: { content: 'summary text' } });
 
-        const result = await sendViaOllama(
-            'http://localhost:11434/',
-            'llama3',
-            'system prompt',
-            'user prompt',
-        );
+        const result = await sendViaOllama({
+            url: 'http://localhost:11434/',
+            model: 'llama3',
+            systemPrompt: 'system prompt',
+            userPrompt: 'user prompt',
+        });
 
         expect(result).toBe('summary text');
         expect(globalThis.fetch).toHaveBeenCalledWith('/proxy/http://localhost:11434/api/chat', {
@@ -57,13 +57,13 @@ describe('sendViaOllama', () => {
         const controller = new AbortController();
         stubJsonResponse({ message: { content: 'summary text' } });
 
-        await sendViaOllama(
-            'http://localhost:11434/',
-            'llama3',
-            'system prompt',
-            'user prompt',
-            controller.signal,
-        );
+        await sendViaOllama({
+            url: 'http://localhost:11434/',
+            model: 'llama3',
+            systemPrompt: 'system prompt',
+            userPrompt: 'user prompt',
+            signal: controller.signal,
+        });
 
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/proxy/http://localhost:11434/api/chat',
@@ -74,13 +74,13 @@ describe('sendViaOllama', () => {
     it('passes max tokens as Ollama num_predict', async () => {
         stubJsonResponse({ message: { content: 'summary text' } });
 
-        await sendViaOllama(
-            'http://localhost:11434/',
-            'llama3',
-            'system prompt',
-            'user prompt',
-            180,
-        );
+        await sendViaOllama({
+            url: 'http://localhost:11434/',
+            model: 'llama3',
+            systemPrompt: 'system prompt',
+            userPrompt: 'user prompt',
+            maxTokens: 180,
+        });
 
         expect(globalThis.fetch).toHaveBeenCalledWith(
             '/proxy/http://localhost:11434/api/chat',

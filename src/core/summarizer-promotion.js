@@ -205,12 +205,32 @@ function getEffectivePromotionBatchSize(settings) {
  * @returns {Promise<boolean>}
  */
 async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCount }) {
+    const prepared = await prepareLayerPromotion({
+        layerIndex,
+        settings: s,
+        quota,
+        layerTokens,
+        layerCount,
+    });
+    if (!prepared) {
+        return false;
+    }
+
+    const promotedSnippet = await generateValidatedPromotion(prepared);
+    if (!promotedSnippet) {
+        return false;
+    }
+
+    return await commitValidatedPromotion({ prepared, promotedSnippet });
+}
+
+async function prepareLayerPromotion({ layerIndex, settings, quota, layerTokens, layerCount }) {
     const store = getChatStore();
     const layer = store.layers[layerIndex] || [];
-    const mergeCount = getEffectivePromotionBatchSize(s);
+    const mergeCount = getEffectivePromotionBatchSize(settings);
     const toMerge = layer.slice(0, mergeCount);
     if (toMerge.length < mergeCount) {
-        return false;
+        return null;
     }
 
     if (
@@ -218,7 +238,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
             layerIndex,
             layers: store.layers,
             mergeCount,
-            settings: s,
+            settings,
             quota,
         })
     ) {
@@ -227,7 +247,7 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
                 LAYER0_PROMOTION_RETENTION_FLOOR_RATIO * 100,
             )}% of quota.`,
         );
-        return false;
+        return null;
     }
 
     const sourceMemoryText = toMerge.map((sn) => sn.text).join(' ');
@@ -249,16 +269,6 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         contextStr,
         promotedMetadata,
     };
-
-    toastr.info(
-        `Promoting ${toMerge.length} memories: Layer ${layerIndex} -> Layer ${layerIndex + 1}`,
-        'Summaryception',
-        { timeOut: 3000, progressBar: true },
-    );
-
-    if (!storyTxt) {
-        return false;
-    }
     const promotionMetadata = {
         kind: 'promotion',
         layerIndex,
@@ -267,36 +277,72 @@ async function mergeLayerSnippets({ layerIndex, s, quota, layerTokens, layerCoun
         memoryTokensBeforeEstimated: memoryTokensBefore.estimated,
         overflowLayerIndex: layerIndex,
         overflowMemoryCount: layerCount,
-        overflowMemoryLimit: s.snippetsPerLayer,
+        overflowMemoryLimit: settings.snippetsPerLayer,
         overflowTokens: layerTokens,
         overflowTokenQuota: quota,
         sourceState,
     };
-    const metaNarrative = await callSummarizer(storyTxt, contextStr, promotionMetadata);
-    if (!metaNarrative) {
-        return false;
-    }
 
-    const promotedSnippet = await buildValidatedPromotionSnippet({
+    return {
         layerIndex,
         mergeCount,
-        settings: s,
+        settings,
+        toMerge,
         sourceMemoryText,
-        sourceTokens: memoryTokensBefore,
+        memoryTokensBefore,
         storyTxt,
         contextStr,
-        metadata: promotionMetadata,
-        narrative: metaNarrative,
         promotedMetadata,
-    });
-    if (!promotedSnippet) {
-        return false;
+        snapshot,
+        promotionMetadata,
+    };
+}
+
+async function generateValidatedPromotion(prepared) {
+    toastr.info(
+        `Promoting ${prepared.toMerge.length} memories: Layer ${prepared.layerIndex} -> ` +
+            `Layer ${prepared.layerIndex + 1}`,
+        'Summaryception',
+        { timeOut: 3000, progressBar: true },
+    );
+
+    if (!prepared.storyTxt) {
+        return null;
     }
 
+    const metaNarrative = await callSummarizer(
+        prepared.storyTxt,
+        prepared.contextStr,
+        prepared.promotionMetadata,
+    );
+    if (!metaNarrative) {
+        return null;
+    }
+
+    return await buildValidatedPromotionSnippet({
+        layerIndex: prepared.layerIndex,
+        mergeCount: prepared.mergeCount,
+        settings: prepared.settings,
+        sourceMemoryText: prepared.sourceMemoryText,
+        sourceTokens: prepared.memoryTokensBefore,
+        storyTxt: prepared.storyTxt,
+        contextStr: prepared.contextStr,
+        metadata: prepared.promotionMetadata,
+        narrative: metaNarrative,
+        promotedMetadata: prepared.promotedMetadata,
+    });
+}
+
+async function commitValidatedPromotion({ prepared, promotedSnippet }) {
     const result = await commitWhenSafe({
         kind: 'promotion-merge',
-        snapshot,
-        apply: async () => applyMergePromotion({ snapshot, layerIndex, promotedSnippet }),
+        snapshot: prepared.snapshot,
+        apply: async () =>
+            applyMergePromotion({
+                snapshot: prepared.snapshot,
+                layerIndex: prepared.layerIndex,
+                promotedSnippet,
+            }),
     });
 
     if (result === 'applied') {

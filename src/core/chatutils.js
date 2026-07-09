@@ -180,67 +180,106 @@ export function getPromptDepthsByChatIndex(chat) {
  * @returns {Promise<PassageWithStats>}
  */
 export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
-    const finalLines = [];
-    let changedMessageCount = 0;
-    let rawTokens = 0;
-    let finalTokens = 0;
-    let rawTokensEstimated = false;
-    let finalTokensEstimated = false;
+    const accumulator = createPassageStatsAccumulator();
     const promptDepths = getPromptDepthsByChatIndex(chat);
     const applyRegexScripts = getEffectiveSettings().applyRegexScripts;
 
     for (let i = startIdx; i <= endIdx; i++) {
-        const m = chat[i];
-        if (!m) {
-            continue;
-        }
-        if (!m.mes || !m.mes.trim()) {
-            continue;
-        }
-
-        // Skip messages hidden by the user (not by us)
-        // A message hidden by the user will be is_system/is_hidden but NOT sc_ghosted
-        // A message hidden by us will have sc_ghosted = true
-        const isUserHidden = (m.is_system || m.is_hidden) && !m.extra?.sc_ghosted;
-        if (isUserHidden) {
+        const rendered = await renderPassageMessage({
+            message: chat[i],
+            depth: promptDepths.get(i),
+            applyRegexScripts,
+        });
+        if (!rendered) {
             continue;
         }
 
-        const rawText = m.mes.trim();
-        let finalText = rawText;
-        if (applyRegexScripts) {
-            finalText = await applyRegexToMessage(rawText, m.is_user, promptDepths.get(i));
-            if (finalText !== rawText) {
-                changedMessageCount++;
-            }
-        }
-
-        const speaker = m.is_user ? 'Player' : 'Assistant';
-        const rawLine = `${speaker}: ${rawText}`;
-        const finalLine = `${speaker}: ${finalText}`;
-        finalLines.push(finalLine);
-
-        const counted = await countMessageTokens(m, rawLine, finalLine);
-        rawTokens += counted.rawTokens;
-        finalTokens += counted.finalTokens;
-        rawTokensEstimated ||= counted.rawTokensEstimated;
-        finalTokensEstimated ||= counted.finalTokensEstimated;
+        accumulator.finalLines.push(rendered.finalLine);
+        accumulator.changedMessageCount += rendered.changed ? 1 : 0;
+        addPassageTokenStats(
+            accumulator,
+            await countMessageTokens(rendered.message, rendered.rawLine, rendered.finalLine),
+        );
     }
 
-    const finalText = finalLines.join('\n');
-    const savedTokens = rawTokens - finalTokens;
+    return buildPassageResult(accumulator);
+}
+
+function createPassageStatsAccumulator() {
+    return {
+        finalLines: /** @type {string[]} */ ([]),
+        changedMessageCount: 0,
+        rawTokens: 0,
+        finalTokens: 0,
+        rawTokensEstimated: false,
+        finalTokensEstimated: false,
+    };
+}
+
+async function renderPassageMessage({ message, depth, applyRegexScripts }) {
+    if (!isMessagePassageEligible(message)) {
+        return null;
+    }
+
+    const rawText = message.mes.trim();
+    const finalText = await getPassageFinalText({
+        message,
+        rawText,
+        depth,
+        applyRegexScripts,
+    });
+    const speaker = message.is_user ? 'Player' : 'Assistant';
+
+    return {
+        message,
+        rawLine: `${speaker}: ${rawText}`,
+        finalLine: `${speaker}: ${finalText}`,
+        changed: finalText !== rawText,
+    };
+}
+
+function isMessagePassageEligible(message) {
+    if (!message?.mes || !message.mes.trim()) {
+        return false;
+    }
+    return !isUserHiddenMessage(message);
+}
+
+function isUserHiddenMessage(message) {
+    return (message.is_system || message.is_hidden) && !message.extra?.sc_ghosted;
+}
+
+async function getPassageFinalText({ message, rawText, depth, applyRegexScripts }) {
+    if (!applyRegexScripts) {
+        return rawText;
+    }
+    return await applyRegexToMessage(rawText, message.is_user, depth);
+}
+
+function addPassageTokenStats(accumulator, counted) {
+    accumulator.rawTokens += counted.rawTokens;
+    accumulator.finalTokens += counted.finalTokens;
+    accumulator.rawTokensEstimated ||= counted.rawTokensEstimated;
+    accumulator.finalTokensEstimated ||= counted.finalTokensEstimated;
+}
+
+function buildPassageResult(accumulator) {
+    const finalText = accumulator.finalLines.join('\n');
+    const savedTokens = accumulator.rawTokens - accumulator.finalTokens;
 
     return {
         text: finalText,
         stats: {
-            rawTokens,
-            finalTokens,
+            rawTokens: accumulator.rawTokens,
+            finalTokens: accumulator.finalTokens,
             savedTokens,
-            savedPercent: rawTokens > 0 ? (savedTokens / rawTokens) * 100 : 0,
-            rawTokensEstimated,
-            finalTokensEstimated,
-            savedTokensEstimated: rawTokensEstimated || finalTokensEstimated,
-            changedMessageCount,
+            savedPercent:
+                accumulator.rawTokens > 0 ? (savedTokens / accumulator.rawTokens) * 100 : 0,
+            rawTokensEstimated: accumulator.rawTokensEstimated,
+            finalTokensEstimated: accumulator.finalTokensEstimated,
+            savedTokensEstimated:
+                accumulator.rawTokensEstimated || accumulator.finalTokensEstimated,
+            changedMessageCount: accumulator.changedMessageCount,
         },
     };
 }

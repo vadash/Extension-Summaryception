@@ -159,57 +159,36 @@ export class RequestRunner {
         /** @type {Error & { status?: number, response?: { status?: number } }} */
         let lastError = new Error('no error');
         let useRepairPrompt = false;
+        const series = {
+            settings,
+            systemPrompt,
+            prompt,
+            repairPrompt,
+            signal,
+            metadata,
+            routeLabel,
+            maxRetries,
+        };
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (signal.aborted) {
-                return {
-                    status: 'aborted',
-                    result: '',
-                    error: lastError,
-                    retryable: false,
-                    retriesExhausted: false,
-                    hardFailover: false,
-                };
+                return buildSeriesAbortResult(lastError);
             }
 
-            const activePrompt = useRepairPrompt && repairPrompt ? repairPrompt : prompt;
-            const activeMetadata =
-                useRepairPrompt && repairPrompt ? { ...metadata, layer0Repair: true } : metadata;
-            const timeoutMs = computeAttemptTimeoutMs(metadata, attempt);
-            const attemptResult = await this.executeAttempt({
-                settings,
-                systemPrompt,
-                prompt: activePrompt,
-                signal,
+            const attemptResult = await this.executePreparedAttempt(
+                series,
                 attempt,
-                metadata: activeMetadata,
-                routeLabel,
-                maxRetries,
-                timeoutMs,
-            });
+                useRepairPrompt,
+            );
 
             if (attemptResult.success) {
-                return {
-                    status: 'success',
-                    result: attemptResult.result,
-                    error: attemptResult.error,
-                    retryable: false,
-                    retriesExhausted: false,
-                    hardFailover: false,
-                };
+                return buildSeriesSuccessResult(attemptResult);
             }
 
             lastError = attemptResult.error;
 
             if (attemptResult.aborted) {
-                return {
-                    status: 'aborted',
-                    result: '',
-                    error: lastError,
-                    retryable: false,
-                    retriesExhausted: false,
-                    hardFailover: false,
-                };
+                return buildSeriesAbortResult(lastError);
             }
 
             const shouldUseRepairPrompt = shouldSwitchToRepairPrompt({
@@ -219,14 +198,12 @@ export class RequestRunner {
                 repairPrompt,
             });
             if (shouldStopRetrying(attemptResult, attempt, maxRetries)) {
-                return {
-                    status: 'failed',
-                    result: '',
+                return buildSeriesFailureResult({
                     error: lastError,
                     retryable: attemptResult.shouldRetry,
                     retriesExhausted: attemptResult.shouldRetry && attempt >= maxRetries,
                     hardFailover: attemptResult.hardFailover,
-                };
+                });
             }
 
             if (shouldUseRepairPrompt) {
@@ -236,14 +213,27 @@ export class RequestRunner {
             await notifyRetryAndWait(lastError, attempt, signal, maxRetries);
         }
 
-        return {
-            status: 'failed',
-            result: '',
+        return buildSeriesFailureResult({
             error: lastError,
             retryable: true,
             retriesExhausted: true,
             hardFailover: false,
-        };
+        });
+    }
+
+    async executePreparedAttempt(series, attempt, useRepairPrompt) {
+        const promptContext = getAttemptPromptContext({ series, useRepairPrompt });
+        return await this.executeAttempt({
+            settings: series.settings,
+            systemPrompt: series.systemPrompt,
+            prompt: promptContext.prompt,
+            signal: series.signal,
+            attempt,
+            metadata: promptContext.metadata,
+            routeLabel: series.routeLabel,
+            maxRetries: series.maxRetries,
+            timeoutMs: computeAttemptTimeoutMs(series.metadata, attempt),
+        });
     }
 
     /**
@@ -273,94 +263,192 @@ export class RequestRunner {
     }) {
         trace(`  ${routeLabel} attempt ${attempt} starting...`);
         const startedAt = Date.now();
-        let rawResult = '';
-        let cleanedResult = '';
-        let attemptError = null;
-        let status = 'failed';
+        const logState = createAttemptLogState();
 
         try {
-            if (attempt > 0) {
-                debug(`${routeLabel} retry attempt ${attempt}/${maxRetries}`);
-            }
-
-            const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, metadata);
-            if (!guard.ok) {
-                const guardError = buildEasyContextGuardError(guard, metadata);
-                warn(guardError.message);
-                toastr.error(guardError.message, 'Summaryception', { timeOut: 10000 });
-                return buildAttemptFailure(guardError, false, 'easy-context-guard');
-            }
-
-            await traceSummarizerRequest({ settings, systemPrompt, prompt, metadata });
-
-            const abortContext = createAttemptAbortContext(signal, timeoutMs);
-
-            try {
-                rawResult = await Promise.race([
-                    sendSummarizerRequest(
-                        settings,
-                        systemPrompt,
-                        prompt,
-                        abortContext.signal,
-                        metadata,
-                    ),
-                    abortContext.promise,
-                ]);
-            } finally {
-                abortContext.cleanup();
-            }
-
-            trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
-
-            const processed = processSummarizerResponse(rawResult, settings, metadata);
-            cleanedResult = processed.text;
-            if (processed.status !== 'success') {
-                attemptError = processed.error;
-                status = processed.status;
-                if (processed.status === 'empty') {
-                    debug('Empty response from LLM, treating as retryable');
-                } else if (processed.status === 'integrity-rejected') {
-                    debug('Summarizer output failed integrity validation, treating as retryable');
-                }
-                return buildAttemptFailure(attemptError, true, processed.status);
-            }
-
-            await recordSuccessfulSummarizerUsage({
+            const result = await runSingleAttempt({
+                settings,
                 systemPrompt,
                 prompt,
-                summary: cleanedResult,
+                signal,
+                attempt,
                 metadata,
+                routeLabel,
+                maxRetries,
+                timeoutMs,
             });
-            status = 'success';
-            trace('<<< EXITING callSummarizer WITH SUCCESS');
-            return {
-                success: true,
-                result: cleanedResult,
-                error: new Error('no error'),
-                aborted: false,
-                shouldRetry: false,
-                hardFailover: false,
-                failureStatus: '',
-            };
+            updateAttemptLogState(logState, result);
+            return result;
         } catch (err) {
             const result = classifyAttemptError(err, signal);
-            attemptError = result.error;
-            status = result.aborted ? 'aborted' : 'failed';
+            updateAttemptLogState(logState, result);
             return result;
         } finally {
             logLlmAttemptTransaction({
                 label: describePromptLogCall(metadata),
                 routeLabel,
                 attempt,
-                status,
+                status: logState.status,
                 durationMs: Date.now() - startedAt,
                 systemPrompt,
                 prompt,
-                cleanedResult,
-                error: attemptError,
+                cleanedResult: logState.cleanedResult,
+                error: logState.error,
             });
         }
     }
+}
+
+function buildSeriesAbortResult(error) {
+    return {
+        status: /** @type {'aborted'} */ ('aborted'),
+        result: '',
+        error,
+        retryable: /** @type {false} */ (false),
+        retriesExhausted: /** @type {false} */ (false),
+        hardFailover: /** @type {false} */ (false),
+    };
+}
+
+function buildSeriesSuccessResult(attemptResult) {
+    return {
+        status: /** @type {'success'} */ ('success'),
+        result: attemptResult.result,
+        error: attemptResult.error,
+        retryable: /** @type {false} */ (false),
+        retriesExhausted: /** @type {false} */ (false),
+        hardFailover: /** @type {false} */ (false),
+    };
+}
+
+function buildSeriesFailureResult({ error, retryable, retriesExhausted, hardFailover }) {
+    return {
+        status: /** @type {'failed'} */ ('failed'),
+        result: '',
+        error,
+        retryable,
+        retriesExhausted,
+        hardFailover,
+    };
+}
+
+function getAttemptPromptContext({ series, useRepairPrompt }) {
+    if (useRepairPrompt && series.repairPrompt) {
+        return {
+            prompt: series.repairPrompt,
+            metadata: { ...series.metadata, layer0Repair: true },
+        };
+    }
+    return {
+        prompt: series.prompt,
+        metadata: series.metadata,
+    };
+}
+
+async function runSingleAttempt(params) {
+    if (params.attempt > 0) {
+        debug(`${params.routeLabel} retry attempt ${params.attempt}/${params.maxRetries}`);
+    }
+
+    const guardFailure = await getEasyContextGuardFailure(params);
+    if (guardFailure) {
+        return guardFailure;
+    }
+
+    await traceSummarizerRequest(params);
+    const rawResult = await sendAttemptRequest(params);
+    trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
+    return await processAttemptResult({ ...params, rawResult });
+}
+
+async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, metadata }) {
+    const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, metadata);
+    if (guard.ok) {
+        return null;
+    }
+
+    const guardError = buildEasyContextGuardError(guard, metadata);
+    warn(guardError.message);
+    toastr.error(guardError.message, 'Summaryception', { timeOut: 10000 });
+    return buildAttemptFailure(guardError, false, 'easy-context-guard');
+}
+
+async function sendAttemptRequest({ settings, systemPrompt, prompt, signal, metadata, timeoutMs }) {
+    const abortContext = createAttemptAbortContext(signal, timeoutMs);
+
+    try {
+        return await Promise.race([
+            sendSummarizerRequest(settings, systemPrompt, prompt, abortContext.signal, metadata),
+            abortContext.promise,
+        ]);
+    } finally {
+        abortContext.cleanup();
+    }
+}
+
+async function processAttemptResult({ rawResult, settings, systemPrompt, prompt, metadata }) {
+    const processed = processSummarizerResponse(rawResult, settings, metadata);
+    if (processed.status !== 'success') {
+        logProcessedAttemptFailure(processed.status);
+        return {
+            ...buildAttemptFailure(processed.error, true, processed.status),
+            cleanedResult: processed.text,
+        };
+    }
+
+    await recordSuccessfulSummarizerUsage({
+        systemPrompt,
+        prompt,
+        summary: processed.text,
+        metadata,
+    });
+    trace('<<< EXITING callSummarizer WITH SUCCESS');
+    return buildAttemptSuccess(processed.text);
+}
+
+function logProcessedAttemptFailure(status) {
+    if (status === 'empty') {
+        debug('Empty response from LLM, treating as retryable');
+    } else if (status === 'integrity-rejected') {
+        debug('Summarizer output failed integrity validation, treating as retryable');
+    }
+}
+
+function buildAttemptSuccess(result) {
+    return {
+        success: true,
+        result,
+        error: new Error('no error'),
+        aborted: false,
+        shouldRetry: false,
+        hardFailover: false,
+        failureStatus: '',
+        cleanedResult: result,
+    };
+}
+
+function createAttemptLogState() {
+    return {
+        status: 'failed',
+        cleanedResult: '',
+        error: null,
+    };
+}
+
+function updateAttemptLogState(logState, result) {
+    logState.status = getAttemptLogStatus(result);
+    logState.cleanedResult = result.cleanedResult || result.result || '';
+    logState.error = result.success ? null : result.error;
+}
+
+function getAttemptLogStatus(result) {
+    if (result.success) {
+        return 'success';
+    }
+    if (result.aborted) {
+        return 'aborted';
+    }
+    return result.failureStatus || 'failed';
 }
 
 /**
