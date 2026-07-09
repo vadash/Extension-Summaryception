@@ -143,6 +143,7 @@ function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
  */
 export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const maxL0Source = readTokenSetting(s.maxL0SourceTokens, defaultSettings.maxL0SourceTokens);
+    const minL0Source = readTokenSetting(s.minSummaryBudget, defaultSettings.minSummaryBudget);
     const memoryBudget = readTokenSetting(s.memoryTokenBudget, defaultSettings.memoryTokenBudget);
     const verbatimBudget = readTokenSetting(
         s.verbatimTokenBudget,
@@ -161,17 +162,29 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const DEEP_MEMORY_RATIO = 0.5;
 
     const mainBudget = memoryBudget + verbatimBudget;
-    const l0Total = maxL0Source + memoryBudget + BASE_PROMPT_OVERHEAD;
+    const l0Typical = minL0Source + memoryBudget + BASE_PROMPT_OVERHEAD;
+    const l0Max = maxL0Source + memoryBudget + BASE_PROMPT_OVERHEAD;
     const l1Source = snippetsPerPromotion * summaryTarget;
     const l1Total = l1Source + Math.round(memoryBudget * DEEP_MEMORY_RATIO) + 1000;
 
-    $('#sc_llm_context_main').text(`~${formatContextTokenCount(mainBudget)} + ST prompt`);
-    $('#sc_llm_context_l0').text(`~${formatContextTokenCount(l0Total)} tokens`);
-    $('#sc_llm_context_l1').text(`~${formatContextTokenCount(l1Total)} tokens`);
+    const $mainValue = $('#sc_llm_context_main');
+    const $l0Value = $('#sc_llm_context_l0');
+    const $l1Value = $('#sc_llm_context_l1');
 
-    setContextValueColor($('#sc_llm_context_main'), mainBudget);
-    setContextValueColor($('#sc_llm_context_l0'), l0Total);
-    setContextValueColor($('#sc_llm_context_l1'), l1Total);
+    $mainValue.text(`Max ~${formatContextTokenCount(mainBudget)} + ST prompt`);
+    if (minL0Source < maxL0Source) {
+        $l0Value.text(
+            `~${formatContextTokenCount(l0Typical)} (Max ~${formatContextTokenCount(l0Max)})`,
+        );
+        setContextValueColor($l0Value, l0Typical);
+    } else {
+        $l0Value.text(`Max ~${formatContextTokenCount(l0Max)} tokens`);
+        setContextValueColor($l0Value, l0Max);
+    }
+    $l1Value.text(`Max ~${formatContextTokenCount(l1Total)} tokens`);
+
+    setContextValueColor($mainValue, mainBudget);
+    setContextValueColor($l1Value, l1Total);
 }
 
 /**
@@ -197,7 +210,7 @@ export async function refreshMainLLMContextEstimate() {
             $value.text('Unavailable').addClass('sc-ctx-caution');
             return;
         }
-        $value.text(`~${formatContextTokenCount(tokens)} tokens`);
+        $value.text(`Actual ~${formatContextTokenCount(tokens)} tokens`);
         setContextValueColor($value, tokens);
     } catch (e) {
         warn('Main prompt estimate failed:', e);
