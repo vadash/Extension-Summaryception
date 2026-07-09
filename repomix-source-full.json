@@ -18,6 +18,7 @@
         "git": { "sortByChanges": true, "includeDiffs": false, "includeLogs": false }
     },
     "include": [
+        "agent_docs/**/*.md",
         "index.js",
         "manifest.json",
         "settings.html",
