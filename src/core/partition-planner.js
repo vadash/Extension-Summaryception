@@ -16,26 +16,31 @@ const L0_SOURCE_OVERSHOOT_TOLERANCE = 1.15;
 
 /**
  * Build token-balanced Layer 0 source partitions on assistant-turn boundaries.
- * @param {ChatMessage[]} chat
- * @param {number} sourceStartIdx
- * @param {import('./chatutils.js').AssistantTurn[]} assistantTurns
- * @param {ExtensionSettings} settings
- * @param {{ finalSourceEndIdx?: number }} [opts]
+ * @param {object} p
+ * @param {ChatMessage[]} p.chat
+ * @param {number} p.sourceStartIdx
+ * @param {import('./chatutils.js').AssistantTurn[]} p.assistantTurns
+ * @param {ExtensionSettings} p.settings
+ * @param {number} [p.finalSourceEndIdx]
  * @returns {Promise<SourcePartition[]>}
  */
-export async function buildLayer0Partitions(
+export async function buildLayer0Partitions({
     chat,
     sourceStartIdx,
     assistantTurns,
     settings,
-    /** @type {{ finalSourceEndIdx?: number }} */ { finalSourceEndIdx } = {},
-) {
+    finalSourceEndIdx,
+}) {
     const turns = assistantTurns.filter((turn) => turn.index >= sourceStartIdx);
     if (turns.length === 0) {
         return [];
     }
 
-    const segments = await buildTurnSegments(chat, sourceStartIdx, turns, settings, {
+    const segments = await buildTurnSegments({
+        chat,
+        sourceStartIdx,
+        turns,
+        settings,
         finalSourceEndIdx,
     });
     const totalTokens = sumSegmentTokens(segments);
@@ -77,13 +82,7 @@ export async function countSourceRangeTokens(chat, startIdx, endIdx, settings) {
     return stats;
 }
 
-async function buildTurnSegments(
-    chat,
-    sourceStartIdx,
-    turns,
-    settings,
-    /** @type {{ finalSourceEndIdx?: number }} */ { finalSourceEndIdx } = {},
-) {
+async function buildTurnSegments({ chat, sourceStartIdx, turns, settings, finalSourceEndIdx }) {
     const segments = [];
     let segmentStart = sourceStartIdx;
 

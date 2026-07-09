@@ -10,13 +10,14 @@ export function getChatIdentity(ctx) {
         /** @type {{ chat?: ChatMessage[], chatId?: unknown, chat_id?: unknown, chatFile?: unknown, chat_filename?: unknown, characterId?: unknown, character_id?: unknown }} */ (
             ctx
         );
-    const direct =
-        context.chatId ||
-        context.chat_id ||
-        context.chatFile ||
-        context.chat_filename ||
-        context.characterId ||
-        context.character_id;
+    const direct = firstTruthy([
+        context.chatId,
+        context.chat_id,
+        context.chatFile,
+        context.chat_filename,
+        context.characterId,
+        context.character_id,
+    ]);
 
     if (direct) {
         return String(direct);
@@ -24,8 +25,12 @@ export function getChatIdentity(ctx) {
 
     const firstMessage = Array.isArray(context.chat) ? context.chat[0] : null;
     const extra = /** @type {{ file?: unknown }} */ (firstMessage?.extra || {});
-    const firstId = extra.file || firstMessage?.send_date || firstMessage?.mes;
+    const firstId = firstTruthy([extra.file, firstMessage?.send_date, firstMessage?.mes]);
     return `chat-ref:${firstId || 'empty'}:${context.chat?.length || 0}`;
+}
+
+function firstTruthy(values) {
+    return values.find(Boolean);
 }
 
 /**

@@ -243,25 +243,17 @@ async function executeManualTask(deps, task) {
             updateManualOutcome({ outcome, result });
             consecutiveFailures = result.success && result.committed ? 0 : consecutiveFailures;
 
-            if (result.success && result.committed && !outcome.blocked) {
-                const normalized = await normalizePromotions();
-                if (normalized === 'blocked') {
-                    outcome.blocked = true;
-                } else if (normalized === 'failed') {
-                    outcome.failed++;
-                    break;
-                }
+            if ((await normalizeAfterCommittedResult(outcome, result)) === 'failed') {
+                break;
             }
 
             if (shouldStopManualLoop(outcome, result, task.options.signal, deps.queue)) {
                 break;
             }
-            if (!result.success) {
-                consecutiveFailures++;
-                outcome.failureLimitReached = consecutiveFailures >= 3;
-                if (outcome.failureLimitReached) {
-                    break;
-                }
+
+            consecutiveFailures = updateConsecutiveFailures(outcome, result, consecutiveFailures);
+            if (outcome.failureLimitReached) {
+                break;
             }
 
             task.options.onProgress?.(createProgress(outcome, task));
@@ -276,6 +268,30 @@ async function executeManualTask(deps, task) {
         deps.queue.setSummarizing(false);
         await flushPendingChatSave();
     }
+}
+
+async function normalizeAfterCommittedResult(outcome, result) {
+    if (!result.success || !result.committed || outcome.blocked) {
+        return 'skipped';
+    }
+
+    const normalized = await normalizePromotions();
+    if (normalized === 'blocked') {
+        outcome.blocked = true;
+    } else if (normalized === 'failed') {
+        outcome.failed++;
+    }
+    return normalized;
+}
+
+function updateConsecutiveFailures(outcome, result, consecutiveFailures) {
+    if (result.success) {
+        return consecutiveFailures;
+    }
+
+    const failures = consecutiveFailures + 1;
+    outcome.failureLimitReached = failures >= 3;
+    return failures;
 }
 
 function updateManualOutcome({ outcome, result }) {

@@ -57,7 +57,12 @@ export async function getCacheFriendlyPlan(chat, store, settings) {
 
     const flushEndIdx = assistantTurns[assistantTurns.length - 1].index;
     const flushStats = getRangeStats(liveData, flushStartIdx, flushEndIdx);
-    const partitions = await buildLayer0Partitions(chat, flushStartIdx, assistantTurns, settings);
+    const partitions = await buildLayer0Partitions({
+        chat,
+        sourceStartIdx: flushStartIdx,
+        assistantTurns,
+        settings,
+    });
     const batchTurns = partitions[0]?.turns || [];
 
     return empty({

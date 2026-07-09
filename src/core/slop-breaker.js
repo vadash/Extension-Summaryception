@@ -39,13 +39,13 @@ export async function getSlopBreakerPlan(chat, store, settings, { targetIndex } 
         return buildEmptyPlan(resolvedTargetIndex);
     }
 
-    const partitions = await buildLayer0Partitions(
+    const partitions = await buildLayer0Partitions({
         chat,
-        store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1,
-        eligibleTurns,
+        sourceStartIdx: store.summarizedUpTo < 0 ? 0 : store.summarizedUpTo + 1,
+        assistantTurns: eligibleTurns,
         settings,
-        { finalSourceEndIdx: resolvedTargetIndex },
-    );
+        finalSourceEndIdx: resolvedTargetIndex,
+    });
     const firstPartition = partitions[0];
 
     return {

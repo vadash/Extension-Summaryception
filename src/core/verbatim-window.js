@@ -42,97 +42,107 @@ export async function getLayer0OverflowPlan(
     settings,
     { ignoreReadiness = false } = {},
 ) {
-    const visibleTurns = getVisibleAssistantTurns(chat);
-    const eligibleTurns = visibleTurns.filter((turn) => turn.index > store.summarizedUpTo);
-    const budget = await getTokenBudgetBoundary(chat, settings);
-    const overflowTurns = eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex);
-    const candidateTurns = overflowTurns.slice(0, Math.max(1, settings.maxSummaryTurns));
+    const data = await buildOverflowPlanData(chat, store, settings);
 
-    if (candidateTurns.length >= settings.maxSummaryTurns) {
-        const partitions = await buildLayer0Partitions(
-            chat,
-            getPassageStart(store),
-            candidateTurns,
-            settings,
-        );
-        const summaryStats = partitions[0]?.stats || createBudgetStats();
-
-        return buildPlan({
+    if (data.candidateTurns.length >= settings.maxSummaryTurns) {
+        return await buildPartitionedOverflowPlan({
+            ...data,
             reason: 'max',
-            visibleTurns,
-            eligibleTurns,
-            overflowTurns,
-            batchTurns: partitions[0]?.turns || candidateTurns,
-            partitions,
-            budget,
-            summaryStats,
+            sourceTurns: data.candidateTurns,
+            getBatchTurns: (partitions) => partitions[0]?.turns || data.candidateTurns,
         });
     }
 
-    const partitions = await buildLayer0Partitions(
-        chat,
-        getPassageStart(store),
-        overflowTurns,
-        settings,
-    );
+    const partitions = await buildOverflowPartitions(data, data.overflowTurns);
     const summaryStats = partitions[0]?.stats || createBudgetStats();
 
-    if (ignoreReadiness && candidateTurns.length > 0) {
-        return buildPlan({
+    if (ignoreReadiness && data.candidateTurns.length > 0) {
+        return buildPlanFromData(data, {
             reason: 'force',
-            visibleTurns,
-            eligibleTurns,
-            overflowTurns,
-            batchTurns: candidateTurns,
+            batchTurns: data.candidateTurns,
             partitions,
-            budget,
             summaryStats,
         });
     }
 
     if (
-        candidateTurns.length >= settings.minSummaryTurns &&
+        data.candidateTurns.length >= settings.minSummaryTurns &&
         summaryStats.finalTokens >= settings.minSummaryBudget
     ) {
-        return buildPlan({
+        return buildPlanFromData(data, {
             reason: 'budget',
-            visibleTurns,
-            eligibleTurns,
-            overflowTurns,
-            batchTurns: candidateTurns,
+            batchTurns: data.candidateTurns,
             partitions,
-            budget,
             summaryStats,
         });
     }
 
-    if (budget.exceeded && eligibleTurns.length === 0) {
-        return buildPlan({
+    if (data.budget.exceeded && data.eligibleTurns.length === 0) {
+        return buildPlanFromData(data, {
             reason: 'repair',
-            visibleTurns,
-            eligibleTurns,
-            overflowTurns,
             batchTurns: [],
             partitions: [],
-            budget,
             summaryStats,
         });
     }
 
-    return buildPlan({
+    return buildPlanFromData(data, {
         reason: 'none',
-        visibleTurns,
-        eligibleTurns,
-        overflowTurns,
         batchTurns: [],
         partitions: [],
-        budget,
         summaryStats,
     });
 }
 
 function getVisibleAssistantTurns(chat) {
     return getAssistantTurns(chat).filter((turn) => !chat[turn.index]?.extra?.sc_ghosted);
+}
+
+async function buildOverflowPlanData(chat, store, settings) {
+    const visibleTurns = getVisibleAssistantTurns(chat);
+    const eligibleTurns = visibleTurns.filter((turn) => turn.index > store.summarizedUpTo);
+    const budget = await getTokenBudgetBoundary(chat, settings);
+    const overflowTurns = eligibleTurns.filter((turn) => turn.index <= budget.boundaryIndex);
+
+    return {
+        chat,
+        settings,
+        sourceStartIdx: getPassageStart(store),
+        visibleTurns,
+        eligibleTurns,
+        overflowTurns,
+        candidateTurns: overflowTurns.slice(0, Math.max(1, settings.maxSummaryTurns)),
+        budget,
+    };
+}
+
+async function buildPartitionedOverflowPlan({ reason, sourceTurns, getBatchTurns, ...data }) {
+    const partitions = await buildOverflowPartitions(data, sourceTurns);
+    return buildPlanFromData(data, {
+        reason,
+        batchTurns: getBatchTurns(partitions),
+        partitions,
+        summaryStats: partitions[0]?.stats || createBudgetStats(),
+    });
+}
+
+async function buildOverflowPartitions(data, assistantTurns) {
+    return await buildLayer0Partitions({
+        chat: data.chat,
+        sourceStartIdx: data.sourceStartIdx,
+        assistantTurns,
+        settings: data.settings,
+    });
+}
+
+function buildPlanFromData(data, overrides) {
+    return buildPlan({
+        visibleTurns: data.visibleTurns,
+        eligibleTurns: data.eligibleTurns,
+        overflowTurns: data.overflowTurns,
+        budget: data.budget,
+        ...overrides,
+    });
 }
 
 function buildPlan({

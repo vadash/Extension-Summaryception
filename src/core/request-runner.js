@@ -60,80 +60,160 @@ export class RequestRunner {
                 return abortWithToast();
             }
 
-            const primaryMaxRetries =
-                fallbackSettings && this.primaryRetryExhaustedBuckets.has(healthBucket)
-                    ? 0
-                    : RETRY_CONFIG.maxRetries;
-
-            if (primaryMaxRetries === 0) {
-                debug(
-                    `Primary summarizer previously exhausted retries for ${healthBucket}; ` +
-                        'probing once before fallback.',
-                );
-            }
-
-            const primary = await this.runAttemptSeries({
+            const cycle = await this.runRouteCycle({
                 settings,
                 systemPrompt,
                 prompt,
                 repairPrompt,
                 signal,
                 metadata,
-                routeLabel: 'primary',
-                maxRetries: primaryMaxRetries,
+                healthBucket,
+                fallbackSettings,
             });
 
-            if (primary.status === 'success') {
-                this.primaryRetryExhaustedBuckets.delete(healthBucket);
-                return primary.result;
-            }
-            if (primary.status === 'aborted') {
-                return abortWithToast();
-            }
-
-            if (primary.retryable && primary.retriesExhausted) {
-                this.primaryRetryExhaustedBuckets.add(healthBucket);
-            }
-
-            const shouldTryFallback =
-                fallbackSettings && (primary.retryable || primary.hardFailover);
-
-            if (shouldTryFallback) {
-                info(
-                    `Primary summarizer failed${primary.hardFailover ? ' (hard network failure)' : ' after retryable errors'}; trying fallback ` +
-                        `(${fallbackSettings.connectionSource}).`,
-                );
-                const fallback = await this.runAttemptSeries({
-                    settings,
-                    systemPrompt,
-                    prompt,
-                    repairPrompt,
-                    signal,
-                    metadata: { ...metadata, useFallback: true },
-                    routeLabel: 'fallback',
-                    maxRetries: RETRY_CONFIG.maxRetries,
-                });
-
-                if (fallback.status === 'success') {
-                    return fallback.result;
-                }
-                if (fallback.status === 'aborted') {
-                    return abortWithToast();
-                }
-                await notifyRouteCycleFailedAndWait({ healthBucket, signal });
-                this.primaryRetryExhaustedBuckets.delete(healthBucket);
+            if (cycle.status === 'retry') {
                 continue;
             }
 
-            if (!primary.retryable) {
-                return failSummarization(primary.error, {
-                    retriesExhausted: false,
-                });
-            }
-
-            this.primaryRetryExhaustedBuckets.delete(healthBucket);
-            return failSummarization(primary.error);
+            return cycle.result;
         }
+    }
+
+    async runRouteCycle({
+        settings,
+        systemPrompt,
+        prompt,
+        repairPrompt,
+        signal,
+        metadata,
+        healthBucket,
+        fallbackSettings,
+    }) {
+        const primary = await this.runPrimaryAttemptSeries({
+            settings,
+            systemPrompt,
+            prompt,
+            repairPrompt,
+            signal,
+            metadata,
+            healthBucket,
+            fallbackSettings,
+        });
+
+        const resolvedPrimary = this.resolvePrimaryRouteResult(primary, healthBucket);
+        if (resolvedPrimary) {
+            return resolvedPrimary;
+        }
+
+        if (shouldTryFallbackRoute(primary, fallbackSettings)) {
+            return await this.runFallbackRouteCycle({
+                settings,
+                systemPrompt,
+                prompt,
+                repairPrompt,
+                signal,
+                metadata,
+                healthBucket,
+                fallbackSettings,
+                primary,
+            });
+        }
+
+        if (!primary.retryable) {
+            return buildRouteCycleResult(
+                failSummarization(primary.error, {
+                    retriesExhausted: false,
+                }),
+            );
+        }
+
+        this.primaryRetryExhaustedBuckets.delete(healthBucket);
+        return buildRouteCycleResult(failSummarization(primary.error));
+    }
+
+    async runPrimaryAttemptSeries({
+        settings,
+        systemPrompt,
+        prompt,
+        repairPrompt,
+        signal,
+        metadata,
+        healthBucket,
+        fallbackSettings,
+    }) {
+        const maxRetries =
+            fallbackSettings && this.primaryRetryExhaustedBuckets.has(healthBucket)
+                ? 0
+                : RETRY_CONFIG.maxRetries;
+
+        logPrimaryProbe(healthBucket, maxRetries);
+        return await this.runAttemptSeries({
+            settings,
+            systemPrompt,
+            prompt,
+            repairPrompt,
+            signal,
+            metadata,
+            routeLabel: 'primary',
+            maxRetries,
+        });
+    }
+
+    resolvePrimaryRouteResult(primary, healthBucket) {
+        if (primary.status === 'success') {
+            this.primaryRetryExhaustedBuckets.delete(healthBucket);
+            return buildRouteCycleResult(primary.result);
+        }
+        if (primary.status === 'aborted') {
+            return buildRouteCycleResult(abortWithToast());
+        }
+        if (!primary.retryable && !primary.hardFailover) {
+            return buildRouteCycleResult(
+                failSummarization(primary.error, {
+                    retriesExhausted: false,
+                }),
+            );
+        }
+
+        if (primary.retriesExhausted) {
+            this.primaryRetryExhaustedBuckets.add(healthBucket);
+        }
+        return null;
+    }
+
+    async runFallbackRouteCycle({
+        settings,
+        systemPrompt,
+        prompt,
+        repairPrompt,
+        signal,
+        metadata,
+        healthBucket,
+        fallbackSettings,
+        primary,
+    }) {
+        logFallbackRoute(primary, fallbackSettings);
+        const fallback = await this.runAttemptSeries({
+            settings,
+            systemPrompt,
+            prompt,
+            repairPrompt,
+            signal,
+            metadata: { ...metadata, useFallback: true },
+            routeLabel: 'fallback',
+            maxRetries: RETRY_CONFIG.maxRetries,
+        });
+
+        if (fallback.status === 'success') {
+            return buildRouteCycleResult(fallback.result);
+        }
+        if (fallback.status === 'aborted') {
+            return buildRouteCycleResult(abortWithToast());
+        }
+
+        await notifyRouteCycleFailedAndWait({ healthBucket, signal });
+        this.primaryRetryExhaustedBuckets.delete(healthBucket);
+        return { status: /** @type {'retry'} */ ('retry'), result: '' };
     }
 
     /**
@@ -313,6 +393,32 @@ function buildSeriesAbortResult(error) {
         retriesExhausted: /** @type {false} */ (false),
         hardFailover: /** @type {false} */ (false),
     };
+}
+
+function buildRouteCycleResult(result) {
+    return { status: /** @type {'done'} */ ('done'), result };
+}
+
+function shouldTryFallbackRoute(primary, fallbackSettings) {
+    return fallbackSettings && (primary.retryable || primary.hardFailover);
+}
+
+function logPrimaryProbe(healthBucket, maxRetries) {
+    if (maxRetries !== 0) {
+        return;
+    }
+
+    debug(
+        `Primary summarizer previously exhausted retries for ${healthBucket}; ` +
+            'probing once before fallback.',
+    );
+}
+
+function logFallbackRoute(primary, fallbackSettings) {
+    info(
+        `Primary summarizer failed${primary.hardFailover ? ' (hard network failure)' : ' after retryable errors'}; trying fallback ` +
+            `(${fallbackSettings.connectionSource}).`,
+    );
 }
 
 function buildSeriesSuccessResult(attemptResult) {

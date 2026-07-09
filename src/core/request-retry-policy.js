@@ -97,7 +97,13 @@ function isValidationFailureStatus(status) {
 }
 
 /**
- *
+ * Decide whether the next retry should use the repair prompt.
+ * @param {object} p
+ * @param {{ shouldRetry: boolean, failureStatus?: string }} p.attemptResult - Attempt result
+ * @param {number} p.attempt - Zero-based attempt index
+ * @param {number} p.maxRetries - Maximum retry count for this route
+ * @param {string} p.repairPrompt - Fully substituted repair prompt
+ * @returns {boolean}
  */
 export function shouldSwitchToRepairPrompt({ attemptResult, attempt, maxRetries, repairPrompt }) {
     return (

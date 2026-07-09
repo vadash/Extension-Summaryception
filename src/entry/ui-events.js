@@ -193,6 +193,12 @@ function bindToggleHandlers() {
  * @returns {void}
  */
 function bindMemoryModeHandlers() {
+    bindEasyMemoryModeHandler();
+    bindAdvancedMemoryModeHandler();
+    bindCustomPlacementHandlers();
+}
+
+function bindEasyMemoryModeHandler() {
     $(document).on('change', 'input[name="sc_easy_memory_mode"]', function () {
         const mode = String($(this).val());
         if (mode !== MEMORY_MODES.STANDARD && mode !== MEMORY_MODES.CACHE) {
@@ -209,7 +215,9 @@ function bindMemoryModeHandlers() {
         updateInjection();
         updateUI();
     });
+}
 
+function bindAdvancedMemoryModeHandler() {
     $(document).on('change', 'input[name="sc_memory_mode"]', function () {
         const mode = String($(this).val());
         if (mode !== MEMORY_MODES.STANDARD && mode !== MEMORY_MODES.CACHE) {
@@ -227,7 +235,9 @@ function bindMemoryModeHandlers() {
         updateInjection();
         updateUI();
     });
+}
 
+function bindCustomPlacementHandlers() {
     /** @type {Array<{ eventName: string, selector: string, key: string, read: (source: object) => unknown }>} */
     const customPlacementBindings = [
         {

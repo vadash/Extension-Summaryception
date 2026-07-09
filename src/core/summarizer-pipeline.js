@@ -14,8 +14,8 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  * @typedef {object} SummarizerPipelineInputRequest
  * @property {string} storyTxt - The story text to summarize
  * @property {string} contextStr - The accumulated context string
- * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @property {ExtensionSettings} [settings]
+ * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata
+ * @property {ExtensionSettings} [settings] - Effective settings override
  */
 
 /**

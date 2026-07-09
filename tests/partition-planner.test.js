@@ -20,7 +20,12 @@ async function buildPartitions(chat, turns, settings = {}) {
         getTokenCountAsync: countMarkedTokens,
     });
     const { buildLayer0Partitions } = await import('../src/core/partition-planner.js');
-    return await buildLayer0Partitions(chat, 0, turns, { ...baseSettings, ...settings });
+    return await buildLayer0Partitions({
+        chat,
+        sourceStartIdx: 0,
+        assistantTurns: turns,
+        settings: { ...baseSettings, ...settings },
+    });
 }
 
 function countMarkedTokens(text) {
@@ -74,15 +79,13 @@ describe('buildLayer0Partitions', () => {
 
         installSillyTavernStub({ chat, getTokenCountAsync: countMarkedTokens });
         const { buildLayer0Partitions } = await import('../src/core/partition-planner.js');
-        const partitions = await buildLayer0Partitions(
+        const partitions = await buildLayer0Partitions({
             chat,
-            0,
-            [assistantTurns(chat)[0]],
-            baseSettings,
-            {
-                finalSourceEndIdx: 1,
-            },
-        );
+            sourceStartIdx: 0,
+            assistantTurns: [assistantTurns(chat)[0]],
+            settings: baseSettings,
+            finalSourceEndIdx: 1,
+        });
 
         expect(partitions).toHaveLength(1);
         expect(partitions[0]).toMatchObject({ sourceStartIdx: 0, sourceEndIdx: 1 });
