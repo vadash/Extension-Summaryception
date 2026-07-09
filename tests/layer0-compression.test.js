@@ -46,6 +46,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('Message 34 is the latest summarized message');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
+        expect(result).toContain('Write the output mainly in English');
+        expect(result).toContain('do not write Chinese prose or Han ideographs');
         expect(result).toContain('current_date_time');
         expect(result).not.toContain('timeline_start');
         expect(result).toContain('YYYY-MM-DD HH ddd');
@@ -65,6 +67,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('summaryception_promotion_constraints');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('Do not output a [STATE] block');
+        expect(result).toContain('Write the output mainly in English');
+        expect(result).toContain('do not write Chinese prose or Han ideographs');
         expect(result).toContain('exactly one dense paragraph');
         expect(result).toContain('no more than 4 to 5 sentences');
         expect(result).toContain('macro-level durable chronology');

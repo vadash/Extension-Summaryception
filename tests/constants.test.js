@@ -101,6 +101,8 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('YYYY-MM-DD HH ddd');
         expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMPT_PRESETS.narrative).toContain('static character background/profile facts');
+        expect(PROMPT_PRESETS.narrative).toContain('Write the output mainly in English');
+        expect(PROMPT_PRESETS.narrative).toContain('do not write Chinese prose or Han ideographs');
         expect(Object.keys(SUMMARIZER_REPAIR_PROMPT_PRESETS).sort()).toEqual([
             'custom',
             'narrative',
@@ -110,6 +112,9 @@ describe('constants', () => {
             'previous Layer 0 summary attempt failed',
         );
         expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain('[STATE]');
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain(
+            'Write the output mainly in English',
+        );
     });
 
     it('exposes every documented promotion prompt preset', () => {
@@ -135,6 +140,10 @@ describe('constants', () => {
         );
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('physiological or sex counters');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Omit stale transient scene facts');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Write the output mainly in English');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain(
+            'do not write Chinese prose or Han ideographs',
+        );
         expect(Object.keys(PROMOTION_REPAIR_PROMPT_PRESETS).sort()).toEqual([
             'custom',
             'narrative',
@@ -144,6 +153,9 @@ describe('constants', () => {
             'previous Layer 1+ promotion draft',
         );
         expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('{{source_state}}');
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain(
+            'Write the output mainly in English',
+        );
     });
 
     it('defaults to the narrative preset', () => {

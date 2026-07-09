@@ -4,6 +4,8 @@ const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
 const MIN_PROMOTION_TARGET_TOKENS = 120;
 const PROMOTION_TARGET_RATIO = 0.4;
+const ENGLISH_FIRST_LANGUAGE_RULE =
+    'Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.\n';
 
 /**
  * Check whether a summarizer call should receive runtime compression controls.
@@ -53,6 +55,7 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         '<summaryception_l0_constraints>\n' +
         `Target length: at most about ${target} tokens.\n` +
         sourceRangeLine +
+        ENGLISH_FIRST_LANGUAGE_RULE +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
         '[STATE] must contain only changed or newly relevant dynamic current facts as key: value lines; omit unchanged facts.\n' +
@@ -115,6 +118,7 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         '<summaryception_promotion_constraints>\n' +
         targetLine +
         repairLine +
+        ENGLISH_FIRST_LANGUAGE_RULE +
         'Read the [NARRATIVE] and [STATE] segments of the provided memory snippets.\n' +
         'Output exactly one [NARRATIVE] section. Do not output a [STATE] block.\n' +
         '[NARRATIVE] must be exactly one dense paragraph with no heading, list, preamble, markdown, or blank line inside it.\n' +

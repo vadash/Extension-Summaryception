@@ -24,6 +24,7 @@ export const DEFAULT_SUMMARIZER_USER_PROMPT = `<player_name>
 
 Compress only the essential narrative progression and changed durable state from <passage_in_question> to coherently continue <prior_context>.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
+Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
 
 Output exactly two sections:
 
@@ -67,6 +68,7 @@ export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = `<player_name>
 </passage_in_question>
 
 The previous Layer 0 summary attempt failed output validation. Repair the response by summarizing the same passage again with stricter formatting.
+Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
 
 Output exactly two sections and nothing else:
 
@@ -98,6 +100,7 @@ export const DEFAULT_PROMOTION_USER_PROMPT = `<player_name>
 </source_state>
 
 Consolidate the NEW events from <narratives_to_consolidate> and any durable facts from <source_state> into a highly compressed continuation that follows the runtime Layer 1+ target length.
+Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
 
 ### CRITICAL TEMPORAL RULES:
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
@@ -140,6 +143,7 @@ export const DEFAULT_PROMOTION_REPAIR_PROMPT = `<player_name>
 </source_state>
 
 Repair the previous Layer 1+ promotion draft. It failed the compression guard, so rewrite the same source memories more abstractly instead of adding detail.
+Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.
 
 Output exactly one section:
 
