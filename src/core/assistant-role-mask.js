@@ -3,6 +3,13 @@
  */
 
 /**
+ * Synthetic user block prepended when masking would otherwise remove every
+ * user role from the outgoing payload. Required by APIs that reject requests
+ * with zero user messages.
+ */
+const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
+
+/**
  * Apply the assistant-role mask to a SillyTavern generation payload.
  * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {Partial<ExtensionSettings>} settings - Effective Summaryception settings.
@@ -18,14 +25,32 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
         return 0;
     }
 
-    let rewritten = 0;
+    const maskableMessages = [];
+    let userMessageCount = 0;
     for (const message of messages) {
-        if (!shouldMaskMessage(message)) {
+        if (message.role !== 'user') {
             continue;
         }
+        userMessageCount++;
+        if (shouldMaskMessage(message)) {
+            maskableMessages.push(message);
+        }
+    }
+
+    let rewritten = 0;
+
+    if (userMessageCount > 0 && maskableMessages.length === userMessageCount) {
+        messages.unshift({
+            role: 'user',
+            content: COMPATIBILITY_MARKER_CONTENT,
+        });
+    }
+
+    for (const message of maskableMessages) {
         message.role = 'assistant';
         rewritten++;
     }
+
     return rewritten;
 }
 
