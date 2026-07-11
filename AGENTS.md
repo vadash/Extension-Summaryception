@@ -17,4 +17,5 @@ We organize specific context into separate files. Read the relevant files in `ag
 - `file:agent_docs/architecture_boundaries.md` - Core structural rules, strict import directions, and the SillyTavern API Facade.
 - `file:agent_docs/core_engine.md` - Memory layers, background worker, ghosting, and LLM connection adapters.
 - `file:agent_docs/ui_and_features.md` - UI rendering, jQuery rules, data bindings, and high-level workflows.
+- `file:agent_docs/ui_visual_language.md` - Reusable Summaryception-family look, layout, density, sticky navigation, and UX conventions.
 - `file:agent_docs/testing_guidelines.md` - Vitest rules and mocking strategies.
