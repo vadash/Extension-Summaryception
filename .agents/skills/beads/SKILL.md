@@ -1,80 +1,79 @@
 ---
 name: beads
-description: Use when working in a repository that uses bd or Beads for durable project task tracking, issue dependencies, blocker management, multi-session handoff, or shared work memory. Trigger when the user asks to find ready work, claim or close tasks, create follow-up work, inspect blockers, recover project context, or choose between local planning and persistent project tracking.
+description: Use when a repository uses bd or Beads for durable task tracking, dependencies, blockers, current work state, or rare shared memory. Trigger when finding, claiming, creating, updating, or closing work; inspecting blockers; recovering context; maintaining issue notes; or choosing between Beads, AGENTS.md, agent_docs, and temporary handoffs.
 ---
 
 # Beads
 
-Use Beads as the shared project task system. Local plans, scratch files, and personal memories are useful, but they are not the durable source of truth for project work.
+Beads owns mutable project work, not repository documentation or session
+chronology.
 
-## First Step
+## Startup
 
-Run:
+Use hook-injected `bd prime` context. Run `bd prime` only when missing/stale;
+use `bd where` when workspace discovery is uncertain.
 
-```bash
-bd prime
-```
+## Ownership
 
-If that prints nothing, check whether the repository has an active Beads workspace:
+| Information                                         | Owner                       |
+| --------------------------------------------------- | --------------------------- |
+| Tasks, status, dependencies, blockers, acceptance   | Beads issue                 |
+| Workstream state and next action                    | Active issue notes          |
+| Stable architecture, invariants, evidence, runbooks | `AGENTS.md` / `agent_docs/` |
+| Emergency session checkpoint                        | Temporary handoff           |
+| Rare stable fact useful almost every session        | `bd remember`               |
 
-```bash
-bd where
-```
+Local plans are current-turn checklists, not shared project state.
 
-## Preferred Route
+## Workflow
 
-Use the `bd` CLI when shell access is available. It is the most compact and direct Beads interface.
-
-## Core CLI Workflow
-
-1. Find work:
+1. Inspect:
 
 ```bash
 bd ready
-bd list --status=open
 bd list --status=in_progress
-```
-
-2. Inspect before editing:
-
-```bash
 bd show <id>
 ```
 
-3. Claim work atomically:
+2. Claim before editing: `bd update <id> --claim`.
+
+3. If no issue represents requested work:
 
 ```bash
-bd update <id> --claim
+bd create --title="Short title" --description="Why this exists and what must change" --type=task --priority=2
 ```
 
-4. Create durable follow-up work when implementation reveals new tasks:
+4. Keep notes concise/current; replace stale progress, never append a diary.
+
+5. Close only after acceptance:
 
 ```bash
-bd create "Short title" --description="Why this exists and what needs to be done" --type=task --priority=2
+bd close <id> --reason="Completed and verified"
 ```
 
-5. Close completed work:
+## Memory hygiene
 
-```bash
-bd close <id> --reason="Completed"
-```
+Every `bd remember` value enters each `bd prime` context. Agent using this skill
+owns memory creation, replacement, deletion, and audits; hooks only load it.
+`agents-md-init`, `agents-md-sync`, and `handoff` never maintain memories.
 
-## What Belongs In Beads
+Audit when user requests it or work reveals stale, duplicate, or relocated
+facts. Before adding memory:
 
-Use Beads for:
+1. Run `bd memories`; reject duplicates.
+2. Require stable, non-obvious, short, broadly useful content.
+3. Reject facts owned by code, issues, `AGENTS.md`, or `agent_docs/`.
+4. Use stable keys; replace via `bd remember --key <key> ...`.
+5. Remove obsolete entries with `bd forget <key>`.
 
-- shared project tasks
-- blockers and dependencies
-- discovered follow-up work
-- work that must survive thread reset, compaction, or handoff
-- status that another person or agent should be able to resume
-
-Use agent-local planning tools only for the current turn's execution checklist. Do not treat them as shared project state.
+Never remember handoff paths/chains/prompts, task progress/next actions,
+milestone chronology, copied architecture/evidence/runbooks, secrets,
+credentials, private identifiers, or ignored configuration.
 
 ## Rules
 
-- Do not create markdown TODO files as the source of truth when Beads is available.
-- Do not use `bd edit`; it opens an interactive editor. Use `bd update` flags instead.
-- Prefer `--json` when parsing `bd` output programmatically.
-- If hooks are installed, `bd prime` may already be injected. Run it manually when context is missing.
-- Do not auto-close or mutate tasks unless the work is actually complete.
+- No Markdown task ledgers when Beads exists.
+- Use non-interactive `bd update` flags, never `bd edit`.
+- Prefer `--json` for programmatic parsing.
+- Do not mutate/close issues because related code merely exists.
+- Never push Beads/Dolt state without explicit authority.
