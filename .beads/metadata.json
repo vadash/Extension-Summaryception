@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "Extension_Summaryception",
+  "project_id": "5a296381-c44a-406c-8414-2bbf9b686133"
+}
