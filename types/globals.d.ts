@@ -39,6 +39,7 @@ interface SummaryceptionSnippet {
     mergedCount?: number;
     timestamp?: number;
     regenerated?: boolean;
+    stateMode?: 'snapshot-v1';
 }
 
 interface SummaryceptionStore {

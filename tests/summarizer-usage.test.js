@@ -309,6 +309,7 @@ describe('summarizer usage logging', () => {
         const ctx = installDebugContext();
         ctx.getTokenCountAsync
             .mockResolvedValueOnce(4)
+            .mockResolvedValueOnce(2)
             .mockResolvedValueOnce(32)
             .mockResolvedValueOnce(4);
         mocks.sendSummarizerRequest.mockResolvedValue(` ${VALID_L0_SUMMARY} `);
@@ -331,12 +332,13 @@ describe('summarizer usage logging', () => {
         });
 
         expect(summary).toBe(VALID_L0_SUMMARY);
-        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(3);
+        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(4);
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toBe(VALID_L0_SUMMARY);
-        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('SYS');
-        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('prior context');
-        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('source passage');
-        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toBe(VALID_L0_SUMMARY);
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('[STATE]');
+        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('SYS');
+        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('prior context');
+        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('source passage');
+        expect(ctx.getTokenCountAsync.mock.calls[3][0]).toBe(VALID_L0_SUMMARY);
 
         const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
         expect(usageLog?.join(' ')).toContain('input 20, prompt 12, output 4');

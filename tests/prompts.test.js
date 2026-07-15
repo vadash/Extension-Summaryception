@@ -250,6 +250,28 @@ describe('validateLayer0OutputSize', () => {
         ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
     });
 
+    it('rejects an oversized state snapshot with focused repair feedback', async () => {
+        const output = [
+            '[NARRATIVE]',
+            'The party reached the bridge.',
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+            `hooks: ${'pending '.repeat(305)}`,
+        ].join('\n');
+
+        const result = await validateLayer0OutputSize(
+            output,
+            { layer0SummaryTokenTarget: 500 },
+            { kind: 'layer0', sourceTokensBefore: 100 },
+        );
+
+        expect(result.valid).toBe(false);
+        expect(result.error?.message).toContain('state snapshot size validation');
+        expect(result.error?.message).toContain('maximum 300');
+        expect(result.repairFeedback).toContain('complete snapshot more abstractly');
+    });
+
     it('does not apply L0 size bounds to promotion outputs', async () => {
         await expect(
             validateLayer0OutputSize(

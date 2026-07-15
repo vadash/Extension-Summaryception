@@ -1,3 +1,7 @@
+import {
+    STATE_SNAPSHOT_MAX_CHARS,
+    STATE_SNAPSHOT_MODE,
+} from '../foundation/prompt-constants.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 
 const STATE_LINE_RE = /^\s*[-*]?\s*([a-zA-Z_][\w\s]*?)\s*[:=-]\s*(.+?)\s*$/;
@@ -8,7 +12,7 @@ const NULLIFY_VALUES = new Set(['none', 'empty', 'null', 'cleared', 'resolved', 
 const UNCLASSIFIED_NOTES_MAX = 3;
 const STATE_ENTRY_LIMIT = 10;
 const STATE_VALUE_LENGTH_CEILING = 1000;
-const STALE_TRANSIENT_LAYER_MIN = 2;
+const LEGACY_STATE_WINDOW = 3;
 const COMPOSITE_MERGE_KEYS = new Set(['characters', 'inventory', 'counters', 'dynamics', 'hooks']);
 const IGNORED_STATE_KEYS = new Set(['timeline_start', 'timeline_end', 'start_time', 'end_time']);
 const COMPOSITE_ENTRY_RE = /^([a-zA-Z0-9 _-]+?)\s*[:=]\s*(.+)$/;
@@ -20,8 +24,6 @@ const STATIC_PROFILE_KEY_PARTS = [
     'species',
     'nationality',
 ];
-const TRANSIENT_KEY_RE =
-    /(^|_)(clothing|clothes|outfit|wearing|mood|arousal|soreness|fatigue|scene|pose|position|active|temporary|temp|current)(_|$)/;
 const EPHEMERAL_COUNTER_RE =
     /\b(arousal|mood|pose|position|posture|sex|sexual|orgasm|thrust|stroke|breath|blush|sweat|wetness|soreness|fatigue|drink|beverage|food|meal|snack|coffee|tea|water|sip|bite)\b/i;
 const OBLIGATION_COUNTER_RE =
@@ -63,8 +65,21 @@ const KEY_ALIASES = Object.freeze({
     current_date_time: 'current_date_time',
     current_datetime: 'current_date_time',
     current_time: 'current_date_time',
+    constraints: 'constraints',
+    rules: 'constraints',
+    obligations: 'constraints',
+    limitations: 'constraints',
 });
 const CANONICAL_STATE_KEYS = new Set(Object.values(KEY_ALIASES));
+const SNAPSHOT_STATE_KEYS = Object.freeze([
+    'current_date_time',
+    'location',
+    'characters',
+    'dynamics',
+    'constraints',
+    'hooks',
+    'inventory',
+]);
 
 /**
  * Check whether text contains an explicit [STATE] section.
@@ -148,25 +163,97 @@ export function serializeState(state) {
  * @returns {Record<string, string>}
  */
 export function compileGlobalState(layers) {
+    const layer = Array.isArray(layers?.[0]) ? layers[0] : [];
+    if (layer.length === 0) {
+        return {};
+    }
+
+    const latestSnippet = layer[layer.length - 1];
+    if (isSnapshotStateSnippet(latestSnippet) && hasStateSection(latestSnippet?.text || '')) {
+        return compactSnapshotState(parseSnippet(latestSnippet.text).state);
+    }
+
+    return compileLegacyRecentState(layer);
+}
+
+/**
+ * Check whether a snippet stores a complete rolling state snapshot.
+ * @param {object} snippet
+ * @returns {boolean}
+ */
+export function isSnapshotStateSnippet(snippet) {
+    return snippet?.stateMode === STATE_SNAPSHOT_MODE;
+}
+
+function compileLegacyRecentState(layer) {
     const compiled = /** @type {Record<string, string>} */ ({});
     const allUnclassified = [];
-    const keyLastLayer = new Map();
-    const layer = Array.isArray(layers?.[0]) ? layers[0] : [];
+    const recent = layer.slice(-LEGACY_STATE_WINDOW);
 
-    for (const snippet of layer) {
+    for (const snippet of recent) {
         const parsed = parseSnippet(snippet?.text || '');
         if (Object.keys(parsed.state).length > 0) {
             mergeStateInto(compiled, allUnclassified, parsed.state, {
                 filterStaticProfile: true,
-                keyLastLayer,
-                layerIndex: 0,
             });
         }
     }
 
-    pruneStaleTransientState(compiled, keyLastLayer);
     applyUnclassifiedNotes(compiled, allUnclassified);
-    return compiled;
+    return compactSnapshotState(compiled);
+}
+
+function compactSnapshotState(state) {
+    const compacted = /** @type {Record<string, string>} */ ({});
+    let serializedLength = '[STATE]'.length;
+
+    for (const key of SNAPSHOT_STATE_KEYS) {
+        const value = normalizeSerializedStateValue(state?.[key]);
+        if (!value || isNullifyValue(value)) {
+            continue;
+        }
+        const prefixLength = 1 + key.length + 2;
+        const remaining = STATE_SNAPSHOT_MAX_CHARS - serializedLength - prefixLength;
+        if (remaining <= 0) {
+            break;
+        }
+        const compactValue = compactStateValueToLength(value, remaining);
+        if (!compactValue) {
+            continue;
+        }
+        compacted[key] = compactValue;
+        serializedLength += prefixLength + compactValue.length;
+    }
+
+    return compacted;
+}
+
+function compactStateValueToLength(value, maxLength) {
+    const text = String(value || '').trim();
+    if (text.length <= maxLength) {
+        return text;
+    }
+
+    const entries = splitDelimitedEntries(text, /;/);
+    if (entries.length > 1) {
+        const kept = [];
+        let length = 0;
+        for (const entry of entries) {
+            const addedLength = (kept.length > 0 ? 2 : 0) + entry.length;
+            if (length + addedLength > maxLength) {
+                break;
+            }
+            kept.push(entry);
+            length += addedLength;
+        }
+        if (kept.length > 0) {
+            return kept.join('; ');
+        }
+    }
+
+    const clipped = text.slice(0, maxLength + 1);
+    const boundary = clipped.lastIndexOf(' ');
+    return clipped.slice(0, boundary > 0 ? boundary : maxLength).trim();
 }
 
 function findHeaderLine(lines, regex) {
@@ -439,15 +526,6 @@ function applyUnclassifiedNotes(merged, allUnclassified) {
     }
 }
 
-function pruneStaleTransientState(compiled, keyLastLayer) {
-    for (const key of Object.keys(compiled)) {
-        const lastLayer = keyLastLayer.get(key);
-        if (lastLayer >= STALE_TRANSIENT_LAYER_MIN && isTransientStateKey(key)) {
-            delete compiled[key];
-        }
-    }
-}
-
 function isStaticProfileKey(key) {
     if (key === 'age' || key.endsWith('_age')) {
         return true;
@@ -455,10 +533,6 @@ function isStaticProfileKey(key) {
     return STATIC_PROFILE_KEY_PARTS.some(
         (part) => key === part || key.includes(`_${part}`) || key.includes(`${part}_`),
     );
-}
-
-function isTransientStateKey(key) {
-    return key === 'location' || key === 'characters' || TRANSIENT_KEY_RE.test(key);
 }
 
 function splitUnclassifiedNotes(value) {

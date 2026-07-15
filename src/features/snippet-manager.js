@@ -1,4 +1,5 @@
 import { getChat } from '../foundation/context.js';
+import { STATE_SNAPSHOT_MODE } from '../foundation/prompt-constants.js';
 import {
     bumpSummaryStoreMutationEpoch,
     calculateContiguousSummarizedUpTo,
@@ -8,6 +9,8 @@ import {
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { unghostMessagesInRange } from '../core/ghosting.js';
 import { validateSummarizerOutputIntegrity } from '../core/prompts.js';
+import { buildSnippetMetadataFromState } from '../core/snippet-metadata.js';
+import { parseSnippet } from '../core/summarizer-state.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
 import { updateInjection } from './injection.js';
@@ -172,6 +175,8 @@ async function regenerateSnippetWithTarget(target) {
     target.snippet.text = newSummary;
     target.snippet.timestamp = Date.now();
     target.snippet.regenerated = true;
+    target.snippet.stateMode = STATE_SNAPSHOT_MODE;
+    Object.assign(target.snippet, buildSnippetMetadataFromState(parseSnippet(newSummary).state));
     bumpSummaryStoreMutationEpoch(getChatStore());
 
     await saveSnippetStore();

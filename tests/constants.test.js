@@ -62,11 +62,12 @@ describe('constants', () => {
 
     it('uses the Summaryception memory wrapper by default', () => {
         expect(defaultSettings.injectionTemplate).toContain('<summaryception_memory>');
-        expect(defaultSettings.injectionTemplate).toContain('[AUTHORITATIVE MEMORY');
+        expect(defaultSettings.injectionTemplate).toContain('[COMPRESSED CONTINUITY MEMORY');
         expect(defaultSettings.injectionTemplate).toContain('[HIERARCHY OF TRUTH]');
         expect(defaultSettings.injectionTemplate).toContain('[CURRENT STATE]');
         expect(defaultSettings.injectionTemplate).toContain('[CHRONOLOGY]');
-        expect(defaultSettings.injectionTemplate).toContain('strict priority');
+        expect(defaultSettings.injectionTemplate).toContain('current user message');
+        expect(defaultSettings.injectionTemplate).toContain('may update or override');
         expect(defaultSettings.injectionTemplate).toContain('[msgs X-Y; current T]');
         expect(defaultSettings.injectionTemplate).toContain('scene time at the end of message Y');
         expect(defaultSettings.injectionTemplate).toContain('{{summary}}');
@@ -99,7 +100,10 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('[NARRATIVE]');
         expect(PROMPT_PRESETS.narrative).toContain('[STATE]');
         expect(PROMPT_PRESETS.narrative).not.toContain('about 150 tokens');
-        expect(PROMPT_PRESETS.narrative).toContain('CHANGED or became newly relevant');
+        expect(PROMPT_PRESETS.narrative).toContain('COMPLETE current snapshot');
+        expect(PROMPT_PRESETS.narrative).toContain('Omission means');
+        expect(PROMPT_PRESETS.narrative).toContain('constraints');
+        expect(PROMPT_PRESETS.narrative).toContain('never exceed 300 tokens');
         expect(PROMPT_PRESETS.narrative).toContain('current_date_time');
         expect(PROMPT_PRESETS.narrative).toContain('YYYY-MM-DD HH ddd');
         expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');

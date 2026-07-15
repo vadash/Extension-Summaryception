@@ -446,6 +446,52 @@ describe('promotion prompt guard', () => {
         expect(remaining.state).not.toHaveProperty('characters');
     });
 
+    it('does not carry promoted legacy state into a complete remaining snapshot', async () => {
+        mocks.callSummarizer.mockResolvedValue(VALID_PROMOTION_SUMMARY);
+        const snapshotText = [
+            '[NARRATIVE]',
+            'Remaining tail. '.repeat(1000),
+            '[STATE]',
+            'current_date_time: 2024-12-07 09 Sat',
+            'location: bridge',
+            'constraints: curfew at midnight',
+        ].join('\n');
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [
+                        [
+                            {
+                                text:
+                                    '[NARRATIVE]\nFirst event. '.repeat(400) +
+                                    '\n[STATE]\ndynamics: obsolete alliance',
+                            },
+                            { text: '[NARRATIVE]\nSecond event. '.repeat(400) },
+                            { text: '[NARRATIVE]\nThird event. '.repeat(400) },
+                            { text: snapshotText, stateMode: 'snapshot-v1' },
+                        ],
+                    ],
+                }),
+            },
+            settings: {
+                memoryTokenBudget: 4000,
+                snippetsPerLayer: 30,
+                snippetsPerPromotion: 3,
+            },
+            getTokenCountAsync: countWhitespaceTokens,
+        });
+
+        const { getChatStore } = await import('../src/foundation/state.js');
+        const { maybePromoteLayer } = await import('../src/core/summarizer-promotion.js');
+
+        await expect(maybePromoteLayer(0)).resolves.toBe(true);
+
+        expect(getChatStore().layers[0][0]).toMatchObject({
+            text: snapshotText,
+            stateMode: 'snapshot-v1',
+        });
+    });
+
     it('strips LLM-produced state when promotion output includes [STATE]', async () => {
         mocks.callSummarizer.mockResolvedValue(
             [

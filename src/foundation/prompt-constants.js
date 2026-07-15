@@ -4,12 +4,18 @@ export const ENGLISH_FIRST_LANGUAGE_RULE =
 export const ANTI_RUN_ON_RULE =
     'Write in short, direct sentences. Prefer periods over commas and semicolons; do not chain actions together with commas, semicolons, or conjunctions into run-on sentences. Limit each sentence to roughly two actions or events.';
 
+export const STATE_SNAPSHOT_MODE = 'snapshot-v1';
+export const STATE_SNAPSHOT_SOFT_TARGET_TOKENS = 200;
+export const STATE_SNAPSHOT_MAX_TOKENS = 300;
+export const STATE_SNAPSHOT_MAX_CHARS = 1200;
+
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
-    '[AUTHORITATIVE MEMORY — treat all facts below as established truth. Do not contradict them.]\n\n' +
+    '[COMPRESSED CONTINUITY MEMORY — use unless superseded by newer verbatim chat or the current user message.]\n\n' +
     '[HIERARCHY OF TRUTH]\n' +
-    '1. [CURRENT STATE] contains active, durable facts (location, inventory, active rules, constraints, and physical limitations). This section is the absolute truth for the current scene. If [CHRONOLOGY] or the user input contradicts this section, [CURRENT STATE] takes strict priority.\n' +
-    '2. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events. Entries are ordered older to newer; an anchor like [msgs X-Y; current T] means the entry summarizes chat messages X through Y, and T is the scene time at the end of message Y.\n\n' +
+    '1. Newer verbatim chat and the current user message are the source of truth for the present scene. They may update or override compressed memory.\n' +
+    '2. [CURRENT STATE] is a compact continuity snapshot. Use it for active facts not superseded by newer verbatim chat.\n' +
+    '3. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events. Entries are ordered older to newer; an anchor like [msgs X-Y; current T] means the entry summarizes chat messages X through Y, and T is the scene time at the end of message Y.\n\n' +
     '{{summary}}\n\n' +
     '[End of compressed memory. Resume roleplay based on these facts.]\n' +
     '</summaryception_memory>';
@@ -29,7 +35,7 @@ export const DEFAULT_SUMMARIZER_USER_PROMPT = `<player_name>
 {{story_txt}}
 </passage_in_question>
 
-Compress only the essential narrative progression and changed durable state from <passage_in_question> to coherently continue <prior_context>.
+Compress only the essential narrative progression from <passage_in_question>, then rewrite the complete compact current-state snapshot at the end of that passage using <prior_context> as the baseline.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 ${ENGLISH_FIRST_LANGUAGE_RULE}
 
@@ -39,28 +45,27 @@ Output exactly two sections:
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
 
 [STATE]
-Extract only dynamic state variables that CHANGED or became newly relevant in this passage. Format as key: value, one per line.
-Omit unchanged state. Omission means the previous value is preserved.
+Rewrite the COMPLETE current snapshot as key: value lines. Omission means the fact is no longer active or important enough for state; omitted values are not inherited.
 Do NOT extract static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions. Those belong in character cards or lorebooks.
 Do NOT write descriptive sentences in the state block. Use concise keys and values only.
-To delete a resolved or emptied variable, write: key: none
 Always include temporal key:
 - current_date_time: YYYY-MM-DD HH ddd
 Use 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed. Normalize from raw bracket headers or passage timestamps when present. Drop minutes instead of preserving them.
 If no explicit time appears in the passage, carry forward the prior current_date_time if known.
 
-Common keys (use what is relevant, invent new ones if needed):
+Use only these keys and omit empty categories:
 - current_date_time: <YYYY-MM-DD HH ddd>
 - location: <current place>
-- characters: <name: brief status, ...>
-- inventory: <active items/equipment>
-- dynamics: <relationship/power state>
-- hooks: <unresolved plans/threats>
-- counters: <only unresolved/pending/owed obligation counters>
+- characters: <present or immediately relevant names and consequential conditions only>
+- dynamics: <active relationships, roles, trust, hostility, or social standing>
+- constraints: <active rules, obligations, permissions, deadlines, or persistent limitations>
+- hooks: <unresolved goals, threats, secrets, or near-future plans>
+- inventory: <plot-critical carried items, controlled resources, or access only>
 
-Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, or momentary pose/arousal/mood counters. Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by an unresolved hook.
+Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when the RP is complex and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens. Use fewer tokens when the state is simple. Put the most important facts first within each value.
+Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.
 
-Do not narrate events inside [STATE]. Only current facts. If nothing changed, output only current_date_time below [STATE].`;
+Do not narrate events inside [STATE]. Only facts that remain useful after the recent verbatim window is gone.`;
 
 export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = `<player_name>
 {{player_name}}
@@ -83,7 +88,9 @@ Output exactly two sections and nothing else:
 <one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE}>
 
 [STATE]
-Extract only changed or newly relevant durable state as concise key: value lines.
+Rewrite the complete compact current snapshot using only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.
+Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
+Keep the state near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens.
 Always include current_date_time using YYYY-MM-DD HH ddd, carrying forward the prior value if no explicit time appears.
 Do not include prose, bullets, tables, duplicate section headers, markdown, or commentary inside [STATE].`;
 

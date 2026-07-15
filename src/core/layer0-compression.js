@@ -1,5 +1,10 @@
 import { defaultSettings } from '../foundation/constants.js';
-import { ENGLISH_FIRST_LANGUAGE_RULE, ANTI_RUN_ON_RULE } from '../foundation/prompt-constants.js';
+import {
+    ANTI_RUN_ON_RULE,
+    ENGLISH_FIRST_LANGUAGE_RULE,
+    STATE_SNAPSHOT_MAX_TOKENS,
+    STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+} from '../foundation/prompt-constants.js';
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
@@ -83,6 +88,16 @@ export function buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }) 
     );
 }
 
+export function buildStateSnapshotSizeRepairFeedback({ stateTokens }) {
+    return (
+        '<summaryception_state_repair_feedback>\n' +
+        `The previous [STATE] snapshot was ${stateTokens} tokens; it must be ${STATE_SNAPSHOT_MAX_TOKENS} tokens or fewer.\n` +
+        'Rewrite the complete snapshot more abstractly. Remove transient scene detail, completed tasks, resolved hooks, ordinary items, clothing, and pose.\n' +
+        'Keep only the fixed state keys and preserve the most consequential active continuity.\n' +
+        '</summaryception_state_repair_feedback>'
+    );
+}
+
 /**
  * Add non-persisted compression constraints to the final prompt.
  * @param {string} prompt
@@ -111,16 +126,16 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
         ANTI_RUN_ON_RULE +
         '\n' +
-        '[STATE] must contain only changed or newly relevant dynamic current facts as key: value lines; omit unchanged facts.\n' +
+        '[STATE] must rewrite the complete current snapshot. Omitted facts are removed rather than inherited.\n' +
         '[STATE] must always include current_date_time.\n' +
         'Use temporal format YYYY-MM-DD HH ddd with 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed; drop minutes instead of preserving them.\n' +
         'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time.\n' +
+        '[STATE] may use only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.\n' +
+        `Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when complex and never above ${STATE_SNAPSHOT_MAX_TOKENS} tokens; use fewer when simple.\n` +
         '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +
-        'Do NOT write descriptive sentences in the state block. Use concise keys and values only.\n' +
-        'Use key: none only when a durable fact is explicitly resolved, emptied, or removed.\n' +
-        'Treat [STATE] as durable state, not ephemeral trivia.\n' +
-        'Do not preserve physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, or momentary pose/arousal/mood counters.\n' +
-        'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
+        'Do NOT write descriptive sentences in the state block. Use concise key: value fragments only. Put the most important facts first.\n' +
+        'Treat [STATE] as durable continuity, not an event ledger or scene replay.\n' +
+        'Do not preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.\n' +
         'Omit repeated micro-actions, flavor dialogue, sensory detail, and transient atmosphere unless they create lasting state.\n' +
         'When detail competes with length, keep the fact needed for future continuity and drop the scene replay.\n' +
         '</summaryception_l0_constraints>'

@@ -1,5 +1,7 @@
 import { getEffectiveSettings } from '../foundation/state.js';
+import { STATE_SNAPSHOT_MAX_TOKENS } from '../foundation/prompt-constants.js';
 import {
+    buildStateSnapshotSizeRepairFeedback,
     buildLayer0SizeRepairFeedback,
     getLayer0SummaryTokenBounds,
     isLayer0SizeGuardCall,
@@ -147,6 +149,12 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
         });
     }
 
+    const stateText = extractStateSection(text);
+    const stateTokens = await countTextTokens(stateText);
+    if (stateTokens.count > STATE_SNAPSHOT_MAX_TOKENS) {
+        return rejectStateSnapshotSize(stateTokens.count);
+    }
+
     const sourceTokens = getSourceTokenCount(metadata);
     if (sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD && outputTokens.count < bounds.min) {
         return rejectLayer0Size({
@@ -157,6 +165,12 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     }
 
     return { valid: true, error: null, repairFeedback: '' };
+}
+
+function extractStateSection(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    const stateIndex = lines.findIndex((line) => STATE_HEADER_RE.test(line));
+    return stateIndex === -1 ? '' : lines.slice(stateIndex).join('\n').trim();
 }
 
 /**
@@ -299,5 +313,20 @@ function rejectLayer0Size({ reason, outputTokens, bounds }) {
         valid: false,
         error,
         repairFeedback: buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }),
+    };
+}
+
+function rejectStateSnapshotSize(stateTokens) {
+    const error = /** @type {Error & { retryable?: boolean }} */ (
+        new Error(
+            `Summarizer response failed state snapshot size validation ` +
+                `(${stateTokens} tokens, maximum ${STATE_SNAPSHOT_MAX_TOKENS})`,
+        )
+    );
+    error.retryable = true;
+    return {
+        valid: false,
+        error,
+        repairFeedback: buildStateSnapshotSizeRepairFeedback({ stateTokens }),
     };
 }

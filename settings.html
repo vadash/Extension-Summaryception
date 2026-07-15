@@ -1022,7 +1022,7 @@
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                             <small class="sc-hint">
-                                Custom Layer 0 prompts must output <code>[NARRATIVE]</code> and <code>[STATE]</code>; state should include only changed or newly relevant durable facts.
+                                Custom Layer 0 prompts must output <code>[NARRATIVE]</code> and a complete compact <code>[STATE]</code> snapshot using only the supported state keys. Omitted facts are removed, and newer verbatim chat overrides compressed state.
                             </small>
                         </label>
                         <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>

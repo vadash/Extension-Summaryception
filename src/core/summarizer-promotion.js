@@ -15,7 +15,13 @@ import {
     formatSnippetAnchor,
     stripLeadingSnippetAnchor,
 } from './snippet-metadata.js';
-import { mergeStates, parseSnippet, serializeState } from './summarizer-state.js';
+import {
+    compileGlobalState,
+    isSnapshotStateSnippet,
+    mergeStates,
+    parseSnippet,
+    serializeState,
+} from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { validateSummarizerOutputIntegrity } from './prompts.js';
 import {
@@ -256,7 +262,9 @@ async function prepareLayerPromotion({ layerIndex, settings, quota, layerTokens,
         .map((snippet) => formatAnchoredSnippetNarrative(snippet))
         .filter(Boolean)
         .join('\n\n');
-    const mergedState = mergeStates(parsed.map((snippet) => snippet.state));
+    const mergedState = isSnapshotStateSnippet(toMerge[toMerge.length - 1])
+        ? compileGlobalState([toMerge])
+        : mergeStates(parsed.map((snippet) => snippet.state));
     const serializedState = serializeState(mergedState);
     const sourceState = serializedState || '(none)';
     const memoryTokensBefore = await countTextTokens(sourceMemoryText);
@@ -572,6 +580,9 @@ function buildPromotedSnippet(text, metadata) {
 
 function carryPromotedLayer0State({ promotedSnippets, remainingLayer }) {
     if (!Array.isArray(remainingLayer) || remainingLayer.length === 0) {
+        return;
+    }
+    if (remainingLayer.some((snippet) => isSnapshotStateSnippet(snippet))) {
         return;
     }
 

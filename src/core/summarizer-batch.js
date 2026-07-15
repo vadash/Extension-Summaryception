@@ -1,8 +1,9 @@
 import { getContext, getChat } from '../foundation/context.js';
+import { STATE_SNAPSHOT_MODE } from '../foundation/prompt-constants.js';
 import { bumpSummaryStoreMutationEpoch, getChatStore, saveChatStore } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
-import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
+import { buildMemoryInjection, buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromState } from './snippet-metadata.js';
@@ -142,7 +143,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
     const store = getChatStore();
     ensureLayer0(store);
 
-    const contextText = buildFullContext(0);
+    let contextText = buildFullContext(0);
     const snapshots = [];
     const pendingSnippets = [];
     const baseSummarizedUpTo = store.summarizedUpTo;
@@ -176,6 +177,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
 
         snapshots.push(snapshot);
         pendingSnippets.push(buildLayer0Snippet(snapshot, summary));
+        contextText = buildPendingLayer0Context(store.layers, pendingSnippets);
     }
 
     const result = await commitWhenSafe({
@@ -454,8 +456,20 @@ function buildLayer0Snippet(snapshot, summary) {
         turnRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
         sourceRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
         ...buildSnippetMetadataFromState(parsed.state),
+        stateMode: STATE_SNAPSHOT_MODE,
         timestamp: Date.now(),
     };
+}
+
+function buildPendingLayer0Context(layers, pendingSnippets) {
+    const workingLayers = Array.isArray(layers)
+        ? layers.map((layer) => (Array.isArray(layer) ? [...layer] : []))
+        : [];
+    if (!workingLayers[0]) {
+        workingLayers[0] = [];
+    }
+    workingLayers[0].push(...pendingSnippets);
+    return buildMemoryInjection(workingLayers) || '(none yet)';
 }
 
 /**

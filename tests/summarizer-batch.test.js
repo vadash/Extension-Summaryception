@@ -116,6 +116,7 @@ describe('summarizeBatchFromTurns stale result rejection', () => {
             turnRange: [0, 1],
             sourceRange: [0, 1],
             currentDateTime: '2024-12-03 06 Wed',
+            stateMode: 'snapshot-v1',
         });
         expect(ctx.chatMetadata.summaryception.layers[0][0]).not.toHaveProperty('timelineStart');
         expect(ctx.chatMetadata.summaryception.layers[0][0]).not.toHaveProperty('timelineEnd');
@@ -239,7 +240,7 @@ describe('summarizeAtomicLayer0Partitions', () => {
         expect(mocks.ghostMessagesInRange).toHaveBeenCalledWith(0, 1, { chatSave: 'deferred' });
     });
 
-    it('reuses the same frozen memory context for every cache partition', async () => {
+    it('feeds each pending snapshot into the next cache partition context', async () => {
         installBatchContext({
             chat: [makeMessage({ mes: 'first turn' }), makeMessage({ mes: 'second turn' })],
             metadata: {
@@ -265,7 +266,13 @@ describe('summarizeAtomicLayer0Partitions', () => {
         );
 
         expect(mocks.callSummarizer).toHaveBeenCalledTimes(2);
-        expect(mocks.callSummarizer.mock.calls[0][1]).toBe(mocks.callSummarizer.mock.calls[1][1]);
+        expect(mocks.callSummarizer.mock.calls[0][1]).not.toBe(
+            mocks.callSummarizer.mock.calls[1][1],
+        );
+        expect(mocks.callSummarizer.mock.calls[1][1]).toContain('[CURRENT STATE]');
+        expect(mocks.callSummarizer.mock.calls[1][1]).toContain(
+            'The source turn was summarized into a concise but complete memory.',
+        );
     });
 
     it('discards all pending snippets if any cache partition fails validation', async () => {

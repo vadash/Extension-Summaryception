@@ -262,7 +262,7 @@ describe('summarizer-state', () => {
         ).toEqual({});
     });
 
-    it('preserves recent transient keys from L0', () => {
+    it('drops unsupported legacy keys from the compact fallback', () => {
         expect(
             compileGlobalState([
                 [
@@ -291,9 +291,67 @@ describe('summarizer-state', () => {
             ]),
         ).toEqual({
             location: 'bridge',
-            vova_wearing: 'cloak',
-            current_task: 'escape',
         });
+    });
+
+    it('uses the newest complete snapshot without inheriting omitted legacy facts', () => {
+        expect(
+            compileGlobalState([
+                [
+                    {
+                        text: '[NARRATIVE]\nOlder.\n[STATE]\ndynamics: allied\nhooks: open gate',
+                    },
+                    {
+                        text: [
+                            '[NARRATIVE]',
+                            'Current.',
+                            '[STATE]',
+                            'current_date_time: 2026-07-15 16 Wed',
+                            'location: bridge',
+                            'characters: Zoe: present',
+                        ].join('\n'),
+                        stateMode: 'snapshot-v1',
+                    },
+                ],
+            ]),
+        ).toEqual({
+            current_date_time: '2026-07-15 16 Wed',
+            location: 'bridge',
+            characters: 'Zoe: present',
+        });
+    });
+
+    it('limits legacy fallback to the newest three Layer 0 snippets', () => {
+        expect(
+            compileGlobalState([
+                [
+                    { text: '[STATE]\ndynamics: obsolete alliance' },
+                    { text: '[STATE]\nhooks: obsolete errand' },
+                    { text: '[STATE]\nlocation: station' },
+                    { text: '[STATE]\ncharacters: Zoe: alert' },
+                    { text: '[STATE]\nconstraints: curfew at midnight' },
+                ],
+            ]),
+        ).toEqual({
+            location: 'station',
+            characters: 'Zoe: alert',
+            constraints: 'curfew at midnight',
+        });
+    });
+
+    it('caps serialized snapshot state without cutting a word', () => {
+        const state = compileGlobalState([
+            [
+                {
+                    text: `[STATE]\nhooks: ${'important unresolved thread '.repeat(100)}`,
+                    stateMode: 'snapshot-v1',
+                },
+            ],
+        ]);
+        const serialized = serializeState(state);
+
+        expect(serialized.length).toBeLessThanOrEqual(1200);
+        expect(serialized).toMatch(/(important|unresolved|thread)$/);
     });
 
     it('lets recent nullifiers delete older tracked state', () => {

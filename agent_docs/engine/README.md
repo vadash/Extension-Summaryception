@@ -2,9 +2,10 @@
 
 ## Memory model
 
-- Layer 0 summarizes turns selected beyond dynamic verbatim window. Valid output preserves `[NARRATIVE]` and `[STATE]` sections.
+- Layer 0 summarizes turns selected beyond dynamic verbatim window. `[STATE]` is a complete bounded rolling snapshot, not a delta; new snippets carry `stateMode: snapshot-v1`, and injection uses only the newest snapshot.
 - `layer0-compression.js` enforces target-length bands after cleanup and integrity validation. Provider output caps are separate; never derive them from `layer0SummaryTokenTarget`.
-- Layers 1+ promote older snippets. Narrative is compressed by LLM; structured state is parsed and merged in code by `summarizer-state.js`, then carried forward without raw repetition.
+- Snapshot state uses fixed continuity fields and a 300-token generated-output ceiling plus a 1,200-character injection safeguard. Legacy chats fall back to recognized fields from only the newest three Layer 0 snippets until their first snapshot is written.
+- Layers 1+ promote older snippets. Narrative is compressed by LLM; snapshot sources use the final snapshot in the promoted span and are not merged or carried into a complete remaining snapshot.
 - Promotion starts only for over-limit layers and merges at least configured `snippetsPerPromotion`. `summarizer-promotion.js` owns quota details.
 - Any change to `store.layers`, snippet text/metadata, or related committed summary state must bump mutation epoch.
 
@@ -12,7 +13,7 @@
 
 - `partition-planner.js` splits Layer 0 sources on assistant-turn boundaries using token-balanced partitions.
 - `summarization-routes.js` normalizes Standard, Cache, Force, and Slop plans. Planner-specific countability stays inside planner modules.
-- Cache auto-flush summarizes all planned partitions before one atomic commit. Force and Slop keep sequential partial commits.
+- Cache auto-flush summarizes all planned partitions before one atomic commit, feeding each pending snapshot into the next partition's context. Force and Slop keep sequential partial commits.
 - Shared route execution and promotion loops live in `summarizer-engine.js`; queue lifecycle lives in `summarizer-queue.js`.
 - Prompt-affecting commits/effects queue while SillyTavern foreground generation is active. Generation end flushes pending work through `summarizer-commit.js`.
 - Request-only prompt rewrites use `GENERATE_AFTER_DATA`, mutate final payload in place, and never persist rewritten roles/content into chat history.

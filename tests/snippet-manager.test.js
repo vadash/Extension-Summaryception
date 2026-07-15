@@ -136,6 +136,7 @@ describe('snippet regeneration', () => {
         expect(ctx.chatMetadata.summaryception.layers[0][0]).toMatchObject({
             text: VALID_L0_SUMMARY,
             regenerated: true,
+            stateMode: 'snapshot-v1',
         });
         expect(ctx.chatMetadata.summaryception.layers[0][0].timestamp).toEqual(expect.any(Number));
         expect(mocks.updateInjection).toHaveBeenCalledTimes(1);
