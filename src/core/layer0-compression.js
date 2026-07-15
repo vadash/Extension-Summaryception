@@ -116,7 +116,11 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
 }
 
 /**
- *
+ * Build repair feedback for an oversized state snapshot.
+ * @param {object} p
+ * @param {number} p.stateTokens
+ * @param {string} [p.stateText]
+ * @returns {string}
  */
 export function buildStateSnapshotSizeRepairFeedback({ stateTokens, stateText = '' }) {
     const diagnostics = buildRepairDiagnostics({

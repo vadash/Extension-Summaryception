@@ -148,34 +148,20 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
 
     const sections = extractLayer0Sections(text);
     const bounds = getLayer0SummaryTokenBounds(settings);
-    let [outputTokens, narrativeTokens, stateTokens] = await Promise.all([
+    const [initialOutputTokens, narrativeTokens, initialStateTokens] = await Promise.all([
         countTextTokens(text),
         countTextTokens(sections.narrative),
         countTextTokens(sections.state),
     ]);
 
+    let outputTokens = initialOutputTokens;
+    const stateNormalization = await compactStateNearMiss(sections.state, initialStateTokens);
+    const normalizedState = stateNormalization.text;
+    const stateTokens = stateNormalization.tokens;
     let normalizedText = String(text || '');
-    let normalizedState = sections.state;
-    let stateCompacted = false;
-    if (
-        stateTokens.count > STATE_SNAPSHOT_MAX_TOKENS &&
-        stateTokens.count <= STATE_SNAPSHOT_REPAIR_CEILING_TOKENS
-    ) {
-        const compactedState = compactStateSnapshotText(sections.state);
-        if (compactedState) {
-            const compactedStateBody = compactedState.replace(/^\s*\[STATE\]\s*/i, '').trim();
-            const compactedTokens = await countTextTokens(compactedStateBody);
-            if (compactedTokens.count <= STATE_SNAPSHOT_MAX_TOKENS) {
-                normalizedState = compactedStateBody;
-                normalizedText = rebuildLayer0Output(sections.narrative, compactedState);
-                stateTokens = compactedTokens;
-                outputTokens = await countTextTokens(normalizedText);
-                stateCompacted = true;
-                debug(
-                    `Accepted Layer 0 state after deterministic compaction: ${sections.state.length} chars -> ${compactedStateBody.length} chars`,
-                );
-            }
-        }
+    if (stateNormalization.changed) {
+        normalizedText = rebuildLayer0Output(sections.narrative, stateNormalization.block);
+        outputTokens = await countTextTokens(normalizedText);
     }
 
     const sourceTokens = getSourceTokenCount(metadata);
@@ -225,9 +211,39 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
         );
     }
 
-    return stateCompacted
+    return stateNormalization.changed
         ? { valid: true, error: null, repairFeedback: '', text: normalizedText }
         : { valid: true, error: null, repairFeedback: '' };
+}
+
+async function compactStateNearMiss(stateText, stateTokens) {
+    if (
+        stateTokens.count <= STATE_SNAPSHOT_MAX_TOKENS ||
+        stateTokens.count > STATE_SNAPSHOT_REPAIR_CEILING_TOKENS
+    ) {
+        return { text: stateText, block: '', tokens: stateTokens, changed: false };
+    }
+
+    const compactedState = compactStateSnapshotText(stateText);
+    if (!compactedState) {
+        return { text: stateText, block: '', tokens: stateTokens, changed: false };
+    }
+
+    const compactedStateBody = compactedState.replace(/^\s*\[STATE\]\s*/i, '').trim();
+    const compactedTokens = await countTextTokens(compactedStateBody);
+    if (compactedTokens.count > STATE_SNAPSHOT_MAX_TOKENS) {
+        return { text: stateText, block: '', tokens: stateTokens, changed: false };
+    }
+
+    debug(
+        `Accepted Layer 0 state after deterministic compaction: ${String(stateText || '').length} chars -> ${compactedStateBody.length} chars`,
+    );
+    return {
+        text: compactedStateBody,
+        block: compactedState,
+        tokens: compactedTokens,
+        changed: true,
+    };
 }
 
 function rebuildLayer0Output(narrative, stateBlock) {
