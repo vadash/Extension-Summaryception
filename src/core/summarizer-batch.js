@@ -3,7 +3,11 @@ import { STATE_SNAPSHOT_MODE } from '../foundation/prompt-constants.js';
 import { bumpSummaryStoreMutationEpoch, getChatStore, saveChatStore } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
-import { buildMemoryInjection, buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
+import {
+    buildMemoryInjection,
+    buildPassageFromRangeWithStats,
+    buildFullContext,
+} from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromState } from './snippet-metadata.js';
@@ -456,7 +460,7 @@ function buildLayer0Snippet(snapshot, summary) {
         turnRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
         sourceRange: /** @type {[number, number]} */ ([passageStart, endIdx]),
         ...buildSnippetMetadataFromState(parsed.state),
-        stateMode: STATE_SNAPSHOT_MODE,
+        stateMode: /** @type {'snapshot-v1'} */ (STATE_SNAPSHOT_MODE),
         timestamp: Date.now(),
     };
 }

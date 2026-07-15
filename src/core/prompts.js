@@ -325,7 +325,7 @@ function rejectStateSnapshotSize(stateTokens) {
     );
     error.retryable = true;
     return {
-        valid: false,
+        valid: /** @type {false} */ (false),
         error,
         repairFeedback: buildStateSnapshotSizeRepairFeedback({ stateTokens }),
     };
