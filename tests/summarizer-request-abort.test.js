@@ -125,6 +125,35 @@ describe('callSummarizer abort signal plumbing', () => {
         ).resolves.toBe(summary);
     });
 
+    it('returns locally compacted near-miss state without a provider retry', async () => {
+        const ctx = globalThis.SillyTavern.getContext();
+        ctx.getTokenCountAsync = async (text) =>
+            String(text || '')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean).length;
+        const summary = [
+            '[NARRATIVE]',
+            'The party reached the bridge.',
+            '',
+            '[STATE]',
+            'current_date_time: 2024-12-03 06 Wed',
+            `hooks: ${'pending '.repeat(320)}`,
+        ].join('\n');
+        mocks.sendSummarizerRequest.mockResolvedValue(summary);
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const result = await callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceTokensBefore: 100,
+        });
+
+        expect(result).toContain('[STATE]');
+        expect(result.length).toBeLessThan(summary.length);
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
+    });
+
     it('uses promotion prompts for promotion calls', async () => {
         installSillyTavernStub({
             settings: customPromptSettings({

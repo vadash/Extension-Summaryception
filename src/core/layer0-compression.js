@@ -2,8 +2,11 @@ import { defaultSettings } from '../foundation/constants.js';
 import {
     ANTI_RUN_ON_RULE,
     ENGLISH_FIRST_LANGUAGE_RULE,
+    LAYER0_DURABILITY_RULES,
+    PROMOTION_MODERATE_MACRO_RULES,
     STATE_SNAPSHOT_MAX_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+    STATE_DEDUPLICATION_RULES,
 } from '../foundation/prompt-constants.js';
 import { buildRepairDiagnostics, formatRepairDiagnostics } from './repair-diagnostics.js';
 
@@ -11,6 +14,7 @@ const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
 const LAYER0_MIN_OUTPUT_RATIO = 1 / 3;
 const LAYER0_MAX_OUTPUT_RATIO = 1.5;
+const LAYER0_REPAIR_MAX_OUTPUT_RATIO = 1.65;
 const PROMOTION_TARGET_RATIO = 0.4;
 const PROMOTION_HARD_MAX_RATIO = 0.6;
 const ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE = ENGLISH_FIRST_LANGUAGE_RULE + '\n';
@@ -52,6 +56,17 @@ export function getLayer0SummaryTokenBounds(settings = {}) {
         min: Math.floor(target * LAYER0_MIN_OUTPUT_RATIO),
         max: Math.round(target * LAYER0_MAX_OUTPUT_RATIO),
     };
+}
+
+/**
+ * Compute the narrow narrative grace ceiling used to avoid retrying near-miss
+ * outputs from slow providers. The model-facing hard maximum remains the
+ * normal Layer 0 bound.
+ * @param {Partial<ExtensionSettings>} [settings]
+ * @returns {number}
+ */
+export function getLayer0SummaryRepairCeiling(settings = {}) {
+    return Math.round(getLayer0SummaryTokenTarget(settings) * LAYER0_REPAIR_MAX_OUTPUT_RATIO);
 }
 
 /**
@@ -152,6 +167,8 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
         '[NARRATIVE] must be one dense paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags there.\n' +
+        LAYER0_DURABILITY_RULES +
+        '\n' +
         ANTI_RUN_ON_RULE +
         '\n' +
         '[STATE] must rewrite the complete current snapshot. Omitted facts are removed rather than inherited.\n' +
@@ -160,6 +177,8 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time.\n' +
         '[STATE] may use only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.\n' +
         `Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when complex and never above ${STATE_SNAPSHOT_MAX_TOKENS} tokens; use fewer when simple.\n` +
+        STATE_DEDUPLICATION_RULES +
+        '\n' +
         '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +
         'Do NOT write descriptive sentences in the state block. Use concise key: value fragments only. Put the most important facts first.\n' +
         'Treat [STATE] as durable continuity, not an event ledger or scene replay.\n' +
@@ -244,6 +263,8 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +
         'Deduplicate related events and merge repeated beats into one cumulative state change or outcome.\n' +
+        PROMOTION_MODERATE_MACRO_RULES +
+        '\n' +
         'Omit all dialogue, low-impact micro-actions, scene replay, minor subplots, flavor dialogue, sensory detail, and transient atmosphere.\n' +
         '</summaryception_promotion_constraints>'
     );

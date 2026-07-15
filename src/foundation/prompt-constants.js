@@ -7,7 +7,17 @@ export const ANTI_RUN_ON_RULE =
 export const STATE_SNAPSHOT_MODE = 'snapshot-v1';
 export const STATE_SNAPSHOT_SOFT_TARGET_TOKENS = 200;
 export const STATE_SNAPSHOT_MAX_TOKENS = 300;
+export const STATE_SNAPSHOT_REPAIR_CEILING_TOKENS = 360;
 export const STATE_SNAPSHOT_MAX_CHARS = 1200;
+
+export const LAYER0_DURABILITY_RULES =
+    'Preserve each major durable beat once. Collapse repeated actions, physical interaction, or dialogue loops into one outcome sentence. Omit brands, shopping routes, meals, clothing, poses, body mechanics, ordinary props, and temporary physical conditions unless they create a lasting decision, rule, resource, injury, or unresolved hook.';
+
+export const STATE_DEDUPLICATION_RULES =
+    'Use at most one line per supported key. Do not repeat the same fact across characters, dynamics, constraints, hooks, or inventory. Characters may include only presence and consequential persistent conditions. Inventory is plot-critical ownership or access only. Hooks are unresolved future-affecting threads only.';
+
+export const PROMOTION_MODERATE_MACRO_RULES =
+    'Keep named people and places only when needed to understand a lasting relationship, obligation, location, or unresolved hook. Drop ages, brands, shopping routes, meals, clothing, one-off supplies, dialogue, and mechanical scene replay unless future continuity depends on them. Prefer cumulative outcomes over a list of scene beats.';
 
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
@@ -39,6 +49,7 @@ Output exactly two sections:
 
 [NARRATIVE]
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
+${LAYER0_DURABILITY_RULES}
 
 [STATE]
 Rewrite the COMPLETE current snapshot as key: value lines. Omission means the fact is no longer active or important enough for state; omitted values are not inherited.
@@ -59,6 +70,7 @@ Use only these keys and omit empty categories:
 - inventory: <plot-critical carried items, controlled resources, or access only>
 
 Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when the RP is complex and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens. Use fewer tokens when the state is simple. Put the most important facts first within each value.
+${STATE_DEDUPLICATION_RULES}
 Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.
 
 Do not narrate events inside [STATE]. Only facts that remain useful after the recent verbatim window is gone.`;
@@ -82,11 +94,13 @@ Output exactly two sections and nothing else:
 
 [NARRATIVE]
 <one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE}>
+${LAYER0_DURABILITY_RULES}
 
 [STATE]
 Rewrite the complete compact current snapshot using only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.
 Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
 Keep the state near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens.
+${STATE_DEDUPLICATION_RULES}
 Always include current_date_time using YYYY-MM-DD HH ddd, carrying forward the prior value if no explicit time appears.
 Do not include prose, bullets, tables, duplicate section headers, markdown, or commentary inside [STATE].`;
 
@@ -129,6 +143,7 @@ Omit ephemeral trivia: physiological or sex counters, consumed food/drink, soile
 2. **Unresolved Hooks:** Where the characters are currently positioned, what they intend to do next, or pending immediate agreements.
 3. **Deduplication:** Omit transitional actions, low-impact micro-movements, scene replay, and momentary dialogue loops.
 4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
+${PROMOTION_MODERATE_MACRO_RULES}
 
 ### FORMAT:
 Output exactly one section:

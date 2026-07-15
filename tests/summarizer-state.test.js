@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     compileGlobalState,
+    compactStateSnapshotText,
     hasStateSection,
     mergeStates,
     parseSnippet,
@@ -352,6 +353,21 @@ describe('summarizer-state', () => {
 
         expect(serialized.length).toBeLessThanOrEqual(1200);
         expect(serialized).toMatch(/(important|unresolved|thread)$/);
+    });
+
+    it('compacts a generated state body into the bounded snapshot format', () => {
+        const compacted = compactStateSnapshotText(
+            [
+                'current_date_time: 2026-07-15 17 Wed',
+                `hooks: ${'important unresolved thread '.repeat(100)}`,
+                'inventory: temporary meal; plot-critical key',
+            ].join('\n'),
+        );
+
+        expect(compacted).toMatch(/^\[STATE\]\n/);
+        expect(compacted.length).toBeLessThanOrEqual(1200);
+        expect(compacted).toContain('current_date_time: 2026-07-15 17 Wed');
+        expect(compacted).toMatch(/(important|unresolved|thread)$/);
     });
 
     it('lets recent nullifiers delete older tracked state', () => {

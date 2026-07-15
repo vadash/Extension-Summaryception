@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     buildLayer0SizeRepairFeedback,
     getLayer0SummaryTokenBounds,
+    getLayer0SummaryRepairCeiling,
     getLayer0SummaryTokenTarget,
     isLayer0SizeGuardCall,
     isLayer0CompressionCall,
@@ -29,6 +30,12 @@ describe('getLayer0SummaryTokenBounds', () => {
             min: 66,
             max: 300,
         });
+    });
+});
+
+describe('getLayer0SummaryRepairCeiling', () => {
+    it('allows only a narrow narrative grace above the model-facing maximum', () => {
+        expect(getLayer0SummaryRepairCeiling({ layer0SummaryTokenTarget: 200 })).toBe(330);
     });
 });
 
@@ -117,6 +124,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).not.toContain('timeline_start');
         expect(result).toContain('YYYY-MM-DD HH ddd');
         expect(result).toContain('physiological or sex counters');
+        expect(result).toContain('Collapse repeated actions');
+        expect(result).toContain('Use at most one line per supported key');
         expect(result).toContain('static character background/profile facts');
         expect(result).toContain('short, direct sentences');
         expect(result).toContain('run-on sentences');
@@ -145,6 +154,7 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(result).toContain('unknown spans');
         expect(result).toContain('Fold any critical changes in state');
+        expect(result).toContain('Drop ages, brands, shopping routes, meals, clothing');
         expect(result).toContain('short, direct sentences');
         expect(result).toContain('run-on sentences');
         expect(result).toContain('Prefer periods over commas and semicolons');

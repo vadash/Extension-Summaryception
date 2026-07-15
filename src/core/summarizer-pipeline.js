@@ -118,7 +118,7 @@ export async function processSummarizerResponse(rawResult, settings, metadata = 
 
     return {
         status: 'success',
-        text: chinesePolicyResult.text,
+        text: sizeResult.text || chinesePolicyResult.text,
         error: null,
         repairFeedback: '',
     };

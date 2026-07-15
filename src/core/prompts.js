@@ -1,14 +1,18 @@
+import { debug } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/state.js';
 import {
     STATE_SNAPSHOT_MAX_TOKENS,
+    STATE_SNAPSHOT_REPAIR_CEILING_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
 } from '../foundation/prompt-constants.js';
 import {
     buildLayer0SizeRepairFeedback,
+    getLayer0SummaryRepairCeiling,
     getLayer0SummaryTokenBounds,
     isLayer0SizeGuardCall,
 } from './layer0-compression.js';
 import { buildRepairDiagnostics } from './repair-diagnostics.js';
+import { compactStateSnapshotText } from './summarizer-state.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { countTextTokens } from './token-count.js';
 
@@ -135,7 +139,7 @@ export function validateSummarizerOutputIntegrity(text, metadata = {}) {
  * @param {string} text - Cleaned summarizer output
  * @param {Partial<ExtensionSettings>} settings - Active settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }>}
+ * @returns {Promise<{ valid: true, error: null, repairFeedback: '', text?: string } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }>}
  */
 export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     if (!isLayer0SizeGuardCall(metadata)) {
@@ -144,13 +148,40 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
 
     const sections = extractLayer0Sections(text);
     const bounds = getLayer0SummaryTokenBounds(settings);
-    const [outputTokens, narrativeTokens, stateTokens] = await Promise.all([
+    let [outputTokens, narrativeTokens, stateTokens] = await Promise.all([
         countTextTokens(text),
         countTextTokens(sections.narrative),
         countTextTokens(sections.state),
     ]);
 
+    let normalizedText = String(text || '');
+    let normalizedState = sections.state;
+    let stateCompacted = false;
+    if (
+        stateTokens.count > STATE_SNAPSHOT_MAX_TOKENS &&
+        stateTokens.count <= STATE_SNAPSHOT_REPAIR_CEILING_TOKENS
+    ) {
+        const compactedState = compactStateSnapshotText(sections.state);
+        if (compactedState) {
+            const compactedStateBody = compactedState.replace(/^\s*\[STATE\]\s*/i, '').trim();
+            const compactedTokens = await countTextTokens(compactedStateBody);
+            if (compactedTokens.count <= STATE_SNAPSHOT_MAX_TOKENS) {
+                normalizedState = compactedStateBody;
+                normalizedText = rebuildLayer0Output(sections.narrative, compactedState);
+                stateTokens = compactedTokens;
+                outputTokens = await countTextTokens(normalizedText);
+                stateCompacted = true;
+                debug(
+                    `Accepted Layer 0 state after deterministic compaction: ${sections.state.length} chars -> ${compactedStateBody.length} chars`,
+                );
+            }
+        }
+    }
+
     const sourceTokens = getSourceTokenCount(metadata);
+    const narrativeRepairCeiling = getLayer0SummaryRepairCeiling(settings);
+    const narrativeTooLong = narrativeTokens.count > narrativeRepairCeiling;
+    const stateTooLong = stateTokens.count > STATE_SNAPSHOT_MAX_TOKENS;
     const diagnostics = buildRepairDiagnostics({
         scope: 'Layer 0',
         totalTokens: outputTokens.count,
@@ -160,7 +191,7 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
                 label: '[NARRATIVE]',
                 actualTokens: narrativeTokens.count,
                 targetTokens: bounds.target,
-                hardMaxTokens: bounds.max,
+                hardMaxTokens: narrativeTooLong ? bounds.max : 0,
                 minimumTokens: sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD ? bounds.min : 0,
                 text: sections.narrative,
                 repairInstruction:
@@ -173,8 +204,8 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
                 label: '[STATE]',
                 actualTokens: stateTokens.count,
                 targetTokens: STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
-                hardMaxTokens: STATE_SNAPSHOT_MAX_TOKENS,
-                text: sections.state,
+                hardMaxTokens: stateTooLong ? STATE_SNAPSHOT_MAX_TOKENS : 0,
+                text: normalizedState,
                 repairInstruction:
                     'rewrite the complete snapshot more abstractly and remove transient facts without turning it into a delta',
                 preservationInstruction:
@@ -188,7 +219,21 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
         return rejectLayer0Size(diagnostics);
     }
 
-    return { valid: true, error: null, repairFeedback: '' };
+    if (narrativeTokens.count > bounds.max && narrativeTokens.count <= narrativeRepairCeiling) {
+        debug(
+            `Accepted Layer 0 narrative within repair grace: ${narrativeTokens.count} tokens (prompt maximum ${bounds.max}, repair ceiling ${narrativeRepairCeiling})`,
+        );
+    }
+
+    return stateCompacted
+        ? { valid: true, error: null, repairFeedback: '', text: normalizedText }
+        : { valid: true, error: null, repairFeedback: '' };
+}
+
+function rebuildLayer0Output(narrative, stateBlock) {
+    return ['[NARRATIVE]', String(narrative || '').trim(), '', String(stateBlock || '').trim()]
+        .join('\n')
+        .trim();
 }
 
 function extractLayer0Sections(text) {

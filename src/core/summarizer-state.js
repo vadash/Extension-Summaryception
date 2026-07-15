@@ -155,6 +155,26 @@ export function serializeState(state) {
 }
 
 /**
+ * Normalize a generated state block to the bounded snapshot representation
+ * used for current-state injection.
+ * @param {string} stateText - State body or a complete [STATE] block
+ * @returns {string} A compact [STATE] block, or an empty string when no state parses
+ */
+export function compactStateSnapshotText(stateText) {
+    const source = String(stateText || '').trim();
+    if (!source) {
+        return '';
+    }
+
+    const parsed = parseSnippet(/\[STATE\]/i.test(source) ? source : `[STATE]\n${source}`);
+    if (Object.keys(parsed.state).length === 0) {
+        return '';
+    }
+
+    return serializeState(compactSnapshotState(parsed.state));
+}
+
+/**
  * Compile Layer 0 snippets into one merged current-state object.
  * @param {Array<Array<{ text: string }>>} layers
  * @returns {Record<string, string>}

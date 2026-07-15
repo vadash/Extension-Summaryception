@@ -20,6 +20,7 @@ import {
     validateLayer0OutputSize,
     validateSummarizerOutputIntegrity,
 } from '../src/core/prompts.js';
+import { installSillyTavernStub } from './test-helpers.js';
 
 describe('cleanSummarizerOutput', () => {
     it('removes configured strip patterns (destroys tags, leaving inner text)', () => {
@@ -201,6 +202,87 @@ describe('validateSummarizerOutputIntegrity', () => {
 });
 
 describe('validateLayer0OutputSize', () => {
+    it('accepts a narrative near miss below the repair ceiling without retry feedback', async () => {
+        installSillyTavernStub({
+            getTokenCountAsync: async (text) =>
+                String(text || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length,
+        });
+        const output = [
+            '[NARRATIVE]',
+            'durable '.repeat(310),
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+        ].join('\n');
+
+        await expect(
+            validateLayer0OutputSize(
+                output,
+                { layer0SummaryTokenTarget: 200 },
+                { kind: 'layer0', sourceTokensBefore: 100 },
+            ),
+        ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
+    });
+
+    it('compacts a state near miss locally before accepting it', async () => {
+        installSillyTavernStub({
+            getTokenCountAsync: async (text) =>
+                String(text || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length,
+        });
+        const output = [
+            '[NARRATIVE]',
+            'The party reached the bridge.',
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+            `hooks: ${'pending '.repeat(320)}`,
+        ].join('\n');
+
+        const result = await validateLayer0OutputSize(
+            output,
+            { layer0SummaryTokenTarget: 200 },
+            { kind: 'layer0', sourceTokensBefore: 100 },
+        );
+
+        expect(result.valid).toBe(true);
+        expect(result.text).toContain('[STATE]');
+        expect(result.text.length).toBeLessThan(output.length);
+        expect(result.text).toContain('current_date_time: 2026-07-09 02 Thu');
+    });
+
+    it('still rejects state output beyond the local compaction ceiling', async () => {
+        installSillyTavernStub({
+            getTokenCountAsync: async (text) =>
+                String(text || '')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean).length,
+        });
+        const output = [
+            '[NARRATIVE]',
+            'The party reached the bridge.',
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+            `hooks: ${'pending '.repeat(400)}`,
+        ].join('\n');
+
+        const result = await validateLayer0OutputSize(
+            output,
+            { layer0SummaryTokenTarget: 200 },
+            { kind: 'layer0', sourceTokensBefore: 100 },
+        );
+
+        expect(result.valid).toBe(false);
+        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual(['state']);
+    });
+
     it('rejects narrative-only overflow with draft-aware repair feedback', async () => {
         const output = [
             '[NARRATIVE]',
@@ -267,7 +349,7 @@ describe('validateLayer0OutputSize', () => {
             '',
             '[STATE]',
             'current_date_time: 2026-07-09 02 Thu',
-            `hooks: ${'pending '.repeat(305)}`,
+            `hooks: ${'pending '.repeat(400)}`,
         ].join('\n');
 
         const result = await validateLayer0OutputSize(
@@ -294,7 +376,7 @@ describe('validateLayer0OutputSize', () => {
             '',
             '[STATE]',
             'current_date_time: 2026-07-09 02 Thu',
-            `hooks: ${'pending '.repeat(305)}`,
+            `hooks: ${'pending '.repeat(400)}`,
         ].join('\n');
 
         const result = await validateLayer0OutputSize(
