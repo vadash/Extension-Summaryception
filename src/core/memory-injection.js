@@ -1,5 +1,9 @@
 import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
-import { formatSnippetAnchor, stripLeadingSnippetAnchor } from './snippet-metadata.js';
+import {
+    formatCompactSnippetAnchor,
+    formatSnippetAnchor,
+    stripLeadingSnippetAnchor,
+} from './snippet-metadata.js';
 
 /**
  * @typedef {object} MemoryInjectionParts
@@ -21,15 +25,16 @@ export function buildMemoryInjection(layers) {
 /**
  * Build memory injection sections while preserving per-layer chronology parts.
  * @param {Array<Array<{ text: string }>>} layers
+ * @param {{ compactAnchors?: boolean }} [options]
  * @returns {MemoryInjectionParts}
  */
-export function buildMemoryInjectionParts(layers) {
+export function buildMemoryInjectionParts(layers, { compactAnchors = false } = {}) {
     if (!Array.isArray(layers)) {
         return emptyParts();
     }
 
     const stateText = buildCurrentStateText(layers);
-    const chronologyParts = collectChronologyParts(layers);
+    const chronologyParts = collectChronologyParts(layers, compactAnchors);
     const chronologyText = chronologyParts.map((part) => part.text).join('\n');
     const memoryText = combineMemoryText(stateText, chronologyText);
 
@@ -45,7 +50,7 @@ function buildCurrentStateText(layers) {
     return serializeState(state).replace(/^\[STATE\]/, '[CURRENT STATE]');
 }
 
-function collectChronologyParts(layers) {
+function collectChronologyParts(layers, compactAnchors) {
     const parts = [];
     for (let i = layers.length - 1; i >= 0; i--) {
         const layer = layers[i];
@@ -53,7 +58,7 @@ function collectChronologyParts(layers) {
             continue;
         }
         const text = layer
-            .map((snippet) => buildChronologySnippetText(snippet, i))
+            .map((snippet) => buildChronologySnippetText(snippet, i, compactAnchors))
             .filter(Boolean)
             .join('\n');
         if (text) {
@@ -63,9 +68,11 @@ function collectChronologyParts(layers) {
     return parts;
 }
 
-function buildChronologySnippetText(snippet, layerIndex) {
+function buildChronologySnippetText(snippet, layerIndex, compactAnchors) {
     const parsed = parseSnippet(snippet?.text || '');
-    const anchor = formatSnippetAnchor(snippet);
+    const anchor = compactAnchors
+        ? formatCompactSnippetAnchor(snippet)
+        : formatSnippetAnchor(snippet);
     const narrative = anchor
         ? stripLeadingSnippetAnchor(parsed.narrative)
         : parsed.narrative.trim();

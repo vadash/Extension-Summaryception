@@ -277,6 +277,31 @@ describe('buildFullContext', () => {
         expect(mod.buildFullContext(1)).toBe('[CHRONOLOGY]\nmeta 1');
         vi.doUnmock('../src/foundation/state.js');
     });
+
+    it('keeps verbose chronology anchors in summarizer context', async () => {
+        vi.resetModules();
+        vi.doMock('../src/foundation/state.js', () => ({
+            getSettings: () => ({ applyRegexScripts: false }),
+            getEffectiveSettings: () => ({ applyRegexScripts: false }),
+            getChatStore: () => ({
+                layers: [
+                    [
+                        {
+                            text: 'anchored context',
+                            sourceRange: [10, 12],
+                            currentDateTime: '2024-12-03 07 Wed',
+                        },
+                    ],
+                ],
+            }),
+        }));
+        const mod = await import('../src/core/chatutils.js');
+
+        expect(mod.buildFullContext()).toBe(
+            '[CHRONOLOGY]\n[msgs 10-12; current 2024-12-03 07 Wed] anchored context',
+        );
+        vi.doUnmock('../src/foundation/state.js');
+    });
 });
 
 describe('buildMemoryInjection', () => {

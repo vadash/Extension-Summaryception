@@ -1,6 +1,7 @@
 import { parseSnippet } from './summarizer-state.js';
 
 const UNKNOWN_TIME = 'unknown';
+const COMPACT_CURRENT_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{2})(?:\s+[a-z]{3})?$/i;
 const LEADING_NARRATIVE_HEADER_RE = /^\s*\[NARRATIVE\]\s*/i;
 const LEADING_SNIPPET_ANCHORS_RE =
     /^\s*(?:(?:[-*]\s*)?\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*)+/i;
@@ -86,6 +87,23 @@ export function formatSnippetAnchor(snippet = {}) {
 }
 
 /**
+ * Format a compact source/time anchor for runtime memory injection.
+ * @param {object} snippet
+ * @returns {string}
+ */
+export function formatCompactSnippetAnchor(snippet = {}) {
+    const meta = extractSnippetMetadata(snippet);
+    const range = meta.sourceRange;
+    if (!range) {
+        return '';
+    }
+
+    const rangeText = `${range[0]}-${range[1]}`;
+    const current = formatCompactCurrentDateTime(meta.currentDateTime);
+    return current ? `[${rangeText}@${current}]` : `[${rangeText}]`;
+}
+
+/**
  * Strip a stored/generated leading chronology anchor from snippet prose.
  * @param {string} text
  * @returns {string}
@@ -120,6 +138,15 @@ function knownStateValue(value) {
         return undefined;
     }
     return text;
+}
+
+function formatCompactCurrentDateTime(value) {
+    const current = knownStateValue(value);
+    if (!current) {
+        return '';
+    }
+    const match = COMPACT_CURRENT_DATE_TIME_RE.exec(current);
+    return match ? `${match[1]}T${match[2]}` : current;
 }
 
 function lastKnown(values) {

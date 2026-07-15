@@ -28,7 +28,7 @@ import { countTextTokens } from './token-count.js';
  * @returns {string}
  */
 export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings()) {
-    const memory = buildMemoryInjectionParts(layers).memoryText;
+    const memory = buildMemoryInjectionParts(layers, { compactAnchors: true }).memoryText;
     if (!memory) {
         return '';
     }
@@ -42,7 +42,7 @@ export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings
  * @returns {Promise<EffectiveMemoryUsage>}
  */
 export async function getEffectiveMemoryUsage(layers, settings = getEffectiveSettings()) {
-    const injectionParts = buildMemoryInjectionParts(layers);
+    const injectionParts = buildMemoryInjectionParts(layers, { compactAnchors: true });
     const text = injectionParts.memoryText
         ? String(settings.injectionTemplate || '{{summary}}').replace(
               '{{summary}}',

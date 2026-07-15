@@ -28,6 +28,7 @@
 ## Injection and ghosting
 
 - `memory-injection.js` compiles one current-state block plus chronology. `memory-budget.js` applies injected-memory budget.
+- Effective injected memory uses compact `[start-end@YYYY-MM-DDTHH]` chronology anchors; summarizer and promotion context retain verbose anchors, and budget accounting follows the compact rendered form.
 - Direct placement uses `setExtensionPrompt()`. Macro Only exposes `{{summaryception_memory}}` and clears direct injection.
 - Ghosting uses SillyTavern `/hide`; originals stay visible in chat UI. Ownership is tracked by `extra.sc_ghosted` and `store.ghostedIndices`.
 - Clearing uses `/unhide` only for Summaryception-owned ranges. Reconciliation repairs missing ownership/visual hides and trims invalid indices.

@@ -11,13 +11,9 @@ export const STATE_SNAPSHOT_MAX_CHARS = 1200;
 
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
-    '[COMPRESSED CONTINUITY MEMORY — use unless superseded by newer verbatim chat or the current user message.]\n\n' +
-    '[HIERARCHY OF TRUTH]\n' +
-    '1. Newer verbatim chat and the current user message are the source of truth for the present scene. They may update or override compressed memory.\n' +
-    '2. [CURRENT STATE] is a compact continuity snapshot. Use it for active facts not superseded by newer verbatim chat.\n' +
-    '3. [CHRONOLOGY] contains older narrative history. Use it strictly for background context and past events. Entries are ordered older to newer; an anchor like [msgs X-Y; current T] means the entry summarizes chat messages X through Y, and T is the scene time at the end of message Y.\n\n' +
-    '{{summary}}\n\n' +
-    '[End of compressed memory. Resume roleplay based on these facts.]\n' +
+    'Compressed continuity. Newer verbatim chat and the current user message take priority.\n' +
+    '[CURRENT STATE] = active facts. [CHRONOLOGY] = past events, oldest to newest. [X-Y@YYYY-MM-DDTHH] = source messages X-Y; scene time at Y.\n' +
+    '{{summary}}\n' +
     '</summaryception_memory>';
 
 export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT =

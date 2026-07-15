@@ -121,7 +121,7 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
 
         expect(assembleSummaryBlock()).toContain(
-            '[msgs 100-120; current 2024-12-03 10 Wed] anchored recent\nunanchored recent',
+            '[100-120@2024-12-03T10] anchored recent\nunanchored recent',
         );
         expect(assembleSummaryBlock()).not.toContain('[msgs unknown');
         expect(assembleSummaryBlock()).not.toContain('2024-12-03 06 Wed ->');
@@ -153,7 +153,7 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
         const assembled = assembleSummaryBlock();
 
-        expect(assembled).toContain('[msgs 0-139; current 2024-07-05 12 Fri] anchored event');
+        expect(assembled).toContain('[0-139@2024-07-05T12] anchored event');
         expect(assembled).not.toContain('-> unknown] [msgs');
         expect(assembled).not.toContain('-> unknown] anchored event');
     });
@@ -181,7 +181,7 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
         const assembled = assembleSummaryBlock();
 
-        expect(assembled).toContain('[msgs 283-298; current 2024-07-10 19 Wed] latest event');
+        expect(assembled).toContain('[283-298@2024-07-10T19] latest event');
         expect(assembled).not.toContain('2024-07-04 14 Thu -> unknown');
     });
 
@@ -212,8 +212,25 @@ describe('assembleSummaryBlock', () => {
         const { assembleSummaryBlock } = await import('../src/features/injection.js');
         const assembled = assembleSummaryBlock();
 
-        expect(assembled).toContain('[msgs 0-139; current 2024-07-05 12 Fri] anchored event');
+        expect(assembled).toContain('[0-139@2024-07-05T12] anchored event');
         expect(assembled).not.toContain('] [msgs');
+    });
+
+    it('omits unknown time from compact runtime anchors', async () => {
+        installSillyTavernStub({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ text: 'range only', sourceRange: [7, 9] }]],
+                }),
+            },
+            settings: advancedSettings({
+                injectionTemplate: '{{summary}}',
+            }),
+        });
+
+        const { assembleSummaryBlock } = await import('../src/features/injection.js');
+
+        expect(assembleSummaryBlock()).toBe('[CHRONOLOGY]\n[7-9] range only');
     });
 
     it('counts effective memory as the assembled injection with merged state', async () => {
