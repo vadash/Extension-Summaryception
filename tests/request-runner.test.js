@@ -244,7 +244,7 @@ describe('validation repair feedback', () => {
                 text: 'oversized draft',
                 error: Object.assign(new Error('too long'), { retryable: true }),
                 repairFeedback:
-                    '<summaryception_l0_repair_feedback>Accepted range: 66-600 tokens</summaryception_l0_repair_feedback>',
+                    '<summaryception_l0_repair_feedback>[NARRATIVE] hard maximum 300</summaryception_l0_repair_feedback>',
             })
             .mockReturnValueOnce({
                 status: 'success',

@@ -109,6 +109,9 @@ describe('promotion prompt guard', () => {
         await expect(maybePromoteLayer(0)).resolves.toBe(false);
 
         expect(mocks.callSummarizer).not.toHaveBeenCalled();
+        expect(globalThis.summaryceptionFoundationMocks.logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining('blocked'),
+        );
         expect(getChatStore().layers[0]).toHaveLength(1);
         expect(getChatStore().layers[1]).toBeUndefined();
     });
@@ -381,6 +384,14 @@ describe('promotion prompt guard', () => {
                 sourceState: expect.stringContaining('[STATE]'),
             }),
         );
+        const narrativeSource = [
+            '[msgs 10-12; current 2024-12-03 07 Wed] First event.',
+            '[msgs 13-14; current 2024-12-03 08 Wed] Second event.',
+            '[msgs 15-16; current 2024-12-03 09 Wed] Third event.',
+        ].join('\n\n');
+        expect(mocks.callSummarizer.mock.calls[0][2].memoryTokensBefore).toBe(
+            countWhitespaceTokens(narrativeSource),
+        );
         expect(getChatStore().layers[1][0].text).toBe('Merged narrative.');
         expect(getChatStore().layers[1][0]).toMatchObject({
             sourceRange: [10, 16],
@@ -561,13 +572,13 @@ describe('promotion prompt guard', () => {
                     layers: [
                         [
                             {
-                                text: '[NARRATIVE]\nFirst event.\n\n[STATE]\nlocation: tower\nhooks: open gate',
+                                text: `[NARRATIVE]\n${'First event. '.repeat(10)}\n\n[STATE]\nlocation: tower\nhooks: open gate`,
                             },
                             {
-                                text: '[NARRATIVE]\nSecond event.\n\n[STATE]\ninventory: key',
+                                text: `[NARRATIVE]\n${'Second event. '.repeat(10)}\n\n[STATE]\ninventory: key`,
                             },
                             {
-                                text: '[NARRATIVE]\nThird event.\n\n[STATE]\ndynamics: wary',
+                                text: `[NARRATIVE]\n${'Third event. '.repeat(10)}\n\n[STATE]\ndynamics: wary`,
                             },
                             { text: '[NARRATIVE]\nExtra 1.\n\n[STATE]' },
                             { text: '[NARRATIVE]\nExtra 2.\n\n[STATE]' },
@@ -644,9 +655,20 @@ describe('promotion prompt guard', () => {
             kind: 'promotion',
             promotionRepair: expect.objectContaining({
                 outputTokens: expect.any(Number),
-                requiredMaxTokens: expect.any(Number),
+                targetTokens: 1200,
+                hardMaxTokens: 1800,
+                requiredMaxTokens: 1800,
                 rejectedSummary: expect.stringContaining('x '),
             }),
+        });
+        expect(mocks.callSummarizer.mock.calls[1][2].promotionRepair.diagnostics).toMatchObject({
+            violations: [
+                expect.objectContaining({
+                    targetTokens: 1200,
+                    hardMaxTokens: 1800,
+                    text: expect.stringContaining('x '),
+                }),
+            ],
         });
         expect(getChatStore().layers[0]).toHaveLength(8);
         expect(getChatStore().layers[1][0]).toMatchObject({

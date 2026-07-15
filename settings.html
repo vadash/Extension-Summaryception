@@ -786,8 +786,8 @@
                                 </div>
                                 <div class="sc-row">
                                     <label for="sc_layer0_summary_token_target">
-                                        <span>Summary Target Size</span>
-                                        <small class="sc-hint">Target length of each new summary. Shorter = more compression, longer = more detail preserved.</small>
+                                        <span>Narrative Target Size</span>
+                                        <small class="sc-hint">Target length of each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> uses its own fixed 200-token target and 300-token maximum.</small>
                                     </label>
                                     <div class="sc-slider-row">
                                         <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />

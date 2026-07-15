@@ -5,13 +5,17 @@ import {
     STATE_SNAPSHOT_MAX_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
 } from '../foundation/prompt-constants.js';
+import {
+    buildRepairDiagnostics,
+    formatRepairDiagnostics,
+} from './repair-diagnostics.js';
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
 const LAYER0_MIN_OUTPUT_RATIO = 1 / 3;
-const LAYER0_MAX_OUTPUT_RATIO = 3;
-const MIN_PROMOTION_TARGET_TOKENS = 120;
+const LAYER0_MAX_OUTPUT_RATIO = 1.5;
 const PROMOTION_TARGET_RATIO = 0.4;
+const PROMOTION_HARD_MAX_RATIO = 0.6;
 const ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE = ENGLISH_FIRST_LANGUAGE_RULE + '\n';
 
 /**
@@ -65,37 +69,63 @@ export function isLayer0SizeGuardCall(metadata = {}) {
 /**
  * Build attempt-local repair feedback for a rejected Layer 0 output.
  * @param {object} p
- * @param {'too-short' | 'too-long'} p.reason
- * @param {number} p.outputTokens
- * @param {{ target: number, min: number, max: number }} p.bounds
+ * @param {object} [p.diagnostics]
+ * @param {'too-short' | 'too-long'} [p.reason]
+ * @param {number} [p.outputTokens]
+ * @param {{ target: number, min: number, max: number }} [p.bounds]
  * @returns {string}
  */
-export function buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }) {
-    const action =
-        reason === 'too-long'
-            ? 'Rewrite it more compactly. Remove scene replay, repeated dialogue, micro-actions, and transient detail. Keep only durable continuity.'
-            : 'Rewrite it with enough essential continuity from the source. Do not pad or invent facts.';
+export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputTokens, bounds }) {
+    const resolvedDiagnostics =
+        diagnostics ||
+        buildRepairDiagnostics({
+            scope: 'Layer 0',
+            totalTokens: outputTokens,
+            sections: [
+                {
+                    id: 'narrative',
+                    label: '[NARRATIVE]',
+                    actualTokens: outputTokens,
+                    targetTokens: bounds?.target,
+                    hardMaxTokens: bounds?.max,
+                    minimumTokens: reason === 'too-short' ? bounds?.min : 0,
+                },
+            ],
+        });
     return (
-        '<summaryception_l0_repair_feedback>\n' +
-        'The previous Layer 0 draft failed the output-size guard.\n' +
-        `Failure: ${reason}.\n` +
-        `Previous draft length: ${outputTokens} tokens.\n` +
-        `Configured target: ${bounds.target} tokens.\n` +
-        `Accepted range: ${bounds.min}-${bounds.max} tokens.\n` +
-        action +
-        '\nPreserve exactly one [NARRATIVE] section and one [STATE] section.\n' +
-        '</summaryception_l0_repair_feedback>'
+        formatRepairDiagnostics(resolvedDiagnostics, {
+            wrapperTag: 'summaryception_l0_repair_feedback',
+            rejectedSectionTagPrefix: 'rejected_',
+        }).replace(
+            '</summaryception_l0_repair_feedback>',
+            'Aim for each section soft target, not merely its hard maximum. Rewrite only the rejected section or sections. Reproduce every preserved section exactly.\n' +
+                'Output exactly one [NARRATIVE] section followed by exactly one [STATE] section.\n' +
+                '</summaryception_l0_repair_feedback>',
+        )
     );
 }
 
-export function buildStateSnapshotSizeRepairFeedback({ stateTokens }) {
-    return (
-        '<summaryception_state_repair_feedback>\n' +
-        `The previous [STATE] snapshot was ${stateTokens} tokens; it must be ${STATE_SNAPSHOT_MAX_TOKENS} tokens or fewer.\n` +
-        'Rewrite the complete snapshot more abstractly. Remove transient scene detail, completed tasks, resolved hooks, ordinary items, clothing, and pose.\n' +
-        'Keep only the fixed state keys and preserve the most consequential active continuity.\n' +
-        '</summaryception_state_repair_feedback>'
-    );
+export function buildStateSnapshotSizeRepairFeedback({ stateTokens, stateText = '' }) {
+    const diagnostics = buildRepairDiagnostics({
+        scope: 'Layer 0',
+        totalTokens: stateTokens,
+        sections: [
+            {
+                id: 'state',
+                label: '[STATE]',
+                actualTokens: stateTokens,
+                targetTokens: STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+                hardMaxTokens: STATE_SNAPSHOT_MAX_TOKENS,
+                text: stateText,
+                repairInstruction:
+                    'rewrite the complete snapshot more abstractly and remove transient facts',
+                preservationInstruction:
+                    'keep only the fixed state keys and the most consequential active continuity',
+            },
+        ],
+        rejectedDraft: stateText,
+    });
+    return buildLayer0SizeRepairFeedback({ diagnostics });
 }
 
 /**
@@ -114,12 +144,12 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         return appendPromotionPromptConstraints(prompt, metadata);
     }
 
-    const target = getLayer0SummaryTokenTarget(settings);
+    const bounds = getLayer0SummaryTokenBounds(settings);
     const sourceRangeLine = buildLayer0SourceRangeLine(metadata);
     return (
         `${String(prompt || '').trimEnd()}\n\n` +
         '<summaryception_l0_constraints>\n' +
-        `Target length: at most about ${target} tokens.\n` +
+        `[NARRATIVE] target: about ${bounds.target} tokens; never exceed ${bounds.max} tokens.\n` +
         sourceRangeLine +
         ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
@@ -159,12 +189,25 @@ function buildLayer0SourceRangeLine(metadata = {}) {
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
  * @returns {number|null}
  */
-function getPromotionSummaryTokenTarget(metadata = {}) {
+export function getPromotionSummaryTokenTarget(metadata = {}) {
     const sourceTokens = Number(metadata.memoryTokensBefore);
     if (!Number.isFinite(sourceTokens) || sourceTokens <= 0) {
         return null;
     }
-    return Math.max(MIN_PROMOTION_TARGET_TOKENS, Math.round(sourceTokens * PROMOTION_TARGET_RATIO));
+    return Math.max(1, Math.round(sourceTokens * PROMOTION_TARGET_RATIO));
+}
+
+/**
+ * Compute the hard maximum size for a Layer 1+ promotion.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @returns {number|null}
+ */
+export function getPromotionSummaryTokenHardMax(metadata = {}) {
+    const sourceTokens = Number(metadata.memoryTokensBefore);
+    if (!Number.isFinite(sourceTokens) || sourceTokens <= 0) {
+        return null;
+    }
+    return Math.max(1, Math.floor(sourceTokens * PROMOTION_HARD_MAX_RATIO));
 }
 
 /**
@@ -175,10 +218,11 @@ function getPromotionSummaryTokenTarget(metadata = {}) {
  */
 function appendPromotionPromptConstraints(prompt, metadata = {}) {
     const target = getPromotionSummaryTokenTarget(metadata);
+    const hardMax = getPromotionSummaryTokenHardMax(metadata);
     const targetLine =
         target === null
             ? 'Target length: make the output significantly shorter than the combined input memories.\n'
-            : `Target length: at most about ${target} tokens, roughly 40% of the combined input memories.\n`;
+            : `Soft target: about ${target} tokens, 40% of the source narratives. Hard maximum: ${hardMax} tokens, 60% of the source narratives.\n`;
     const repairLine = buildPromotionRepairLine(metadata);
 
     return (
@@ -187,7 +231,7 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         targetLine +
         repairLine +
         ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE +
-        'Read the [NARRATIVE] and [STATE] segments of the provided memory snippets.\n' +
+        'Read the provided source narratives and the separate source-state context.\n' +
         'Output exactly one [NARRATIVE] section. Do not output a [STATE] block.\n' +
         '[NARRATIVE] must be exactly one dense paragraph with no heading, list, preamble, markdown, or blank line inside it.\n' +
         '[NARRATIVE] must contain no more than 4 to 5 sentences total.\n' +
@@ -214,20 +258,39 @@ function buildPromotionRepairLine(metadata = {}) {
 
     const repair = metadata.promotionRepair;
     const outputTokens = Number(repair.outputTokens);
-    const requiredMaxTokens = Number(repair.requiredMaxTokens);
-    const tokenLine =
-        Number.isFinite(outputTokens) && Number.isFinite(requiredMaxTokens)
-            ? `The rejected draft was ${outputTokens} tokens; the repaired output must be ${requiredMaxTokens} tokens or fewer.\n`
-            : '';
+    const targetTokens = Number(repair.targetTokens);
+    const hardMaxTokens = Number(repair.hardMaxTokens ?? repair.requiredMaxTokens);
     const rejected = String(repair.rejectedSummary || '').trim();
-    const rejectedBlock = rejected
-        ? `<rejected_promotion_draft>\n${rejected}\n</rejected_promotion_draft>\n`
-        : '';
+    const diagnostics =
+        repair.diagnostics ||
+        buildRepairDiagnostics({
+            scope: 'Layer 1+ promotion',
+            totalTokens: outputTokens,
+            sections: [
+                {
+                    id: 'draft',
+                    label: '[NARRATIVE]',
+                    actualTokens: outputTokens,
+                    targetTokens,
+                    hardMaxTokens,
+                    text: rejected,
+                    repairInstruction:
+                        'rewrite as macro-level prose only; remove dialogue, scene replay, micro-actions, and transient detail',
+                    preservationInstruction:
+                        'retain only macro-level durable chronology and continuity',
+                },
+            ],
+            rejectedDraft: rejected,
+        });
+    const feedback = formatRepairDiagnostics(diagnostics, {
+        wrapperTag: 'summaryception_promotion_repair_feedback',
+        rejectedSectionTagPrefix: 'rejected_promotion_',
+    });
 
     return (
-        'Repair task: the previous promotion draft failed the minimum compression guard.\n' +
-        tokenLine +
-        'Rewrite it more abstractly instead of appending detail; keep only the durable macro outcome.\n' +
-        rejectedBlock
+        'Repair task: rewrite the rejected narrative toward the soft target, not merely below the hard maximum.\n' +
+        'Keep only macro-level durable chronology, current position, relationship/state changes, permanent rules, and unresolved hooks.\n' +
+        feedback +
+        '\n'
     );
 }

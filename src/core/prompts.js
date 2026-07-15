@@ -1,11 +1,14 @@
 import { getEffectiveSettings } from '../foundation/state.js';
-import { STATE_SNAPSHOT_MAX_TOKENS } from '../foundation/prompt-constants.js';
 import {
-    buildStateSnapshotSizeRepairFeedback,
+    STATE_SNAPSHOT_MAX_TOKENS,
+    STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+} from '../foundation/prompt-constants.js';
+import {
     buildLayer0SizeRepairFeedback,
     getLayer0SummaryTokenBounds,
     isLayer0SizeGuardCall,
 } from './layer0-compression.js';
+import { buildRepairDiagnostics } from './repair-diagnostics.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { countTextTokens } from './token-count.js';
 
@@ -132,45 +135,74 @@ export function validateSummarizerOutputIntegrity(text, metadata = {}) {
  * @param {string} text - Cleaned summarizer output
  * @param {Partial<ExtensionSettings>} settings - Active settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string }>}
+ * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }>}
  */
 export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     if (!isLayer0SizeGuardCall(metadata)) {
         return { valid: true, error: null, repairFeedback: '' };
     }
 
-    const outputTokens = await countTextTokens(text);
+    const sections = extractLayer0Sections(text);
     const bounds = getLayer0SummaryTokenBounds(settings);
-    if (outputTokens.count > bounds.max) {
-        return rejectLayer0Size({
-            reason: 'too-long',
-            outputTokens: outputTokens.count,
-            bounds,
-        });
-    }
-
-    const stateText = extractStateSection(text);
-    const stateTokens = await countTextTokens(stateText);
-    if (stateTokens.count > STATE_SNAPSHOT_MAX_TOKENS) {
-        return rejectStateSnapshotSize(stateTokens.count);
-    }
+    const [outputTokens, narrativeTokens, stateTokens] = await Promise.all([
+        countTextTokens(text),
+        countTextTokens(sections.narrative),
+        countTextTokens(sections.state),
+    ]);
 
     const sourceTokens = getSourceTokenCount(metadata);
-    if (sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD && outputTokens.count < bounds.min) {
-        return rejectLayer0Size({
-            reason: 'too-short',
-            outputTokens: outputTokens.count,
-            bounds,
-        });
+    const diagnostics = buildRepairDiagnostics({
+        scope: 'Layer 0',
+        totalTokens: outputTokens.count,
+        sections: [
+            {
+                id: 'narrative',
+                label: '[NARRATIVE]',
+                actualTokens: narrativeTokens.count,
+                targetTokens: bounds.target,
+                hardMaxTokens: bounds.max,
+                minimumTokens:
+                    sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD ? bounds.min : 0,
+                text: sections.narrative,
+                repairInstruction:
+                    'remove scene replay, repeated dialogue, micro-actions, and transient detail while preserving durable chronology',
+                preservationInstruction:
+                    'keep the accepted event chronology and wording exactly as written',
+            },
+            {
+                id: 'state',
+                label: '[STATE]',
+                actualTokens: stateTokens.count,
+                targetTokens: STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+                hardMaxTokens: STATE_SNAPSHOT_MAX_TOKENS,
+                text: sections.state,
+                repairInstruction:
+                    'rewrite the complete snapshot more abstractly and remove transient facts without turning it into a delta',
+                preservationInstruction:
+                    'keep the accepted rolling snapshot and key-value wording exactly as written',
+            },
+        ],
+        rejectedDraft: text,
+    });
+
+    if (diagnostics.violations.length > 0) {
+        return rejectLayer0Size(diagnostics);
     }
 
     return { valid: true, error: null, repairFeedback: '' };
 }
 
-function extractStateSection(text) {
+function extractLayer0Sections(text) {
     const lines = String(text || '').split(/\r?\n/);
+    const narrativeIndex = lines.findIndex((line) => NARRATIVE_HEADER_RE.test(line));
     const stateIndex = lines.findIndex((line) => STATE_HEADER_RE.test(line));
-    return stateIndex === -1 ? '' : lines.slice(stateIndex).join('\n').trim();
+    return {
+        narrative:
+            narrativeIndex === -1 || stateIndex === -1
+                ? ''
+                : lines.slice(narrativeIndex + 1, stateIndex).join('\n').trim(),
+        state: stateIndex === -1 ? '' : lines.slice(stateIndex + 1).join('\n').trim(),
+    };
 }
 
 /**
@@ -295,38 +327,28 @@ function rejectIntegrity(reason) {
 }
 
 /**
- * @param {object} p
- * @param {'too-short' | 'too-long'} p.reason
- * @param {number} p.outputTokens
- * @param {{ target: number, min: number, max: number }} p.bounds
  * @returns {{ valid: false, error: Error & { retryable?: boolean }, repairFeedback: string }}
  */
-function rejectLayer0Size({ reason, outputTokens, bounds }) {
+function rejectLayer0Size(diagnostics) {
+    const details = diagnostics.violations
+        .map((violation) => {
+            if (violation.reason === 'below-minimum') {
+                return `${violation.label} ${violation.actualTokens} tokens below minimum ${violation.minimumTokens}`;
+            }
+            return (
+                `${violation.label} ${violation.actualTokens} tokens above hard maximum ` +
+                `${violation.hardMaxTokens} (target ${violation.targetTokens})`
+            );
+        })
+        .join('; ');
     const error = /** @type {Error & { retryable?: boolean }} */ (
-        new Error(
-            `Summarizer response failed L0 size validation: ${reason} ` +
-                `(${outputTokens} tokens, accepted ${bounds.min}-${bounds.max}, target ${bounds.target})`,
-        )
+        new Error(`Summarizer response failed L0 section size validation: ${details}`)
     );
     error.retryable = true;
     return {
         valid: false,
         error,
-        repairFeedback: buildLayer0SizeRepairFeedback({ reason, outputTokens, bounds }),
-    };
-}
-
-function rejectStateSnapshotSize(stateTokens) {
-    const error = /** @type {Error & { retryable?: boolean }} */ (
-        new Error(
-            `Summarizer response failed state snapshot size validation ` +
-                `(${stateTokens} tokens, maximum ${STATE_SNAPSHOT_MAX_TOKENS})`,
-        )
-    );
-    error.retryable = true;
-    return {
-        valid: /** @type {false} */ (false),
-        error,
-        repairFeedback: buildStateSnapshotSizeRepairFeedback({ stateTokens }),
+        repairFeedback: buildLayer0SizeRepairFeedback({ diagnostics }),
+        diagnostics,
     };
 }

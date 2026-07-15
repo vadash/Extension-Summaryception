@@ -155,15 +155,16 @@ const HELP_ENTRIES = [
         'layer0_summary_token_target',
         sliderHelp({
             selector: selectorFor('sc_layer0_summary_token_target'),
-            title: 'Layer 0 Target Tokens',
-            short: 'Target size for each raw-chat summary.',
+            title: 'Narrative Target Size',
+            short: 'Target size for each Layer 0 narrative section.',
             controls: [
                 controlFor('sc_layer0_summary_token_target'),
                 controlFor('sc_layer0_summary_token_target_val'),
             ],
-            meaning: 'Target size for one Layer 0 summary before it is injected as memory.',
-            higher: 'keeps more detail in each Layer 0 snippet.',
-            lower: 'compresses each snippet harder and leaves more memory budget.',
+            meaning:
+                'Target size for the [NARRATIVE] section of one Layer 0 summary. [STATE] keeps a separate fixed 200-token soft target and 300-token hard maximum.',
+            higher: 'keeps more chronological detail in each Layer 0 narrative.',
+            lower: 'compresses each narrative harder and leaves more memory budget.',
             defaultText: '200.',
         }),
     ],

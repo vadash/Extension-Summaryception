@@ -156,8 +156,9 @@ describe('callSummarizer abort signal plumbing', () => {
         );
         const prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
         expect(prompt).toContain('<summaryception_promotion_constraints>');
-        expect(prompt).toContain('Target length: at most about 120 tokens');
-        expect(prompt).toContain('roughly 40% of the combined input memories');
+        expect(prompt).toContain('Soft target: about 2 tokens');
+        expect(prompt).toContain('Hard maximum: 2 tokens');
+        expect(prompt).toContain('40% of the source narratives');
         expect(prompt).toContain('Deduplicate related events');
     });
 
@@ -181,7 +182,8 @@ describe('callSummarizer abort signal plumbing', () => {
                 kind: 'promotion',
                 promotionRepair: {
                     outputTokens: 500,
-                    requiredMaxTokens: 300,
+                    targetTokens: 200,
+                    hardMaxTokens: 300,
                     rejectedSummary: 'Rejected verbose summary.',
                 },
             }),
@@ -244,7 +246,9 @@ describe('callSummarizer abort signal plumbing', () => {
         });
 
         const layer0Prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
-        expect(layer0Prompt).toContain('Target length: at most about 120 tokens');
+        expect(layer0Prompt).toContain(
+            '[NARRATIVE] target: about 120 tokens; never exceed 180 tokens',
+        );
         expect(layer0Prompt).toContain('This passage covers chat messages 0-1');
         expect(layer0Prompt).toContain('Message 1 is the latest summarized message');
         expect(layer0Prompt).toContain('current_date_time');
@@ -256,7 +260,8 @@ describe('callSummarizer abort signal plumbing', () => {
         const promotionPrompt = mocks.sendSummarizerRequest.mock.calls[1][2];
         expect(promotionPrompt).toContain('PROMO deep context MEMORY merged snippets');
         expect(promotionPrompt).toContain('<summaryception_promotion_constraints>');
-        expect(promotionPrompt).toContain('Target length: at most about 120 tokens');
+        expect(promotionPrompt).toContain('Soft target: about 2 tokens');
+        expect(promotionPrompt).toContain('Hard maximum: 2 tokens');
         expect(promotionPrompt).toContain('[msgs 100-120; current 2024-12-03 09 Wed]');
         expect(promotionPrompt).toContain('Do not invent broad dates for unknown spans');
         expect(promotionPrompt).toContain('Do not repeat or re-summarize events');

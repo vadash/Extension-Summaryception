@@ -155,7 +155,9 @@ describe('summarizer usage logging', () => {
                 },
             ],
         });
-        expect(inputLog.messages[1].content).toContain('Target length: at most about 200 tokens');
+        expect(inputLog.messages[1].content).toContain(
+            '[NARRATIVE] target: about 200 tokens; never exceed 300 tokens',
+        );
         expect(inputLog.messages[1].content).toContain('current_date_time');
         expect(inputLog.messages[1].content).toContain('YYYY-MM-DD HH ddd');
         expect(outputLog).toBeNull();
@@ -310,6 +312,7 @@ describe('summarizer usage logging', () => {
         ctx.getTokenCountAsync
             .mockResolvedValueOnce(4)
             .mockResolvedValueOnce(2)
+            .mockResolvedValueOnce(2)
             .mockResolvedValueOnce(32)
             .mockResolvedValueOnce(4);
         mocks.sendSummarizerRequest.mockResolvedValue(` ${VALID_L0_SUMMARY} `);
@@ -332,13 +335,14 @@ describe('summarizer usage logging', () => {
         });
 
         expect(summary).toBe(VALID_L0_SUMMARY);
-        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(4);
+        expect(ctx.getTokenCountAsync).toHaveBeenCalledTimes(5);
         expect(ctx.getTokenCountAsync.mock.calls[0][0]).toBe(VALID_L0_SUMMARY);
-        expect(ctx.getTokenCountAsync.mock.calls[1][0]).toContain('[STATE]');
-        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('SYS');
-        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('prior context');
-        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('source passage');
-        expect(ctx.getTokenCountAsync.mock.calls[3][0]).toBe(VALID_L0_SUMMARY);
+        expect(ctx.getTokenCountAsync.mock.calls[1][0]).not.toContain('[STATE]');
+        expect(ctx.getTokenCountAsync.mock.calls[2][0]).toContain('current_date_time');
+        expect(ctx.getTokenCountAsync.mock.calls[3][0]).toContain('SYS');
+        expect(ctx.getTokenCountAsync.mock.calls[3][0]).toContain('prior context');
+        expect(ctx.getTokenCountAsync.mock.calls[3][0]).toContain('source passage');
+        expect(ctx.getTokenCountAsync.mock.calls[4][0]).toBe(VALID_L0_SUMMARY);
 
         const usageLog = findConsoleLogContaining('LLM call CHAT -> L0 turns 0-2');
         expect(usageLog?.join(' ')).toContain('input 20, prompt 12, output 4');

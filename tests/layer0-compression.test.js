@@ -7,6 +7,7 @@ import {
     isLayer0CompressionCall,
     appendLayer0PromptConstraints,
 } from '../src/core/layer0-compression.js';
+import { buildRepairDiagnostics } from '../src/core/repair-diagnostics.js';
 import { defaultSettings } from '../src/foundation/constants.js';
 
 describe('getLayer0SummaryTokenTarget', () => {
@@ -26,7 +27,7 @@ describe('getLayer0SummaryTokenBounds', () => {
         expect(getLayer0SummaryTokenBounds({ layer0SummaryTokenTarget: 200 })).toEqual({
             target: 200,
             min: 66,
-            max: 600,
+            max: 300,
         });
     });
 });
@@ -54,20 +55,42 @@ describe('isLayer0SizeGuardCall', () => {
 });
 
 describe('buildLayer0SizeRepairFeedback', () => {
-    it('includes the rejected size and accepted range', () => {
+    it('includes rejected sections, absolute limits, and passing-section preservation', () => {
+        const diagnostics = buildRepairDiagnostics({
+            scope: 'Layer 0',
+            totalTokens: 410,
+            sections: [
+                {
+                    id: 'narrative',
+                    label: '[NARRATIVE]',
+                    actualTokens: 400,
+                    targetTokens: 200,
+                    hardMaxTokens: 300,
+                    text: 'Rejected verbose narrative.',
+                },
+                {
+                    id: 'state',
+                    label: '[STATE]',
+                    actualTokens: 10,
+                    targetTokens: 200,
+                    hardMaxTokens: 300,
+                    text: 'current_date_time: 2026-07-15 17 Wed',
+                    preservationInstruction: 'keep accepted state exactly',
+                },
+            ],
+            rejectedDraft: 'draft',
+        });
         const result = buildLayer0SizeRepairFeedback({
-            reason: 'too-long',
-            outputTokens: 725,
-            bounds: { target: 200, min: 66, max: 600 },
+            diagnostics,
         });
 
         expect(result).toContain('summaryception_l0_repair_feedback');
-        expect(result).toContain('too-long');
-        expect(result).toContain('725 tokens');
-        expect(result).toContain('200 tokens');
-        expect(result).toContain('66-600 tokens');
-        expect(result).toContain('[NARRATIVE]');
-        expect(result).toContain('[STATE]');
+        expect(result).toContain('[NARRATIVE]: 400 tokens; target 200; hard maximum 300');
+        expect(result).toContain('reduce by about half');
+        expect(result).toContain('<rejected_narrative>');
+        expect(result).toContain('Rejected verbose narrative.');
+        expect(result).toContain('Preserve [STATE] unchanged');
+        expect(result).toContain('<preserve_state>');
     });
 });
 
@@ -86,6 +109,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('Message 34 is the latest summarized message');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('[STATE]');
+        expect(result).toContain('[NARRATIVE] target: about 200 tokens; never exceed 300 tokens');
+        expect(result).toContain('Keep [STATE] near 200 tokens');
         expect(result).toContain('Write the output mainly in English');
         expect(result).toContain('do not write Chinese prose or Han ideographs');
         expect(result).toContain('current_date_time');
@@ -108,6 +133,8 @@ describe('appendLayer0PromptConstraints', () => {
             },
         );
         expect(result).toContain('summaryception_promotion_constraints');
+        expect(result).toContain('Soft target: about 400 tokens');
+        expect(result).toContain('Hard maximum: 600 tokens');
         expect(result).toContain('[NARRATIVE]');
         expect(result).toContain('Do not output a [STATE] block');
         expect(result).toContain('Write the output mainly in English');
@@ -131,16 +158,19 @@ describe('appendLayer0PromptConstraints', () => {
                 kind: 'promotion',
                 memoryTokensBefore: 1000,
                 promotionRepair: {
-                    outputTokens: 500,
-                    requiredMaxTokens: 350,
+                    outputTokens: 700,
+                    targetTokens: 400,
+                    hardMaxTokens: 600,
                     rejectedSummary: 'Rejected verbose summary.',
                 },
             },
         );
         expect(result).toContain('Repair task');
-        expect(result).toContain('previous promotion draft failed');
-        expect(result).toContain('500 tokens');
-        expect(result).toContain('350 tokens or fewer');
+        expect(result).toContain('previous Layer 1+ promotion draft failed');
+        expect(result).toContain('700 tokens');
+        expect(result).toContain('target 400');
+        expect(result).toContain('hard maximum 600');
+        expect(result).toContain('reduce by about two-fifths');
         expect(result).toContain('<rejected_promotion_draft>');
         expect(result).toContain('Rejected verbose summary.');
     });

@@ -25,7 +25,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {boolean} [useFallback] - Whether this call is routed through fallback
  * @property {boolean} [layer0Repair] - Whether a Layer 0 validation retry uses the repair prompt
  * @property {string} [sourceState] - Serialized source state for promotion reconciliation
- * @property {{ outputTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string }} [promotionRepair] - Promotion repair feedback
+ * @property {{ outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback
  */
 
 /**

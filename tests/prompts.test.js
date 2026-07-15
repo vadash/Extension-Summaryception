@@ -201,7 +201,7 @@ describe('validateSummarizerOutputIntegrity', () => {
 });
 
 describe('validateLayer0OutputSize', () => {
-    it('rejects oversized Layer 0 outputs as retryable with repair feedback', async () => {
+    it('rejects narrative-only overflow with draft-aware repair feedback', async () => {
         const output = [
             '[NARRATIVE]',
             'Verbose scene replay. '.repeat(160),
@@ -217,9 +217,17 @@ describe('validateLayer0OutputSize', () => {
         );
 
         expect(result.valid).toBe(false);
-        expect(result.error?.message).toContain('too-long');
+        expect(result.error?.message).toContain('[NARRATIVE]');
+        expect(result.error?.message).toContain('hard maximum 300');
         expect(result.error?.retryable).toBe(true);
-        expect(result.repairFeedback).toContain('Accepted range: 66-600 tokens');
+        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual([
+            'narrative',
+        ]);
+        expect(result.repairFeedback).toContain('<rejected_narrative>');
+        expect(result.repairFeedback).toContain('Verbose scene replay.');
+        expect(result.repairFeedback).toContain('reduce by');
+        expect(result.repairFeedback).toContain('Preserve [STATE] unchanged');
+        expect(result.repairFeedback).toContain('<preserve_state>');
     });
 
     it('rejects short Layer 0 outputs only for substantial source text', async () => {
@@ -239,7 +247,9 @@ describe('validateLayer0OutputSize', () => {
             ),
         ).resolves.toMatchObject({
             valid: false,
-            repairFeedback: expect.stringContaining('too-short'),
+            diagnostics: {
+                violations: [expect.objectContaining({ id: 'narrative', reason: 'below-minimum' })],
+            },
         });
         await expect(
             validateLayer0OutputSize(
@@ -250,7 +260,7 @@ describe('validateLayer0OutputSize', () => {
         ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
     });
 
-    it('rejects an oversized state snapshot with focused repair feedback', async () => {
+    it('rejects state-only overflow and preserves a passing narrative', async () => {
         const output = [
             '[NARRATIVE]',
             'The party reached the bridge.',
@@ -267,9 +277,43 @@ describe('validateLayer0OutputSize', () => {
         );
 
         expect(result.valid).toBe(false);
-        expect(result.error?.message).toContain('state snapshot size validation');
-        expect(result.error?.message).toContain('maximum 300');
-        expect(result.repairFeedback).toContain('complete snapshot more abstractly');
+        expect(result.error?.message).toContain('[STATE]');
+        expect(result.error?.message).toContain('hard maximum 300');
+        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual(['state']);
+        expect(result.repairFeedback).toContain('<rejected_state>');
+        expect(result.repairFeedback).toContain('hooks: pending');
+        expect(result.repairFeedback).toContain('Preserve [NARRATIVE] unchanged');
+        expect(result.repairFeedback).toContain('<preserve_narrative>');
+        expect(result.repairFeedback).toContain('The party reached the bridge.');
+    });
+
+    it('reports narrative and state violations together while total size stays diagnostic', async () => {
+        const output = [
+            '[NARRATIVE]',
+            'Verbose scene replay. '.repeat(160),
+            '',
+            '[STATE]',
+            'current_date_time: 2026-07-09 02 Thu',
+            `hooks: ${'pending '.repeat(305)}`,
+        ].join('\n');
+
+        const result = await validateLayer0OutputSize(
+            output,
+            { layer0SummaryTokenTarget: 200 },
+            { kind: 'layer0', sourceTokensBefore: 100 },
+        );
+
+        expect(result.valid).toBe(false);
+        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual([
+            'narrative',
+            'state',
+        ]);
+        expect(result.error?.message).toContain('[NARRATIVE]');
+        expect(result.error?.message).toContain('[STATE]');
+        expect(result.repairFeedback).toContain('Total draft:');
+        expect(result.repairFeedback).toContain('(diagnostic only)');
+        expect(result.repairFeedback).not.toContain('<preserve_narrative>');
+        expect(result.repairFeedback).not.toContain('<preserve_state>');
     });
 
     it('does not apply L0 size bounds to promotion outputs', async () => {
