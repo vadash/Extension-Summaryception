@@ -5,10 +5,7 @@ import {
     STATE_SNAPSHOT_MAX_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
 } from '../foundation/prompt-constants.js';
-import {
-    buildRepairDiagnostics,
-    formatRepairDiagnostics,
-} from './repair-diagnostics.js';
+import { buildRepairDiagnostics, formatRepairDiagnostics } from './repair-diagnostics.js';
 
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MAX_LAYER0_TARGET_TOKENS = 500;
@@ -80,31 +77,32 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
         diagnostics ||
         buildRepairDiagnostics({
             scope: 'Layer 0',
-            totalTokens: outputTokens,
+            totalTokens: outputTokens ?? 0,
             sections: [
                 {
                     id: 'narrative',
                     label: '[NARRATIVE]',
-                    actualTokens: outputTokens,
-                    targetTokens: bounds?.target,
-                    hardMaxTokens: bounds?.max,
-                    minimumTokens: reason === 'too-short' ? bounds?.min : 0,
+                    actualTokens: outputTokens ?? 0,
+                    targetTokens: bounds?.target ?? 0,
+                    hardMaxTokens: bounds?.max ?? 0,
+                    minimumTokens: reason === 'too-short' ? (bounds?.min ?? 0) : 0,
                 },
             ],
         });
-    return (
-        formatRepairDiagnostics(resolvedDiagnostics, {
-            wrapperTag: 'summaryception_l0_repair_feedback',
-            rejectedSectionTagPrefix: 'rejected_',
-        }).replace(
+    return formatRepairDiagnostics(resolvedDiagnostics, {
+        wrapperTag: 'summaryception_l0_repair_feedback',
+        rejectedSectionTagPrefix: 'rejected_',
+    }).replace(
+        '</summaryception_l0_repair_feedback>',
+        'Aim for each section soft target, not merely its hard maximum. Rewrite only the rejected section or sections. Reproduce every preserved section exactly.\n' +
+            'Output exactly one [NARRATIVE] section followed by exactly one [STATE] section.\n' +
             '</summaryception_l0_repair_feedback>',
-            'Aim for each section soft target, not merely its hard maximum. Rewrite only the rejected section or sections. Reproduce every preserved section exactly.\n' +
-                'Output exactly one [NARRATIVE] section followed by exactly one [STATE] section.\n' +
-                '</summaryception_l0_repair_feedback>',
-        )
     );
 }
 
+/**
+ *
+ */
 export function buildStateSnapshotSizeRepairFeedback({ stateTokens, stateText = '' }) {
     const diagnostics = buildRepairDiagnostics({
         scope: 'Layer 0',

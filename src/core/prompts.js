@@ -161,8 +161,7 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
                 actualTokens: narrativeTokens.count,
                 targetTokens: bounds.target,
                 hardMaxTokens: bounds.max,
-                minimumTokens:
-                    sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD ? bounds.min : 0,
+                minimumTokens: sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD ? bounds.min : 0,
                 text: sections.narrative,
                 repairInstruction:
                     'remove scene replay, repeated dialogue, micro-actions, and transient detail while preserving durable chronology',
@@ -200,8 +199,17 @@ function extractLayer0Sections(text) {
         narrative:
             narrativeIndex === -1 || stateIndex === -1
                 ? ''
-                : lines.slice(narrativeIndex + 1, stateIndex).join('\n').trim(),
-        state: stateIndex === -1 ? '' : lines.slice(stateIndex + 1).join('\n').trim(),
+                : lines
+                      .slice(narrativeIndex + 1, stateIndex)
+                      .join('\n')
+                      .trim(),
+        state:
+            stateIndex === -1
+                ? ''
+                : lines
+                      .slice(stateIndex + 1)
+                      .join('\n')
+                      .trim(),
     };
 }
 
@@ -327,7 +335,7 @@ function rejectIntegrity(reason) {
 }
 
 /**
- * @returns {{ valid: false, error: Error & { retryable?: boolean }, repairFeedback: string }}
+ * @returns {{ valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }}
  */
 function rejectLayer0Size(diagnostics) {
     const details = diagnostics.violations

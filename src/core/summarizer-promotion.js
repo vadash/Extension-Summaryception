@@ -474,7 +474,7 @@ async function validatePromotionCandidate({
     const sizeMetadata = { memoryTokensBefore: sourceTokens.count };
     const targetTokens = getPromotionSummaryTokenTarget(sizeMetadata);
     const hardMaxTokens = getPromotionSummaryTokenHardMax(sizeMetadata);
-    if (outputTokens.count > hardMaxTokens) {
+    if (hardMaxTokens !== null && outputTokens.count > hardMaxTokens) {
         const diagnostics = buildRepairDiagnostics({
             scope: 'Layer 1+ promotion',
             totalTokens: outputTokens.count,
