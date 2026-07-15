@@ -40,6 +40,24 @@ const getNextMinorVersion = (version) => {
 const hasVersionFileChanges = () =>
     runGit(['status', '--porcelain', '--', ...VERSION_FILES]).trim().length > 0;
 
+const hasCodeChanges = () => {
+    const changedFiles = runGit([
+        'diff-tree',
+        '--root',
+        '--no-commit-id',
+        '--name-only',
+        '-r',
+        'HEAD',
+    ])
+        .trim()
+        .split('\n')
+        .filter(Boolean);
+
+    return changedFiles.some(
+        (fileName) => !fileName.startsWith('.beads/') && !/\.md$/iu.test(fileName),
+    );
+};
+
 const isGeneratedVersionCommit = () => {
     const subject = runGit(['log', '-1', '--pretty=%s']).trim();
 
@@ -85,6 +103,11 @@ if (process.env[SKIP_ENV] === '1' || isGeneratedVersionCommit()) {
 
 if (hasVersionFileChanges()) {
     console.log(`${LOG_PREFIX} Version files already changed; skipping automatic version bump.`);
+    process.exit(0);
+}
+
+if (!hasCodeChanges()) {
+    console.log(`${LOG_PREFIX} No code changes detected; skipping automatic version bump.`);
     process.exit(0);
 }
 
