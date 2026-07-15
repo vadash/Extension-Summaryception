@@ -19,7 +19,12 @@ const REDUCTION_GUIDANCE = [
  * @param {string} [p.rejectedDraft] - Full rejected draft text
  * @returns {object}
  */
-export function buildRepairDiagnostics({ scope = 'compression', totalTokens = 0, sections = [], rejectedDraft = '' }) {
+export function buildRepairDiagnostics({
+    scope = 'compression',
+    totalTokens = 0,
+    sections = [],
+    rejectedDraft = '',
+}) {
     const normalizedSections = sections.map((section) => {
         const actualTokens = normalizeCount(section.actualTokens);
         const targetTokens = normalizeCount(section.targetTokens);
@@ -38,9 +43,7 @@ export function buildRepairDiagnostics({ scope = 'compression', totalTokens = 0,
             violation,
             reason: tooShort ? 'below-minimum' : tooLong ? 'above-hard-maximum' : '',
             reductionGuidance:
-                tooLong && targetTokens > 0
-                    ? getReductionGuidance(actualTokens, targetTokens)
-                    : '',
+                tooLong && targetTokens > 0 ? getReductionGuidance(actualTokens, targetTokens) : '',
             text: String(section.text || ''),
             repairInstruction: String(section.repairInstruction || ''),
             preservationInstruction: String(section.preservationInstruction || ''),

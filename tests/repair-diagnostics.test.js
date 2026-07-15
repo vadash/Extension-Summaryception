@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    buildRepairDiagnostics,
-    getReductionGuidance,
-} from '../src/core/repair-diagnostics.js';
+import { buildRepairDiagnostics, getReductionGuidance } from '../src/core/repair-diagnostics.js';
 
 describe('repair diagnostics', () => {
     it('describes common reduction ratios in plain language', () => {

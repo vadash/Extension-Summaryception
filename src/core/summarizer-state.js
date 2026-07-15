@@ -1,7 +1,4 @@
-import {
-    STATE_SNAPSHOT_MAX_CHARS,
-    STATE_SNAPSHOT_MODE,
-} from '../foundation/prompt-constants.js';
+import { STATE_SNAPSHOT_MAX_CHARS, STATE_SNAPSHOT_MODE } from '../foundation/prompt-constants.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 
 const STATE_LINE_RE = /^\s*[-*]?\s*([a-zA-Z_][\w\s]*?)\s*[:=-]\s*(.+?)\s*$/;
