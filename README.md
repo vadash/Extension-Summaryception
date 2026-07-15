@@ -127,7 +127,7 @@ Switch branches in SillyTavern if you prefer an older major version.
 
 - **v16:** Current line. Refactored summarization routes, split memory style from memory placement, added assistant-role masking for outgoing chat-completion requests, and cleaned up the tuning UI around context estimates and cache behavior.
 - **v15:** UI and prompt tweaks.
-- **v14:** Easy mode. Fewer controls up front, safer defaults.
+- **v14:** Easy mode. ~~Less~~ Fewer controls up front, ~~saner~~ safer defaults.
 - **v13:** Memory pyramid tuning, temporal anchors, stricter summary integrity checks, and better promotion compression repair. This is the line that stopped long memories from collapsing into tiny broken outputs or promoting into barely smaller summaries.
 - **v12:** Stability pass. Tested on long roleplay chats around 2,000 to 3,000 messages. Main pain point was oversized state.
 - **v11:** Chinese ideograph output filter and the first dual-track memory architecture. Summaries split into narrative and state, with state merged by overwrite during promotion.
