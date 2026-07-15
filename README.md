@@ -125,7 +125,8 @@ If something looks off, use Clear or `/sc-clear`. That removes Summaryception's 
 
 Switch branches in SillyTavern if you prefer an older major version.
 
-- **v16:** Current line. Refactored summarization routes, split memory style from memory placement, added assistant-role masking for outgoing chat-completion requests, and cleaned up the tuning UI around context estimates and cache behavior.
+- **v17:** Current line. Replaced ever-growing accumulated state with bounded rolling snapshots, shortened chronology anchors to spend fewer tokens on bookkeeping, and made compression repair section-aware. Failed output can now be repaired one bad section at a time instead of taking the whole summary back to the workshop. Layer 0 and promotion paths also gained stricter size checks and type guards.
+- **v16:** Refactored summarization routes, split memory style from memory placement, added Macro Only placement, and added assistant-role masking for outgoing chat-completion requests. Retry and atomic commit handling were pulled into dedicated helpers, Layer 0 gained a size-repair guard, and the tuning UI was cleaned up around context estimates and cache behavior.
 - **v15:** UI and prompt tweaks.
 - **v14:** Easy mode. ~~Less~~ Fewer controls up front, ~~saner~~ safer defaults.
 - **v13:** Memory pyramid tuning, temporal anchors, stricter summary integrity checks, and better promotion compression repair. This is the line that stopped long memories from collapsing into tiny broken outputs or promoting into barely smaller summaries.
