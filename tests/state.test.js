@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { installSillyTavernStub, makeContext, makeMessage } from './test-helpers.js';
 import {
+    MASK_USER_ROLE_MODES,
     PROMOTION_PROMPT_PRESETS,
     PROMPT_PRESETS,
     defaultSettings,
@@ -75,7 +76,8 @@ describe('state.js', () => {
 
         expect(raw).toMatchObject({
             memoryMode: 'standard',
-            maxL0SourceTokens: 4000,
+            maxL0SourceTokens: 8000,
+            minSummaryBudget: 4000,
             memoryTokenBudget: 32000,
         });
         expect(effective).toMatchObject({
@@ -179,6 +181,33 @@ describe('state.js', () => {
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
+    it('migrates legacy enabled role masking to marker-first mode', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                maskUserRoleAsAssistant: true,
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        expect(getSettings()).toMatchObject({
+            maskUserRoleAsAssistant: true,
+            maskUserRoleMode: MASK_USER_ROLE_MODES.MARKER_FIRST,
+        });
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
+    it('normalizes invalid role-mask modes to marker-first', () => {
+        const ctx = installSillyTavernStub({
+            settings: {
+                maskUserRoleMode: 'invalid',
+            },
+        });
+        ctx.saveSettingsDebounced = vi.fn();
+
+        expect(getSettings().maskUserRoleMode).toBe(MASK_USER_ROLE_MODES.MARKER_FIRST);
+        expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
+    });
+
     it('normalizes dynamic verbatim window settings to valid slider values', () => {
         installSillyTavernStub({
             settings: {
@@ -233,7 +262,7 @@ describe('state.js', () => {
         expect(ctx.saveSettingsDebounced).toHaveBeenCalledOnce();
     });
 
-    it('caps Layer 0 source and batch trigger to the current source range', () => {
+    it('caps Layer 0 source and batch trigger to their ranges and source ceiling', () => {
         installSillyTavernStub({
             settings: {
                 maxL0SourceTokens: 999999,
@@ -242,7 +271,7 @@ describe('state.js', () => {
         });
 
         expect(getSettings()).toMatchObject({
-            maxL0SourceTokens: 32000,
+            maxL0SourceTokens: 64000,
             minSummaryBudget: 32000,
         });
 
@@ -254,7 +283,19 @@ describe('state.js', () => {
         });
 
         expect(getSettings()).toMatchObject({
-            maxL0SourceTokens: 4000,
+            maxL0SourceTokens: 8000,
+            minSummaryBudget: 8000,
+        });
+
+        installSillyTavernStub({
+            settings: {
+                maxL0SourceTokens: 8000,
+                minSummaryBudget: 1,
+            },
+        });
+
+        expect(getSettings()).toMatchObject({
+            maxL0SourceTokens: 8000,
             minSummaryBudget: 4000,
         });
     });

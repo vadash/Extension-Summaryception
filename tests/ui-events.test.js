@@ -4,7 +4,11 @@ import {
     installBrowserRuntimeStub,
     installSillyTavernStub,
 } from './test-helpers.js';
-import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
+import {
+    MASK_USER_ROLE_MODES,
+    MEMORY_MODES,
+    defaultSettings,
+} from '../src/foundation/constants.js';
 
 const mocks = vi.hoisted(() => ({
     clearSummaryceptionMemory: vi.fn(),
@@ -56,7 +60,7 @@ describe('ui prompt/reset events', () => {
 
     it('saves Easy slider settings without touching advanced budgets', async () => {
         const settings = structuredClone(defaultSettings);
-        settings.maxL0SourceTokens = 4000;
+        settings.maxL0SourceTokens = 8000;
         settings.memoryTokenBudget = 32000;
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness(
@@ -71,12 +75,12 @@ describe('ui prompt/reset events', () => {
         expect(ctx.extensionSettings.summaryception).toMatchObject({
             easySummarizerContextTokens: 32000,
             easyMemoryTokenBudget: 12000,
-            maxL0SourceTokens: 4000,
+            maxL0SourceTokens: 8000,
             memoryTokenBudget: 32000,
         });
     });
 
-    it('saves simple checkbox settings through shared bindings', async () => {
+    it('saves checkbox settings and conditionally exposes the role-mask mode', async () => {
         const settings = structuredClone(defaultSettings);
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness();
@@ -90,6 +94,20 @@ describe('ui prompt/reset events', () => {
         ui.trigger('change', '#sc_mask_user_role_as_assistant');
 
         expect(ctx.extensionSettings.summaryception.maskUserRoleAsAssistant).toBe(true);
+        expect(ui.element('#sc_mask_user_role_mode_row').isVisible()).toBe(true);
+        expect(ui.element('#sc_mask_user_role_mode').prop('disabled')).toBe(false);
+
+        ui.element('#sc_mask_user_role_mode').val(MASK_USER_ROLE_MODES.MARKER_LAST);
+        ui.trigger('change', '#sc_mask_user_role_mode');
+
+        expect(ctx.extensionSettings.summaryception.maskUserRoleMode).toBe(
+            MASK_USER_ROLE_MODES.MARKER_LAST,
+        );
+
+        ui.element('#sc_mask_user_role_as_assistant').prop('checked', false);
+        ui.trigger('change', '#sc_mask_user_role_as_assistant');
+        expect(ui.element('#sc_mask_user_role_mode_row').isVisible()).toBe(false);
+        expect(ui.element('#sc_mask_user_role_mode').prop('disabled')).toBe(true);
     });
 
     it('saves numeric response length through shared bindings', async () => {
@@ -156,7 +174,7 @@ describe('ui prompt/reset events', () => {
         expect(ui.element('#sc_max_summary_turns_val').getValue()).toBe('10');
     });
 
-    it('caps Batch Trigger edits to the Max Source ceiling', async () => {
+    it('caps Batch Trigger state to Max Source while keeping its UI max fixed', async () => {
         const settings = structuredClone(defaultSettings);
         settings.maxL0SourceTokens = 16000;
         settings.minSummaryBudget = 8000;
@@ -172,9 +190,19 @@ describe('ui prompt/reset events', () => {
             maxL0SourceTokens: 16000,
             minSummaryBudget: 16000,
         });
-        expect(ui.element('#sc_min_summary_budget').attr('max')).toBe('16000');
+        expect(ui.element('#sc_min_summary_budget').attr('max')).toBe('32000');
         expect(ui.element('#sc_min_summary_budget').getValue()).toBe(16000);
         expect(ui.element('#sc_min_summary_budget_val').getValue()).toBe('16k');
+
+        ui.element('#sc_max_l0_source_tokens_val').val('8k');
+        ui.trigger('change', '#sc_max_l0_source_tokens_val');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            maxL0SourceTokens: 8000,
+            minSummaryBudget: 8000,
+        });
+        expect(ui.element('#sc_min_summary_budget').attr('max')).toBe('32000');
+        expect(ui.element('#sc_min_summary_budget_val').getValue()).toBe('8k');
     });
 
     it('refreshes injection and UI after custom memory depth changes', async () => {
@@ -342,6 +370,7 @@ describe('ui prompt/reset events', () => {
         const settings = structuredClone(defaultSettings);
         settings.stripChineseIdeographs = false;
         settings.maskUserRoleAsAssistant = true;
+        settings.maskUserRoleMode = MASK_USER_ROLE_MODES.MARKER_LAST;
         const ctx = installSillyTavernStub({ settings });
         const ui = await installUiEventsHarness();
 
@@ -350,6 +379,9 @@ describe('ui prompt/reset events', () => {
 
         expect(ctx.extensionSettings.summaryception.stripChineseIdeographs).toBe(true);
         expect(ctx.extensionSettings.summaryception.maskUserRoleAsAssistant).toBe(false);
+        expect(ctx.extensionSettings.summaryception.maskUserRoleMode).toBe(
+            MASK_USER_ROLE_MODES.MARKER_FIRST,
+        );
     });
 
     it('reloads after clearing memory from the UI', async () => {
@@ -432,18 +464,17 @@ function makeSliderHarnessOptions(names) {
             id: 'sc_max_l0_source_tokens',
             partner: '#sc_max_l0_source_tokens_val',
             key: 'maxL0SourceTokens',
-            min: '4000',
-            max: '32000',
+            min: '8000',
+            max: '64000',
             step: '1000',
         }),
         minBudget: sliderFixture({
             id: 'sc_min_summary_budget',
             partner: '#sc_min_summary_budget_val',
             key: 'minSummaryBudget',
-            min: '2000',
+            min: '4000',
             max: '32000',
             step: '1000',
-            maxSetting: 'maxL0SourceTokens',
         }),
         easyContext: sliderFixture({
             id: 'sc_easy_summarizer_context',
@@ -475,7 +506,7 @@ function makeSliderHarnessOptions(names) {
     return { attributes, collections };
 }
 
-function sliderFixture({ id, partner, key, min, max, step, maxSetting = '' }) {
+function sliderFixture({ id, partner, key, min, max, step }) {
     return {
         selector: `#${id}`,
         attributes: {
@@ -485,7 +516,6 @@ function sliderFixture({ id, partner, key, min, max, step, maxSetting = '' }) {
             step,
             'data-sc-slider-setting': key,
             'data-sc-partner-input': partner,
-            ...(maxSetting ? { 'data-sc-slider-max-setting': maxSetting } : {}),
         },
     };
 }

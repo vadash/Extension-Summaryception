@@ -2,10 +2,11 @@
  * Rewrite final chat-completion request roles without touching persisted chat state.
  */
 
+import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
+
 /**
- * Synthetic user block prepended when masking would otherwise remove every
- * user role from the outgoing payload. Required by APIs that reject requests
- * with zero user messages.
+ * Synthetic user block used by compatibility modes for APIs that reject
+ * requests with zero user messages.
  */
 const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 
@@ -25,33 +26,94 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
         return 0;
     }
 
-    const maskableMessages = [];
-    let userMessageCount = 0;
-    for (const message of messages) {
-        if (message.role !== 'user') {
-            continue;
-        }
-        userMessageCount++;
-        if (shouldMaskMessage(message)) {
-            maskableMessages.push(message);
+    const userMessages = [];
+    for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
+        if (message.role === 'user') {
+            userMessages.push({ index, message });
         }
     }
+    if (userMessages.length === 0) {
+        logRoleMaskDebug(settings, normalizeMaskMode(settings.maskUserRoleMode), [], null, 0);
+        return 0;
+    }
 
-    let rewritten = 0;
-
-    if (userMessageCount > 0 && maskableMessages.length === userMessageCount) {
+    const mode = normalizeMaskMode(settings.maskUserRoleMode);
+    if (mode === MASK_USER_ROLE_MODES.MARKER_FIRST) {
         messages.unshift({
             role: 'user',
             content: COMPATIBILITY_MARKER_CONTENT,
         });
     }
 
-    for (const message of maskableMessages) {
+    const preservedMessage =
+        mode === MASK_USER_ROLE_MODES.KEEP_LAST_USER
+            ? userMessages[userMessages.length - 1].message
+            : null;
+    let rewritten = 0;
+    for (const entry of userMessages) {
+        const message = entry.message;
+        if (message === preservedMessage) {
+            continue;
+        }
         message.role = 'assistant';
         rewritten++;
     }
 
+    if (mode === MASK_USER_ROLE_MODES.MARKER_LAST) {
+        messages.push({
+            role: 'user',
+            content: COMPATIBILITY_MARKER_CONTENT,
+        });
+    }
+
+    logRoleMaskDebug(settings, mode, userMessages, preservedMessage, rewritten);
+
     return rewritten;
+}
+
+function normalizeMaskMode(value) {
+    const mode = String(value || '');
+    return Object.values(MASK_USER_ROLE_MODES).includes(mode)
+        ? mode
+        : MASK_USER_ROLE_MODES.MARKER_FIRST;
+}
+
+function logRoleMaskDebug(settings, mode, userMessages, preservedMessage, rewritten) {
+    if (!settings.debugMode) {
+        return;
+    }
+
+    const kept = userMessages.length - rewritten;
+    console.groupCollapsed(
+        `${LOG_PREFIX} [DEBUG] User role mask: changed=${rewritten}, kept=${kept}, mode=${mode}`,
+    );
+    try {
+        console.log(
+            userMessages.map(({ index, message }) => ({
+                index,
+                action: message === preservedMessage ? 'kept' : 'changed',
+                preview: previewMessageContent(message.content),
+            })),
+        );
+    } finally {
+        console.groupEnd();
+    }
+}
+
+function previewMessageContent(content) {
+    let text;
+    if (typeof content === 'string') {
+        text = content;
+    } else {
+        try {
+            text = JSON.stringify(content);
+        } catch (_e) {
+            text = String(content ?? '');
+        }
+    }
+    const compact = String(text || '').replaceAll(/\s+/g, ' ').trim();
+    return compact.length > 40 ? `${compact.slice(0, 40)}…` : compact;
 }
 
 /**
@@ -82,44 +144,6 @@ function getPromptMessages(generateData) {
  */
 function getObjectArray(values) {
     return values.every(isPlainObject) ? values : null;
-}
-
-/**
- * @param {Record<string, unknown>} message
- * @returns {boolean}
- */
-function shouldMaskMessage(message) {
-    return (
-        message.role === 'user' &&
-        !message.tool_calls &&
-        !message.tool_call_id &&
-        isTextOnlyContent(message.content)
-    );
-}
-
-/**
- * @param {unknown} content
- * @returns {boolean}
- */
-function isTextOnlyContent(content) {
-    if (typeof content === 'string') {
-        return true;
-    }
-    if (!Array.isArray(content) || content.length === 0) {
-        return false;
-    }
-    return content.every(isTextContentPart);
-}
-
-/**
- * @param {unknown} part
- * @returns {boolean}
- */
-function isTextContentPart(part) {
-    if (typeof part === 'string') {
-        return true;
-    }
-    return isPlainObject(part) && part.type === 'text';
 }
 
 /**

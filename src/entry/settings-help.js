@@ -109,12 +109,15 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_mask_user_role_as_assistant'),
             title: 'Mask User Role',
-            short: 'Send text-only user prompt blocks as assistant blocks.',
-            controls: [controlFor('sc_mask_user_role_as_assistant')],
+            short: 'Rewrite outgoing user-role blocks with a selectable compatibility mode.',
+            controls: [
+                controlFor('sc_mask_user_role_as_assistant'),
+                controlFor('sc_mask_user_role_mode'),
+            ],
             controlsText:
-                'Controls whether final text-only user-role request messages are rewritten to assistant-role messages before the RP model call.',
+                'Controls request-only role rewriting and the Synthetic user marker mode: marker first, rewrite all with no marker, marker last, or keep the final user block.',
             when: 'when you want roleplay prompts to hide the user/assistant split from chat-completion models.',
-            risk: 'this does not edit saved chat, names, or prompt text; prompts that mention the user still reveal that framing, and some providers may normalize or reject unusual role layouts.',
+            risk: 'saved chat and prompt content are not edited, but providers may normalize or reject unusual role layouts or synthetic marker messages.',
         }),
     ],
     [
@@ -169,20 +172,36 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'max_l0_source_tokens',
+        sliderHelp({
+            selector: selectorFor('sc_max_l0_source_tokens'),
+            title: 'Max Source per Call',
+            short: 'Hard ceiling for raw chat sent in one Layer 0 request.',
+            controls: [
+                controlFor('sc_max_l0_source_tokens'),
+                controlFor('sc_max_l0_source_tokens_val'),
+            ],
+            meaning: 'Maximum raw-chat source size sent in one Layer 0 summarizer call.',
+            higher: 'allows larger batches for models with more context.',
+            lower: 'keeps each summarizer request smaller and safer.',
+            defaultText: '24k, with an 8k-64k range.',
+        }),
+    ],
+    [
         'min_summary_budget',
         sliderHelp({
             selector: selectorFor('sc_min_summary_budget'),
-            title: 'Minimum Summary Budget',
+            title: 'Batch Trigger Size',
             short: 'How much overflow text to collect before short batches run.',
             controls: [
                 controlFor('sc_min_summary_budget'),
                 controlFor('sc_min_summary_budget_val'),
             ],
             meaning:
-                'Minimum overflow passage size before a normal Layer 0 batch is worth summarizing.',
+                'Minimum overflow passage size before a normal Layer 0 batch is worth summarizing; it cannot exceed Max Source per Call.',
             higher: 'waits for bigger chunks and makes fewer summarizer calls.',
             lower: 'summarizes smaller chunks sooner.',
-            defaultText: '8k.',
+            defaultText: '16k, with a fixed 4k-32k control range.',
         }),
     ],
     [

@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+    BATCH_TRIGGER_LIMITS,
     MODULE_NAME,
     LOG_PREFIX,
+    L0_SOURCE_LIMITS,
+    MASK_USER_ROLE_MODES,
     defaultSettings,
     PROMPT_PRESETS,
     PROMOTION_PROMPT_PRESETS,
@@ -42,11 +45,11 @@ describe('constants', () => {
         expect(defaultSettings.minSummaryTurns).toBe(3);
         expect(defaultSettings.maxSummaryTurns).toBe(8);
         expect(defaultSettings.layer0SummaryTokenTarget).toBe(200);
-        expect(defaultSettings.maxL0SourceTokens).toBe(16000);
+        expect(defaultSettings.maxL0SourceTokens).toBe(24000);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
             defaultSettings.minSummaryTurns,
         );
-        expect(defaultSettings.minSummaryBudget).toBe(8000);
+        expect(defaultSettings.minSummaryBudget).toBe(16000);
         expect(defaultSettings.verbatimTokenBudget).toBe(22000);
         expect(defaultSettings.memoryTokenBudget).toBe(10000);
         expect(defaultSettings.snippetsPerLayer).toBe(24);
@@ -58,6 +61,12 @@ describe('constants', () => {
         expect(defaultSettings.promptOutputLogMode).toBe(false);
         expect(defaultSettings.stripChineseIdeographs).toBe(true);
         expect(defaultSettings.maskUserRoleAsAssistant).toBe(false);
+        expect(defaultSettings.maskUserRoleMode).toBe(MASK_USER_ROLE_MODES.MARKER_FIRST);
+    });
+
+    it('exposes the fixed source and batch trigger ranges', () => {
+        expect(L0_SOURCE_LIMITS).toEqual({ MIN: 8000, MAX: 64000, STEP: 1000 });
+        expect(BATCH_TRIGGER_LIMITS).toEqual({ MIN: 4000, MAX: 32000, STEP: 1000 });
     });
 
     it('uses the Summaryception memory wrapper by default', () => {

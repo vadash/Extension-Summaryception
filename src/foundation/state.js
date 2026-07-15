@@ -1,7 +1,9 @@
 import {
+    BATCH_TRIGGER_LIMITS,
     EASY_CONTEXT_LIMITS,
     EASY_MEMORY_LIMITS,
     L0_SOURCE_LIMITS,
+    MASK_USER_ROLE_MODES,
     MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
@@ -60,6 +62,7 @@ export function getSettings() {
     );
     const defaultsRecord = /** @type {Record<string, unknown>} */ (defaultSettings);
     const hadUiMode = Object.hasOwn(settings, 'uiMode');
+    const hadMaskUserRoleMode = Object.hasOwn(settings, 'maskUserRoleMode');
     for (const key of Object.keys(defaultSettings)) {
         if (!Object.hasOwn(settings, key)) {
             settingsRecord[key] = defaultsRecord[key];
@@ -67,9 +70,18 @@ export function getSettings() {
     }
     const modeSettingsNormalized = normalizeModeSettings(settings, hadUiMode);
     const memorySettingsNormalized = normalizeMemorySettings(settings);
+    const roleMaskSettingsNormalized = normalizeRoleMaskSettings(
+        settings,
+        hadMaskUserRoleMode,
+    );
     normalizeVerbatimWindowSettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
-    if (modeSettingsNormalized || memorySettingsNormalized || promptSettingsNormalized) {
+    if (
+        modeSettingsNormalized ||
+        memorySettingsNormalized ||
+        roleMaskSettingsNormalized ||
+        promptSettingsNormalized
+    ) {
         saveSettingsDebounced();
     }
     return settings;
@@ -212,6 +224,23 @@ function normalizeMemorySettings(settings) {
 }
 
 /**
+ * Normalize request-only user-role masking settings in place.
+ * @param {ExtensionSettings} settings
+ * @param {boolean} hadMode
+ * @returns {boolean} Whether settings were changed.
+ */
+function normalizeRoleMaskSettings(settings, hadMode) {
+    if (
+        hadMode &&
+        isSettingValue(Object.values(MASK_USER_ROLE_MODES), settings.maskUserRoleMode)
+    ) {
+        return false;
+    }
+    settings.maskUserRoleMode = defaultSettings.maskUserRoleMode;
+    return true;
+}
+
+/**
  * Check whether a persisted setting is one of the allowed string values.
  * @param {ReadonlyArray<string>} values
  * @param {unknown} value
@@ -255,10 +284,12 @@ function normalizeVerbatimWindowSettings(settings) {
         L0_SOURCE_LIMITS.MIN,
         Number(settings.maxL0SourceTokens) || defaultSettings.maxL0SourceTokens,
     );
-    settings.minSummaryBudget = clampToStep(settings.minSummaryBudget, 2000, sourceCap, 1000);
-    if (settings.minSummaryBudget > sourceCap) {
-        settings.minSummaryBudget = sourceCap;
-    }
+    settings.minSummaryBudget = clampToStep(
+        settings.minSummaryBudget,
+        BATCH_TRIGGER_LIMITS.MIN,
+        Math.min(BATCH_TRIGGER_LIMITS.MAX, sourceCap),
+        BATCH_TRIGGER_LIMITS.STEP,
+    );
     settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
     settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);

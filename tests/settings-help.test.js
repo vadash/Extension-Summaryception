@@ -8,6 +8,7 @@ const SLIDER_HELP_KEYS = [
     'verbatim_token_budget',
     'memory_token_budget',
     'layer0_summary_token_target',
+    'max_l0_source_tokens',
     'min_summary_budget',
     'min_summary_turns',
     'max_summary_turns',
@@ -93,6 +94,59 @@ describe('settings help metadata', () => {
         expect(SETTINGS_HTML).toContain(
             'id="sc_snippets_per_promotion_val" class="text_pole sc-val" type="text" inputmode="numeric" value="3"',
         );
+    });
+
+    it('places connection routes in Models and context preview directly before tuning', () => {
+        const modelsTab = SETTINGS_HTML.indexOf('data-sc-tab="models"');
+        const modelsPanel = SETTINGS_HTML.indexOf('data-sc-panel="models"');
+        const settingsPanel = SETTINGS_HTML.indexOf('data-sc-panel="settings"');
+        const promptsPanel = SETTINGS_HTML.indexOf('data-sc-panel="prompts"');
+        const connectionPanel = SETTINGS_HTML.indexOf('id="summaryception_connection_settings"');
+        const inputProcessing = SETTINGS_HTML.indexOf('Input Processing', settingsPanel);
+        const llmContext = SETTINGS_HTML.indexOf('LLM Call Context', settingsPanel);
+        const engineTuning = SETTINGS_HTML.indexOf('Engine Tuning', settingsPanel);
+        const memoryPosition = SETTINGS_HTML.indexOf('Memory Position', settingsPanel);
+
+        expect(modelsTab).toBeGreaterThan(-1);
+        expect(connectionPanel).toBeGreaterThan(modelsPanel);
+        expect(connectionPanel).toBeLessThan(settingsPanel);
+        expect(inputProcessing).toBeGreaterThan(settingsPanel);
+        expect(llmContext).toBeGreaterThan(inputProcessing);
+        expect(llmContext).toBeLessThan(engineTuning);
+        expect(memoryPosition).toBeGreaterThan(engineTuning);
+        expect(memoryPosition).toBeLessThan(promptsPanel);
+    });
+
+    it('uses the fixed source and batch slider ranges and defaults', () => {
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_max_l0_source_tokens" min="8000" max="64000" step="1000"',
+        );
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="24k"',
+        );
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_min_summary_budget" min="4000" max="32000" step="1000"',
+        );
+        expect(SETTINGS_HTML).toContain(
+            'id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k"',
+        );
+        expect(SETTINGS_HTML).not.toContain('data-sc-slider-max-setting');
+    });
+
+    it('documents every role-mask mode and its request-only compatibility risk', () => {
+        const roleMaskHelp = SETTINGS_HELP.mask_user_role_as_assistant;
+
+        expect(roleMaskHelp.controls).toEqual([
+            '#sc_mask_user_role_as_assistant',
+            '#sc_mask_user_role_mode',
+        ]);
+        expect(roleMaskHelp.detail).toContain('Synthetic user marker');
+        expect(roleMaskHelp.detail).toContain('marker first');
+        expect(roleMaskHelp.detail).toContain('marker last');
+        expect(roleMaskHelp.detail).toContain('keep the final user block');
+        expect(roleMaskHelp.detail).toContain('request-only');
+        expect(roleMaskHelp.detail).toContain('providers may normalize or reject');
+        expect(SETTINGS_HTML).toContain('<option value="rewrite_all">No synthetic user marker</option>');
     });
 
     it('generates the expected Layer 0, Merge, and Fallback connection labels', () => {

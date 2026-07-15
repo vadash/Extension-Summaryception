@@ -128,22 +128,12 @@ export function onGenerationEnded() {
 /**
  * Rewrite final foreground prompt roles after ST assembles generation data.
  * @param {unknown} generateData - Mutable SillyTavern generation payload.
- * @param {unknown} dryRun - Whether this is a prompt-inspection dry run.
+ * @param {unknown} _dryRun - Whether this is a prompt-inspection dry run.
  * @returns {void}
  */
-export function onGenerateAfterData(generateData, dryRun) {
+export function onGenerateAfterData(generateData, _dryRun) {
     try {
-        const rewritten = maskUserRoleAsAssistantInGenerateData(
-            generateData,
-            getEffectiveSettings(),
-        );
-        if (rewritten > 0) {
-            debug(
-                'Masked user role prompt blocks as assistant.',
-                `count=${rewritten}`,
-                `dryRun=${Boolean(dryRun)}`,
-            );
-        }
+        maskUserRoleAsAssistantInGenerateData(generateData, getEffectiveSettings());
     } catch (e) {
         warn('onGenerateAfterData error:', e);
     }

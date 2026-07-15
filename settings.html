@@ -239,6 +239,10 @@
                     <i class="fa-solid fa-chart-simple"></i>
                     <span>Memory</span>
                 </button>
+                <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="models">
+                    <i class="fa-solid fa-plug"></i>
+                    <span>Models</span>
+                </button>
                 <button class="sc-tab-button" type="button" role="tab" aria-selected="false" data-sc-tab="settings">
                     <i class="fa-solid fa-sliders"></i>
                     <span>Settings</span>
@@ -394,7 +398,7 @@
                     <div id="sc_snippet_browser" class="sc-snippet-browser"></div>
                 </section>
             </div>
-            <div class="sc-tab-panel" role="tabpanel" data-sc-panel="settings">
+            <div class="sc-tab-panel" role="tabpanel" data-sc-panel="models">
                 <section id="summaryception_connection_settings" class="sc-section sc-connection-section">
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
@@ -680,6 +684,8 @@
                         </div>
                     </div>
                 </section>
+            </div>
+            <div class="sc-tab-panel" role="tabpanel" data-sc-panel="settings">
                 <section class="sc-section">
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">
@@ -744,11 +750,53 @@
                             <span class="sc-toggle-icon fa-solid fa-user-secret"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Mask User Role</span>
-                                <small class="sc-hint">Send text-only user prompt blocks as assistant blocks.</small>
+                                <small class="sc-hint">Rewrite outgoing user-role blocks for provider compatibility.</small>
                             </span>
                             <input type="checkbox" id="sc_mask_user_role_as_assistant" />
                         </label>
+                        <div id="sc_mask_user_role_mode_row" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="sc_mask_user_role_mode">
+                                    <span>Synthetic user marker</span>
+                                    <small class="sc-hint">Choose marker placement or preserve the final user block.</small>
+                                </label>
+                                <select id="sc_mask_user_role_mode" class="text_pole" disabled>
+                                    <option value="marker_first">Synthetic user marker first</option>
+                                    <option value="rewrite_all">No synthetic user marker</option>
+                                    <option value="marker_last">Synthetic user marker last</option>
+                                    <option value="keep_last_user">Keep final user block</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
+                </section>
+                <section class="sc-section">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-microchip"></span>
+                            LLM Call Context
+                        </h4>
+                    </div>
+                    <div class="sc-llm-context-grid">
+                        <div class="sc-llm-context-row sc-llm-context-row-wide">
+                            <span class="sc-llm-context-label">Main Chat Call</span>
+                            <span class="sc-llm-context-actions">
+                                <span class="sc-llm-context-value" id="sc_llm_context_main">~26k + ST prompt</span>
+                                <button id="sc_estimate_main_context" class="menu_button sc-icon-button sc-llm-context-button" title="Estimate current SillyTavern prompt" aria-label="Estimate current SillyTavern prompt" type="button">
+                                    <i class="fa-solid fa-calculator"></i>
+                                </button>
+                            </span>
+                        </div>
+                        <div class="sc-llm-context-row">
+                            <span class="sc-llm-context-label">L0 Call</span>
+                            <span class="sc-llm-context-value" id="sc_llm_context_l0">~10k tokens</span>
+                        </div>
+                        <div class="sc-llm-context-row">
+                            <span class="sc-llm-context-label">L1+ Merge Call</span>
+                            <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
+                        </div>
+                    </div>
+                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + memory block + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
@@ -770,8 +818,8 @@
                                         <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_max_l0_source_tokens" min="4000" max="32000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
-                                        <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
+                                        <input type="range" id="sc_max_l0_source_tokens" min="8000" max="64000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
+                                        <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="24k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
                                     </div>
                                 </div>
                                 <div class="sc-row">
@@ -780,8 +828,8 @@
                                         <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_min_summary_budget" min="2000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" data-sc-slider-max-setting="maxL0SourceTokens" />
-                                        <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="8k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
+                                        <input type="range" id="sc_min_summary_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
+                                        <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
                                     </div>
                                 </div>
                                 <div class="sc-row">
@@ -933,34 +981,6 @@
                             <small>Macro Only exposes <code>{{summaryception_memory}}</code> and skips direct prompt injection.</small>
                         </div>
                     </div>
-                </section>
-                <section class="sc-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-microchip"></span>
-                            LLM Call Context
-                        </h4>
-                    </div>
-                    <div class="sc-llm-context-grid">
-                        <div class="sc-llm-context-row sc-llm-context-row-wide">
-                            <span class="sc-llm-context-label">Main Chat Call</span>
-                            <span class="sc-llm-context-actions">
-                                <span class="sc-llm-context-value" id="sc_llm_context_main">~26k + ST prompt</span>
-                                <button id="sc_estimate_main_context" class="menu_button sc-icon-button sc-llm-context-button" title="Estimate current SillyTavern prompt" aria-label="Estimate current SillyTavern prompt" type="button">
-                                    <i class="fa-solid fa-calculator"></i>
-                                </button>
-                            </span>
-                        </div>
-                        <div class="sc-llm-context-row">
-                            <span class="sc-llm-context-label">L0 Call</span>
-                            <span class="sc-llm-context-value" id="sc_llm_context_l0">~10k tokens</span>
-                        </div>
-                        <div class="sc-llm-context-row">
-                            <span class="sc-llm-context-label">L1+ Merge Call</span>
-                            <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
-                        </div>
-                    </div>
-                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + memory block + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="prompts">

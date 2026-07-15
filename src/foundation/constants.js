@@ -36,9 +36,22 @@ export const EASY_MEMORY_LIMITS = Object.freeze({
 });
 
 export const L0_SOURCE_LIMITS = Object.freeze({
+    MIN: 8000,
+    MAX: 64000,
+    STEP: 1000,
+});
+
+export const BATCH_TRIGGER_LIMITS = Object.freeze({
     MIN: 4000,
     MAX: 32000,
     STEP: 1000,
+});
+
+export const MASK_USER_ROLE_MODES = Object.freeze({
+    MARKER_FIRST: 'marker_first',
+    REWRITE_ALL: 'rewrite_all',
+    MARKER_LAST: 'marker_last',
+    KEEP_LAST_USER: 'keep_last_user',
 });
 
 export const MEMORY_POSITIONS = Object.freeze({
@@ -88,8 +101,8 @@ export const defaultSettings = Object.freeze({
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
     layer0SummaryTokenTarget: 200,
-    maxL0SourceTokens: 16000,
-    minSummaryBudget: 8000,
+    maxL0SourceTokens: 24000,
+    minSummaryBudget: 16000,
     verbatimTokenBudget: 22000,
     memoryTokenBudget: 10000,
     snippetsPerLayer: 24,
@@ -110,7 +123,8 @@ export const defaultSettings = Object.freeze({
     promotionRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
     stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
-    maskUserRoleAsAssistant: false, // true = rewrite final text-only user prompt blocks as assistant
+    maskUserRoleAsAssistant: false, // true = rewrite outgoing user-role request blocks as assistant
+    maskUserRoleMode: MASK_USER_ROLE_MODES.MARKER_FIRST,
 
     stripPatterns: [
         '<|channel>thought',

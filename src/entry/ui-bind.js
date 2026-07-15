@@ -208,7 +208,6 @@ function collectSliderSettingBindings(selector) {
             key,
             sliderSelector,
             partnerSelector,
-            maxSetting: readSliderMaxSettingKey($slider),
         });
     });
     return bindings;
@@ -222,10 +221,6 @@ function readPartnerInputSelector($element) {
     return String($element.attr('data-sc-partner-input') ?? '').trim();
 }
 
-function readSliderMaxSettingKey($element) {
-    return String($element.attr('data-sc-slider-max-setting') ?? '').trim();
-}
-
 function getIdSelector($element) {
     const id = String($element.attr('id') ?? '').trim();
     return id ? `#${id}` : '';
@@ -234,7 +229,6 @@ function getIdSelector($element) {
 function writeSliderSetting(binding, $source, options) {
     const settings = getSettings();
     const $slider = $(binding.sliderSelector);
-    applyDynamicSliderMax(binding, $slider, settings);
     const value = normalizeSliderValue($source.val(), $slider);
     settings[binding.key] = value;
     options.beforeSave?.(settings, value, $source, binding.key);
@@ -245,21 +239,9 @@ function writeSliderSetting(binding, $source, options) {
 
 function syncSliderSettingPair(binding, settings) {
     const $slider = $(binding.sliderSelector);
-    applyDynamicSliderMax(binding, $slider, settings);
     const value = normalizeSliderValue(settings[binding.key], $slider);
     $slider.val(value);
     $(binding.partnerSelector).val(formatSliderChipValue(value, $slider));
-}
-
-function applyDynamicSliderMax(binding, $slider, settings) {
-    if (!binding.maxSetting) {
-        return;
-    }
-    const max = Number(settings[binding.maxSetting]);
-    if (!Number.isFinite(max) || max <= 0) {
-        return;
-    }
-    $slider.attr('max', String(max));
 }
 
 /**
@@ -305,6 +287,16 @@ function formatSliderChipValue(value, slider) {
         return `${value / 1000}k`;
     }
     return String(value);
+}
+
+/**
+ * Show and enable the role-mask mode control only while masking is enabled.
+ * @param {boolean} enabled
+ * @returns {void}
+ */
+export function syncRoleMaskModeControl(enabled) {
+    $('#sc_mask_user_role_mode_row').toggle(enabled);
+    $('#sc_mask_user_role_mode').prop('disabled', !enabled);
 }
 
 /**

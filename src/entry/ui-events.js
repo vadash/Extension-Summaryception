@@ -1,5 +1,6 @@
 import {
     MEMORY_MODES,
+    MASK_USER_ROLE_MODES,
     PROMOTION_PROMPT_PRESETS,
     PROMOTION_REPAIR_PROMPT_PRESETS,
     PROMOTION_SYSTEM_PROMPT_PRESETS,
@@ -56,6 +57,7 @@ import {
     readChecked,
     readIntegerOrZero,
     readString,
+    syncRoleMaskModeControl,
 } from './ui-bind.js';
 
 const PROMPT_FIELDS = [
@@ -167,7 +169,7 @@ function bindToggleHandlers() {
         }
     });
 
-    /** @type {Array<{ selector: string, key: string }>} */
+    /** @type {Array<{ selector: string, key: string, afterSave?: (settings: ReturnType<typeof getSettings>, value: unknown) => void }>} */
     const toggles = [
         { selector: '#sc_debug_mode', key: 'debugMode' },
         { selector: '#sc_trace_mode', key: 'traceMode' },
@@ -175,7 +177,11 @@ function bindToggleHandlers() {
         { selector: '#sc_prompt_output_log_mode', key: 'promptOutputLogMode' },
         { selector: '#sc_apply_regex_scripts', key: 'applyRegexScripts' },
         { selector: '#sc_strip_chinese_ideographs', key: 'stripChineseIdeographs' },
-        { selector: '#sc_mask_user_role_as_assistant', key: 'maskUserRoleAsAssistant' },
+        {
+            selector: '#sc_mask_user_role_as_assistant',
+            key: 'maskUserRoleAsAssistant',
+            afterSave: (_settings, value) => syncRoleMaskModeControl(Boolean(value)),
+        },
     ];
 
     for (const toggle of toggles) {
@@ -184,8 +190,23 @@ function bindToggleHandlers() {
             selector: toggle.selector,
             key: toggle.key,
             read: readChecked,
+            afterSave: toggle.afterSave,
         });
     }
+
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_mask_user_role_mode',
+        key: 'maskUserRoleMode',
+        read: readString,
+        beforeSave: (settings, value, $source) => {
+            const mode = String(value);
+            if (!(/** @type {string[]} */ (Object.values(MASK_USER_ROLE_MODES)).includes(mode))) {
+                settings.maskUserRoleMode = defaultSettings.maskUserRoleMode;
+                $source.val(defaultSettings.maskUserRoleMode);
+            }
+        },
+    });
 }
 
 /**
@@ -662,6 +683,7 @@ function onResetDefaults() {
     s.applyRegexScripts = defaultSettings.applyRegexScripts;
     s.stripChineseIdeographs = defaultSettings.stripChineseIdeographs;
     s.maskUserRoleAsAssistant = defaultSettings.maskUserRoleAsAssistant;
+    s.maskUserRoleMode = defaultSettings.maskUserRoleMode;
 
     saveSettings();
     updateInjection();

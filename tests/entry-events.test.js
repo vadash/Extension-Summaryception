@@ -137,7 +137,7 @@ describe('entry lifecycle events', () => {
         });
     });
 
-    it('masks final text-only user prompt roles during generate data events', async () => {
+    it('masks every final user prompt role during generate data events', async () => {
         mocks.getEffectiveSettings.mockReturnValue({
             enabled: true,
             maskUserRoleAsAssistant: true,
@@ -155,10 +155,12 @@ describe('entry lifecycle events', () => {
         onGenerateAfterData(generateData, true);
 
         expect(generateData.prompt.map((message) => message.role)).toEqual([
+            'user',
             'system',
             'assistant',
             'assistant',
-            'user',
+            'assistant',
         ]);
+        expect(generateData.prompt[0].content).toBe('[user-role compatibility marker]');
     });
 });

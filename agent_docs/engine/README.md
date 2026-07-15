@@ -16,7 +16,7 @@
 - Cache auto-flush summarizes all planned partitions before one atomic commit, feeding each pending snapshot into the next partition's context. Force and Slop keep sequential partial commits.
 - Shared route execution and promotion loops live in `summarizer-engine.js`; queue lifecycle lives in `summarizer-queue.js`.
 - Prompt-affecting commits/effects queue while SillyTavern foreground generation is active. Generation end flushes pending work through `summarizer-commit.js`.
-- Request-only prompt rewrites use `GENERATE_AFTER_DATA`, mutate final payload in place, and never persist rewritten roles/content into chat history.
+- Request-only prompt rewrites use `GENERATE_AFTER_DATA`, mutate final payload in place, and never persist rewritten roles/content into chat history. User-role masking applies to every outgoing `role: "user"` block, with marker-first, rewrite-all, marker-last, and keep-last-user modes; debug mode reports changed/kept counts in one collapsed console group with bounded content previews.
 
 ## Connections
 

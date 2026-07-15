@@ -26,6 +26,7 @@
 
 - Current references: `settings.html`, `style.css`, `src/entry/ui-tabs.js`.
 - Status opens on every UI initialization; stored tab clicks never override startup default.
+- Primary tab ownership: Models contains Layer 0, Layer 1+ merge, and fallback routes; Settings contains input processing, LLM call context, engine tuning, and memory placement.
 - Keep primary tabs sticky, opaque enough over scrolling content, keyboard-visible, and semantically marked with tab roles/ARIA state.
 - Prefer compact cards, grids, short helper text, value chips, and collapsed expert tuning. Routine tabs should fit near one settings-panel viewport.
 - Inherit SillyTavern theme variables. Use restrained accent, shallow surfaces, clear warning/danger states, and no hard-coded light/dark page theme.
