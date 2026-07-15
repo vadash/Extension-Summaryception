@@ -1,101 +1,37 @@
 # Summaryception
 
-## WHAT: The Project
-Summaryception is a non-destructive, context-aware memory system for SillyTavern. It runs directly in the browser as an extension with no build step or bundler.
+## Project
 
-## WHY: The Purpose
-It replaces brute-force context stuffing with layered recursive summarization. It compresses older conversations into ultra-compact summary snippets organized in layers, hiding original messages from the LLM while keeping them visible in the UI.
+Browser-only SillyTavern extension. No runtime server, database, build step, or bundler. Recent chat stays verbatim; older chat becomes recursive summary layers. Summarized messages remain visible in UI but are hidden from model context.
 
-## HOW: Working on this codebase
-- **Testing**: Run `npm test` to verify behavior changes. 
-- **Linting & Formatting**: ESLint and Prettier run auto via husky pre-commit hooks. Never run them manually.
-- **Shell**: Windows, PowerShell 7+. Syntax: Chain with ; (no &&, ||, bash heredocs, |, tail). Use Get-Content -Tail. Pass multi-line strings via variables or single-line flags (e.g., git commit -m "").
+## Work
 
-## Progressive Disclosure
-We organize specific context into separate files. Read the relevant files in `agent_docs/` before you start working on a specific part of the system:
+- Shell: Windows PowerShell 7+. Separate commands with `;`; do not use `&&`, `||`, Bash heredocs, pipelines, or `tail`. Use `Get-Content -Tail`. Pass multiline text through variables or single-line flags.
+- Run `npm test` after behavior changes.
+- Husky owns ESLint and Prettier. Never run lint or formatting manually.
+- Keep runtime code browser-native and unbundled.
+- Preserve unrelated user changes. Do not commit, push, or sync unless current user explicitly authorizes it.
 
-- `file:agent_docs/architecture_boundaries.md` - Core structural rules, strict import directions, and the SillyTavern API Facade.
-- `file:agent_docs/core_engine.md` - Memory layers, background worker, ghosting, and LLM connection adapters.
-- `file:agent_docs/ui_and_features.md` - UI rendering, jQuery rules, data bindings, and high-level workflows.
-- `file:agent_docs/ui_visual_language.md` - Reusable Summaryception-family look, layout, density, sticky navigation, and UX conventions.
-- `file:agent_docs/testing_guidelines.md` - Vitest rules and mocking strategies.
+## Critical boundaries
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:970c3bf2 -->
-## Beads Issue Tracker
+- Entry may depend on features, core, and foundation; lower layers never depend upward. See [architecture](agent_docs/architecture/README.md).
+- Only `src/foundation/context.js` may access runtime `SillyTavern` global. Add facade wrappers for new API access.
+- Runtime behavior uses `getEffectiveSettings()`; raw `getSettings()` is for persistence and UI forms.
+- Any summary-layer or snippet mutation must call `bumpSummaryStoreMutationEpoch()`.
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+## Repository map
 
-### Quick Reference
+- `index.js`: extension composition and SillyTavern event registration.
+- `src/foundation/`: constants, runtime facade, settings/store, logging, retry primitives.
+- `src/core/`: summarization, promotion, connections, token planning, ghosting.
+- `src/features/`: injection, maintenance, persistence, memory workflows.
+- `src/entry/`: UI binding, events, dialogs, commands.
+- `settings.html` and `style.css`: SillyTavern-rendered UI assets. Read [UI rules](agent_docs/ui/README.md) before editing them.
+- `tests/`: Vitest suite. Read `tests/AGENTS.md` before test work.
+- Source work also follows `src/AGENTS.md`.
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
+## Beads
 
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-
-## Agent Context Profiles
-
-The managed Beads block is task-tracking guidance, not permission to override repository, user, or orchestrator instructions.
-
-- **Conservative (default)**: Use `bd` for task tracking. Do not run git commits, git pushes, or Dolt remote sync unless explicitly asked. At handoff, report changed files, validation, and suggested next commands.
-- **Minimal**: Keep tool instruction files as pointers to `bd prime`; use the same conservative git policy unless active instructions say otherwise.
-- **Team-maintainer**: Only when the repository explicitly opts in, agents may close beads, run quality gates, commit, and push as part of session close. A current "do not commit" or "do not push" instruction still wins.
-
-## Session Completion
-
-This protocol applies when ending a Beads implementation workflow. It is subordinate to explicit user, repository, and orchestrator instructions.
-
-1. **File issues for remaining work** - Create beads for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Handle git/sync by active profile**:
-   ```bash
-   # Conservative/minimal/default: report status and proposed commands; wait for approval.
-   git status
-
-   # Team-maintainer opt-in only, unless current instructions forbid it:
-   git pull --rebase
-   bd dolt push
-   git push
-   git status
-   ```
-5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
-
-**Critical rules:**
-- Explicit user or orchestrator instructions override this Beads block.
-- Do not commit or push without clear authority from the active profile or the current user request.
-- If a required sync or push is blocked, stop and report the exact command and error.
-<!-- END BEADS INTEGRATION -->
-
-<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex -->
-## Beads Issue Tracker
-
-Use Beads (`bd`) for durable task tracking in repositories that include it. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
-
-### Quick Reference
-
-```bash
-bd ready                # Find available work
-bd show <id>            # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>           # Complete work
-bd prime                # Refresh Beads context
-```
-
-### Rules
-
-- Use `bd` for all task tracking; do not create markdown TODO lists.
-- Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
-- Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-<!-- END BEADS CODEX SETUP -->
+- Use Beads for durable tasks and shared memory; never create markdown TODO or MEMORY files.
+- Run `bd prime` when workflow context is missing. Full guidance lives in `.agents/skills/beads/SKILL.md`.
+- Default profile is conservative: no commit, push, or `bd dolt push` without current authorization.
