@@ -74,9 +74,8 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
 
 function normalizeMaskMode(value) {
     const mode = String(value || '');
-    return Object.values(MASK_USER_ROLE_MODES).includes(mode)
-        ? mode
-        : MASK_USER_ROLE_MODES.MARKER_FIRST;
+    const validModes = /** @type {string[]} */ (Object.values(MASK_USER_ROLE_MODES));
+    return validModes.includes(mode) ? mode : MASK_USER_ROLE_MODES.MARKER_FIRST;
 }
 
 function logRoleMaskDebug(settings, mode, userMessages, preservedMessage, rewritten) {
@@ -112,7 +111,9 @@ function previewMessageContent(content) {
             text = String(content ?? '');
         }
     }
-    const compact = String(text || '').replaceAll(/\s+/g, ' ').trim();
+    const compact = String(text || '')
+        .replaceAll(/\s+/g, ' ')
+        .trim();
     return compact.length > 40 ? `${compact.slice(0, 40)}…` : compact;
 }
 
