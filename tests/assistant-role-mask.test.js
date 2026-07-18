@@ -160,7 +160,10 @@ describe('assistant role mask', () => {
         const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
         const endSpy = vi.spyOn(console, 'groupEnd').mockImplementation(() => {});
         const prompt = [
-            { role: 'user', content: 'first message with enough text to exceed forty visible symbols' },
+            {
+                role: 'user',
+                content: 'first message with enough text to exceed forty visible symbols',
+            },
             { role: 'assistant', content: 'reply' },
             { role: 'user', content: 'final user message' },
         ];

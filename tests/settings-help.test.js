@@ -146,7 +146,9 @@ describe('settings help metadata', () => {
         expect(roleMaskHelp.detail).toContain('keep the final user block');
         expect(roleMaskHelp.detail).toContain('request-only');
         expect(roleMaskHelp.detail).toContain('providers may normalize or reject');
-        expect(SETTINGS_HTML).toContain('<option value="rewrite_all">No synthetic user marker</option>');
+        expect(SETTINGS_HTML).toContain(
+            '<option value="rewrite_all">No synthetic user marker</option>',
+        );
     });
 
     it('generates the expected Layer 0, Merge, and Fallback connection labels', () => {
