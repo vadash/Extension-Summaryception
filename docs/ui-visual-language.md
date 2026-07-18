@@ -4,11 +4,11 @@ Use for Summaryception restyling or sibling SillyTavern plugins. Copy interactio
 
 ## Goals
 
-- First view shows enabled mode, current activity, and attention needs.
+- First view shows enabled mode, current activity, attention needs.
 - Compact, not cramped: routine tabs near one settings-panel viewport.
 - Calm technical console: cards, rails, meters, terse labels; no raw diagnostic wall.
 - Inherit SillyTavern theme; add restrained product accent and domain visualization.
-- Navigation remains usable while content scrolls.
+- Navigation stays usable while content scrolls.
 
 ## Information architecture
 
@@ -20,15 +20,15 @@ Order:
 4. Sticky primary tab strip.
 5. Active tab panel with compact sections/cards.
 
-Use three to five tabs progressing from routine to specialist work: Status, stored Data/Memory, Settings, Prompts/Templates when relevant, Tools/Diagnostics. Rename or omit by domain. Never place every control on one long page.
+Use three to five tabs progressing from routine to specialist: Status, stored Data/Memory, Settings, Prompts/Templates when relevant, Tools/Diagnostics. Rename or omit by domain. Never place every control on one long page.
 
 ## Navigation
 
 - Status opens after every reload, initialization, or new SillyTavern session. Never restore previous tab at startup.
 - Tab click changes active panel only; hide inactive panels.
 - Active tab uses subtle filled surface/border, not loud solid fill.
-- Tab strip uses `position: sticky; top: 0`, solid/mostly opaque theme-derived background, and z-index above content.
-- Header, modes, and status may scroll away; tabs remain docked. Scrolling labels must not show through sticky background.
+- Tab strip uses `position: sticky; top: 0`, solid/mostly opaque theme-derived background, z-index above content.
+- Header, modes, and status may scroll away; tabs stay docked. Scrolling labels must not show through sticky background.
 - Preserve `tablist`, `tab`, `tabpanel`, `aria-selected`, visible keyboard focus, and useful text labels.
 
 ## Density and hierarchy
@@ -36,7 +36,7 @@ Use three to five tabs progressing from routine to specialist work: Status, stor
 - Status normally shows overview, primary visualization, and operations together or with little scroll.
 - Large specialist tabs use compact sections and collapsible expert groups.
 - Use responsive two-column grids; one column on narrow screens.
-- Avoid large headings, hero space, wide prose, and excess padding. Target roughly 5-8 px primary spacing.
+- Avoid large headings, hero space, wide prose, excess padding. Target roughly 5-8 px primary spacing.
 - Put one short muted explanation under label; move long education into help tooltip.
 - Put compact editable value chip beside slider.
 - Surfaces stay shallow: drawer background, faint bordered card, stronger nested/selected surface, theme field, opaque sticky navigation. Avoid heavy shadows.
@@ -81,7 +81,7 @@ Signature patterns:
 - Never add horizontal page scroll. Rails, legends, long values wrap or truncate safely.
 - Test sticky tabs inside actual SillyTavern drawer scroll container.
 - Family constants: compact bordered surfaces, sticky Status-first tabs, accent icons, muted help/strong values, grids/cards/meters, bottom operations, theme variables, accessible responsive states.
-- Plugin identity may vary icon/name, restrained accent/palette, tab naming/order, domain visualization, wording, and modes. Sibling, not clone.
+- Plugin identity may vary icon/name, restrained accent/palette, tab naming/order, domain visualization, wording, modes. Sibling, not clone.
 
 ## Reject
 
