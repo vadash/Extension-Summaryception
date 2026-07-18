@@ -810,36 +810,16 @@
                             <div class="sc-tuning-group">
                                 <div class="sc-tuning-title">
                                     <span class="fa-solid fa-microchip"></span>
-                                    <span>What Goes into the LLM</span>
+                                    <span>Model Context</span>
                                 </div>
                                 <div class="sc-row">
-                                    <label for="sc_max_l0_source_tokens">
-                                        <span>Max Source per Call</span>
-                                        <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
+                                    <label for="sc_advanced_model_context">
+                                        <span>Model context</span>
+                                        <small class="sc-hint">Summarizer capacity for your model. Auto-tunes batch sizes below; override them in Expert Tuning.</small>
                                     </label>
                                     <div class="sc-slider-row">
-                                        <input type="range" id="sc_max_l0_source_tokens" min="8000" max="64000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
-                                        <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="24k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
-                                    </div>
-                                </div>
-                                <div class="sc-row">
-                                    <label for="sc_min_summary_budget">
-                                        <span>Batch Trigger Size</span>
-                                        <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
-                                    </label>
-                                    <div class="sc-slider-row">
-                                        <input type="range" id="sc_min_summary_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
-                                        <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
-                                    </div>
-                                </div>
-                                <div class="sc-row">
-                                    <label for="sc_layer0_summary_token_target">
-                                        <span>Narrative Target Size</span>
-                                        <small class="sc-hint">Target length of each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> uses its own fixed 200-token target and 300-token maximum.</small>
-                                    </label>
-                                    <div class="sc-slider-row">
-                                        <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
-                                        <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="text" inputmode="numeric" value="200" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target" />
+                                        <input type="range" id="sc_advanced_model_context" min="8000" max="64000" step="1000" data-sc-slider-setting="advancedModelContext" data-sc-partner-input="#sc_advanced_model_context_val" />
+                                        <input id="sc_advanced_model_context_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="48k" data-sc-slider-setting="advancedModelContext" data-sc-partner-input="#sc_advanced_model_context" />
                                     </div>
                                 </div>
                             </div>
@@ -882,6 +862,45 @@
                             <div class="sc-tuning-column">
                                 <div class="sc-tuning-group">
                                     <div class="sc-tuning-title">
+                                        <span class="fa-solid fa-microchip"></span>
+                                        <span>Summarizer Engine</span>
+                                    </div>
+                                    <small class="sc-hint">Auto-set from Model context; override any of them here.</small>
+                                    <div class="sc-row">
+                                        <label for="sc_max_l0_source_tokens">
+                                            <span>Max Source per Call</span>
+                                            <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
+                                        </label>
+                                        <div class="sc-slider-row">
+                                            <input type="range" id="sc_max_l0_source_tokens" min="8000" max="64000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
+                                            <input id="sc_max_l0_source_tokens_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="24k" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens" />
+                                        </div>
+                                    </div>
+                                    <div class="sc-row">
+                                        <label for="sc_min_summary_budget">
+                                            <span>Batch Trigger Size</span>
+                                            <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
+                                        </label>
+                                        <div class="sc-slider-row">
+                                            <input type="range" id="sc_min_summary_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
+                                            <input id="sc_min_summary_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" value="16k" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget" />
+                                        </div>
+                                    </div>
+                                    <div class="sc-row">
+                                        <label for="sc_layer0_summary_token_target">
+                                            <span>Narrative Target Size</span>
+                                            <small class="sc-hint">Target length of each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> uses its own fixed 200-token target and 300-token maximum.</small>
+                                        </label>
+                                        <div class="sc-slider-row">
+                                            <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
+                                            <input id="sc_layer0_summary_token_target_val" class="text_pole sc-val" type="text" inputmode="numeric" value="200" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sc-tuning-column">
+                                <div class="sc-tuning-group">
+                                    <div class="sc-tuning-title">
                                         <span class="fa-solid fa-timeline"></span>
                                         <span>Batch Readiness</span>
                                     </div>
@@ -906,8 +925,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="sc-tuning-column">
                                 <div class="sc-tuning-group">
                                     <div class="sc-tuning-title">
                                         <span class="fa-solid fa-code-merge"></span>

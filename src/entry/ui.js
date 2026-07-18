@@ -403,10 +403,16 @@ function getLayerMetrics(store) {
 
 /**
  * Build a DOM-neutral token budget view model.
- * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null }} input
- * @returns {{ budget: number, used: number, overage: number, denominator: number, totalLabel: string, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
+ * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null, overageMode?: 'error' | 'pending' }} input
+ * @returns {{ budget: number, used: number, overage: number, overageMode: string, pending: number, denominator: number, totalLabel: string, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
  */
-export function buildContextBudgetViewModel({ budget, verbatim, layers, wrapper = null }) {
+export function buildContextBudgetViewModel({
+    budget,
+    verbatim,
+    layers,
+    wrapper = null,
+    overageMode = 'error',
+}) {
     const normalizedBudget = normalizeBudgetCount(budget);
     const parts = [verbatim, ...layers, wrapper].filter(isVisibleBudgetPart);
     const used = parts.reduce((sum, part) => sum + part.count, 0);
@@ -414,21 +420,37 @@ export function buildContextBudgetViewModel({ budget, verbatim, layers, wrapper 
     const freeCount = Math.max(0, normalizedBudget - used);
     const anyEstimated = parts.some((part) => part.estimated);
     const denominator = Math.max(normalizedBudget, used, 1);
-    const segments = parts.map((part) => buildBudgetSegment(part, denominator));
+    const isPending = overageMode === 'pending' && overage > 0;
 
-    if (freeCount > 0) {
-        segments.push(
-            buildBudgetSegment(
-                { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
-                denominator,
-            ),
-        );
+    let segments;
+    if (isPending) {
+        let remaining = normalizedBudget;
+        const rendered = [];
+        for (const part of parts) {
+            const within = Math.min(part.count, Math.max(0, remaining));
+            rendered.push({ ...part, count: within });
+            remaining -= within;
+        }
+        rendered.push({ label: 'Queued', kind: 'pending', count: overage, estimated: false });
+        segments = rendered.map((part) => buildBudgetSegment(part, denominator));
+    } else {
+        segments = parts.map((part) => buildBudgetSegment(part, denominator));
+        if (freeCount > 0) {
+            segments.push(
+                buildBudgetSegment(
+                    { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
+                    denominator,
+                ),
+            );
+        }
     }
 
     return {
         budget: normalizedBudget,
         used,
         overage,
+        overageMode,
+        pending: isPending ? overage : 0,
         denominator,
         totalLabel: `${formatBudgetTokenLabel(used, anyEstimated)} / ${formatBudgetTokenLabel(
             normalizedBudget,
@@ -467,6 +489,7 @@ async function renderVerbatimBudget(s, store) {
             budget: s.verbatimTokenBudget,
             verbatim: await getVerbatimBudgetPart(s, store),
             layers: [],
+            overageMode: 'pending',
         });
         renderBudgetView(view, {
             total: '#sc_verbatim_budget_total',
@@ -538,12 +561,12 @@ function getMemoryBudgetPartOrder(part) {
 }
 
 function renderBudgetView(view, targets) {
+    const isPending = view.overageMode === 'pending';
+    const showOver = view.overage > 0 && !isPending;
     $(targets.total)
         .text(getContextBudgetTotalText(view))
-        .toggleClass('sc-context-total-over', view.overage > 0);
-    const bar = $(targets.bar)
-        .empty()
-        .toggleClass('sc-context-bar-over', view.overage > 0);
+        .toggleClass('sc-context-total-over', showOver);
+    const bar = $(targets.bar).empty().toggleClass('sc-context-bar-over', showOver);
     const legend = $(targets.legend).empty();
 
     for (const segment of view.segments) {
@@ -577,6 +600,12 @@ function renderBudgetLegendItem(legend, segment) {
 }
 
 function getContextBudgetTotalText(view) {
+    if (view.overageMode === 'pending' && view.pending > 0) {
+        return `${formatBudgetTokenLabel(view.used, false)} (${formatBudgetTokenLabel(
+            view.pending,
+            false,
+        )} queued)`;
+    }
     if (view.overage > 0) {
         return `${view.totalLabel} (+${formatBudgetTokenLabel(view.overage, false)})`;
     }

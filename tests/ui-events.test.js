@@ -80,6 +80,24 @@ describe('ui prompt/reset events', () => {
         });
     });
 
+    it('derives engine tuning when the Model context slider moves', async () => {
+        const settings = structuredClone(defaultSettings);
+        settings.uiMode = 'advanced';
+        settings.memoryTokenBudget = 10000;
+        const ctx = installSillyTavernStub({ settings });
+        const ui = await installUiEventsHarness(makeSliderHarnessOptions(['modelContext']));
+
+        ui.element('#sc_advanced_model_context').val('64000');
+        ui.trigger('input', '#sc_advanced_model_context');
+
+        expect(ctx.extensionSettings.summaryception).toMatchObject({
+            advancedModelContext: 64000,
+            maxL0SourceTokens: 32000,
+            minSummaryBudget: 32000,
+            layer0SummaryTokenTarget: 200,
+        });
+    });
+
     it('saves checkbox settings and conditionally exposes the role-mask mode', async () => {
         const settings = structuredClone(defaultSettings);
         const ctx = installSillyTavernStub({ settings });
@@ -474,6 +492,14 @@ function makeSliderHarnessOptions(names) {
             key: 'minSummaryBudget',
             min: '4000',
             max: '32000',
+            step: '1000',
+        }),
+        modelContext: sliderFixture({
+            id: 'sc_advanced_model_context',
+            partner: '#sc_advanced_model_context_val',
+            key: 'advancedModelContext',
+            min: '8000',
+            max: '64000',
             step: '1000',
         }),
         easyContext: sliderFixture({

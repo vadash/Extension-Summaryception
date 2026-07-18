@@ -14,6 +14,7 @@ import { getChat } from '../foundation/context.js';
 import { error, warn } from '../foundation/logger.js';
 import {
     bumpSummaryStoreMutationEpoch,
+    deriveAdvancedEngineTuning,
     getEffectiveSettings,
     getSettings,
     saveSettings,
@@ -380,6 +381,9 @@ function bindSliderHandlers() {
 
 function enforceRetentionConstraints(changedKey) {
     const s = getSettings();
+    if (changedKey === 'advancedModelContext') {
+        deriveAdvancedEngineTuning(s);
+    }
     if (changedKey === 'maxSummaryTurns' && s.maxSummaryTurns < s.minSummaryTurns) {
         s.minSummaryTurns = s.maxSummaryTurns;
     }

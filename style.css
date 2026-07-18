@@ -319,6 +319,7 @@
 .sc-context-verbatim { background: #2f80ed; }
 .sc-context-state { background: #00a6a6; }
 .sc-context-layer0 { background: #27ae60; }
+.sc-context-pending { background: #3fae86; }
 .sc-context-layer { background: #9b51e0; }
 .sc-context-wrapper { background: #f2994a; }
 .sc-context-free {

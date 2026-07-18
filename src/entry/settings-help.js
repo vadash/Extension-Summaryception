@@ -155,6 +155,22 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'advanced_model_context',
+        sliderHelp({
+            selector: selectorFor('sc_advanced_model_context'),
+            title: 'Model Context',
+            short: 'Summarizer capacity; auto-tunes batch sizes.',
+            controls: [
+                controlFor('sc_advanced_model_context'),
+                controlFor('sc_advanced_model_context_val'),
+            ],
+            meaning: 'Sets the source cap and batch trigger for Layer 0 summarizer calls.',
+            higher: 'allows larger batches on big-context models.',
+            lower: 'keeps each summarizer request smaller.',
+            defaultText: '48k; overrides live in Expert Tuning.',
+        }),
+    ],
+    [
         'layer0_summary_token_target',
         sliderHelp({
             selector: selectorFor('sc_layer0_summary_token_target'),
@@ -165,10 +181,10 @@ const HELP_ENTRIES = [
                 controlFor('sc_layer0_summary_token_target_val'),
             ],
             meaning:
-                'Target size for the [NARRATIVE] section of one Layer 0 summary. [STATE] keeps a separate fixed 200-token soft target and 300-token hard maximum.',
+                'Target size for the [NARRATIVE] section of one Layer 0 summary. Auto-derived from Model context; override it here. [STATE] keeps a separate fixed 200-token soft target and 300-token hard maximum.',
             higher: 'keeps more chronological detail in each Layer 0 narrative.',
             lower: 'compresses each narrative harder and leaves more memory budget.',
-            defaultText: '200.',
+            defaultText: '200; auto-derived from Model context.',
         }),
     ],
     [
@@ -181,10 +197,11 @@ const HELP_ENTRIES = [
                 controlFor('sc_max_l0_source_tokens'),
                 controlFor('sc_max_l0_source_tokens_val'),
             ],
-            meaning: 'Maximum raw-chat source size sent in one Layer 0 summarizer call.',
+            meaning:
+                'Maximum raw-chat source size sent in one Layer 0 summarizer call. Auto-derived from Model context; override it here.',
             higher: 'allows larger batches for models with more context.',
             lower: 'keeps each summarizer request smaller and safer.',
-            defaultText: '24k, with an 8k-64k range.',
+            defaultText: '24k, with an 8k-64k range; auto-derived from Model context.',
         }),
     ],
     [
@@ -198,10 +215,10 @@ const HELP_ENTRIES = [
                 controlFor('sc_min_summary_budget_val'),
             ],
             meaning:
-                'Minimum overflow passage size before a normal Layer 0 batch is worth summarizing; it cannot exceed Max Source per Call.',
+                'Minimum overflow passage size before a normal Layer 0 batch is worth summarizing; it cannot exceed Max Source per Call. Auto-derived from Model context; override it here.',
             higher: 'waits for bigger chunks and makes fewer summarizer calls.',
             lower: 'summarizes smaller chunks sooner.',
-            defaultText: '16k, with a fixed 4k-32k control range.',
+            defaultText: '16k, with a fixed 4k-32k control range; auto-derived from Model context.',
         }),
     ],
     [

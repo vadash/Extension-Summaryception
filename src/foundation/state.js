@@ -70,10 +70,7 @@ export function getSettings() {
     }
     const modeSettingsNormalized = normalizeModeSettings(settings, hadUiMode);
     const memorySettingsNormalized = normalizeMemorySettings(settings);
-    const roleMaskSettingsNormalized = normalizeRoleMaskSettings(
-        settings,
-        hadMaskUserRoleMode,
-    );
+    const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
     normalizeVerbatimWindowSettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
     if (
@@ -230,10 +227,7 @@ function normalizeMemorySettings(settings) {
  * @returns {boolean} Whether settings were changed.
  */
 function normalizeRoleMaskSettings(settings, hadMode) {
-    if (
-        hadMode &&
-        isSettingValue(Object.values(MASK_USER_ROLE_MODES), settings.maskUserRoleMode)
-    ) {
+    if (hadMode && isSettingValue(Object.values(MASK_USER_ROLE_MODES), settings.maskUserRoleMode)) {
         return false;
     }
     settings.maskUserRoleMode = defaultSettings.maskUserRoleMode;
@@ -258,6 +252,12 @@ function isSettingValue(values, value) {
 function normalizeVerbatimWindowSettings(settings) {
     settings.easySummarizerContextTokens = clampToStep(
         settings.easySummarizerContextTokens,
+        EASY_CONTEXT_LIMITS.MIN,
+        EASY_CONTEXT_LIMITS.MAX,
+        EASY_CONTEXT_LIMITS.STEP,
+    );
+    settings.advancedModelContext = clampToStep(
+        settings.advancedModelContext,
         EASY_CONTEXT_LIMITS.MIN,
         EASY_CONTEXT_LIMITS.MAX,
         EASY_CONTEXT_LIMITS.STEP,
@@ -353,6 +353,24 @@ function deriveEasySourceCap(contextTokens) {
     return Math.min(
         L0_SOURCE_LIMITS.MAX,
         Math.max(L0_SOURCE_LIMITS.MIN, Math.floor(context * 0.5)),
+    );
+}
+
+/**
+ * Derive Advanced engine mechanics from the model-context field.
+ * Mutates settings in place. Fires only when the user edits Model context.
+ * @param {ExtensionSettings} settings
+ * @returns {void}
+ */
+export function deriveAdvancedEngineTuning(settings) {
+    const sourceCap = deriveEasySourceCap(settings.advancedModelContext);
+    settings.maxL0SourceTokens = sourceCap;
+    settings.minSummaryBudget = Math.min(BATCH_TRIGGER_LIMITS.MAX, sourceCap);
+    settings.layer0SummaryTokenTarget = clampToStep(
+        Number(settings.memoryTokenBudget) * 0.02,
+        80,
+        500,
+        10,
     );
 }
 

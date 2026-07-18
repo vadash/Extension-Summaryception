@@ -135,6 +135,39 @@ describe('context budget view model', () => {
         ]);
     });
 
+    it('splits verbatim overflow into a queued segment in pending mode', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 22000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 32000),
+            layers: [],
+            overageMode: 'pending',
+        });
+
+        expect(view.used).toBe(32000);
+        expect(view.overage).toBe(10000);
+        expect(view.pending).toBe(10000);
+        expect(view.overageMode).toBe('pending');
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 22000],
+            ['Queued', 'pending', 10000],
+        ]);
+    });
+
+    it('behaves like error mode when pending mode has no overage', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 16000,
+            verbatim: budgetPart('Verbatim Window', 'verbatim', 8000),
+            layers: [],
+            overageMode: 'pending',
+        });
+
+        expect(view.pending).toBe(0);
+        expect(view.segments.map(segmentSummary)).toEqual([
+            ['Verbatim Window', 'verbatim', 8000],
+            ['Free Space', 'free', 8000],
+        ]);
+    });
+
     it('preserves estimated token labels', () => {
         const view = buildContextBudgetViewModel({
             budget: 10000,

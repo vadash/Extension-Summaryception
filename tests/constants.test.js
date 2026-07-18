@@ -46,6 +46,7 @@ describe('constants', () => {
         expect(defaultSettings.maxSummaryTurns).toBe(8);
         expect(defaultSettings.layer0SummaryTokenTarget).toBe(200);
         expect(defaultSettings.maxL0SourceTokens).toBe(24000);
+        expect(defaultSettings.advancedModelContext).toBe(48000);
         expect(defaultSettings.maxSummaryTurns).toBeGreaterThanOrEqual(
             defaultSettings.minSummaryTurns,
         );

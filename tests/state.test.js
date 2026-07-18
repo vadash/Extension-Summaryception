@@ -14,6 +14,7 @@ import {
     getSummaryStoreMutationEpoch,
     getPlayerName,
     getSettings,
+    deriveAdvancedEngineTuning,
 } from '../src/foundation/state.js';
 
 describe('state.js', () => {
@@ -445,5 +446,44 @@ describe('state.js', () => {
 
         getSettings();
         expect(getPlayerName()).toBe('Lyra');
+    });
+
+    describe('deriveAdvancedEngineTuning', () => {
+        it('derives engine mechanics from model context and memory budget', () => {
+            const settings = { advancedModelContext: 48000, memoryTokenBudget: 10000 };
+            deriveAdvancedEngineTuning(settings);
+            expect(settings.maxL0SourceTokens).toBe(24000);
+            expect(settings.minSummaryBudget).toBe(24000);
+            expect(settings.layer0SummaryTokenTarget).toBe(200);
+        });
+
+        it('caps source and batch trigger at the top of the range', () => {
+            const settings = { advancedModelContext: 64000, memoryTokenBudget: 32000 };
+            deriveAdvancedEngineTuning(settings);
+            expect(settings.maxL0SourceTokens).toBe(32000);
+            expect(settings.minSummaryBudget).toBe(32000);
+            expect(settings.layer0SummaryTokenTarget).toBe(500);
+        });
+
+        it('clamps to the floor of the range', () => {
+            const settings = { advancedModelContext: 8000, memoryTokenBudget: 4000 };
+            deriveAdvancedEngineTuning(settings);
+            expect(settings.maxL0SourceTokens).toBe(8000);
+            expect(settings.minSummaryBudget).toBe(8000);
+            expect(settings.layer0SummaryTokenTarget).toBe(80);
+        });
+
+        it('normalizes out-of-range advancedModelContext to 8k-64k step 1k', () => {
+            installSillyTavernStub({
+                settings: { advancedModelContext: 999999 },
+            });
+            expect(getSettings().advancedModelContext).toBe(64000);
+
+            delete globalThis.SillyTavern;
+            installSillyTavernStub({
+                settings: { advancedModelContext: 1234 },
+            });
+            expect(getSettings().advancedModelContext).toBe(8000);
+        });
     });
 });
