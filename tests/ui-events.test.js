@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
     clearSummaryceptionMemory: vi.fn(),
     updateInjection: vi.fn(),
     updateUI: vi.fn(),
-    syncPayloadSchematic: vi.fn(),
 }));
 
 const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setting]';
@@ -171,7 +170,6 @@ describe('ui prompt/reset events', () => {
         expect(ui.element('#sc_verbatim_token_budget').getValue()).toBe(12000);
         expect(ui.element('#sc_verbatim_token_budget_val').getValue()).toBe('12k');
         expect(mocks.updateInjection).toHaveBeenCalledTimes(2);
-        expect(mocks.syncPayloadSchematic).toHaveBeenCalledTimes(2);
     });
 
     it('enforces min/max summary-turn constraints through metadata-bound sliders', async () => {
@@ -577,7 +575,6 @@ function mockUiEventDependencies() {
     vi.doMock('../src/entry/ui.js', () => ({
         refreshMainLLMContextEstimate: vi.fn(),
         updateUI: mocks.updateUI,
-        syncPayloadSchematic: mocks.syncPayloadSchematic,
         syncLLMContextPreview: vi.fn(),
     }));
     vi.doMock('../src/entry/ui-dialogs.js', () => ({

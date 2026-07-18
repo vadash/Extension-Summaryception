@@ -1,2 +1,2 @@
 [features]
-hooks = true
+hooks = false

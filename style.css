@@ -47,22 +47,6 @@
 }
 .sc-console-value strong { font: inherit; }
 .sc-status-separator { opacity: 0.5; }
-.sc-status-label {
-    display: block;
-    color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 68%, transparent);
-    font-size: 0.74em;
-    line-height: 1.2;
-}
-.sc-status-item strong {
-    display: block;
-    overflow: hidden;
-    margin-top: 2px;
-    color: var(--SmartThemeBodyColor, #fff);
-    font-size: 0.92em;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
 .sc-tab-list {
     position: sticky;
     top: 0;
@@ -197,21 +181,6 @@
     background: rgba(255, 255, 255, 0.08);
     font-size: 0.95em;
 }
-.sc-status-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
-}
-.sc-cache-grid {
-    grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
-}
-.sc-status-item {
-    min-height: 34px;
-    padding: 4px 6px;
-    border: 1px solid var(--sc-border);
-    border-radius: 7px;
-    background: var(--sc-surface-strong);
-}
 .sc-context-total {
     flex: 0 0 auto;
     color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 72%, transparent);
@@ -281,12 +250,37 @@
     margin-top: 8px;
 }
 .sc-context-bar {
+    position: relative;
     display: flex;
     overflow: hidden;
     min-height: 30px;
     border: 1px solid var(--sc-border);
     border-radius: 7px;
     background: var(--sc-field);
+}
+.sc-context-trigger-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 1;
+    width: 0;
+    margin-left: -1px;
+    border-left: 2px dashed var(--sc-danger);
+    pointer-events: none;
+}
+.sc-context-trigger-flag {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    padding: 0 3px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--sc-danger) 82%, black);
+    color: #fff;
+    font-size: 0.62em;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+    text-shadow: none;
 }
 .sc-context-bar-over {
     border-color: color-mix(in srgb, var(--sc-danger) 64%, var(--sc-border));

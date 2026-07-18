@@ -3,6 +3,7 @@ import { getEffectiveMemoryUsage } from '../src/core/memory-budget.js';
 import {
     buildContextBudgetViewModel,
     buildSnippetBrowserViewModel,
+    buildTriggerGaugeModel,
     formatBudgetTokenLabel,
     getSnippetBrowserRowKey,
 } from '../src/entry/ui.js';
@@ -135,33 +136,43 @@ describe('context budget view model', () => {
         ]);
     });
 
-    it('splits verbatim overflow into a queued segment in pending mode', () => {
+    it('extends the denominator to the marker and rescales segment percents', () => {
         const view = buildContextBudgetViewModel({
-            budget: 22000,
-            verbatim: budgetPart('Verbatim Window', 'verbatim', 32000),
+            budget: 10000,
+            verbatim: budgetPart('Queued', 'pending', 5000),
             layers: [],
-            overageMode: 'pending',
+            marker: { positionTokens: 20000, label: 'Trigger: tokens' },
         });
 
-        expect(view.used).toBe(32000);
-        expect(view.overage).toBe(10000);
-        expect(view.pending).toBe(10000);
-        expect(view.overageMode).toBe('pending');
+        expect(view.denominator).toBe(20000);
+        expect(view.marker).toEqual({ percent: 100, label: 'Trigger: tokens' });
         expect(view.segments.map(segmentSummary)).toEqual([
-            ['Verbatim Window', 'verbatim', 22000],
-            ['Queued', 'pending', 10000],
+            ['Queued', 'pending', 5000],
+            ['Free Space', 'free', 5000],
         ]);
+        expect(view.segments[0].percent).toBe(25);
     });
 
-    it('behaves like error mode when pending mode has no overage', () => {
+    it('places the marker at its share of the denominator', () => {
+        const view = buildContextBudgetViewModel({
+            budget: 16000,
+            verbatim: budgetPart('Queued', 'pending', 4000),
+            layers: [],
+            marker: { positionTokens: 12000, label: 'Trigger: 3 turns' },
+        });
+
+        expect(view.denominator).toBe(16000);
+        expect(view.marker).toEqual({ percent: 75, label: 'Trigger: 3 turns' });
+    });
+
+    it('omits the marker when none is supplied', () => {
         const view = buildContextBudgetViewModel({
             budget: 16000,
             verbatim: budgetPart('Verbatim Window', 'verbatim', 8000),
             layers: [],
-            overageMode: 'pending',
         });
 
-        expect(view.pending).toBe(0);
+        expect(view.marker).toBeNull();
         expect(view.segments.map(segmentSummary)).toEqual([
             ['Verbatim Window', 'verbatim', 8000],
             ['Free Space', 'free', 8000],
@@ -223,6 +234,61 @@ describe('context budget view model', () => {
             'Wrapper',
             'Free Space',
         ]);
+    });
+});
+
+describe('trigger gauge model', () => {
+    const plan = (summaryStats, overflowCount) => ({ rawPlan: { summaryStats, overflowCount } });
+
+    it('binds the token gate when queued turns are light', () => {
+        const model = buildTriggerGaugeModel(plan({ finalTokens: 4000 }, 3), {
+            minSummaryBudget: 16000,
+            minSummaryTurns: 3,
+            maxSummaryTurns: 8,
+        });
+
+        expect(model.queuedTokens).toBe(4000);
+        expect(model.triggerTokens).toBe(16000);
+        expect(model.label).toBe('Trigger: tokens');
+    });
+
+    it('binds the turn gate when its token-equivalent exceeds the budget gate', () => {
+        const model = buildTriggerGaugeModel(plan({ finalTokens: 12000 }, 2), {
+            minSummaryBudget: 16000,
+            minSummaryTurns: 6,
+            maxSummaryTurns: 8,
+        });
+
+        // avg 6000/turn * 6 turns = 36000 > 16000 budget gate
+        expect(model.triggerTokens).toBe(36000);
+        expect(model.label).toBe('Trigger: 6 turns');
+    });
+
+    it('falls back to the token gate with no queued turns', () => {
+        const model = buildTriggerGaugeModel(plan({ finalTokens: 0 }, 0), {
+            minSummaryBudget: 16000,
+            minSummaryTurns: 3,
+            maxSummaryTurns: 8,
+        });
+
+        expect(model.queuedTokens).toBe(0);
+        expect(model.triggerTokens).toBe(16000);
+        expect(model.label).toBe('Trigger: tokens');
+    });
+
+    it('reads cache-mode flush stats when summary stats are absent', () => {
+        const model = buildTriggerGaugeModel(
+            {
+                rawPlan: {
+                    flushStats: { finalTokens: 5000, finalTokensEstimated: true },
+                    overflowCount: 4,
+                },
+            },
+            { minSummaryBudget: 16000, minSummaryTurns: 3, maxSummaryTurns: 8 },
+        );
+
+        expect(model.queuedTokens).toBe(5000);
+        expect(model.queuedEstimated).toBe(true);
     });
 });
 

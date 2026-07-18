@@ -13,7 +13,6 @@ import { warn } from '../foundation/logger.js';
 import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
 import { countTextTokens, formatTokenValue } from '../core/token-count.js';
-import { getProtectedTailTokens } from '../core/cache-planner.js';
 import { buildAutoSummaryRoutePlan } from '../core/summarization-routes.js';
 import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -105,7 +104,6 @@ function syncSettingsInputs(s, effectiveSettings) {
     $('#sc_promotion_system_prompt').val(s.promotionSystemPrompt);
     $('#sc_promotion_user_prompt').val(s.promotionUserPrompt);
     $('#sc_promotion_repair_prompt').val(s.promotionRepairPrompt);
-    syncPayloadSchematic(effectiveSettings);
     syncEasyPayloadSchematic(effectiveSettings);
     syncMemoryModeControls(s);
     syncLLMContextPreview(s);
@@ -116,25 +114,6 @@ function syncEnabledContent(s) {
     $('#sc_off_content').toggle(s.uiMode === UI_MODES.OFF);
     $('#sc_easy_content').toggle(s.uiMode === UI_MODES.EASY);
     $('#sc_enabled_content').toggle(s.uiMode === UI_MODES.ADVANCED);
-}
-
-/**
- * Sync read-only context payload budget labels.
- * @param {ReturnType<typeof getSettings>} [s]
- * @returns {void}
- */
-export function syncPayloadSchematic(s = getEffectiveSettings()) {
-    const isCache = s.memoryMode === MEMORY_MODES.CACHE;
-    const protectedTail = getProtectedTailTokens(s.verbatimTokenBudget);
-
-    $('#sc_payload_memory_budget').text(formatBudgetTokenLabel(s.memoryTokenBudget));
-    $('#sc_payload_verbatim_budget').text(
-        formatBudgetTokenLabel(
-            isCache ? s.verbatimTokenBudget - protectedTail : s.verbatimTokenBudget,
-        ),
-    );
-    $('#sc_payload_tail_budget').text(formatBudgetTokenLabel(protectedTail));
-    $('#sc_payload_tail_part').css('display', isCache ? 'contents' : 'none');
 }
 
 function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
@@ -308,9 +287,7 @@ async function renderOverview(s, store) {
     $('#sc_status_enabled').text(getModeLabel(s));
     $('#sc_status_worker').text(await getWorkerLabel(s, store));
     $('#sc_status_snippets').text(String(metrics.totalSnippets));
-    $('#sc_status_depth').text(String(metrics.deepestLayer));
     $('#sc_status_ghosted').text(String(ghostedCount));
-    $('#sc_status_index').text(String(store.summarizedUpTo ?? -1));
 }
 
 async function renderEasyOverview(s, store) {
@@ -403,15 +380,15 @@ function getLayerMetrics(store) {
 
 /**
  * Build a DOM-neutral token budget view model.
- * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null, overageMode?: 'error' | 'pending' }} input
- * @returns {{ budget: number, used: number, overage: number, overageMode: string, pending: number, denominator: number, totalLabel: string, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
+ * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null, marker?: { positionTokens: number, label: string } | null }} input
+ * @returns {{ budget: number, used: number, overage: number, denominator: number, totalLabel: string, marker: { percent: number, label: string } | null, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
  */
 export function buildContextBudgetViewModel({
     budget,
     verbatim,
     layers,
     wrapper = null,
-    overageMode = 'error',
+    marker = null,
 }) {
     const normalizedBudget = normalizeBudgetCount(budget);
     const parts = [verbatim, ...layers, wrapper].filter(isVisibleBudgetPart);
@@ -419,39 +396,27 @@ export function buildContextBudgetViewModel({
     const overage = Math.max(0, used - normalizedBudget);
     const freeCount = Math.max(0, normalizedBudget - used);
     const anyEstimated = parts.some((part) => part.estimated);
-    const denominator = Math.max(normalizedBudget, used, 1);
-    const isPending = overageMode === 'pending' && overage > 0;
+    const markerTokens = marker ? normalizeBudgetCount(marker.positionTokens) : 0;
+    const denominator = Math.max(normalizedBudget, used, markerTokens, 1);
 
-    let segments;
-    if (isPending) {
-        let remaining = normalizedBudget;
-        const rendered = [];
-        for (const part of parts) {
-            const within = Math.min(part.count, Math.max(0, remaining));
-            rendered.push({ ...part, count: within });
-            remaining -= within;
-        }
-        rendered.push({ label: 'Queued', kind: 'pending', count: overage, estimated: false });
-        segments = rendered.map((part) => buildBudgetSegment(part, denominator));
-    } else {
-        segments = parts.map((part) => buildBudgetSegment(part, denominator));
-        if (freeCount > 0) {
-            segments.push(
-                buildBudgetSegment(
-                    { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
-                    denominator,
-                ),
-            );
-        }
+    const segments = parts.map((part) => buildBudgetSegment(part, denominator));
+    if (freeCount > 0) {
+        segments.push(
+            buildBudgetSegment(
+                { label: 'Free Space', kind: 'free', count: freeCount, estimated: false },
+                denominator,
+            ),
+        );
     }
 
     return {
         budget: normalizedBudget,
         used,
         overage,
-        overageMode,
-        pending: isPending ? overage : 0,
         denominator,
+        marker: marker
+            ? { percent: Math.min(100, (markerTokens / denominator) * 100), label: marker.label }
+            : null,
         totalLabel: `${formatBudgetTokenLabel(used, anyEstimated)} / ${formatBudgetTokenLabel(
             normalizedBudget,
             false,
@@ -472,6 +437,7 @@ export function formatBudgetTokenLabel(count, estimated = false) {
 
 async function renderBudgetStatus(s, store) {
     await renderVerbatimBudget(s, store);
+    await renderTriggerGauge(s, store);
     await renderMemoryBudget(s, store);
 }
 
@@ -489,7 +455,6 @@ async function renderVerbatimBudget(s, store) {
             budget: s.verbatimTokenBudget,
             verbatim: await getVerbatimBudgetPart(s, store),
             layers: [],
-            overageMode: 'pending',
         });
         renderBudgetView(view, {
             total: '#sc_verbatim_budget_total',
@@ -504,6 +469,62 @@ async function renderVerbatimBudget(s, store) {
             '#sc_verbatim_budget_legend',
         );
     }
+}
+
+async function renderTriggerGauge(s, store) {
+    const targets = {
+        total: '#sc_trigger_budget_total',
+        bar: '#sc_trigger_budget_bar',
+        legend: '#sc_trigger_budget_legend',
+    };
+    try {
+        const plan = await buildAutoSummaryRoutePlan(getChat(), store, s);
+        const model = buildTriggerGaugeModel(plan, s);
+        const view = buildContextBudgetViewModel({
+            budget: model.triggerTokens,
+            verbatim: {
+                label: 'Queued',
+                kind: 'pending',
+                count: model.queuedTokens,
+                estimated: model.queuedEstimated,
+            },
+            layers: [],
+            marker: { positionTokens: model.triggerTokens, label: model.label },
+        });
+        renderBudgetView(view, targets);
+    } catch (e) {
+        warn('Trigger gauge render error:', e);
+        clearBudgetView(targets.total, targets.bar, targets.legend);
+    }
+}
+
+/**
+ * Compute the queued-tokens gauge and effective summarization trigger point.
+ * The trigger fires when queued turns and queued source tokens both clear their
+ * gates; the marker sits at whichever gate is satisfied last. The turn gate is
+ * projected into tokens via the average queued tokens per turn, so the label
+ * names the binding gate rather than implying an exact token count.
+ * @param {import('../core/summarization-routes.js').SummaryRoutePlan} plan
+ * @param {ReturnType<typeof getEffectiveSettings>} s
+ * @returns {{ queuedTokens: number, queuedEstimated: boolean, triggerTokens: number, label: string }}
+ */
+export function buildTriggerGaugeModel(plan, s) {
+    const raw = plan.rawPlan || {};
+    const queuedStats = raw.summaryStats || raw.flushStats || null;
+    const queuedTokens = normalizeBudgetCount(queuedStats?.finalTokens ?? 0);
+    const queuedEstimated = Boolean(queuedStats?.finalTokensEstimated);
+    const minBudget = normalizeBudgetCount(s.minSummaryBudget);
+    const minTurns = Math.max(1, Math.round(Number(s.minSummaryTurns)) || 1);
+    const maxTurns = Math.max(minTurns, Math.round(Number(s.maxSummaryTurns)) || minTurns);
+    const queuedTurns = Math.min(Math.max(0, Math.round(Number(raw.overflowCount) || 0)), maxTurns);
+    const turnEquivalent = queuedTurns > 0 ? Math.ceil((queuedTokens / queuedTurns) * minTurns) : 0;
+    const triggerTokens = Math.max(minBudget, turnEquivalent, 1);
+    return {
+        queuedTokens,
+        queuedEstimated,
+        triggerTokens,
+        label: turnEquivalent > minBudget ? `Trigger: ${minTurns} turns` : 'Trigger: tokens',
+    };
 }
 
 async function renderMemoryBudget(
@@ -561,8 +582,7 @@ function getMemoryBudgetPartOrder(part) {
 }
 
 function renderBudgetView(view, targets) {
-    const isPending = view.overageMode === 'pending';
-    const showOver = view.overage > 0 && !isPending;
+    const showOver = view.overage > 0;
     $(targets.total)
         .text(getContextBudgetTotalText(view))
         .toggleClass('sc-context-total-over', showOver);
@@ -578,6 +598,14 @@ function renderBudgetView(view, targets) {
             .text(`${segment.label} (${formatBudgetTokenLabel(segment.count, segment.estimated)})`)
             .appendTo(bar);
         renderBudgetLegendItem(legend, segment);
+    }
+
+    if (view.marker) {
+        $('<div class="sc-context-trigger-marker"></div>')
+            .css('left', `${view.marker.percent}%`)
+            .attr('title', view.marker.label)
+            .append($('<span class="sc-context-trigger-flag"></span>').text(view.marker.label))
+            .appendTo(bar);
     }
 }
 
@@ -600,12 +628,6 @@ function renderBudgetLegendItem(legend, segment) {
 }
 
 function getContextBudgetTotalText(view) {
-    if (view.overageMode === 'pending' && view.pending > 0) {
-        return `${formatBudgetTokenLabel(view.used, false)} (${formatBudgetTokenLabel(
-            view.pending,
-            false,
-        )} queued)`;
-    }
     if (view.overage > 0) {
         return `${view.totalLabel} (+${formatBudgetTokenLabel(view.overage, false)})`;
     }

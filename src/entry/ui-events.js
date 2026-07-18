@@ -36,12 +36,7 @@ import {
 import { updateInjection } from '../features/injection.js';
 import { persistAndRefresh } from '../features/persist.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
-import {
-    refreshMainLLMContextEstimate,
-    updateUI,
-    syncLLMContextPreview,
-    syncPayloadSchematic,
-} from './ui.js';
+import { refreshMainLLMContextEstimate, updateUI, syncLLMContextPreview } from './ui.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -371,7 +366,6 @@ function bindSliderHandlers() {
         beforeSave: (_settings, _value, _source, key) => enforceRetentionConstraints(key),
         afterSave: () => {
             updateInjection();
-            syncPayloadSchematic(getEffectiveSettings());
             syncLLMContextPreview(getEffectiveSettings());
         },
     });

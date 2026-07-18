@@ -258,65 +258,24 @@
             </div>
             <div class="sc-tab-panel active" role="tabpanel" data-sc-panel="status">
                 <section class="sc-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-gauge-high"></span>
-                            Overview
-                        </h4>
-                    </div>
-                    <div class="sc-status-grid" aria-label="Summaryception status">
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Depth</span>
-                            <strong id="sc_status_depth">0</strong>
-                        </div>
-                        <div class="sc-status-item">
-                            <span class="sc-status-label">Index</span>
-                            <strong id="sc_status_index">-1</strong>
-                        </div>
-                    </div>
-                </section>
-                <section class="sc-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-chart-pie"></span>
-                            Context Payload
-                        </h4>
-                    </div>
-                    <div class="sc-payload-rail" aria-label="Context payload order">
-                        <div class="sc-payload-part sc-payload-part-source">
-                            <span class="fa-solid fa-terminal"></span>
-                            <span>ST Context</span>
-                        </div>
-                        <span class="sc-payload-arrow fa-solid fa-arrow-right" aria-hidden="true"></span>
-                        <div class="sc-payload-part">
-                            <span class="fa-solid fa-layer-group"></span>
-                            <span>Memory</span>
-                            <strong id="sc_payload_memory_budget">0</strong>
-                        </div>
-                        <span class="sc-payload-arrow fa-solid fa-arrow-right" aria-hidden="true"></span>
-                        <div class="sc-payload-part">
-                            <span class="fa-solid fa-message"></span>
-                            <span>Verbatim</span>
-                            <strong id="sc_payload_verbatim_budget">0</strong>
-                        </div>
-                        <span id="sc_payload_tail_part" class="sc-payload-tail-wrap" style="display: none;">
-                            <span class="sc-payload-arrow fa-solid fa-arrow-right" aria-hidden="true"></span>
-                            <span class="sc-payload-part sc-payload-tail">
-                                <span class="fa-solid fa-shield-halved"></span>
-                                <span>Tail</span>
-                                <strong id="sc_payload_tail_budget">0</strong>
-                            </span>
-                        </span>
-                    </div>
                     <div class="sc-section-header sc-budget-subheader">
                         <h4 class="sc-section-title">
-                            <span class="fa-solid fa-chart-pie"></span>
+                            <span class="fa-solid fa-message"></span>
                             Verbatim Window
                         </h4>
                         <span id="sc_verbatim_budget_total" class="sc-context-total">0 / 0</span>
                     </div>
                     <div id="sc_verbatim_budget_bar" class="sc-context-bar" aria-label="Verbatim window token usage"></div>
                     <div id="sc_verbatim_budget_legend" class="sc-context-legend"></div>
+                    <div class="sc-section-header sc-budget-subheader">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-gauge-high"></span>
+                            Queued &rarr; Trigger
+                        </h4>
+                        <span id="sc_trigger_budget_total" class="sc-context-total">0 / 0</span>
+                    </div>
+                    <div id="sc_trigger_budget_bar" class="sc-context-bar" aria-label="Queued tokens toward summarization trigger"></div>
+                    <div id="sc_trigger_budget_legend" class="sc-context-legend"></div>
                     <div class="sc-section-header sc-budget-subheader">
                         <h4 class="sc-section-title">
                             <span class="fa-solid fa-layer-group"></span>
