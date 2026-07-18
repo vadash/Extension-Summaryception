@@ -9,6 +9,7 @@ Browser-only SillyTavern extension. No runtime server, database, build step, or 
 - Shell: Windows PowerShell 7+. Separate commands with `;`; do not use `&&`, `||`, Bash heredocs, pipelines, or `tail`. Use `Get-Content -Tail`. Pass multiline text through variables or single-line flags.
 - Run `npm test` after behavior changes.
 - Husky owns ESLint and Prettier. Never run lint or formatting manually.
+- A `post-commit` hook auto-creates a follow-up `chore: bump version` commit (`scripts/bump-version-after-commit.js`) and regenerates repomix output. Expect an extra commit after each `git commit`; it is not stray work.
 - Keep runtime code browser-native and unbundled.
 - Preserve unrelated user changes. Do not commit, push, or sync unless current user explicitly authorizes it.
 
