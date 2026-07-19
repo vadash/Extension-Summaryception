@@ -140,14 +140,16 @@ describe('settings help metadata', () => {
             '#sc_mask_user_role_as_assistant',
             '#sc_mask_user_role_mode',
         ]);
-        expect(roleMaskHelp.detail).toContain('Synthetic user marker');
+        expect(roleMaskHelp.detail).toContain('plot armor');
+        expect(roleMaskHelp.detail).toContain('RLHF');
+        expect(roleMaskHelp.detail).toContain('Rabbit-Response-Team');
         expect(roleMaskHelp.detail).toContain('marker first');
         expect(roleMaskHelp.detail).toContain('marker last');
         expect(roleMaskHelp.detail).toContain('keep the final user block');
         expect(roleMaskHelp.detail).toContain('request-only');
         expect(roleMaskHelp.detail).toContain('providers may normalize or reject');
         expect(SETTINGS_HTML).toContain(
-            '<option value="rewrite_all">No synthetic user marker</option>',
+            '<option value="rewrite_all">No marker — every turn becomes the AI</option>',
         );
     });
 

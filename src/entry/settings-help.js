@@ -30,26 +30,25 @@ const basicHelp = ({ selector, title, short, controls, controlsText, when, risk 
     selector,
     title,
     short,
-    detail: `${controlsText} Change it ${when} Main risk: ${risk}`,
+    detail: `${controlsText} ${when} ${risk}`,
     controls,
 });
 
 const MEMORY_MODE_HELP = Object.freeze({
     standard: {
         title: 'Standard',
-        short: 'Keeps the main prompt smaller and steadier by summarizing overflow continuously.',
-        controlsText:
-            'Controls whether Summaryception uses the regular rolling verbatim window and continuous summaries.',
-        when: 'when you want steadier context size, higher recall at smaller total context, or your provider lacks useful prompt caching.',
-        risk: 'you pay full input price for the changing prompt on every turn.',
+        short: 'Summarizes overflow as it comes, so the main prompt stays smaller and steadier.',
+        controlsText: 'Toggles the rolling verbatim window plus continuous summaries on or off.',
+        when: 'Turn it on when you want steadier context size and higher recall in a smaller total context, or when your provider has no real prompt caching.',
+        risk: 'You pay full input price for the changing prompt on every turn.',
     },
     cache: {
         title: 'Cache Friendly',
-        short: 'Uses a larger 32k live window for providers that discount cached input.',
+        short: 'Uses a bigger 32k live window for providers that discount cached input.',
         controlsText:
-            'Controls whether the prompt keeps a stable memory prefix and delays flushing until the live cache window fills.',
-        when: 'when your provider supports prompt caching and bills cached tokens at a steep discount.',
-        risk: 'total context is larger (memory + 32k), and manual summarization can reset cache savings.',
+            'Locks a stable memory prefix in place and holds off flushing until the live cache window fills.',
+        when: 'Use it when your provider supports prompt caching and bills cached tokens at a steep discount.',
+        risk: 'Total context grows larger (memory plus 32k), and a manual summarize run can wipe your cache savings.',
     },
 });
 
@@ -73,9 +72,9 @@ const HELP_ENTRIES = [
                 controlFor('sc_mode_advanced'),
             ],
             controlsText:
-                'Controls whether Summaryception is off, uses safe Easy controls, or exposes all Advanced settings.',
-            when: 'when you want this chat to use layered memory.',
-            risk: 'Off stops memory injection and background summarizing until another mode is selected.',
+                'Lets you turn Summaryception off, run it with the safe Easy defaults, or open up all the Advanced settings.',
+            when: 'Use it when you want this chat to keep layered memory.',
+            risk: 'Off stops memory injection and background summarizing until another mode is picked.',
         }),
     ],
     [
@@ -86,9 +85,9 @@ const HELP_ENTRIES = [
             short: 'Let summaries see text after your ST regex cleanup.',
             controls: [controlFor('sc_apply_regex_scripts')],
             controlsText:
-                'Controls whether SillyTavern regex scripts are applied before text is sent to the summarizer.',
-            when: 'if your main model also sees regex-cleaned text.',
-            risk: 'turning it off can make summaries remember text the RP model never saw.',
+                'Decides whether SillyTavern regex scripts run on the text before it reaches the summarizer.',
+            when: 'Turn it on if your main model also sees the regex-cleaned text.',
+            risk: 'Turn it off and summaries can end up remembering text your RP model never actually saw.',
         }),
     ],
     [
@@ -99,9 +98,9 @@ const HELP_ENTRIES = [
             short: 'Remove Han ideographs from summarizer replies.',
             controls: [controlFor('sc_strip_chinese_ideographs')],
             controlsText:
-                'Controls whether generated summaries strip Han ideographs and reject heavily contaminated replies.',
-            when: 'if your summarizer sometimes leaks Chinese text into memory.',
-            risk: 'legitimate Chinese names or text will be removed from committed memory.',
+                'Decides whether summaries drop Han ideographs and throw out heavily contaminated replies.',
+            when: 'Reach for it if your summarizer sometimes slips Chinese text into memory.',
+            risk: 'Legit Chinese names and text get stripped from committed memory too.',
         }),
     ],
     [
@@ -109,15 +108,15 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_mask_user_role_as_assistant'),
             title: 'Mask User Role',
-            short: 'Rewrite outgoing user-role blocks with a selectable compatibility mode.',
+            short: "Send your turns as the AI's words so the model quits handing your character plot armor.",
             controls: [
                 controlFor('sc_mask_user_role_as_assistant'),
                 controlFor('sc_mask_user_role_mode'),
             ],
             controlsText:
-                'Controls request-only role rewriting and the Synthetic user marker mode: marker first, rewrite all with no marker, marker last, or keep the final user block.',
-            when: 'when you want roleplay prompts to hide the user/assistant split from chat-completion models.',
-            risk: 'saved chat and prompt content are not edited, but providers may normalize or reject unusual role layouts or synthetic marker messages.',
+                'This relabels your chat turns as the AI\'s own words before the request leaves, so the model quits handing your character plot armor. Chat-completion models are RLHF-trained to treat whatever sits in the user role as a real person to please and keep safe, which is why your character never truly loses. Flip your turns to the assistant role and the whole log reads like one narrator telling a story, so you become just another character who can get hurt, surprised, or told no. It only touches the outgoing request; your saved chat stays exactly as you wrote it. Works best when you roleplay in third person and edit your preset so it never says "user" or "you". The modes: marker first adds a throwaway user line at the top for APIs that demand one; no marker turns every turn into the AI (request-only, zero user messages); marker last puts that throwaway user line at the end; keep the final user block leaves your last message as user, which is handy when another extension such as Rabbit-Response-Team injects its instruction there.',
+            when: 'Reach for it when you want the model to stop shielding your character and just play the scene straight.',
+            risk: 'providers may normalize or reject unusual role layouts or synthetic marker messages, and a no-marker request with zero user messages can be refused outright — that is exactly what the marker modes are for.',
         }),
     ],
     [
@@ -130,11 +129,12 @@ const HELP_ENTRIES = [
                 controlFor('sc_verbatim_token_budget'),
                 controlFor('sc_verbatim_token_budget_val'),
             ],
-            meaning: 'Recent chat kept word-for-word before older turns become Layer 0 summaries.',
-            higher: 'keeps more exact recent chat but uses more context.',
-            lower: 'summarizes sooner and leaves more room for memory.',
+            meaning:
+                'How much recent chat stays word-for-word before older turns get summarized into Layer 0.',
+            higher: 'keeps more exact recent chat but eats more context.',
+            lower: 'summarizes sooner and frees up room for memory.',
             defaultText:
-                '22k; Cache Friendly switches this to 32k and can save ~70% per turn on caching providers.',
+                '22k; Cache Friendly bumps this to 32k and can save ~70% per turn on caching providers.',
         }),
     ],
     [
@@ -142,15 +142,15 @@ const HELP_ENTRIES = [
         sliderHelp({
             selector: selectorFor('sc_memory_token_budget'),
             title: 'Injected Memory Budget',
-            short: 'Maximum memory block size sent to the model.',
+            short: 'Maximum memory block size that goes to the model.',
             controls: [
                 controlFor('sc_memory_token_budget'),
                 controlFor('sc_memory_token_budget_val'),
             ],
             meaning:
-                'Maximum ceiling for committed Summaryception memory sent through direct injection or the macro; actual use may sit below it after compression and promotion cycles.',
-            higher: 'keeps more detailed memory before promotion pressure rises.',
-            lower: 'promotes and compresses memory sooner; 4k is the hard ceiling where consolidation becomes aggressive.',
+                'The maximum ceiling on committed Summaryception memory sent via direct injection or the macro; real usage can sit below it after compression and promotion cycles.',
+            higher: 'holds more detailed memory before promotion pressure builds.',
+            lower: 'promotes and compresses memory sooner, and 4k is the hard ceiling where consolidation turns aggressive.',
             defaultText: '10k.',
         }),
     ],
@@ -164,10 +164,10 @@ const HELP_ENTRIES = [
                 controlFor('sc_advanced_model_context'),
                 controlFor('sc_advanced_model_context_val'),
             ],
-            meaning: 'Sets the source cap and batch trigger for Layer 0 summarizer calls.',
-            higher: 'allows larger batches on big-context models.',
+            meaning: 'Sets the source cap and the batch trigger for Layer 0 summarizer calls.',
+            higher: 'allows bigger batches on large-context models.',
             lower: 'keeps each summarizer request smaller.',
-            defaultText: '48k; overrides live in Expert Tuning.',
+            defaultText: '48k; overrides live under Expert Tuning.',
         }),
     ],
     [
@@ -181,9 +181,9 @@ const HELP_ENTRIES = [
                 controlFor('sc_layer0_summary_token_target_val'),
             ],
             meaning:
-                'Target size for the [NARRATIVE] section of one Layer 0 summary. Auto-derived from Model context; override it here. [STATE] keeps a separate fixed 200-token soft target and 300-token hard maximum.',
-            higher: 'keeps more chronological detail in each Layer 0 narrative.',
-            lower: 'compresses each narrative harder and leaves more memory budget.',
+                'The target size for the [NARRATIVE] section of a single Layer 0 summary. Auto-derived from Model context; override it here. [STATE] keeps its own fixed 200-token soft target and 300-token hard maximum.',
+            higher: 'preserves more chronological detail in each Layer 0 narrative.',
+            lower: 'compresses each narrative harder and leaves more room in the memory budget.',
             defaultText: '200; auto-derived from Model context.',
         }),
     ],
@@ -198,10 +198,10 @@ const HELP_ENTRIES = [
                 controlFor('sc_max_l0_source_tokens_val'),
             ],
             meaning:
-                'Maximum raw-chat source size sent in one Layer 0 summarizer call. Auto-derived from Model context; override it here.',
-            higher: 'allows larger batches for models with more context.',
+                'The maximum raw-chat source size sent in a single Layer 0 summarizer call. Auto-derived from Model context; override it here.',
+            higher: 'allows bigger batches for models with more context.',
             lower: 'keeps each summarizer request smaller and safer.',
-            defaultText: '24k, with an 8k-64k range; auto-derived from Model context.',
+            defaultText: '24k, inside an 8k-64k range; auto-derived from Model context.',
         }),
     ],
     [
@@ -215,7 +215,7 @@ const HELP_ENTRIES = [
                 controlFor('sc_min_summary_budget_val'),
             ],
             meaning:
-                'Minimum overflow passage size before a normal Layer 0 batch is worth summarizing; it cannot exceed Max Source per Call. Auto-derived from Model context; override it here.',
+                'The minimum overflow size before a normal Layer 0 batch is worth summarizing; it cannot exceed Max Source per Call. Auto-derived from Model context; override it here.',
             higher: 'waits for bigger chunks and makes fewer summarizer calls.',
             lower: 'summarizes smaller chunks sooner.',
             defaultText: '16k, with a fixed 4k-32k control range; auto-derived from Model context.',
@@ -228,9 +228,10 @@ const HELP_ENTRIES = [
             title: 'Minimum Summary Turns',
             short: 'Fewest assistant turns needed before a batch can run.',
             controls: [controlFor('sc_min_summary_turns'), controlFor('sc_min_summary_turns_val')],
-            meaning: 'Minimum assistant-turn count before a budget-ready Layer 0 batch can run.',
+            meaning:
+                'The minimum assistant-turn count before a budget-ready Layer 0 batch can run.',
             higher: 'waits for more conversation before summarizing.',
-            lower: 'allows shorter batches to be summarized.',
+            lower: 'lets shorter batches get summarized.',
             defaultText: '3.',
         }),
     ],
@@ -241,7 +242,7 @@ const HELP_ENTRIES = [
             title: 'Maximum Summary Turns',
             short: 'Most assistant turns placed in one Layer 0 batch.',
             controls: [controlFor('sc_max_summary_turns'), controlFor('sc_max_summary_turns_val')],
-            meaning: 'Maximum assistant-turn count in one Layer 0 summary request.',
+            meaning: 'The maximum assistant-turn count in a single Layer 0 summary request.',
             higher: 'packs more chat into each summary call.',
             lower: 'keeps each summary request smaller and easier.',
             defaultText: '8.',
@@ -257,10 +258,9 @@ const HELP_ENTRIES = [
                 controlFor('sc_snippets_per_layer'),
                 controlFor('sc_snippets_per_layer_val'),
             ],
-            meaning:
-                'Maximum memory snippets a layer should hold before promotion pressure applies.',
+            meaning: 'The maximum snippets a layer should hold before promotion pressure kicks in.',
             higher: 'keeps more separate memories in each layer.',
-            lower: 'merges memories into deeper layers sooner.',
+            lower: 'merges memories down into deeper layers sooner.',
             defaultText: '24.',
         }),
     ],
@@ -274,9 +274,10 @@ const HELP_ENTRIES = [
                 controlFor('sc_snippets_per_promotion'),
                 controlFor('sc_snippets_per_promotion_val'),
             ],
-            meaning: 'Number of oldest snippets bundled when a layer promotes memory deeper.',
-            higher: 'makes fewer, larger promotion merges and is useful for 2000+ message chats.',
-            lower: 'makes smaller promotion merges more often and is better for shorter chats.',
+            meaning:
+                'How many of the oldest snippets get bundled together when a layer promotes memory deeper.',
+            higher: 'makes fewer and larger promotion merges, which helps in 2000+ message chats.',
+            lower: 'makes smaller promotion merges more often, better for shorter chats.',
             defaultText: '3.',
         }),
     ],
@@ -304,9 +305,9 @@ const HELP_ENTRIES = [
             short: 'Where Summaryception memory is placed in the ST prompt.',
             controls: [controlFor('sc_custom_memory_position')],
             controlsText:
-                'Controls whether the combined memory block is inserted directly or exposed as {{summaryception_memory}}.',
-            when: 'when your prompt layout needs a specific location.',
-            risk: 'placing memory too late, too early, or only in an unused macro can make the model ignore it.',
+                'Picks whether the combined memory block goes in directly or shows up as the {{summaryception_memory}} macro.',
+            when: 'Use it when your prompt layout needs the memory in a specific spot.',
+            risk: 'Memory placed too late, too early, or only inside an unused macro can get ignored by the model.',
         }),
     ],
     [
@@ -316,10 +317,9 @@ const HELP_ENTRIES = [
             title: 'Memory Role',
             short: 'Message role used when memory is injected as chat.',
             controls: [controlFor('sc_custom_memory_role')],
-            controlsText:
-                'Controls the role assigned to custom memory when it is sent as a chat message.',
-            when: 'if a provider treats system, user, and assistant messages differently.',
-            risk: 'the wrong role can make memory sound like instructions or like dialogue.',
+            controlsText: 'Sets the message role for custom memory when it is sent as chat.',
+            when: 'Turn it on if a provider treats system, user, and assistant messages differently.',
+            risk: 'The wrong role makes memory read like instructions, or like dialogue.',
         }),
     ],
     [
@@ -329,9 +329,10 @@ const HELP_ENTRIES = [
             title: 'Chat Depth',
             short: 'How far back memory is inserted when using In Chat.',
             controls: [controlFor('sc_custom_memory_depth')],
-            controlsText: 'Controls the chat depth used for custom In Chat memory placement.',
-            when: 'only when Memory Position is In Chat.',
-            risk: 'a bad depth can put memory too near or too far from the latest turn.',
+            controlsText:
+                'Sets how far back from the latest turn the custom In Chat memory shows up.',
+            when: 'Use it only when Memory Position is set to In Chat.',
+            risk: 'A bad depth puts memory too close to or too far from the latest turn.',
         }),
     ],
     ...CONNECTION_HELP_ENTRIES,
@@ -359,9 +360,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 0 system prompt source.',
             controls: [controlFor('sc_summarizer_system_prompt_preset')],
             controlsText:
-                'Controls whether the Layer 0 system prompt uses the default or custom text.',
-            when: 'when changing the role instruction for Layer 0 summaries.',
-            risk: 'changing system instructions can affect summary structure.',
+                'Picks between the default Layer 0 system prompt and your own custom text.',
+            when: 'Use it when you want to change the role instruction for Layer 0 summaries.',
+            risk: 'Swapping system instructions can change how summaries are structured.',
         }),
     ],
     [
@@ -372,9 +373,9 @@ const HELP_ENTRIES = [
             short: 'Instruction style for raw-chat summaries.',
             controls: [controlFor('sc_summarizer_system_prompt')],
             controlsText:
-                'Controls the system instruction sent with raw chat summarization requests.',
-            when: 'if the summarizer needs a different role or stricter output style.',
-            risk: 'too much instruction can make summaries verbose or inconsistent.',
+                'Sets the system instruction that goes out with raw chat summarization requests.',
+            when: 'Turn it on if the summarizer needs a different role or a stricter output style.',
+            risk: 'Too much instruction makes summaries verbose or inconsistent.',
         }),
     ],
     [
@@ -385,9 +386,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 0 user-prompt template.',
             controls: [controlFor('sc_prompt_preset')],
             controlsText:
-                'Controls whether the Layer 0 user prompt uses the default or custom text.',
-            when: 'when switching between default narrative memory and your own custom prompt.',
-            risk: 'changing presets can change what future summaries preserve.',
+                'Picks between the default Layer 0 user prompt and your own custom version.',
+            when: 'Use it when switching between the default narrative memory and your own custom prompt.',
+            risk: 'Changing presets changes what future summaries end up keeping.',
         }),
     ],
     [
@@ -398,9 +399,9 @@ const HELP_ENTRIES = [
             short: 'Template that turns raw chat into Layer 0 memory.',
             controls: [controlFor('sc_summarizer_user_prompt')],
             controlsText:
-                'Controls the user prompt for raw-chat summaries and can use {{player_name}}, {{context_str}}, and {{story_txt}}.',
-            when: 'if the current preset misses the facts you care about.',
-            risk: 'missing variables or asking for long output can break compact memory.',
+                'Sets the user prompt for raw-chat summaries; it can use the {{player_name}}, {{context_str}}, and {{story_txt}} variables.',
+            when: 'Reach for it if the current preset keeps missing the facts you care about.',
+            risk: 'Missing variables or a request for long output can break compact memory.',
         }),
     ],
     [
@@ -411,9 +412,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 0 repair prompt source.',
             controls: [controlFor('sc_summarizer_repair_prompt_preset')],
             controlsText:
-                'Controls whether Layer 0 validation retries use the default or custom repair prompt.',
-            when: 'if invalid Layer 0 output needs stricter retry instructions.',
-            risk: 'weak repair prompts can keep failing output validation.',
+                'Picks between the default and a custom repair prompt for Layer 0 validation retries.',
+            when: 'Turn it on if invalid Layer 0 output needs stricter retry instructions.',
+            risk: 'A weak repair prompt keeps failing output validation.',
         }),
     ],
     [
@@ -424,9 +425,9 @@ const HELP_ENTRIES = [
             short: 'Template used after invalid Layer 0 output.',
             controls: [controlFor('sc_summarizer_repair_prompt')],
             controlsText:
-                'Controls the user prompt for Layer 0 validation repair retries and can use {{player_name}}, {{context_str}}, and {{story_txt}}.',
-            when: 'if the default repair prompt is not strict enough for your summarizer.',
-            risk: 'missing required section instructions can prevent repair retries from succeeding.',
+                'Sets the user prompt for Layer 0 validation repair retries; it can use the {{player_name}}, {{context_str}}, and {{story_txt}} variables.',
+            when: 'Use it if the default repair prompt is not strict enough for your summarizer.',
+            risk: 'Missing section instructions can stop repair retries from succeeding.',
         }),
     ],
     [
@@ -437,9 +438,9 @@ const HELP_ENTRIES = [
             short: 'Wrapper text around the combined memory block.',
             controls: [controlFor('sc_injection_template')],
             controlsText:
-                'Controls the wrapper around Summaryception memory and must include {{summary}}.',
-            when: 'if your model follows a different memory tag or framing better.',
-            risk: 'removing {{summary}} means no memory text is injected.',
+                'Sets the wrapper that goes around Summaryception memory, and it has to include the {{summary}} variable.',
+            when: 'Reach for it if your model follows a different memory tag or framing better.',
+            risk: 'Drop the {{summary}} variable and no memory text gets injected at all.',
         }),
     ],
     [
@@ -450,9 +451,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 1+ system prompt source.',
             controls: [controlFor('sc_promotion_system_prompt_preset')],
             controlsText:
-                'Controls whether the Layer 1+ system prompt uses the default or custom text.',
-            when: 'when changing the role instruction for deeper memory merges.',
-            risk: 'changing system instructions can affect promotion compression.',
+                'Picks between the default Layer 1+ system prompt and your own custom text.',
+            when: 'Use it when you want to change the role instruction for deeper memory merges.',
+            risk: 'Changing system instructions can affect promotion compression.',
         }),
     ],
     [
@@ -462,9 +463,10 @@ const HELP_ENTRIES = [
             title: 'Promotion System Prompt',
             short: 'Instruction style for deeper memory merges.',
             controls: [controlFor('sc_promotion_system_prompt')],
-            controlsText: 'Controls the system instruction used when Layer 1+ memories are merged.',
-            when: 'if promoted memories need a different compression style.',
-            risk: 'bad merge instructions can erase durable facts.',
+            controlsText:
+                'Sets the system instruction used when Layer 1+ memories get merged together.',
+            when: 'Turn it on if promoted memories need a different compression style.',
+            risk: 'Bad merge instructions can erase durable facts.',
         }),
     ],
     [
@@ -475,9 +477,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 1+ merge user-prompt template.',
             controls: [controlFor('sc_promotion_prompt_preset')],
             controlsText:
-                'Controls whether the Layer 1+ user prompt uses the default or custom text.',
-            when: 'when switching between default promotion memory and your own custom prompt.',
-            risk: 'changing presets can change how deeper summaries preserve durable facts.',
+                'Picks between the default Layer 1+ user prompt and your own custom version.',
+            when: 'Use it when switching between the default promotion memory and your own custom prompt.',
+            risk: 'Changing presets can change how deeper summaries preserve durable facts.',
         }),
     ],
     [
@@ -488,9 +490,9 @@ const HELP_ENTRIES = [
             short: 'Template that merges lower memory into deeper memory.',
             controls: [controlFor('sc_promotion_user_prompt')],
             controlsText:
-                'Controls the user prompt for Layer 1+ promotion and can use {{player_name}}, {{context_str}}, and {{story_txt}}.',
-            when: 'if deeper memories keep too much detail or lose key state.',
-            risk: 'weak instructions can create bloated or lossy meta-summaries.',
+                'Sets the user prompt for Layer 1+ promotion; it can use the {{player_name}}, {{context_str}}, and {{story_txt}} variables.',
+            when: 'Reach for it if deeper memories keep too much detail or lose key state.',
+            risk: 'Weak instructions create bloated or lossy meta-summaries.',
         }),
     ],
     [
@@ -501,9 +503,9 @@ const HELP_ENTRIES = [
             short: 'Choose the Layer 1+ repair prompt source.',
             controls: [controlFor('sc_promotion_repair_prompt_preset')],
             controlsText:
-                'Controls whether failed Layer 1+ compression repair uses the default or custom repair prompt.',
-            when: 'if promotion repair needs a different compression style.',
-            risk: 'weak repair prompts can keep promoted memories too large.',
+                'Picks between the default and a custom repair prompt for failed Layer 1+ compression.',
+            when: 'Use it if promotion repair needs a different compression style.',
+            risk: 'A weak repair prompt keeps promoted memories too large.',
         }),
     ],
     [
@@ -514,9 +516,9 @@ const HELP_ENTRIES = [
             short: 'Template used for failed promotion compression repair.',
             controls: [controlFor('sc_promotion_repair_prompt')],
             controlsText:
-                'Controls the user prompt for Layer 1+ promotion repair and can use {{player_name}}, {{context_str}}, {{story_txt}}, and {{source_state}}.',
-            when: 'if repaired promotions still keep too much detail.',
-            risk: 'bad repair instructions can erase durable continuity.',
+                'Sets the user prompt for Layer 1+ promotion repair; it can use the {{player_name}}, {{context_str}}, {{story_txt}}, and {{source_state}} variables.',
+            when: 'Turn it on if repaired promotions still keep too much detail.',
+            risk: 'Bad repair instructions can erase durable continuity.',
         }),
     ],
     [
@@ -526,9 +528,10 @@ const HELP_ENTRIES = [
             title: 'Strip Patterns',
             short: 'Text patterns removed from summarizer responses.',
             controls: [controlFor('sc_strip_patterns')],
-            controlsText: 'Controls one-per-line patterns stripped from generated summary text.',
-            when: 'if a summarizer keeps adding unwanted tags or thinking markers.',
-            risk: 'overbroad patterns can remove useful memory text.',
+            controlsText:
+                'Sets the one-per-line patterns that get stripped from generated summary text.',
+            when: 'Use it if a summarizer keeps adding unwanted tags or thinking markers.',
+            risk: 'Overbroad patterns can carve out useful memory text.',
         }),
     ],
     [
@@ -538,9 +541,9 @@ const HELP_ENTRIES = [
             title: 'Debug Mode',
             short: 'Show extra Summaryception console logs.',
             controls: [controlFor('sc_debug_mode')],
-            controlsText: 'Controls verbose Summaryception diagnostic logging.',
-            when: 'while troubleshooting behavior.',
-            risk: 'logs can be noisy and may mention chat-derived state.',
+            controlsText: 'Turns verbose Summaryception diagnostic logging on or off.',
+            when: 'Reach for it while troubleshooting behavior.',
+            risk: 'The logs get noisy and may mention chat-derived state.',
         }),
     ],
     [
@@ -550,9 +553,9 @@ const HELP_ENTRIES = [
             title: 'Trace Mode',
             short: 'Show detailed flow logs when Debug Mode is on.',
             controls: [controlFor('sc_trace_mode')],
-            controlsText: 'Controls the most detailed Summaryception flow logging.',
-            when: 'only when Debug Mode is on and you need step-by-step behavior.',
-            risk: 'trace logs are very noisy.',
+            controlsText: 'Turns on the most detailed Summaryception flow logging.',
+            when: 'Use it only when Debug Mode is on and you need step-by-step behavior.',
+            risk: 'Trace logs are very noisy.',
         }),
     ],
     [
@@ -563,9 +566,9 @@ const HELP_ENTRIES = [
             short: 'Print full final summarizer inputs to the console.',
             controls: [controlFor('sc_prompt_input_log_mode')],
             controlsText:
-                'Controls whether full final system and user prompt content sent to the summarizer is logged.',
-            when: 'only when diagnosing prompt quality.',
-            risk: 'the browser console may contain private chat text.',
+                'Decides whether the full final system and user prompt content sent to the summarizer gets logged.',
+            when: 'Turn it on only when diagnosing prompt quality.',
+            risk: 'The browser console may hold private chat text.',
         }),
     ],
     [
@@ -575,9 +578,9 @@ const HELP_ENTRIES = [
             title: 'Log LLM Outputs',
             short: 'Print cleaned summarizer replies to the console.',
             controls: [controlFor('sc_prompt_output_log_mode')],
-            controlsText: 'Controls whether cleaned summarizer replies and errors are logged.',
-            when: 'only when diagnosing provider output or cleanup behavior.',
-            risk: 'the browser console may contain private chat text.',
+            controlsText: 'Decides whether cleaned summarizer replies and errors get logged.',
+            when: 'Use it only when diagnosing provider output or cleanup behavior.',
+            risk: 'The browser console may hold private chat text.',
         }),
     ],
 ];

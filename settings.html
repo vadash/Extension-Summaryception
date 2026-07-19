@@ -15,7 +15,7 @@
                         <span class="sc-toggle-icon fa-solid fa-power-off"></span>
                         <span class="sc-toggle-copy">
                             <span class="sc-toggle-title">Off</span>
-                            <small class="sc-hint">No memory injection or background summarizing.</small>
+                            <small class="sc-hint">No memory is injected and nothing summarizes in the background. Your chat stays raw.</small>
                         </span>
                         <input type="radio" id="sc_mode_off" name="sc_ui_mode" value="off" />
                     </label>
@@ -23,7 +23,7 @@
                         <span class="sc-toggle-icon fa-solid fa-gauge-high"></span>
                         <span class="sc-toggle-copy">
                             <span class="sc-toggle-title">Easy</span>
-                            <small class="sc-hint">Safe context limits with the main controls visible.</small>
+                            <small class="sc-hint">Picks safe context limits for you and leaves the main controls on screen.</small>
                         </span>
                         <input type="radio" id="sc_mode_easy" name="sc_ui_mode" value="easy" />
                     </label>
@@ -31,7 +31,7 @@
                         <span class="sc-toggle-icon fa-solid fa-sliders"></span>
                         <span class="sc-toggle-copy">
                             <span class="sc-toggle-title">Advanced</span>
-                            <small class="sc-hint">Full routing, prompts, diagnostics, and engine tuning.</small>
+                            <small class="sc-hint">Everything is exposed: routing, prompts, diagnostics, and engine tuning.</small>
                         </span>
                         <input type="radio" id="sc_mode_advanced" name="sc_ui_mode" value="advanced" />
                     </label>
@@ -118,7 +118,7 @@
                             <div class="sc-row">
                                 <label for="sc_easy_summarizer_context">
                                     <span>Summarizer Context</span>
-                                    <small class="sc-hint">Maximum context window for summary model calls.</small>
+                                    <small class="sc-hint">The context window the summary model sees per call.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_easy_summarizer_context" min="8000" max="64000" step="1000" data-sc-slider-setting="easySummarizerContextTokens" data-sc-partner-input="#sc_easy_summarizer_context_val" />
@@ -128,7 +128,7 @@
                             <div class="sc-row">
                                 <label for="sc_easy_memory_token_budget">
                                     <span>Injected Memory</span>
-                                    <small class="sc-hint">Maximum Summaryception memory added to the main chat prompt.</small>
+                                    <small class="sc-hint">The most Summaryception memory added to your main chat prompt.</small>
                                 </label>
                                 <div class="sc-slider-row">
                                     <input type="range" id="sc_easy_memory_token_budget" min="4000" max="16000" step="1000" data-sc-slider-setting="easyMemoryTokenBudget" data-sc-partner-input="#sc_easy_memory_token_budget_val" />
@@ -146,7 +146,7 @@
                                     <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
                                     <span class="sc-toggle-copy">
                                         <span class="sc-toggle-title">Standard</span>
-                                        <small class="sc-hint">Keeps the main prompt smaller and steadier by summarizing overflow continuously.</small>
+                                        <small class="sc-hint">Summarizes overflow continuously, which keeps the main prompt smaller and steadier.</small>
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_standard" name="sc_easy_memory_mode" value="standard" />
                                 </label>
@@ -154,7 +154,7 @@
                                     <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
                                     <span class="sc-toggle-copy">
                                         <span class="sc-toggle-title">Cache Friendly</span>
-                                        <small class="sc-hint">Uses a larger 32k live window for providers that discount cached input.</small>
+                                        <small class="sc-hint">Uses a larger 32k live window, which pays off on providers that discount cached input.</small>
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_cache" name="sc_easy_memory_mode" value="cache" />
                                 </label>
@@ -658,7 +658,7 @@
                                 <span class="sc-toggle-icon fa-solid fa-layer-group"></span>
                                 <span class="sc-toggle-copy">
                                     <span class="sc-toggle-title">Standard</span>
-                                    <small class="sc-hint">Keeps the main prompt smaller and steadier by summarizing overflow continuously.</small>
+                                <small class="sc-hint">Summarizes overflow continuously, which keeps the main prompt smaller and steadier.</small>
                                 </span>
                                 <input type="radio" id="sc_memory_mode_standard" name="sc_memory_mode" value="standard" />
                             </label>
@@ -666,7 +666,7 @@
                                 <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
                                 <span class="sc-toggle-copy">
                                     <span class="sc-toggle-title">Cache Friendly</span>
-                                    <small class="sc-hint">Uses a larger 32k live window for providers that discount cached input.</small>
+                                <small class="sc-hint">Uses a larger 32k live window, which pays off on providers that discount cached input.</small>
                                 </span>
                                 <input type="radio" id="sc_memory_mode_cache" name="sc_memory_mode" value="cache" />
                             </label>
@@ -693,7 +693,7 @@
                             <span class="sc-toggle-icon fa-solid fa-code"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Apply Regex Scripts</span>
-                                <small class="sc-hint">Match the text seen by the RP model.</small>
+                                <small class="sc-hint">Apply regexes against the text the RP model actually sees.</small>
                             </span>
                             <input type="checkbox" id="sc_apply_regex_scripts" />
                         </label>
@@ -701,7 +701,7 @@
                             <span class="sc-toggle-icon fa-solid fa-language"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Strip CN</span>
-                                <small class="sc-hint">Remove Han ideographs from summarizer replies.</small>
+                                <small class="sc-hint">Strips Han ideographs from the summarizer's replies.</small>
                             </span>
                             <input type="checkbox" id="sc_strip_chinese_ideographs" />
                         </label>
@@ -709,21 +709,21 @@
                             <span class="sc-toggle-icon fa-solid fa-user-secret"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Mask User Role</span>
-                                <small class="sc-hint">Rewrite outgoing user-role blocks for provider compatibility.</small>
+                                <small class="sc-hint">Send your turns as the AI's own words so the model stops treating your character like someone it has to protect.</small>
                             </span>
                             <input type="checkbox" id="sc_mask_user_role_as_assistant" />
                         </label>
                         <div id="sc_mask_user_role_mode_row" class="sc-sub-panel" style="display: none;">
                             <div class="sc-setting-row">
                                 <label for="sc_mask_user_role_mode">
-                                    <span>Synthetic user marker</span>
-                                    <small class="sc-hint">Choose marker placement or preserve the final user block.</small>
+                                    <span>Compatibility mode</span>
+                                    <small class="sc-hint">Some providers reject a request with no user message, so the marker modes add one throwaway user line. Keep-last is for when another extension (like Rabbit-Response-Team) already injects its instruction as your final user turn.</small>
                                 </label>
                                 <select id="sc_mask_user_role_mode" class="text_pole" disabled>
-                                    <option value="marker_first">Synthetic user marker first</option>
-                                    <option value="rewrite_all">No synthetic user marker</option>
-                                    <option value="marker_last">Synthetic user marker last</option>
-                                    <option value="keep_last_user">Keep final user block</option>
+                                    <option value="marker_first">Marker first (for APIs that need a user message)</option>
+                                    <option value="rewrite_all">No marker — every turn becomes the AI</option>
+                                    <option value="marker_last">Marker last (for APIs that need a user message)</option>
+                                    <option value="keep_last_user">Keep my final message as user</option>
                                 </select>
                             </div>
                         </div>
@@ -755,7 +755,7 @@
                             <span class="sc-llm-context-value" id="sc_llm_context_l1">~1k tokens</span>
                         </div>
                     </div>
-                    <small class="sc-hint">Main call is memory + live chat + ST prompt. L0 call is raw chat batch + memory block + prompt overhead. L1+ merge is stored summaries + deeper memory layers + prompt overhead.</small>
+                    <small class="sc-hint">Main call: memory plus live chat plus the ST prompt. L0 call: a raw chat batch plus the memory block plus prompt overhead. L1+ merge: stored summaries from deeper layers plus prompt overhead.</small>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
@@ -774,7 +774,7 @@
                                 <div class="sc-row">
                                     <label for="sc_advanced_model_context">
                                         <span>Model context</span>
-                                        <small class="sc-hint">Summarizer capacity for your model. Auto-tunes batch sizes below; override them in Expert Tuning.</small>
+                                        <small class="sc-hint">How much context your summarizer model can take. This auto-tunes the batch sizes below; override any of them in Expert Tuning.</small>
                                     </label>
                                     <div class="sc-slider-row">
                                         <input type="range" id="sc_advanced_model_context" min="8000" max="64000" step="1000" data-sc-slider-setting="advancedModelContext" data-sc-partner-input="#sc_advanced_model_context_val" />
@@ -792,7 +792,7 @@
                                 <div class="sc-row">
                                     <label for="sc_verbatim_token_budget">
                                         <span>Live Chat Window</span>
-                                        <small class="sc-hint">How many recent messages stay unsummarized before they're compressed into memory.</small>
+                                        <small class="sc-hint">How many recent messages stay raw before the extension compresses them into memory.</small>
                                     </label>
                                     <div class="sc-slider-row">
                                         <input type="range" id="sc_verbatim_token_budget" min="4000" max="64000" step="1000" data-sc-slider-setting="verbatimTokenBudget" data-sc-partner-input="#sc_verbatim_token_budget_val" />
@@ -802,7 +802,7 @@
                                 <div class="sc-row">
                                     <label for="sc_memory_token_budget">
                                         <span>Memory Size Limit</span>
-                                        <small class="sc-hint">Maximum size of all summaries sent as Summaryception memory. Larger = more context history.</small>
+                                        <small class="sc-hint">Total size of all summaries sent as Summaryception memory. Bigger means more of the back-story you actually remember.</small>
                                     </label>
                                     <div class="sc-slider-row">
                                         <input type="range" id="sc_memory_token_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="memoryTokenBudget" data-sc-partner-input="#sc_memory_token_budget_val" />
@@ -824,11 +824,11 @@
                                         <span class="fa-solid fa-microchip"></span>
                                         <span>Summarizer Engine</span>
                                     </div>
-                                    <small class="sc-hint">Auto-set from Model context; override any of them here.</small>
+                                    <small class="sc-hint">These auto-set from Model context. Override any of them here.</small>
                                     <div class="sc-row">
                                         <label for="sc_max_l0_source_tokens">
                                             <span>Max Source per Call</span>
-                                            <small class="sc-hint">Hard ceiling for raw chat sent to the LLM in a single call. Lower if your model has a small context window.</small>
+                                            <small class="sc-hint">Hard cap on raw chat sent to the LLM in one call. Lower it if your model has a small context window.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_max_l0_source_tokens" min="8000" max="64000" step="1000" data-sc-slider-setting="maxL0SourceTokens" data-sc-partner-input="#sc_max_l0_source_tokens_val" />
@@ -838,7 +838,7 @@
                                     <div class="sc-row">
                                         <label for="sc_min_summary_budget">
                                             <span>Batch Trigger Size</span>
-                                            <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Larger batches = fewer LLM calls.</small>
+                                            <small id="sc_min_summary_budget_hint" class="sc-hint">How much chat to accumulate before compressing it. Bigger batches mean fewer LLM calls.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_min_summary_budget" min="4000" max="32000" step="1000" data-sc-slider-setting="minSummaryBudget" data-sc-partner-input="#sc_min_summary_budget_val" />
@@ -848,7 +848,7 @@
                                     <div class="sc-row">
                                         <label for="sc_layer0_summary_token_target">
                                             <span>Narrative Target Size</span>
-                                            <small class="sc-hint">Target length of each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> uses its own fixed 200-token target and 300-token maximum.</small>
+                                            <small class="sc-hint">Target length for each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> has its own fixed 200-token target and 300-token ceiling.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_layer0_summary_token_target" min="80" max="500" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
@@ -866,7 +866,7 @@
                                     <div class="sc-row">
                                         <label for="sc_min_summary_turns">
                                             <span>Min Turns per Batch</span>
-                                            <small class="sc-hint">Minimum assistant replies before a batch can compress. Prevents summarizing too eagerly.</small>
+                                            <small class="sc-hint">Minimum assistant replies before a batch can compress, so it won't summarize too eagerly.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_min_summary_turns" min="2" max="10" step="1" data-sc-slider-setting="minSummaryTurns" data-sc-partner-input="#sc_min_summary_turns_val" />
@@ -876,7 +876,7 @@
                                     <div class="sc-row">
                                         <label for="sc_max_summary_turns">
                                             <span>Max Turns per Batch</span>
-                                            <small class="sc-hint">Maximum assistant replies in one batch. Prevents batches from getting too large.</small>
+                                            <small class="sc-hint">Most assistant replies packed into one batch, so batches don't grow too large.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_max_summary_turns" min="3" max="20" step="1" data-sc-slider-setting="maxSummaryTurns" data-sc-partner-input="#sc_max_summary_turns_val" />
@@ -892,7 +892,7 @@
                                     <div class="sc-row">
                                         <label for="sc_snippets_per_layer">
                                             <span>Max Memories per Layer</span>
-                                            <small class="sc-hint">How many summaries each layer holds before older ones merge into deeper memory.</small>
+                                            <small class="sc-hint">How many summaries each layer keeps before the oldest ones merge into deeper memory.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_snippets_per_layer" min="20" max="40" step="1" data-sc-slider-setting="snippetsPerLayer" data-sc-partner-input="#sc_snippets_per_layer_val" />
@@ -902,7 +902,7 @@
                                     <div class="sc-row">
                                         <label for="sc_snippets_per_promotion">
                                             <span>Memories per Merge</span>
-                                            <small class="sc-hint">How many summaries combine at once when merging into deeper layers.</small>
+                                            <small class="sc-hint">How many summaries merge together in one pass when rolling up into deeper layers.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_snippets_per_promotion" min="3" max="4" step="1" data-sc-slider-setting="snippetsPerPromotion" data-sc-partner-input="#sc_snippets_per_promotion_val" />
@@ -924,7 +924,7 @@
                             <div class="sc-setting-row">
                                 <label for="sc_custom_memory_position">
                                     <span>Memory Position</span>
-                                    <small class="sc-hint">Where Summaryception memory is placed in the ST prompt.</small>
+                                    <small class="sc-hint">Where Summaryception memory sits in the ST prompt.</small>
                                 </label>
                                 <select id="sc_custom_memory_position" class="text_pole">
                                     <option value="before_prompt">Before Prompt</option>
@@ -936,7 +936,7 @@
                             <div id="sc_custom_memory_role_row" class="sc-setting-row">
                                 <label for="sc_custom_memory_role">
                                     <span>Memory Role</span>
-                                    <small class="sc-hint">Message role used when memory is injected as chat or prompt text.</small>
+                                    <small class="sc-hint">The message role your memory is injected as when you pick In Chat or In Prompt.</small>
                                 </label>
                                 <select id="sc_custom_memory_role" class="text_pole">
                                     <option value="system">System</option>
@@ -947,7 +947,7 @@
                             <div id="sc_custom_memory_depth_row" class="sc-setting-row" style="display: none;">
                                 <label for="sc_custom_memory_depth">
                                     <span>Chat Depth</span>
-                                    <small class="sc-hint">How far back memory is inserted when using In Chat.</small>
+                                    <small class="sc-hint">How many messages back memory is inserted when you pick In Chat.</small>
                                 </label>
                                 <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" />
                             </div>
@@ -971,7 +971,7 @@
                     <div class="sc-row sc-prompt-secondary">
                         <label for="sc_injection_template">
                             <span>Injection Wrapper Template</span>
-                            <small class="sc-hint">Use <code>{{summary}}</code> for the combined summary block.</small>
+                            <small class="sc-hint">Put <code>{{summary}}</code> where you want the combined summary block.</small>
                         </label>
                         <textarea id="sc_injection_template" class="text_pole sc-textarea" rows="3"></textarea>
                     </div>
@@ -1018,7 +1018,7 @@
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                             <small class="sc-hint">
-                                Custom Layer 0 prompts must output <code>[NARRATIVE]</code> and a complete compact <code>[STATE]</code> snapshot using only the supported state keys. Omitted facts are removed, and newer verbatim chat overrides compressed state.
+                                Custom Layer 0 prompts must output a <code>[NARRATIVE]</code> and a full, compact <code>[STATE]</code> snapshot using only the supported state keys. Anything you leave out is gone, and newer verbatim chat overrides the compressed state.
                             </small>
                         </label>
                         <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
@@ -1075,10 +1075,10 @@
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                             <small class="sc-hint">
-                                <code>{{story_txt}}</code> is lower-layer memory; <code>{{context_str}}</code> is existing deeper memory.
+                                <code>{{story_txt}}</code> is the lower-layer memory; <code>{{context_str}}</code> is the existing deeper memory.
                             </small>
                             <small class="sc-hint">
-                                Custom promotion prompts should output one narrative paragraph only; state is merged separately.
+                                Custom promotion prompts should give you one narrative paragraph only. State gets merged separately.
                             </small>
                         </label>
                         <textarea id="sc_promotion_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10"></textarea>
@@ -1115,7 +1115,7 @@
                     <div class="sc-row">
                         <label for="sc_strip_patterns">
                             <span>Strip Patterns</span>
-                            <small class="sc-hint">One pattern per line.</small>
+                            <small class="sc-hint">One regex pattern per line.</small>
                         </label>
                         <textarea id="sc_strip_patterns" class="text_pole sc-textarea" rows="4"></textarea>
                     </div>
@@ -1124,7 +1124,7 @@
                             <span class="sc-toggle-icon fa-solid fa-bug"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Debug Mode</span>
-                                <small class="sc-hint">Verbose console logs.</small>
+                                <small class="sc-hint">Dumps verbose logs to the console.</small>
                             </span>
                             <input type="checkbox" id="sc_debug_mode" />
                         </label>
@@ -1132,7 +1132,7 @@
                             <span class="sc-toggle-icon fa-solid fa-route"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Trace Mode</span>
-                                <small class="sc-hint">Detailed flow logs; requires Debug Mode.</small>
+                                <small class="sc-hint">Detailed flow logs to the console. Needs Debug Mode on.</small>
                             </span>
                             <input type="checkbox" id="sc_trace_mode" />
                         </label>
@@ -1140,7 +1140,7 @@
                             <span class="sc-toggle-icon fa-solid fa-terminal"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Log LLM Inputs</span>
-                                <small class="sc-hint">Print full final system/user content sent to the summarizer in the F12 console.</small>
+                                <small class="sc-hint">Prints the full final system and user content sent to the summarizer in the F12 console.</small>
                             </span>
                             <input type="checkbox" id="sc_prompt_input_log_mode" />
                         </label>
@@ -1148,7 +1148,7 @@
                             <span class="sc-toggle-icon fa-solid fa-reply"></span>
                             <span class="sc-toggle-copy">
                                 <span class="sc-toggle-title">Log LLM Outputs</span>
-                                <small class="sc-hint">Print cleaned summaries and errors in the F12 console.</small>
+                                <small class="sc-hint">Prints cleaned summaries and errors in the F12 console.</small>
                             </span>
                             <input type="checkbox" id="sc_prompt_output_log_mode" />
                         </label>

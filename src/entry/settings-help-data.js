@@ -5,7 +5,7 @@ const basicHelp = ({ selector, title, short, controls, controlsText, when, risk 
     selector,
     title,
     short,
-    detail: `${controlsText} Change it ${when} Main risk: ${risk}`,
+    detail: `${controlsText} ${when} ${risk}`,
     controls,
 });
 
@@ -23,7 +23,7 @@ const CONNECTION_GROUPS = [
         openaiKeyId: 'summaryception_openai_key',
         openaiModelId: 'summaryception_openai_model',
         openaiMaxTokensId: 'summaryception_openai_max_tokens',
-        sourceRisk: 'a weak or misconfigured route makes every new summary worse.',
+        sourceRisk: 'A weak or misconfigured route makes every new summary worse.',
         responseDefault: '0 uses the selected provider default.',
         openaiDefault: '0 leaves the provider default.',
     },
@@ -40,7 +40,7 @@ const CONNECTION_GROUPS = [
         openaiKeyId: 'summaryception_merge_openai_key',
         openaiModelId: 'summaryception_merge_openai_model',
         openaiMaxTokensId: 'summaryception_merge_openai_max_tokens',
-        sourceRisk: 'a mismatched merge route can rewrite stable memory in a different style.',
+        sourceRisk: 'A mismatched merge route can rewrite stable memory in a different style.',
         responseDefault: '0 uses the selected provider default.',
         openaiDefault: '0 leaves the provider default.',
     },
@@ -57,7 +57,7 @@ const CONNECTION_GROUPS = [
         openaiKeyId: 'summaryception_fallback_openai_key',
         openaiModelId: 'summaryception_fallback_openai_model',
         openaiMaxTokensId: 'summaryception_fallback_openai_max_tokens',
-        sourceRisk: 'it is ignored if it matches the primary route.',
+        sourceRisk: 'It is ignored if it matches the primary route.',
         responseDefault: '0 uses the selected provider default.',
         openaiDefault: '0 leaves the provider default.',
     },
@@ -103,8 +103,8 @@ function responseLengthHelp(group) {
             short: 'Maximum response length for default/profile routes.',
             controls: [controlFor(group.responseLengthId)],
             controlsText: `Controls the response length cap for the ${group.route}`,
-            when: 'if a provider rejects large non-streaming limits or you need shorter summaries.',
-            risk: `too low can cut off summaries. ${group.responseDefault}`,
+            when: 'Use it if a provider rejects large non-streaming limits or you need shorter summaries.',
+            risk: `Setting it too low can cut off summaries. ${group.responseDefault}`,
         }),
     ];
 }
@@ -118,8 +118,8 @@ function profileHelp(group) {
             short: 'Saved SillyTavern connection profile for this route.',
             controls: [controlFor(group.profileId)],
             controlsText: `Controls which saved SillyTavern Connection Profile powers the ${group.route}`,
-            when: 'if you selected Connection Profile as the source.',
-            risk: 'profile formatting and model choice can change summary quality.',
+            when: 'Use it if you selected Connection Profile as the source.',
+            risk: 'Profile formatting and model choice can change summary quality.',
         }),
     ];
 }
@@ -133,8 +133,8 @@ function ollamaUrlHelp(group) {
             short: 'Ollama server address used by this route.',
             controls: [controlFor(group.ollamaUrlId)],
             controlsText: `Controls the Ollama endpoint used by the ${group.route}`,
-            when: 'if your local Ollama server runs somewhere other than localhost:11434.',
-            risk: 'a wrong URL or missing CORS setup makes the route fail.',
+            when: 'Use it if your local Ollama server runs somewhere other than localhost:11434.',
+            risk: 'A wrong URL or missing CORS setup makes the route fail.',
         }),
     ];
 }
@@ -148,8 +148,8 @@ function ollamaModelHelp(group) {
             short: 'Local Ollama model used by this route.',
             controls: [controlFor(group.ollamaModelId)],
             controlsText: `Controls which Ollama model powers the ${group.route}`,
-            when: 'if you want a different local summarizer model.',
-            risk: 'a small or weak model may miss important memory facts.',
+            when: 'Use it if you want a different local summarizer model.',
+            risk: 'A small or weak model may miss important memory facts.',
         }),
     ];
 }
@@ -163,8 +163,8 @@ function openaiUrlHelp(group) {
             short: 'OpenAI-compatible base URL for this route.',
             controls: [controlFor(group.openaiUrlId)],
             controlsText: `Controls the OpenAI-compatible endpoint used by the ${group.route}`,
-            when: 'for OpenRouter, local OpenAI-compatible servers, or another compatible provider.',
-            risk: 'the URL should usually end at /v1; a wrong base URL makes requests fail.',
+            when: 'Use it for OpenRouter, local OpenAI-compatible servers, or another compatible provider.',
+            risk: 'The URL should usually end at /v1; a wrong base URL makes requests fail.',
         }),
     ];
 }
@@ -178,8 +178,8 @@ function openaiKeyHelp(group) {
             short: 'API key for the OpenAI-compatible route.',
             controls: [controlFor(group.openaiKeyId)],
             controlsText: `Controls the API key sent to the ${group.route}`,
-            when: 'if your provider requires authentication.',
-            risk: 'leaving it empty fails on hosted providers, while saving a key stores it in ST settings.',
+            when: 'Use it if your provider requires authentication.',
+            risk: 'Leaving it empty fails on hosted providers, while saving a key stores it in ST settings.',
         }),
     ];
 }
@@ -193,8 +193,8 @@ function openaiModelHelp(group) {
             short: 'Model name for the OpenAI-compatible route.',
             controls: [controlFor(group.openaiModelId)],
             controlsText: `Controls which OpenAI-compatible model powers the ${group.route}`,
-            when: 'if your provider exposes a different model name.',
-            risk: 'typos or unavailable models make requests fail.',
+            when: 'Use it if your provider exposes a different model name.',
+            risk: 'Typos or unavailable models make requests fail.',
         }),
     ];
 }
@@ -208,8 +208,8 @@ function openaiMaxTokensHelp(group) {
             short: 'Output token cap for OpenAI-compatible requests.',
             controls: [controlFor(group.openaiMaxTokensId)],
             controlsText: `Controls the max_tokens value for the ${group.route}`,
-            when: 'if your provider needs an explicit output cap.',
-            risk: `too low cuts off summaries. ${group.openaiDefault}`,
+            when: 'Use it if your provider needs an explicit output cap.',
+            risk: `Setting it too low cuts off summaries. ${group.openaiDefault}`,
         }),
     ];
 }
@@ -226,10 +226,10 @@ function getConnectionSourceShort(group) {
 
 function getConnectionSourceWhen(group) {
     if (group.key === 'fallback') {
-        return 'only if you have a second working route. Leave disabled otherwise.';
+        return 'Only use it if you have a second working route. Leave it disabled otherwise.';
     }
     if (group.key === 'merge') {
-        return 'if deeper memory merges need a different or stronger model.';
+        return 'Use it if deeper memory merges need a different or stronger model.';
     }
-    return 'when the default route is not the best summarizer.';
+    return 'Use it when the default route is not the best summarizer.';
 }
