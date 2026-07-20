@@ -105,18 +105,21 @@ interface ExtensionSettings {
     openaiKey: string;
     openaiModel: string;
     openaiMaxTokens: number;
+    requestTimeoutSeconds: number;
     mergeConnectionSource: string;
     mergeSummarizerResponseLength: number;
     mergeConnectionProfileId: string;
     mergeOllamaModel: string;
     mergeOpenaiModel: string;
     mergeOpenaiMaxTokens: number;
+    mergeRequestTimeoutSeconds: number;
     fallbackConnectionSource: string;
     fallbackSummarizerResponseLength: number;
     fallbackConnectionProfileId: string;
     fallbackOllamaModel: string;
     fallbackOpenaiModel: string;
     fallbackOpenaiMaxTokens: number;
+    fallbackRequestTimeoutSeconds: number;
 }
 
 interface GenerateRawMessage {

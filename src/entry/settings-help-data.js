@@ -16,6 +16,7 @@ const CONNECTION_GROUPS = [
         route: 'main raw-chat summarizer route used for new Layer 0 memories and Layer 0 regeneration.',
         sourceId: 'summaryception_connection_source',
         responseLengthId: 'sc_summarizer_response_length',
+        requestTimeoutId: 'sc_request_timeout',
         profileId: 'summaryception_connection_profile',
         ollamaUrlId: 'summaryception_ollama_url',
         ollamaModelId: 'summaryception_ollama_model',
@@ -33,6 +34,7 @@ const CONNECTION_GROUPS = [
         route: 'optional Layer 1+ promotion route used when lower memories are merged into deeper memory.',
         sourceId: 'summaryception_merge_connection_source',
         responseLengthId: 'sc_merge_summarizer_response_length',
+        requestTimeoutId: 'sc_merge_request_timeout',
         profileId: 'summaryception_merge_connection_profile',
         ollamaUrlId: 'summaryception_merge_ollama_url',
         ollamaModelId: 'summaryception_merge_ollama_model',
@@ -50,6 +52,7 @@ const CONNECTION_GROUPS = [
         route: 'backup summarizer route used only after retryable primary failures.',
         sourceId: 'summaryception_fallback_connection_source',
         responseLengthId: 'sc_fallback_summarizer_response_length',
+        requestTimeoutId: 'sc_fallback_request_timeout',
         profileId: 'summaryception_fallback_connection_profile',
         ollamaUrlId: 'summaryception_fallback_ollama_url',
         ollamaModelId: 'summaryception_fallback_ollama_model',
@@ -66,6 +69,7 @@ const CONNECTION_GROUPS = [
 const CONNECTION_ENTRY_BUILDERS = [
     connectionSourceHelp,
     responseLengthHelp,
+    requestTimeoutHelp,
     profileHelp,
     ollamaUrlHelp,
     ollamaModelHelp,
@@ -105,6 +109,21 @@ function responseLengthHelp(group) {
             controlsText: `Controls the response length cap for the ${group.route}`,
             when: 'Use it if a provider rejects large non-streaming limits or you need shorter summaries.',
             risk: `Setting it too low can cut off summaries. ${group.responseDefault}`,
+        }),
+    ];
+}
+
+function requestTimeoutHelp(group) {
+    return [
+        `${group.key}_request_timeout`,
+        basicHelp({
+            selector: selectorFor(group.requestTimeoutId),
+            title: `${group.label} Request Timeout`,
+            short: 'Per-attempt timeout in seconds before the request is aborted and retried.',
+            controls: [controlFor(group.requestTimeoutId)],
+            controlsText: `Controls how long a single ${group.label} summarizer attempt waits before giving up.`,
+            when: 'Raise it for slow local models that legitimately exceed the default. Lower it to fail over faster.',
+            risk: 'Too low aborts valid slow responses; too high stalls the chat on a hung backend.',
         }),
     ];
 }

@@ -1,6 +1,6 @@
-import { RETRY_CONFIG } from './constants.js';
+import { REQUEST_TIMEOUT, RETRY_CONFIG } from './constants.js';
 
-export { RETRY_CONFIG };
+export { REQUEST_TIMEOUT, RETRY_CONFIG };
 
 /**
  * Wait for a specified number of milliseconds.

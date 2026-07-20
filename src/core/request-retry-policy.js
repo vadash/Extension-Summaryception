@@ -1,25 +1,73 @@
-import { RETRY_CONFIG, isRetryableError, parseRetryAfter } from '../foundation/retry.js';
+import {
+    REQUEST_TIMEOUT,
+    RETRY_CONFIG,
+    isRetryableError,
+    parseRetryAfter,
+} from '../foundation/retry.js';
 
 const PRIMARY_HEALTH_BUCKETS = Object.freeze({
     layer0: 'layer0',
     l1plus: 'l1plus',
 });
 
+// Hardcoded fallbacks (ms) used when no per-route timeout setting is supplied.
+// Kept identical to the pre-slider values so callers that omit settings behavior is unchanged.
+const FALLBACK_TIMEOUT_MS = Object.freeze({
+    layer0First: 120000,
+    layer0Retry: 90000,
+    promotionFirst: 90000,
+    promotionRetry: 60000,
+});
+
 export const ROUTE_CYCLE_RETRY_ATTEMPT = RETRY_CONFIG.maxRetries;
 
 /**
- * Compute timeout for a specific attempt based on call type and attempt index.
- * L0 (user-facing) gets more patience; L1+ (background promotion) gets less.
- * @param {object} metadata - Call metadata
- * @param {number} attempt - Zero-based attempt index
+ * Compute timeout for a specific attempt based on the configured per-route timeout
+ * (seconds, read from the base settings) and attempt index. The first attempt uses
+ * the full configured timeout; retries run at RETRY_ATTEMPT_RATIO of it so the route
+ * gives up sooner and can retry/failover. L0 (user-facing) defaults higher than
+ * L1+ (background promotion) when the route setting is unset.
+ * @param {object} [metadata] - Call metadata (kind / useFallback pick the route)
+ * @param {number} [attempt] - Zero-based attempt index
+ * @param {object} [settings] - Base extension settings carrying the prefixed timeout fields
  * @returns {number} Timeout in milliseconds
  */
-export function computeAttemptTimeoutMs(metadata = {}, attempt) {
+export function computeAttemptTimeoutMs(metadata = {}, attempt = 0, settings = {}) {
+    const configuredSeconds = resolveTimeoutSeconds(metadata, settings);
+    if (!Number.isFinite(configuredSeconds) || configuredSeconds <= 0) {
+        return fallbackTimeoutMs(metadata, attempt);
+    }
+    const firstMs = configuredSeconds * 1000;
+    return attempt === 0 ? firstMs : Math.round(firstMs * REQUEST_TIMEOUT.RETRY_ATTEMPT_RATIO);
+}
+
+/**
+ * Resolve the per-route timeout (in seconds) from the base settings object.
+ * The metadata.kind (promotion vs layer0/regenerate) and metadata.useFallback flag
+ * select which route's timeout field applies:
+ *   - fallback route        → fallbackRequestTimeoutSeconds
+ *   - L1+ promotion route   → mergeRequestTimeoutSeconds
+ *   - Layer 0 / regenerate   → requestTimeoutSeconds
+ * @param {object} metadata - Call metadata
+ * @param {object} settings - Base extension settings
+ * @returns {number} Configured timeout in seconds, or NaN if unset
+ */
+function resolveTimeoutSeconds(metadata, settings) {
+    if (metadata.useFallback) {
+        return Number(settings?.fallbackRequestTimeoutSeconds);
+    }
+    if (metadata.kind === 'promotion') {
+        return Number(settings?.mergeRequestTimeoutSeconds);
+    }
+    return Number(settings?.requestTimeoutSeconds);
+}
+
+function fallbackTimeoutMs(metadata, attempt) {
     const isPromotion = metadata.kind === 'promotion';
     if (!isPromotion) {
-        return attempt === 0 ? 120000 : 90000;
+        return attempt === 0 ? FALLBACK_TIMEOUT_MS.layer0First : FALLBACK_TIMEOUT_MS.layer0Retry;
     }
-    return attempt === 0 ? 90000 : 60000;
+    return attempt === 0 ? FALLBACK_TIMEOUT_MS.promotionFirst : FALLBACK_TIMEOUT_MS.promotionRetry;
 }
 
 /**

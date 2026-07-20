@@ -8,6 +8,7 @@ import {
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
+    REQUEST_TIMEOUT,
     UI_MODES,
     defaultSettings,
 } from './constants.js';
@@ -72,6 +73,7 @@ export function getSettings() {
     const memorySettingsNormalized = normalizeMemorySettings(settings);
     const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
     normalizeVerbatimWindowSettings(settings);
+    normalizeRequestTimeouts(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
     if (
         modeSettingsNormalized ||
@@ -294,6 +296,34 @@ function normalizeVerbatimWindowSettings(settings) {
     settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
     settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);
     settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
+}
+
+/**
+ * Clamp the three per-route request timeout settings (in seconds) to the slider bounds.
+ * Applies to Layer 0 (requestTimeoutSeconds), L1+ merge (mergeRequestTimeoutSeconds),
+ * and the fallback route (fallbackRequestTimeoutSeconds).
+ * @param {ExtensionSettings} settings
+ * @returns {void}
+ */
+function normalizeRequestTimeouts(settings) {
+    settings.requestTimeoutSeconds = clampToStep(
+        settings.requestTimeoutSeconds,
+        REQUEST_TIMEOUT.MIN_SECONDS,
+        REQUEST_TIMEOUT.MAX_SECONDS,
+        REQUEST_TIMEOUT.STEP_SECONDS,
+    );
+    settings.mergeRequestTimeoutSeconds = clampToStep(
+        settings.mergeRequestTimeoutSeconds,
+        REQUEST_TIMEOUT.MIN_SECONDS,
+        REQUEST_TIMEOUT.MAX_SECONDS,
+        REQUEST_TIMEOUT.STEP_SECONDS,
+    );
+    settings.fallbackRequestTimeoutSeconds = clampToStep(
+        settings.fallbackRequestTimeoutSeconds,
+        REQUEST_TIMEOUT.MIN_SECONDS,
+        REQUEST_TIMEOUT.MAX_SECONDS,
+        REQUEST_TIMEOUT.STEP_SECONDS,
+    );
 }
 
 function normalizeModeSettings(settings, hadMode) {

@@ -324,7 +324,7 @@ export class RequestRunner {
             metadata: promptContext.metadata,
             routeLabel: series.routeLabel,
             maxRetries: series.maxRetries,
-            timeoutMs: computeAttemptTimeoutMs(series.metadata, attempt),
+            timeoutMs: computeAttemptTimeoutMs(series.metadata, attempt, series.settings),
         });
     }
 

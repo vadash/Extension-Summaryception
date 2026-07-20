@@ -22,6 +22,44 @@ describe('request retry policy', () => {
         expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 1)).toBe(60000);
     });
 
+    it('reads the per-route timeout from settings when supplied', () => {
+        const settings = {
+            requestTimeoutSeconds: 300,
+            mergeRequestTimeoutSeconds: 180,
+            fallbackRequestTimeoutSeconds: 240,
+        };
+        // Layer 0 / regenerate — first attempt full, retry at 75%.
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, settings)).toBe(300000);
+        expect(computeAttemptTimeoutMs({ kind: 'regenerate' }, 0, settings)).toBe(300000);
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, settings)).toBe(225000);
+        // Promotion — uses the merge route timeout.
+        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 0, settings)).toBe(180000);
+        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 1, settings)).toBe(135000);
+        // Fallback route — uses the fallback timeout, regardless of kind.
+        expect(computeAttemptTimeoutMs({ kind: 'layer0', useFallback: true }, 0, settings)).toBe(
+            240000,
+        );
+        expect(computeAttemptTimeoutMs({ kind: 'promotion', useFallback: true }, 1, settings)).toBe(
+            180000,
+        );
+    });
+
+    it('falls back to hardcoded defaults when the route timeout is unset or invalid', () => {
+        // No settings at all → legacy hardcoded values preserved.
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, {})).toBe(120000);
+        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 1, {})).toBe(60000);
+        // Zero / negative / NaN → treated as unset, falls back to hardcoded.
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, { requestTimeoutSeconds: 0 })).toBe(
+            120000,
+        );
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, { requestTimeoutSeconds: -5 })).toBe(
+            120000,
+        );
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, { requestTimeoutSeconds: NaN })).toBe(
+            120000,
+        );
+    });
+
     it('honors Retry-After but clamps it to the retry max delay', () => {
         expect(computeRetryDelay({ retryAfter: 999 }, 0)).toBe(RETRY_CONFIG.maxDelay);
     });

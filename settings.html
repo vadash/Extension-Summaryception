@@ -385,6 +385,16 @@
                         </label>
                         <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = provider default" />
                     </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_request_timeout">
+                            <span>Request Timeout</span>
+                            <small>Per-attempt timeout for Layer 0 summary and regeneration calls. Raise this for slow local models.</small>
+                        </label>
+                        <div class="sc-slider-row">
+                            <input type="range" id="sc_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout_val" />
+                            <input id="sc_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout" />
+                        </div>
+                    </div>
                     </div>
                     <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
                         <div class="sc-setting-row">
@@ -494,6 +504,16 @@
                         </label>
                         <input id="sc_merge_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="mergeSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
                     </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_merge_request_timeout">
+                            <span>Merge Request Timeout</span>
+                            <small>Per-attempt timeout for Layer 1+ promotion merge calls. Lower than Layer 0 by default.</small>
+                        </label>
+                        <div class="sc-slider-row">
+                            <input type="range" id="sc_merge_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout_val" />
+                            <input id="sc_merge_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="90" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout" />
+                        </div>
+                    </div>
                     </div>
                     <div id="summaryception_merge_profile_settings" class="sc-sub-panel" style="display: none;">
                         <div class="sc-setting-row">
@@ -583,6 +603,16 @@
                             <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
                         </label>
                         <input id="sc_fallback_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="fallbackSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                    </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_fallback_request_timeout">
+                            <span>Fallback Request Timeout</span>
+                            <small>Per-attempt timeout for the fallback route after the primary route fails.</small>
+                        </label>
+                        <div class="sc-slider-row">
+                            <input type="range" id="sc_fallback_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout_val" />
+                            <input id="sc_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout" />
+                        </div>
                     </div>
                     </div>
                     <div id="summaryception_fallback_profile_settings" class="sc-sub-panel" style="display: none;">

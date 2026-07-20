@@ -82,6 +82,18 @@ export const EXTENSION_PROMPT_ROLES = Object.freeze({
 
 export const INTERNAL_MAX_LAYER_DEPTH = 20;
 
+// ─── Request Timeout Configuration ─────────────────────────────────
+// Per-route summarizer request timeouts in seconds. Stored on settings as
+// requestTimeoutSeconds / mergeRequestTimeoutSeconds / fallbackRequestTimeoutSeconds.
+// The policy converts to milliseconds; the retry attempt runs at 75% of the first.
+export const REQUEST_TIMEOUT = Object.freeze({
+    MIN_SECONDS: 60,
+    MAX_SECONDS: 300,
+    STEP_SECONDS: 10,
+    DEFAULT_SECONDS: 120, // Layer 0 / regenerate / fallback
+    MERGE_DEFAULT_SECONDS: 90, // L1+ promotions (smaller payloads)
+    RETRY_ATTEMPT_RATIO: 0.75,
+});
 // ─── Default Settings ────────────────────────────────────────────────
 
 export const defaultSettings = Object.freeze({
@@ -152,6 +164,7 @@ export const defaultSettings = Object.freeze({
     openaiKey: '',
     openaiModel: '',
     openaiMaxTokens: 0, // 0 = provider default
+    requestTimeoutSeconds: REQUEST_TIMEOUT.DEFAULT_SECONDS, // Layer 0 / regenerate, in seconds
 
     // Optional Layer 1+ promotion merge connection. 'inherit' uses the Layer 0 connection above.
     mergeConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile' | 'ollama' | 'openai'
@@ -160,6 +173,7 @@ export const defaultSettings = Object.freeze({
     mergeOllamaModel: '',
     mergeOpenaiModel: '',
     mergeOpenaiMaxTokens: 0,
+    mergeRequestTimeoutSeconds: REQUEST_TIMEOUT.MERGE_DEFAULT_SECONDS, // L1+ promotions, in seconds
 
     // Optional fallback connection used after the primary route exhausts retryable failures.
     fallbackConnectionSource: 'disabled', // 'disabled' | 'default' | 'profile' | 'ollama' | 'openai'
@@ -168,6 +182,7 @@ export const defaultSettings = Object.freeze({
     fallbackOllamaModel: '',
     fallbackOpenaiModel: '',
     fallbackOpenaiMaxTokens: 0,
+    fallbackRequestTimeoutSeconds: REQUEST_TIMEOUT.DEFAULT_SECONDS, // fallback route, in seconds
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────

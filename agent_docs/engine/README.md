@@ -23,6 +23,7 @@
 - Adapters live in `src/core/connection-*.js`; `connectionutil.js` resolves routes and shared access.
 - OpenAI-compatible SSE reads must reach `data: [DONE]`. EOF or disconnect before marker is retryable failure.
 - Retry policy uses exponential backoff. Hard network failures such as `failed to fetch` or `ECONNREFUSED` skip normal primary retries and try configured fallback immediately.
+- Per-attempt request timeout is configurable per route, stored in seconds on settings (`requestTimeoutSeconds` / `mergeRequestTimeoutSeconds` / `fallbackRequestTimeoutSeconds`) and resolved in `computeAttemptTimeoutMs` from `metadata.kind` + `metadata.useFallback`, not from the active connection. Retry attempts run at 75% of the first attempt's timeout so routes give up sooner to failover. Unset/invalid values fall back to hardcoded defaults (120s/90s layer0, 90s/60s promotion).
 - Keep each connection source independently testable.
 
 ## Injection and ghosting
