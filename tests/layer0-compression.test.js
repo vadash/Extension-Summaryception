@@ -130,6 +130,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('short, direct sentences');
         expect(result).toContain('run-on sentences');
         expect(result).toContain('Prefer periods over commas and semicolons');
+        expect(result).toContain('resolved ABSOLUTE date');
+        expect(result).toContain('reference frame');
     });
 
     it('appends narrative-only constraints for promotion calls', () => {
@@ -158,6 +160,9 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('short, direct sentences');
         expect(result).toContain('run-on sentences');
         expect(result).toContain('Prefer periods over commas and semicolons');
+        expect(result).toContain('treat that anchor');
+        expect(result).toContain('Bare weekday names');
+        expect(result).toContain('2024-07-12 Fri');
     });
 
     it('appends repair feedback for promotion repair calls', () => {

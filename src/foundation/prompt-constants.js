@@ -22,7 +22,7 @@ export const PROMOTION_MODERATE_MACRO_RULES =
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
     'Compressed continuity. Newer verbatim chat and the current user message take priority.\n' +
-    '[CURRENT STATE] = active facts. [CHRONOLOGY] = past events, oldest to newest. [X-Y@YYYY-MM-DDTHH] = source messages X-Y; scene time at Y.\n' +
+    "[CURRENT STATE] = active facts. [CHRONOLOGY] = past events, oldest to newest. [X-Y@YYYY-MM-DDTHH] = source messages X-Y; scene time at Y also serves as that passage's reference date — resolve any relative time words (tomorrow, today, in N days, next/bare weekday, this evening) in the adjacent narrative against it.\n" +
     '{{summary}}\n' +
     '</summaryception_memory>';
 
@@ -49,6 +49,7 @@ Output exactly two sections:
 
 [NARRATIVE]
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
+Resolve any relative time reference in the passage (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the RESOLVED ABSOLUTE DATE inline in the prose instead of the relative word. Never leave a bare relative time word in the narrative.
 ${LAYER0_DURABILITY_RULES}
 
 [STATE]
@@ -93,7 +94,7 @@ ${ENGLISH_FIRST_LANGUAGE_RULE}
 Output exactly two sections and nothing else:
 
 [NARRATIVE]
-<one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE}>
+<one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE} Resolve any relative time reference (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the resolved absolute date inline instead of the relative word; never leave a bare relative time word.>
 ${LAYER0_DURABILITY_RULES}
 
 [STATE]
@@ -130,7 +131,7 @@ ${ENGLISH_FIRST_LANGUAGE_RULE}
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
 2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <narratives_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
-4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; current 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available.
+4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; current 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available. Each source narrative is prefixed with a scene-time anchor like [msgs X-Y; current YYYY-MM-DD HH ddd]; treat that anchor's date AS the scene's "today" for that passage, compute every relative word in that narrative against it, and emit only absolute dates in your output. Bare weekday names (e.g. "Friday") are forbidden — write the full date (e.g. 2024-07-12 Fri) instead of a relative word.
 
 ### PROSE-FOLDING RULES:
 The <source_state> block contains dynamic facts extracted from the source memories. Fold any still-durable facts, inventory changes, counters, relationship changes, current positions, and unresolved hooks directly into the narrative prose.
@@ -173,4 +174,4 @@ ${ENGLISH_FIRST_LANGUAGE_RULE}
 Output exactly one section:
 
 [NARRATIVE]
-<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax. ${ANTI_RUN_ON_RULE}>`;
+<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax. ${ANTI_RUN_ON_RULE} Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.>`;

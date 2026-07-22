@@ -132,6 +132,16 @@ describe('constants', () => {
         expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain(
             'Write the output mainly in English',
         );
+        // Temporal-resolution wording: the L0 user prompt must pin relative time words to a resolved absolute date.
+        expect(PROMPT_PRESETS.narrative).toContain('RESOLVED ABSOLUTE DATE');
+        expect(PROMPT_PRESETS.narrative).toContain('Never leave a bare relative time word');
+        // The L0 repair prompt must force the relative word to be resolved inline.
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain(
+            'resolved absolute date inline instead of the relative word',
+        );
+        // The injection template (on defaultSettings) must mention the reference date and relative-word resolution.
+        expect(defaultSettings.injectionTemplate).toContain('reference date');
+        expect(defaultSettings.injectionTemplate).toContain('resolve any relative time words');
     });
 
     it('exposes every documented promotion prompt preset', () => {
@@ -173,6 +183,13 @@ describe('constants', () => {
         expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain(
             'Write the output mainly in English',
         );
+        // Temporal-resolution wording: the promotion user prompt must treat the reference-date anchor and forbid bare weekday names.
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('treat that anchor');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Bare weekday names');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('2024-07-12 Fri');
+        // The promotion repair prompt must require absolute dates only and resolve relative words.
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('absolute dates only');
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('bare relative time word');
     });
 
     it('defaults to the narrative preset', () => {
