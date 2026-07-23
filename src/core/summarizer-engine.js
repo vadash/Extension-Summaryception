@@ -110,7 +110,7 @@ export async function runElasticManual(deps, strategy, options = {}) {
 
 async function processRoutePlan(routePlan) {
     const success = await commitRoutePlan(routePlan, {
-        showToasts: false,
+        showToasts: routePlan.commitMode === SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS,
         catchExceptions: true,
     });
 

@@ -391,7 +391,7 @@ async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToas
         store,
         passageStart,
         endIdx,
-        showToasts,
+        showToasts: false, // Suppress the generic toast; cache-break toast is shown below.
         rollbackMessage: 'Layer 0 commit persistence failed, rolling back store state:',
         onRollback: () => {
             debug('Atomic Layer 0 commit rolled back: post-save persistence failed.');
@@ -405,6 +405,14 @@ async function commitAtomicLayer0Snippets({ snapshots, pendingSnippets, showToas
             bumpSummaryStoreMutationEpoch(store);
         },
     });
+
+    if (showToasts) {
+        toastr.info(
+            `Cache break – ${pendingSnippets.length} batch${pendingSnippets.length === 1 ? '' : 'es'} saved. Safe to update lorebook or author's note now.`,
+            'Summaryception',
+            { timeOut: 6000 },
+        );
+    }
 
     return true;
 }

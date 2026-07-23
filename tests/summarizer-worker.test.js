@@ -195,7 +195,7 @@ describe('requestSummarization', () => {
                     sourceEndIdx: 0,
                 },
             ],
-            { showToasts: false, catchExceptions: true },
+            { showToasts: true, catchExceptions: true },
         );
         expect(mocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
         expect(mocks.maybePromoteLayer).not.toHaveBeenCalled();
