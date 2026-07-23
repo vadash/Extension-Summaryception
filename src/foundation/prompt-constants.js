@@ -32,6 +32,20 @@ export const STATE_DEDUPLICATION_RULES =
 export const PROMOTION_MODERATE_MACRO_RULES =
     'Keep named people and places only when needed to understand a lasting relationship, obligation, location, or unresolved hook. Drop ages, brands, shopping routes, meals, clothing, one-off supplies, dialogue, and mechanical scene replay unless future continuity depends on them. Prefer cumulative outcomes over a list of scene beats.';
 
+/**
+ * Prose date format rule, shared across Layer 0 and Layer 1+ prompts.
+ * The current year is already carried in [STATE]/[NARRATIVE]'s current_date_time,
+ * so repeating it in prose wastes tokens and creates opener-style drift.
+ * ISO dates and clock times are data-channel formats reserved for current_date_time only.
+ * Story-relevant clock time (alarm, deadline, shift boundary) may still appear once
+ * mid-sentence in the narrative body, never as a date lead-in.
+ */
+export const PROSE_DATE_FORMAT_RULE =
+    'In [NARRATIVE] prose, write dates in calendar form only: month name and day number, no year, no ISO syntax, no clock time. ' +
+    'Write "On July 6" not "On July 6, 2024", not "On 2024-07-06", not "On July 6 at 19:00". ' +
+    'The current year and exact hour live only in current_date_time; never duplicate them into prose. ' +
+    'A clock time may appear once mid-sentence when it carries story weight (an alarm, a deadline, a shift boundary); never use it as a date lead-in.';
+
 export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
     'Compressed continuity. Newer verbatim chat and the current user message take priority.\n' +
@@ -63,6 +77,7 @@ Output exactly two sections:
 [NARRATIVE]
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
 Resolve any relative time reference in the passage (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the RESOLVED ABSOLUTE DATE inline in the prose instead of the relative word. Never leave a bare relative time word in the narrative.
+${PROSE_DATE_FORMAT_RULE}
 ${LAYER0_DURABILITY_RULES}
 
 [STATE]
@@ -108,6 +123,7 @@ Output exactly two sections and nothing else:
 
 [NARRATIVE]
 <one dense chronological prose paragraph covering only essential events, actions, dialogue, and outcomes from the passage. Never use second-person pronouns. ${ANTI_RUN_ON_RULE} Resolve any relative time reference (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the resolved absolute date inline instead of the relative word; never leave a bare relative time word.>
+${PROSE_DATE_FORMAT_RULE}
 ${LAYER0_DURABILITY_RULES}
 
 [STATE]
@@ -144,7 +160,8 @@ ${ENGLISH_FIRST_LANGUAGE_RULE}
 1. **No Historical Rewriting:** <prior_context> is your established, immutable baseline history. Do NOT re-summarize, duplicate, or re-write any events, dates, or details already recorded in <prior_context>.
 2. **Strict Delta Scoping:** Your output must ONLY summarize the new events occurring within <narratives_to_consolidate>.
 3. **Appended Continuity:** Structure the output so that it chronologically and seamlessly appends directly to the end of <prior_context> without looking back or repeating past timelines.
-4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; current 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available. Each source narrative is prefixed with a scene-time anchor like [msgs X-Y; current YYYY-MM-DD HH ddd]; treat that anchor's date AS the scene's "today" for that passage, compute every relative word in that narrative against it, and emit only absolute dates in your output. Bare weekday names (e.g. "Friday") are forbidden — write the full date (e.g. 2024-07-12 Fri) instead of a relative word.
+4. **Temporal Anchors:** Preserve lower-layer anchors such as [msgs 100-120; current 2024-12-03 09 Wed]. Keep hour-level 24-hour timestamps exactly when provided. Do not reduce inferable absolute timing to vague relative timing; future goals/plans should retain explicit date/hour anchors when available. Each source narrative is prefixed with a scene-time anchor like [msgs X-Y; current YYYY-MM-DD HH ddd]; treat that anchor's date AS the scene's "today" for that passage, compute every relative word in that narrative against it, and emit absolute dates in your output. Bare weekday names (e.g. "Friday") are forbidden — write the full calendar date instead of a relative word.
+${PROSE_DATE_FORMAT_RULE}
 
 ### PROSE-FOLDING RULES:
 The <source_state> block contains dynamic facts extracted from the source memories. Fold any still-durable facts, inventory changes, counters, relationship changes, current positions, and unresolved hooks directly into the narrative prose.
@@ -187,4 +204,4 @@ ${ENGLISH_FIRST_LANGUAGE_RULE}
 Output exactly one section:
 
 [NARRATIVE]
-<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax. ${ANTI_RUN_ON_RULE} Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.>`;
+<one dense third-person chronological prose paragraph. Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks. Do not output [STATE], lists, markdown, commentary, or key-value syntax. ${ANTI_RUN_ON_RULE} Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word. ${PROSE_DATE_FORMAT_RULE}>`;

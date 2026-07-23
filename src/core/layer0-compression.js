@@ -4,6 +4,7 @@ import {
     ENGLISH_FIRST_LANGUAGE_RULE,
     LAYER0_DURABILITY_RULES,
     PROMOTION_MODERATE_MACRO_RULES,
+    PROSE_DATE_FORMAT_RULE,
     STATE_SNAPSHOT_MAX_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
     STATE_DEDUPLICATION_RULES,
@@ -179,6 +180,8 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Use temporal format YYYY-MM-DD HH ddd with 24-hour, hour-level precision only, e.g. 2024-12-03 06 Wed; drop minutes instead of preserving them.\n' +
         'Normalize time from raw bracket headers or passage timestamps when present; if no explicit passage time appears, carry forward prior current_date_time.\n' +
         'Resolve any relative time expression in the passage (tomorrow, today, in N days, next or bare weekday, this evening) against the scene date for that message and write the resolved ABSOLUTE date inline in narrative prose; never leave a bare relative time word.\n' +
+        PROSE_DATE_FORMAT_RULE +
+        '\n' +
         'When narrative [] or state carries a date, use it as the reference frame for that message.\n' +
         '[STATE] may use only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.\n' +
         STATE_DEDUPLICATION_RULES +
@@ -263,7 +266,9 @@ function appendPromotionPromptConstraints(prompt, metadata = {}) {
         'Preserve only macro-level durable chronology, relationship/state changes, permanent rules, current position, and unresolved hooks.\n' +
         'Preserve anchored source ranges and hour-level 24-hour timestamps already present in memory, e.g. [msgs 100-120; current 2024-12-03 09 Wed].\n' +
         'Do not invent broad dates for unknown spans; only clean unknown spans when bounded by explicit neighboring anchors.\n' +
-        'Each source narrative begins with a scene-time anchor like [msgs X-Y; current YYYY-MM-DD HH ddd]; treat that anchor\'s date as that passage\'s "today", resolve every relative time word in that narrative against it, and emit only ABSOLUTE dates in your output. Bare weekday names are forbidden — write the full date (e.g. 2024-07-12 Fri) instead of a relative word.\n' +
+        'Each source narrative begins with a scene-time anchor like [msgs X-Y; current YYYY-MM-DD HH ddd]; treat that anchor\'s date as that passage\'s "today", resolve every relative time word in that narrative against it, and emit only ABSOLUTE dates in your output. Bare weekday names are forbidden — write the full calendar date instead of a relative word.\n' +
+        PROSE_DATE_FORMAT_RULE +
+        '\n' +
         'Omit physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, and momentary pose/arousal/mood counters.\n' +
         'Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by unresolved hooks.\n' +
         'Do not repeat or re-summarize events already established in prior context.\n' +

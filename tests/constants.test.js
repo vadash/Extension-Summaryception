@@ -135,10 +135,15 @@ describe('constants', () => {
         // Temporal-resolution wording: the L0 user prompt must pin relative time words to a resolved absolute date.
         expect(PROMPT_PRESETS.narrative).toContain('RESOLVED ABSOLUTE DATE');
         expect(PROMPT_PRESETS.narrative).toContain('Never leave a bare relative time word');
+        // The new prose-date format rule must appear in the L0 user prompt.
+        expect(PROMPT_PRESETS.narrative).toContain('On July 6');
+        expect(PROMPT_PRESETS.narrative).toContain('no year');
         // The L0 repair prompt must force the relative word to be resolved inline.
         expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain(
             'resolved absolute date inline instead of the relative word',
         );
+        // The prose-date format rule must also appear in the L0 repair prompt.
+        expect(SUMMARIZER_REPAIR_PROMPT_PRESETS.narrative).toContain('On July 6');
         // The injection template (on defaultSettings) must mention the reference date and relative-word resolution.
         expect(defaultSettings.injectionTemplate).toContain('reference date');
         expect(defaultSettings.injectionTemplate).toContain('resolve any relative time words');
@@ -186,10 +191,14 @@ describe('constants', () => {
         // Temporal-resolution wording: the promotion user prompt must treat the reference-date anchor and forbid bare weekday names.
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('treat that anchor');
         expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('Bare weekday names');
-        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('2024-07-12 Fri');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('On July 6');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).not.toContain('2024-07-12 Fri');
+        expect(PROMOTION_PROMPT_PRESETS.narrative).toContain('no year');
         // The promotion repair prompt must require absolute dates only and resolve relative words.
         expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('absolute dates only');
         expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('bare relative time word');
+        // The prose-date format rule must also appear in the promotion repair prompt.
+        expect(PROMOTION_REPAIR_PROMPT_PRESETS.narrative).toContain('On July 6');
     });
 
     it('defaults to the narrative preset', () => {

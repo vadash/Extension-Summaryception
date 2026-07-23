@@ -35,3 +35,8 @@
 - Direct placement uses `setExtensionPrompt()`. Macro Only exposes `{{summaryception_memory}}` and clears direct injection.
 - Ghosting uses SillyTavern `/hide`; originals stay visible in chat UI. Ownership tracked by `extra.sc_ghosted` and `store.ghostedIndices`.
 - Clearing uses `/unhide` only for Summaryception-owned ranges. Reconciliation repairs missing ownership/visual hides and trims invalid indices.
+
+## Prose date-format contract
+
+- `[NARRATIVE]` prose dates must be calendar form only (`On July 6`): no year, no ISO syntax, no clock-time lead-in. The current year and exact hour are already carried by the `[STATE]`/scene-time `current_date_time` anchor and the JSON `currentDateTime` field — duplicating them into prose wastes tokens and causes per-entry opener drift (`On July 6, 2024,` / `On 2024-07-06,` / `On July 6 at 19:00` all appeared before the rule). A clock time may appear once mid-sentence only when it carries story weight (alarm, deadline, shift boundary).
+- Enforced by one shared constant `PROSE_DATE_FORMAT_RULE` (`src/foundation/prompt-constants.js`). It is imported by `layer0-compression.js` and appended via `appendLayer0PromptConstraints` and `appendPromotionPromptConstraints`, plus embedded in all four default prompts (`DEFAULT_SUMMARIZER_USER_PROMPT`, `DEFAULT_SUMMARIZER_REPAIR_PROMPT`, `DEFAULT_PROMOTION_USER_PROMPT`, `DEFAULT_PROMOTION_REPAIR_PROMPT`). The Layer 0 and Layer 1+ generate/repair sites must all use the same constant — do not inline a date-format spec in only one site (that is how the prior ISO-in-prose contradiction, e.g. the old `2024-07-12 Fri` example, leaked ISO dates into promotion prose).

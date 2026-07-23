@@ -165,7 +165,8 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('Prefer periods over commas and semicolons');
         expect(result).toContain('treat that anchor');
         expect(result).toContain('Bare weekday names');
-        expect(result).toContain('2024-07-12 Fri');
+        expect(result).toContain('On July 6');
+        expect(result).not.toContain('2024-07-12 Fri');
     });
 
     it('appends repair feedback for promotion repair calls', () => {
