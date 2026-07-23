@@ -10,6 +10,19 @@ import {
 } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
+import {
+    getLayer0SummaryTokenBounds,
+    isLayer0SizeGuardCall,
+} from './layer0-compression.js';
+import {
+    STATE_SNAPSHOT_MAX_TOKENS,
+    STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+} from '../foundation/prompt-constants.js';
+import {
+    countLayer0SourceBudget,
+    getSourceTokenCount,
+} from './token-budget/source-token-counter.js';
+import { buildLayer0BudgetHint } from './token-budget/budget-hint-builder.js';
 
 /**
  * @typedef {object} SummarizerPipelineInputRequest
@@ -30,7 +43,7 @@ export async function buildSummarizerPipelineInput({
     metadata = {},
     settings = getEffectiveSettings(),
 }) {
-    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
+    const usageMetadata = await attachBudgetHint(await buildUsageMetadata(metadata, storyTxt), settings);
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
     const prompt = buildSummarizerPrompt({
         template: promptConfig.userPromptTemplate,
@@ -198,6 +211,38 @@ function hasSourceTokenMetadata(metadata = {}) {
         Number.isFinite(Number(metadata.regexStats?.finalTokens)) ||
         Number.isFinite(Number(metadata.memoryTokensBefore))
     );
+}
+
+/**
+ * Pre-compute the source-relative Layer 0 budget hint so that downstream
+ * synchronous prompt assembly can inject it without awaiting a tokenizer.
+ * No-op for non-L0/regen calls. Assigns `budgetHint` onto the metadata
+ * clone so the original metadata object is not mutated across calls.
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @param {ExtensionSettings} settings
+ * @returns {Promise<import('./summarizer-usage.js').SummarizerCallMetadata>}
+ */
+async function attachBudgetHint(metadata, settings) {
+    if (!isLayer0SizeGuardCall(metadata)) {
+        return metadata;
+    }
+    const sourceNarrativeTokens = getSourceTokenCount(metadata);
+    const sourceStateText = String(metadata.sourceState || '');
+    const { narrativeTokens, stateTokens, stateKeyCount } = await countLayer0SourceBudget({
+        sourceNarrativeTokens,
+        sourceStateText,
+    });
+    const budgetHint = buildLayer0BudgetHint({
+        sourceNarrativeTokens: narrativeTokens,
+        sourceStateTokens: stateTokens,
+        sourceStateKeyCount: stateKeyCount,
+        narrativeBounds: getLayer0SummaryTokenBounds(settings),
+        stateBounds: {
+            softTarget: STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
+            max: STATE_SNAPSHOT_MAX_TOKENS,
+        },
+    });
+    return { ...metadata, budgetHint };
 }
 
 /**

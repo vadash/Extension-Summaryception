@@ -50,6 +50,24 @@ function buildCurrentStateText(layers) {
     return serializeState(state).replace(/^\[STATE\]/, '[CURRENT STATE]');
 }
 
+/**
+ * Return the raw serialized current `[STATE]` body (no `[CURRENT STATE]`
+ * rename) for the source-state token/key counts used by the Layer 0 budget
+ * hint. Returns `''` when the layers hold no state.
+ * @param {Array<Array<{ text: string }>>} layers
+ * @returns {string}
+ */
+export function getCurrentStateSnapshotText(layers) {
+    if (!Array.isArray(layers)) {
+        return '';
+    }
+    const state = compileGlobalState(layers);
+    if (Object.keys(state).length === 0) {
+        return '';
+    }
+    return serializeState(state);
+}
+
 function collectChronologyParts(layers, compactAnchors) {
     const parts = [];
     for (let i = layers.length - 1; i >= 0; i--) {

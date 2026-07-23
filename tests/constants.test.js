@@ -113,7 +113,7 @@ describe('constants', () => {
         expect(PROMPT_PRESETS.narrative).toContain('COMPLETE current snapshot');
         expect(PROMPT_PRESETS.narrative).toContain('Omission means');
         expect(PROMPT_PRESETS.narrative).toContain('constraints');
-        expect(PROMPT_PRESETS.narrative).toContain('never exceed 300 tokens');
+        expect(PROMPT_PRESETS.narrative).toContain('follow the token budget and line cap');
         expect(PROMPT_PRESETS.narrative).toContain('current_date_time');
         expect(PROMPT_PRESETS.narrative).toContain('YYYY-MM-DD HH ddd');
         expect(PROMPT_PRESETS.narrative).toContain('physiological or sex counters');

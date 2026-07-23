@@ -161,12 +161,11 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         return appendPromotionPromptConstraints(prompt, metadata);
     }
 
-    const bounds = getLayer0SummaryTokenBounds(settings);
     const sourceRangeLine = buildLayer0SourceRangeLine(metadata);
     return (
         `${String(prompt || '').trimEnd()}\n\n` +
+        (metadata.budgetHint ? metadata.budgetHint + '\n\n' : '') +
         '<summaryception_l0_constraints>\n' +
-        `[NARRATIVE] target: about ${bounds.target} tokens; never exceed ${bounds.max} tokens.\n` +
         sourceRangeLine +
         ENGLISH_FIRST_LANGUAGE_RULE_WITH_NEWLINE +
         'Output exactly [NARRATIVE] and [STATE] sections with no preamble or markdown code block.\n' +
@@ -182,7 +181,6 @@ export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
         'Resolve any relative time expression in the passage (tomorrow, today, in N days, next or bare weekday, this evening) against the scene date for that message and write the resolved ABSOLUTE date inline in narrative prose; never leave a bare relative time word.\n' +
         'When narrative [] or state carries a date, use it as the reference frame for that message.\n' +
         '[STATE] may use only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.\n' +
-        `Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when complex and never above ${STATE_SNAPSHOT_MAX_TOKENS} tokens; use fewer when simple.\n` +
         STATE_DEDUPLICATION_RULES +
         '\n' +
         '[STATE] must not include static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.\n' +

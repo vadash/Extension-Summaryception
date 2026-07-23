@@ -24,7 +24,8 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
  * @property {boolean} [useFallback] - Whether this call is routed through fallback
  * @property {boolean} [layer0Repair] - Whether a Layer 0 validation retry uses the repair prompt
- * @property {string} [sourceState] - Serialized source state for promotion reconciliation
+ * @property {string} [sourceState] - Serialized source state for promotion reconciliation and L0 budget-hint computation
+ * @property {string} [budgetHint] - Pre-rendered `<summaryception_source_budget>` prompt block for L0/regen calls
  * @property {{ outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback
  */
 

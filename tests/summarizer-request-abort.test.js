@@ -275,7 +275,9 @@ describe('callSummarizer abort signal plumbing', () => {
         });
 
         const layer0Prompt = mocks.sendSummarizerRequest.mock.calls[0][2];
-        expect(layer0Prompt).toContain(
+        expect(layer0Prompt).toContain('<summaryception_source_budget>');
+        expect(layer0Prompt).toContain('never exceed 162');
+        expect(layer0Prompt).not.toContain(
             '[NARRATIVE] target: about 120 tokens; never exceed 180 tokens',
         );
         expect(layer0Prompt).toContain('This passage covers chat messages 0-1');

@@ -70,7 +70,7 @@ Use only these keys and omit empty categories:
 - hooks: <unresolved goals, threats, secrets, or near-future plans>
 - inventory: <plot-critical carried items, controlled resources, or access only>
 
-Keep [STATE] near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens when the RP is complex and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens. Use fewer tokens when the state is simple. Put the most important facts first within each value.
+Keep [STATE] compact; follow the token budget and line cap provided at the end of this prompt. Put the most important facts first within each value.
 ${STATE_DEDUPLICATION_RULES}
 Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.
 
@@ -100,7 +100,7 @@ ${LAYER0_DURABILITY_RULES}
 [STATE]
 Rewrite the complete compact current snapshot using only current_date_time, location, characters, dynamics, constraints, hooks, and inventory.
 Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
-Keep the state near ${STATE_SNAPSHOT_SOFT_TARGET_TOKENS} tokens and never exceed ${STATE_SNAPSHOT_MAX_TOKENS} tokens.
+Keep the state compact; follow the token budget and line cap provided at the end of this prompt.
 ${STATE_DEDUPLICATION_RULES}
 Always include current_date_time using YYYY-MM-DD HH ddd, carrying forward the prior value if no explicit time appears.
 Do not include prose, bullets, tables, duplicate section headers, markdown, or commentary inside [STATE].`;

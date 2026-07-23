@@ -109,15 +109,18 @@ describe('appendLayer0PromptConstraints', () => {
             {
                 kind: 'layer0',
                 sourceRange: [12, 34],
+                budgetHint:
+                    '<summaryception_source_budget>\nSource passage: ~8000 tokens. Compress hard.\n[NARRATIVE]: aim ~180 tokens; never exceed 270. At most 5 sentences.\nNo existing [STATE] yet — build the first snapshot.\n[STATE]: rewrite the full snapshot; aim ~180 tokens; never exceed 270. At most 7 lines.\n</summaryception_source_budget>',
             },
         );
         expect(result).toContain('summaryception_l0_constraints');
         expect(result).toContain('This passage covers chat messages 12-34');
         expect(result).toContain('Message 34 is the latest summarized message');
-        expect(result).toContain('[NARRATIVE]');
-        expect(result).toContain('[STATE]');
-        expect(result).toContain('[NARRATIVE] target: about 200 tokens; never exceed 300 tokens');
-        expect(result).toContain('Keep [STATE] near 200 tokens');
+        expect(result).toContain('<summaryception_source_budget>');
+        expect(result).toContain('never exceed 270');
+        expect(result).toContain('At most 5 sentences.');
+        expect(result).not.toContain('[NARRATIVE] target: about 200 tokens; never exceed 300 tokens');
+        expect(result).not.toContain('Keep [STATE] near 200 tokens');
         expect(result).toContain('Write the output mainly in English');
         expect(result).toContain('do not write Chinese prose or Han ideographs');
         expect(result).toContain('current_date_time');

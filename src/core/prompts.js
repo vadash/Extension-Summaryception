@@ -12,9 +12,11 @@ import {
     isLayer0SizeGuardCall,
 } from './layer0-compression.js';
 import { buildRepairDiagnostics } from './repair-diagnostics.js';
-import { compactStateSnapshotText } from './summarizer-state.js';
+import { compactStateSnapshotText, parseSnippet } from './summarizer-state.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { countTextTokens } from './token-count.js';
+import { getSourceTokenCount } from './token-budget/source-token-counter.js';
+import { buildStructuralRepairFeedback } from './token-budget/repair-feedback-adapter.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
@@ -202,7 +204,13 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     });
 
     if (diagnostics.violations.length > 0) {
-        return rejectLayer0Size(diagnostics);
+        const sourceStateKeyCount = Object.keys(
+            parseSnippet(`[STATE]\n${String(metadata.sourceState || '')}`).state,
+        ).length;
+        return rejectLayer0Size(diagnostics, {
+            sourceStateKeyCount,
+            sourceNarrativeTokens: sourceTokens,
+        });
     }
 
     if (narrativeTokens.count > bounds.max && narrativeTokens.count <= narrativeRepairCeiling) {
@@ -352,21 +360,6 @@ function hasNonEmptySection(lines, start, end) {
     return lines.slice(start, end).some((line) => line.trim());
 }
 
-function getSourceTokenCount(metadata = {}) {
-    const candidates = [
-        metadata.sourceTokensBefore,
-        metadata.regexStats?.finalTokens,
-        metadata.memoryTokensBefore,
-    ];
-    for (const value of candidates) {
-        const count = Number(value);
-        if (Number.isFinite(count) && count > 0) {
-            return count;
-        }
-    }
-    return 0;
-}
-
 function isOutputTooShortForSource(text) {
     const stats = getApproximateOutputStats(text);
     return (
@@ -396,9 +389,11 @@ function rejectIntegrity(reason) {
 }
 
 /**
+ * @param {object} diagnostics - From buildRepairDiagnostics
+ * @param {{ sourceStateKeyCount?: number, sourceNarrativeTokens?: number }} [sourceBudget]
  * @returns {{ valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }}
  */
-function rejectLayer0Size(diagnostics) {
+function rejectLayer0Size(diagnostics, sourceBudget = {}) {
     const details = diagnostics.violations
         .map((violation) => {
             if (violation.reason === 'below-minimum') {
@@ -414,10 +409,15 @@ function rejectLayer0Size(diagnostics) {
         new Error(`Summarizer response failed L0 section size validation: ${details}`)
     );
     error.retryable = true;
+    const tokenFeedback = buildLayer0SizeRepairFeedback({ diagnostics });
+    const structuralFeedback = buildStructuralRepairFeedback(diagnostics, sourceBudget);
     return {
         valid: false,
         error,
-        repairFeedback: buildLayer0SizeRepairFeedback({ diagnostics }),
+        repairFeedback: structuralFeedback ? `${tokenFeedback}\n${structuralFeedback}` : tokenFeedback,
         diagnostics,
     };
 }
+
+// Re-export so historical callers importing getSourceTokenCount from prompts.js keep working.
+export { getSourceTokenCount } from './token-budget/source-token-counter.js';

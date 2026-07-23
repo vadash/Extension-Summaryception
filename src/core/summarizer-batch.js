@@ -15,6 +15,7 @@ import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js
 import { executeLayer0StoreTransaction } from './layer0-store-transaction.js';
 import { validateSummarizerOutputIntegrity } from './prompts.js';
 import { parseSnippet } from './summarizer-state.js';
+import { getCurrentStateSnapshotText } from './memory-injection.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
     fingerprintSourceRange,
@@ -174,6 +175,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
             sourceRange: snapshot.sourceRange,
             assistantTurnCount: partition.turns.length,
             regexStats: snapshot.passageStats,
+            sourceState: snapshot.sourceState,
         });
         if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
             return false;
@@ -242,8 +244,8 @@ async function performBatchSummary({ batch, chat, store, passageStart, endIdx, o
     const summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
         kind: 'layer0',
         sourceRange: snapshot.sourceRange,
-        assistantTurnCount: batch.length,
         regexStats: snapshot.passageStats,
+        sourceState: snapshot.sourceState,
     });
     await traceTextTokens('  summary tokens:', summary || '');
 
@@ -329,6 +331,7 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contex
         passageText: passage.text,
         passageStats: passage.stats,
         contextText: resolvedContextText,
+        sourceState: getCurrentStateSnapshotText(store.layers),
     };
 }
 
