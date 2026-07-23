@@ -1,3 +1,0 @@
-#!/usr/bin/env sh
-node scripts/bump-version-after-commit.js
-node .husky/post-commit-repomix.js

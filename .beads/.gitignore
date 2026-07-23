@@ -3,6 +3,9 @@ dolt/
 embeddeddolt/
 proxieddb/
 
+# Git hooks — managed by husky (.husky/_). beads must never inject into git hooks.
+hooks/
+
 # Runtime files
 bd.sock
 bd.sock.startlock

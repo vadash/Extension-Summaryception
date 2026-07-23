@@ -5,7 +5,7 @@ export const NARRATIVE_TOKENS_PER_SENTENCE = 500;
 
 /**
  * Maximum number of `[STATE]` key:value lines the model should emit.
- * @param {number} sourceStateKeyCount - Keys present in the prior snapshot.
+ * @param {number | undefined} sourceStateKeyCount - Keys present in the prior snapshot.
  * @returns {number}
  */
 export function computeStateLineCap(sourceStateKeyCount) {
@@ -19,7 +19,7 @@ export function computeStateLineCap(sourceStateKeyCount) {
 /**
  * Maximum number of NARRATIVE sentences the model should emit, derived from
  * the source passage token count.
- * @param {number} sourceNarrativeTokens - Source passage token count.
+ * @param {number | undefined} sourceNarrativeTokens - Source passage token count.
  * @returns {number}
  */
 export function computeNarrativeSentenceCap(sourceNarrativeTokens) {
@@ -28,8 +28,5 @@ export function computeNarrativeSentenceCap(sourceNarrativeTokens) {
         return NARRATIVE_SENTENCE_FLOOR;
     }
     const raw = Math.ceil(tokens / NARRATIVE_TOKENS_PER_SENTENCE);
-    return Math.min(
-        NARRATIVE_SENTENCE_CEILING,
-        Math.max(NARRATIVE_SENTENCE_FLOOR, raw),
-    );
+    return Math.min(NARRATIVE_SENTENCE_CEILING, Math.max(NARRATIVE_SENTENCE_FLOOR, raw));
 }
