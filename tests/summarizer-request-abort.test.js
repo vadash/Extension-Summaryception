@@ -154,6 +154,37 @@ describe('callSummarizer abort signal plumbing', () => {
         expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
     });
 
+    it('salvages an oversized Layer 0 state well past the repair gate without a provider retry', async () => {
+        // Regression for the observed production fails: a [STATE] block whose
+        // char count exceeds the first-pass near-miss gate still trims cleanly
+        // under the hard maximum, so the deterministic salvage should accept it
+        // instead of forcing a full second LLM call.
+        // Char-based estimate (chars / 4) is authoritative here; build a block
+        // well past the 2256-char first-pass gate that compacts to <= 300 tokens.
+        const longValue = 'pending '.repeat(420); // ~3360 chars, trims to first entries
+        const summary = [
+            '[NARRATIVE]',
+            'The party reached the bridge and set up camp.',
+            '',
+            '[STATE]',
+            'current_date_time: 2024-12-03 06 Wed',
+            `hooks: ${longValue}`,
+            'location: bridge camp',
+        ].join('\n');
+        mocks.sendSummarizerRequest.mockResolvedValue(summary);
+
+        const { callSummarizer } = await import('../src/core/summarizer-request.js');
+
+        const result = await callSummarizer('source passage', 'prior context', {
+            kind: 'layer0',
+            sourceTokensBefore: 100,
+        });
+
+        expect(result).toContain('[STATE]');
+        expect(result.length).toBeLessThan(summary.length);
+        expect(mocks.sendSummarizerRequest).toHaveBeenCalledTimes(1);
+    });
+
     it('uses promotion prompts for promotion calls', async () => {
         installSillyTavernStub({
             settings: customPromptSettings({

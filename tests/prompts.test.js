@@ -256,7 +256,10 @@ describe('validateLayer0OutputSize', () => {
         expect(result.text).toContain('current_date_time: 2026-07-09 02 Thu');
     });
 
-    it('still rejects state output beyond the local compaction ceiling', async () => {
+    it('salvages a state overflow that trims under the hard maximum instead of rejecting', async () => {
+        // Deterministic state compaction now runs without a magnitude gate, so a
+        // state-only overflow that fits after trimming is accepted in-process
+        // rather than forcing a full LLM repair retry.
         installSillyTavernStub({
             getTokenCountAsync: async (text) =>
                 String(text || '')
@@ -279,8 +282,10 @@ describe('validateLayer0OutputSize', () => {
             { kind: 'layer0', sourceTokensBefore: 100 },
         );
 
-        expect(result.valid).toBe(false);
-        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual(['state']);
+        expect(result.valid).toBe(true);
+        expect(result.text).toContain('[STATE]');
+        expect(result.text).toContain('current_date_time: 2026-07-09 02 Thu');
+        expect(result.text.length).toBeLessThan(output.length);
     });
 
     it('rejects narrative-only overflow with draft-aware repair feedback', async () => {
@@ -342,7 +347,7 @@ describe('validateLayer0OutputSize', () => {
         ).resolves.toEqual({ valid: true, error: null, repairFeedback: '' });
     });
 
-    it('rejects state-only overflow and preserves a passing narrative', async () => {
+    it('salvages a state-only overflow while a passing narrative is preserved verbatim', async () => {
         const output = [
             '[NARRATIVE]',
             'The party reached the bridge.',
@@ -358,18 +363,18 @@ describe('validateLayer0OutputSize', () => {
             { kind: 'layer0', sourceTokensBefore: 100 },
         );
 
-        expect(result.valid).toBe(false);
-        expect(result.error?.message).toContain('[STATE]');
-        expect(result.error?.message).toContain('hard maximum 300');
-        expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual(['state']);
-        expect(result.repairFeedback).toContain('<rejected_state>');
-        expect(result.repairFeedback).toContain('hooks: pending');
-        expect(result.repairFeedback).toContain('Preserve [NARRATIVE] unchanged');
-        expect(result.repairFeedback).toContain('<preserve_narrative>');
-        expect(result.repairFeedback).toContain('The party reached the bridge.');
+        // The passing narrative no longer needs a repair cycle, and the
+        // overflowing state is deterministically trimmed in-process instead of
+        // being pushed into an LLM retry.
+        expect(result.valid).toBe(true);
+        expect(result.text).toContain('[NARRATIVE]');
+        expect(result.text).toContain('The party reached the bridge.');
+        expect(result.text).toContain('[STATE]');
+        expect(result.text).toContain('current_date_time: 2026-07-09 02 Thu');
+        expect(result.text.length).toBeLessThan(output.length);
     });
 
-    it('reports narrative and state violations together while total size stays diagnostic', async () => {
+    it('salvages state then rejects the remaining narrative violation while total size stays diagnostic', async () => {
         const output = [
             '[NARRATIVE]',
             'Verbose scene replay. '.repeat(160),
@@ -385,17 +390,18 @@ describe('validateLayer0OutputSize', () => {
             { kind: 'layer0', sourceTokensBefore: 100 },
         );
 
+        // The state block is deterministically compacted on the first pass, so
+        // only the genuinely-unrepairable narrative overflow reaches diagnostics.
+        // The salvage path skips when any non-state violation is present, so a
+        // narrative violation short-circuits straight to the repair feedback.
         expect(result.valid).toBe(false);
         expect(result.diagnostics.violations.map((violation) => violation.id)).toEqual([
             'narrative',
-            'state',
         ]);
         expect(result.error?.message).toContain('[NARRATIVE]');
-        expect(result.error?.message).toContain('[STATE]');
         expect(result.repairFeedback).toContain('Total draft:');
         expect(result.repairFeedback).toContain('(diagnostic only)');
-        expect(result.repairFeedback).not.toContain('<preserve_narrative>');
-        expect(result.repairFeedback).not.toContain('<preserve_state>');
+        expect(result.diagnostics.violations.some((v) => v.id === 'state')).toBe(false);
     });
 
     it('does not apply L0 size bounds to promotion outputs', async () => {

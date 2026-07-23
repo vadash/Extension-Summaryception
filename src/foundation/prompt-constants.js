@@ -7,9 +7,22 @@ export const ANTI_RUN_ON_RULE =
 export const STATE_SNAPSHOT_MODE = 'snapshot-v1';
 export const STATE_SNAPSHOT_SOFT_TARGET_TOKENS = 200;
 export const STATE_SNAPSHOT_MAX_TOKENS = 300;
-export const STATE_SNAPSHOT_REPAIR_CEILING_TOKENS = 360;
+/**
+ * Highest [STATE] token count still eligible for deterministic compaction
+ * before falling back to a full LLM retry. Overshoots up to this ceiling are
+ * trimmed in-process; anything larger is treated as unrepairable and retried.
+ * Measured over-size outputs in practice land in the 380–480 token band, so
+ * 500 covers the observed worst case while remaining below the char budget's
+ * physical ceiling (~STATE_SNAPSHOT_MAX_CHARS * 1.4 tokens).
+ */
+export const STATE_SNAPSHOT_REPAIR_CEILING_TOKENS = 500;
+/**
+ * Char budget the deterministic state compactor aims for. Kept below the
+ * hard max so accepted trims land comfortably under STATE_SNAPSHOT_MAX_TOKENS
+ * even for denser scripts (Cyrillic averages ~3.5 chars/token vs ~4.2 English).
+ */
+export const STATE_SNAPSHOT_COMPACTION_TARGET_CHARS = 1056;
 export const STATE_SNAPSHOT_MAX_CHARS = 1200;
-
 export const LAYER0_DURABILITY_RULES =
     'Preserve each major durable beat once. Collapse repeated actions, physical interaction, or dialogue loops into one outcome sentence. Omit brands, shopping routes, meals, clothing, poses, body mechanics, ordinary props, and temporary physical conditions unless they create a lasting decision, rule, resource, injury, or unresolved hook.';
 

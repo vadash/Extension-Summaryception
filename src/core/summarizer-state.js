@@ -1,4 +1,7 @@
-import { STATE_SNAPSHOT_MAX_CHARS, STATE_SNAPSHOT_MODE } from '../foundation/prompt-constants.js';
+import {
+    STATE_SNAPSHOT_COMPACTION_TARGET_CHARS,
+    STATE_SNAPSHOT_MODE,
+} from '../foundation/prompt-constants.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 
 const STATE_LINE_RE = /^\s*[-*]?\s*([a-zA-Z_][\w\s]*?)\s*[:=-]\s*(.+?)\s*$/;
@@ -230,7 +233,7 @@ function compactSnapshotState(state) {
             continue;
         }
         const prefixLength = 1 + key.length + 2;
-        const remaining = STATE_SNAPSHOT_MAX_CHARS - serializedLength - prefixLength;
+        const remaining = STATE_SNAPSHOT_COMPACTION_TARGET_CHARS - serializedLength - prefixLength;
         if (remaining <= 0) {
             break;
         }

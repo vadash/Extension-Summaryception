@@ -2,7 +2,6 @@ import { debug } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/state.js';
 import {
     STATE_SNAPSHOT_MAX_TOKENS,
-    STATE_SNAPSHOT_REPAIR_CEILING_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
 } from '../foundation/prompt-constants.js';
 import {
@@ -204,6 +203,13 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     });
 
     if (diagnostics.violations.length > 0) {
+        // The first-pass deterministic compactor already had its chance on the
+        // raw oversized state (above, via compactStateNearMiss). When a state
+        // violation still reaches diagnostics here, the compactor could not
+        // trim the block under the hard maximum, so an LLM repair is required.
+        // Do not add a second compaction pass: compactStateSnapshotText is
+        // deterministic, so a retry produces an identical result.
+
         const sourceStateKeyCount = Object.keys(
             parseSnippet(`[STATE]\n${String(metadata.sourceState || '')}`).state,
         ).length;
@@ -225,13 +231,18 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
 }
 
 async function compactStateNearMiss(stateText, stateTokens) {
-    if (
-        stateTokens.count <= STATE_SNAPSHOT_MAX_TOKENS ||
-        stateTokens.count > STATE_SNAPSHOT_REPAIR_CEILING_TOKENS
-    ) {
+    // Only skip when the block already fits; otherwise let the deterministic
+    // compactor try. Its own post-trim token check rejects anything that still
+    // can't fit, so there is no upper bound to tune here — refusing to try a
+    // trim based on the *oversize* magnitude is exactly what forced the
+    // wasteful full LLM retries seen in production (a 384/478-token block
+    // trims cleanly under the 300-token hard max once the compactor is allowed
+    // to run on it).
+    if (stateTokens.count <= STATE_SNAPSHOT_MAX_TOKENS) {
         return { text: stateText, block: '', tokens: stateTokens, changed: false };
     }
 
+    const stateChars = String(stateText || '').length;
     const compactedState = compactStateSnapshotText(stateText);
     if (!compactedState) {
         return { text: stateText, block: '', tokens: stateTokens, changed: false };
@@ -244,7 +255,7 @@ async function compactStateNearMiss(stateText, stateTokens) {
     }
 
     debug(
-        `Accepted Layer 0 state after deterministic compaction: ${String(stateText || '').length} chars -> ${compactedStateBody.length} chars`,
+        `Compacted oversized Layer 0 state pre-retry: ${stateTokens.count} tokens, ${stateChars} chars -> ${compactedStateBody.length} chars (${compactedTokens.count} tokens)`,
     );
     return {
         text: compactedStateBody,

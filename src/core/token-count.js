@@ -1,5 +1,11 @@
 import { callTokenCountAsync } from '../foundation/context.js';
 
+/**
+ * Chars per token for the plain-text fallback estimator. Single change-point if
+ * the estimate ever moves off 1:4. Note: the Layer 0 size-validation gate and
+ * the deterministic state compactor are deliberately char-budgeted so they stay
+ * synchronized with this ratio regardless of which tokenizer is authoritative.
+ */
 const APPROX_TEXT_UNITS_PER_TOKEN = 4;
 const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
 
@@ -72,6 +78,9 @@ export function addBudgetStats(stats, counted) {
 
 /**
  * Count tokens using SillyTavern's active tokenizer, with a marked fallback.
+ * The Layer 0 size-validation gate and deterministic state compactor are
+ * char-budgeted so they stay synchronized with `estimateTokenCount`'s 1:4 ratio
+ * below; callers that need exact counts still get the live tokenizer here.
  * @param {string} text - Text to count
  * @returns {Promise<TokenCount>}
  */
