@@ -32,9 +32,7 @@ export function buildLayer0BudgetHint({
     const stateMax = applySafetyGap(stateBounds.max);
 
     const hasState = Number(sourceStateTokens) > 0;
-    const stateLineCap = hasState
-        ? computeStateLineCap(sourceStateKeyCount)
-        : STATE_KEY_CEILING;
+    const stateLineCap = hasState ? computeStateLineCap(sourceStateKeyCount) : STATE_KEY_CEILING;
 
     const existingStateLine = hasState
         ? `Existing [STATE]: ~${sourceStateTokens} tokens, ${sourceStateKeyCount} keys.`

@@ -10,10 +10,7 @@ import {
 } from './prompts.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
-import {
-    getLayer0SummaryTokenBounds,
-    isLayer0SizeGuardCall,
-} from './layer0-compression.js';
+import { getLayer0SummaryTokenBounds, isLayer0SizeGuardCall } from './layer0-compression.js';
 import {
     STATE_SNAPSHOT_MAX_TOKENS,
     STATE_SNAPSHOT_SOFT_TARGET_TOKENS,
@@ -43,7 +40,10 @@ export async function buildSummarizerPipelineInput({
     metadata = {},
     settings = getEffectiveSettings(),
 }) {
-    const usageMetadata = await attachBudgetHint(await buildUsageMetadata(metadata, storyTxt), settings);
+    const usageMetadata = await attachBudgetHint(
+        await buildUsageMetadata(metadata, storyTxt),
+        settings,
+    );
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
     const prompt = buildSummarizerPrompt({
         template: promptConfig.userPromptTemplate,

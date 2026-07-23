@@ -425,7 +425,9 @@ function rejectLayer0Size(diagnostics, sourceBudget = {}) {
     return {
         valid: false,
         error,
-        repairFeedback: structuralFeedback ? `${tokenFeedback}\n${structuralFeedback}` : tokenFeedback,
+        repairFeedback: structuralFeedback
+            ? `${tokenFeedback}\n${structuralFeedback}`
+            : tokenFeedback,
         diagnostics,
     };
 }

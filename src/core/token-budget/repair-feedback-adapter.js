@@ -1,7 +1,4 @@
-import {
-    computeNarrativeSentenceCap,
-    computeStateLineCap,
-} from './structural-constraints.js';
+import { computeNarrativeSentenceCap, computeStateLineCap } from './structural-constraints.js';
 
 /**
  * Given a size-rejection diagnostics object, produce a structural feedback
@@ -53,8 +50,7 @@ function countStateLines(text) {
     return String(text || '')
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .filter((line) => line && /.+:.+/.test(line))
-        .length;
+        .filter((line) => line && /.+:.+/.test(line)).length;
 }
 
 /**

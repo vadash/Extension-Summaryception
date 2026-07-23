@@ -119,7 +119,9 @@ describe('appendLayer0PromptConstraints', () => {
         expect(result).toContain('<summaryception_source_budget>');
         expect(result).toContain('never exceed 270');
         expect(result).toContain('At most 5 sentences.');
-        expect(result).not.toContain('[NARRATIVE] target: about 200 tokens; never exceed 300 tokens');
+        expect(result).not.toContain(
+            '[NARRATIVE] target: about 200 tokens; never exceed 300 tokens',
+        );
         expect(result).not.toContain('Keep [STATE] near 200 tokens');
         expect(result).toContain('Write the output mainly in English');
         expect(result).toContain('do not write Chinese prose or Han ideographs');

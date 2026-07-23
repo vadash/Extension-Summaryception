@@ -49,7 +49,9 @@ export async function countLayer0SourceBudget({ sourceNarrativeTokens, sourceSta
     }
 
     const stateTokens = (await countTextTokens(stateText)).count;
-    const snippet = parseSnippet(stateText.includes('[STATE]') ? stateText : `[STATE]\n${stateText}`);
+    const snippet = parseSnippet(
+        stateText.includes('[STATE]') ? stateText : `[STATE]\n${stateText}`,
+    );
     const stateKeyCount = Object.keys(snippet.state || {}).length;
 
     return { narrativeTokens, stateTokens, stateKeyCount };
