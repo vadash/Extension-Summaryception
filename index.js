@@ -26,6 +26,7 @@ import {
 import {
     bindPromptFreezeRecoveryEvents,
     onAppReady,
+    onChatChanged,
     onChatCompletionPromptReady,
     onGenerateAfterData,
     onGenerationEnded,
@@ -61,6 +62,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     await registerSummaryceptionMemoryMacro();
 
     eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
     eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
     if (eventTypes.GENERATE_AFTER_DATA) {
         eventSource.on(eventTypes.GENERATE_AFTER_DATA, onGenerateAfterData);

@@ -12,4 +12,6 @@
 - Manual run callbacks and the abort signal pass as an explicit argument. Never carry them on the task object.
 - A manual run needs a numeric target boundary. Reject the run when the route plan omits it.
 - Automatic work must not mutate the prompt during generation.
+- The app-ready signal fires before the chat and its metadata load. Wait for the chat-changed signal to read chat state.
+- Loaded-chat reconciliation runs on every chat-changed signal: normalize keys, update injection, re-apply ghosting.
 - Recover stale prompt freezes at the start of an automatic cycle.
