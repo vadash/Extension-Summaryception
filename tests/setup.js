@@ -1,5 +1,7 @@
 import { beforeEach, vi } from 'vitest';
 
+import { installSummaryContext } from './test-helpers.js';
+
 const foundationMocks = vi.hoisted(() => {
     const MODULE_NAME = 'summaryception';
     const LOG_PREFIX = '[Summaryception]';
@@ -226,4 +228,5 @@ globalThis.summaryceptionFoundationMocks = foundationMocks;
 
 beforeEach(() => {
     foundationMocks.reset();
+    installSummaryContext();
 });

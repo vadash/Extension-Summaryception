@@ -1,3 +1,4 @@
+import { MEMORY_MODES } from '../src/foundation/constants.js';
 import { vi } from 'vitest';
 
 /**
@@ -85,6 +86,40 @@ export function makeSummarySettings(overrides = {}) {
         snippetsPerPromotion: 3,
         ...overrides,
     };
+}
+
+/** Settings preset for provider prefix-cache / stale-advice tests. */
+export function cacheSettings(overrides = {}) {
+    return makeSummarySettings({
+        memoryMode: MEMORY_MODES.PREFIX_CACHE,
+        cacheTtlMinutes: 30,
+        minSummaryTurns: 3,
+        ...overrides,
+    });
+}
+
+/** Settings preset with tight budgets for chat-window planner tests. */
+export function windowSettings(overrides = {}) {
+    return makeSummarySettings({
+        verbatimTokenBudget: 200,
+        queuedTokenBudget: 200,
+        minSummaryBudget: 200,
+        maxL0SourceTokens: 400,
+        minSummaryTurns: 1,
+        ...overrides,
+    });
+}
+
+/** Settings preset that is immediately ready to summarize, per memory mode. */
+export function readySettings(memoryMode) {
+    return makeSummarySettings({
+        memoryMode,
+        verbatimTokenBudget: 100,
+        queuedTokenBudget: 500,
+        minSummaryBudget: 3000,
+        maxL0SourceTokens: 4000,
+        minSummaryTurns: 1,
+    });
 }
 
 /** Build a normalized Summaryception metadata store. */

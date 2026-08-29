@@ -7,7 +7,7 @@ import {
     getCurrentSummarizedBoundary,
     saveChatStore,
 } from '../foundation/state.js';
-import { debug, error, info, isTraceEnabled, trace } from '../foundation/logger.js';
+import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
 import {
     buildMemoryInjection,
@@ -24,8 +24,8 @@ import { parseSnippet } from './summarizer-state.js';
 import { getCurrentStateSnapshotText } from './memory-injection.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import {
+    buildSnapshotBasis,
     fingerprintSourceRange,
-    getChatIdentity,
     getSummaryStoreSnapshotEpoch,
     isSnapshotStoreCurrent,
 } from './summarizer-snapshot.js';
@@ -240,8 +240,7 @@ async function summarizeBatchSafely(p) {
             throw err;
         }
         trace('  CAUGHT EXCEPTION:', {
-            name: err?.name,
-            message: err?.message,
+            ...serializeError(err),
             stack: err?.stack?.substring?.(0, 200),
         });
         error('summarizeBatchFromTurns exception:', err);
@@ -366,12 +365,10 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contex
     const resolvedContextText = contextText ?? buildFullContext(0);
 
     return {
-        chatId: getChatIdentity(ctx),
-        chatRef: chat,
+        ...buildSnapshotBasis({ chatRef: chat, store, ctx }),
         sourceRange: [passageStart, endIdx],
         sourceMessageIds: stableSourceMessageIds,
         sourceFingerprint: fingerprintSourceRange(chat, passageStart, endIdx),
-        summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
         passageText: passage.text,
         passageStats: passage.stats,
         contextText: resolvedContextText,

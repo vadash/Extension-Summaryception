@@ -1,6 +1,6 @@
-import { getEffectiveSettings } from '../foundation/state.js';
-import { buildMemoryInjectionParts } from './memory-injection.js';
+import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
 import { countTextTokens } from './token-count.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 
 /**
  * @typedef {object} EffectiveMemoryTokenPart
@@ -28,17 +28,14 @@ import { countTextTokens } from './token-count.js';
  * @returns {string}
  */
 export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings()) {
-    const memory = buildMemoryInjectionParts(layers, {
+    const injectionParts = buildMemoryInjectionParts(layers, {
         compactAnchors: true,
         injectCurrentState: Boolean(settings.injectCurrentState),
-    }).memoryText;
-    if (!memory) {
+    });
+    if (!injectionParts.memoryText) {
         return '';
     }
-    return String(settings.injectionTemplate || '{{summary}}').replaceAll(
-        '{{summary}}',
-        () => memory,
-    );
+    return renderInjectionTemplate(injectionParts, settings);
 }
 
 /**
@@ -52,12 +49,7 @@ export async function getEffectiveMemoryUsage(layers, settings = getEffectiveSet
         compactAnchors: true,
         injectCurrentState: Boolean(settings.injectCurrentState),
     });
-    const text = injectionParts.memoryText
-        ? String(settings.injectionTemplate || '{{summary}}').replaceAll(
-              '{{summary}}',
-              () => injectionParts.memoryText,
-          )
-        : '';
+    const text = injectionParts.memoryText ? renderInjectionTemplate(injectionParts, settings) : '';
 
     if (!text) {
         return emptyUsage();

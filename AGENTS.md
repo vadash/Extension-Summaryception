@@ -30,5 +30,6 @@
 - UI and workflows: `agent_docs/ui/ui.md`
 - Testing contracts: `agent_docs/testing/testing.md`
 - Cost and budget tuning: `agent_docs/tuning/tuning.md`
+- Tests share one setup hook for context bootstrap. Do not repeat it per test.
 - Conditional source guidance: `src/AGENTS.md`
 - Conditional test guidance: `tests/AGENTS.md`

@@ -113,6 +113,16 @@ const PROMPT_FIELDS = [
     },
 ];
 
+/**
+ * Save settings, then update injection and the UI.
+ * @returns {void}
+ */
+export function saveAndRefreshUi() {
+    saveSettings();
+    updateInjection();
+    updateUI();
+}
+
 // Event bindings
 
 /**
@@ -147,10 +157,7 @@ function bindModeHandlers() {
         if (mode === UI_MODES.EASY || mode === UI_MODES.ADVANCED) {
             s.configMode = mode;
         }
-        saveSettings();
-        updateInjection();
-        updateUI();
-
+        saveAndRefreshUi();
         if (s.enabled) {
             requestAutoSummaryRefresh('mode changed');
         }
@@ -167,10 +174,7 @@ function bindToggleHandlers() {
         s.enabled = $(this).prop('checked');
         // Preserve the chosen complexity panel; only flip on/off, not Easy↔Advanced.
         s.uiMode = s.enabled ? s.configMode || UI_MODES.EASY : UI_MODES.OFF;
-        saveSettings();
-        updateInjection();
-        updateUI();
-
+        saveAndRefreshUi();
         if (s.enabled) {
             requestAutoSummaryRefresh('enabled');
         }
@@ -236,9 +240,7 @@ function bindToggleHandlers() {
             if (!applyMemoryModePreset(settings, String($(this).val()))) {
                 return;
             }
-            saveSettings();
-            updateInjection();
-            updateUI();
+            saveAndRefreshUi();
         },
     );
     bindCustomPlacementHandlers();
@@ -470,53 +472,84 @@ function makeManualRunOptions() {
 }
 
 /**
+ * Shared manual-run guard. Show the toast for the first failing check.
+ * @param {object} s Effective settings.
+ * @returns {boolean} true when a manual run is allowed.
+ */
+function guardManualRun(s) {
+    if (!s.enabled) {
+        toastr.warning('Enable Summaryception first.');
+        return false;
+    }
+    if (getIsSummarizing()) {
+        showBusySummaryToast();
+        return false;
+    }
+    showManualCacheWarning(s);
+    return true;
+}
+
+/**
+ * Disable a button with busy html while `fn` runs. Restore the idle html after.
+ * @param {object | null} $button jQuery-wrapped button, or null to skip.
+ * @param {{ busy: string, idle: string }} html Busy and idle button html.
+ * @param {() => Promise<void>} fn Work to run while the button is busy.
+ * @returns {Promise<void>}
+ */
+async function withBusyButton($button, { busy, idle }, fn) {
+    if ($button) {
+        $button.prop('disabled', true).html(busy);
+    }
+    try {
+        await fn();
+    } finally {
+        if ($button) {
+            $button.prop('disabled', false).html(idle);
+        }
+    }
+}
+
+/**
  * Run Force Summarize from a panel button or the stale-cache advice toast.
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @returns {Promise<void>}
  */
 async function executeForceSummarize($button) {
     const s = getEffectiveSettings();
-    if (!s.enabled) {
-        toastr.warning('Enable Summaryception first.');
+    if (!guardManualRun(s)) {
         return;
-    }
-    if (getIsSummarizing()) {
-        showBusySummaryToast();
-        return;
-    }
-    showManualCacheWarning(s);
-    if ($button) {
-        $button
-            .prop('disabled', true)
-            .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     }
     try {
-        const plan = await buildForceSummaryRoutePlan(getChat(), getChatStore(), s);
+        await withBusyButton(
+            $button,
+            {
+                busy: '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>',
+                idle: '<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>',
+            },
+            async () => {
+                const plan = await buildForceSummaryRoutePlan(getChat(), getChatStore(), s);
 
-        if (!plan.ready) {
-            toastr.info('Nothing eligible to summarize.', TOAST_TITLE);
-            return;
-        }
+                if (!plan.ready) {
+                    toastr.info('Nothing eligible to summarize.', TOAST_TITLE);
+                    return;
+                }
 
-        const overflow = Math.max(plan.batchTurns.length, plan.overflowCount);
-        toastr.info(`${overflow} turns ready to process. Starting...`, TOAST_TITLE, {
-            timeOut: 2000,
-        });
+                const overflow = Math.max(plan.batchTurns.length, plan.overflowCount);
+                toastr.info(`${overflow} turns ready to process. Starting...`, TOAST_TITLE, {
+                    timeOut: 2000,
+                });
 
-        const manual = makeManualRunOptions();
-        const outcome = await runManualWithProgress(
-            () => runCatchup(manual.options),
-            manual.clearProgressToast,
+                const manual = makeManualRunOptions();
+                const outcome = await runManualWithProgress(
+                    () => runCatchup(manual.options),
+                    manual.clearProgressToast,
+                );
+                showCatchupOutcome(outcome);
+                updateInjection();
+                reloadAfterManualRun(outcome);
+            },
         );
-        showCatchupOutcome(outcome);
-        updateInjection();
-        reloadAfterManualRun(outcome);
     } finally {
-        if ($button) {
-            $button
-                .prop('disabled', false)
-                .html('<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>');
-        }
         updateUI();
     }
 }
@@ -527,15 +560,9 @@ async function executeForceSummarize($button) {
  */
 async function onSlopBreaker() {
     const s = getEffectiveSettings();
-    if (!s.enabled) {
-        toastr.warning('Enable Summaryception first.');
+    if (!guardManualRun(s)) {
         return;
     }
-    if (getIsSummarizing()) {
-        showBusySummaryToast();
-        return;
-    }
-    showManualCacheWarning(s);
 
     const plan = await buildSlopSummaryRoutePlan(getChat(), getChatStore(), s);
     if (!plan.ready) {
@@ -546,22 +573,25 @@ async function onSlopBreaker() {
         return;
     }
 
-    $(this)
-        .prop('disabled', true)
-        .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
-        const manual = makeManualRunOptions();
-        const outcome = await runManualWithProgress(
-            () => runSlopBreaker(manual.options),
-            manual.clearProgressToast,
+        await withBusyButton(
+            $(this),
+            {
+                busy: '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>',
+                idle: '<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>',
+            },
+            async () => {
+                const manual = makeManualRunOptions();
+                const outcome = await runManualWithProgress(
+                    () => runSlopBreaker(manual.options),
+                    manual.clearProgressToast,
+                );
+                showSlopBreakerOutcome(outcome);
+                updateInjection();
+                reloadAfterManualRun(outcome);
+            },
         );
-        showSlopBreakerOutcome(outcome);
-        updateInjection();
-        reloadAfterManualRun(outcome);
     } finally {
-        $(this)
-            .prop('disabled', false)
-            .html('<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>');
         updateUI();
     }
 }
@@ -695,8 +725,6 @@ function onResetDefaults() {
     const preservedCustomMemoryPosition = s.customMemoryPosition;
     const preservedCustomMemoryRole = s.customMemoryRole;
     const preservedCustomMemoryDepth = s.customMemoryDepth;
-
-    // Reset sliders
     s.memoryMode = preservedMemoryMode;
     s.customMemoryPosition = preservedCustomMemoryPosition;
     s.customMemoryRole = preservedCustomMemoryRole;
@@ -731,10 +759,7 @@ function onResetDefaults() {
     s.maskUserRoleAsAssistant = defaultSettings.maskUserRoleAsAssistant;
     s.maskUserRoleMode = defaultSettings.maskUserRoleMode;
 
-    saveSettings();
-    updateInjection();
-    updateUI();
-
+    saveAndRefreshUi();
     toastr.success(
         'Advanced settings reset to defaults. Memory mode, connection settings, and summary memory were preserved.',
         TOAST_TITLE,

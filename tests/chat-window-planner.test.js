@@ -2,34 +2,21 @@ import { describe, expect, it } from 'vitest';
 
 import { buildChatWindowPlan } from '../src/core/chat-window-planner.js';
 import {
-    installSummaryContext,
     makeMessage,
     makeSizedChat,
-    makeSummarySettings,
     makeSummaryStore,
     messageLineTokens,
+    windowSettings,
 } from './test-helpers.js';
-
-function settings(overrides = {}) {
-    return makeSummarySettings({
-        verbatimTokenBudget: 200,
-        queuedTokenBudget: 200,
-        minSummaryBudget: 200,
-        maxL0SourceTokens: 400,
-        minSummaryTurns: 1,
-        ...overrides,
-    });
-}
 
 describe('buildChatWindowPlan', () => {
     it('stays idle below Recent + Queued and is ready at equality', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(2, { userLength: 40, assistantLength: 40 });
         const total = 2 * messageLineTokens(true, 40) + 2 * messageLineTokens(false, 40);
         const idle = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: total / 2,
                 queuedTokenBudget: total / 2 + 1,
             }),
@@ -37,7 +24,7 @@ describe('buildChatWindowPlan', () => {
         const ready = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: total / 2,
                 queuedTokenBudget: total / 2,
             }),
@@ -48,12 +35,11 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('keeps complete messages in A and ends B on the prior assistant', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(3, { userLength: 40, assistantLength: 60 });
         const plan = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: messageLineTokens(false, 60) + 1,
                 queuedTokenBudget: 1,
             }),
@@ -64,12 +50,11 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('stays idle when the latest conversation message is a user message', async () => {
-        installSummaryContext();
         const chat = [...makeSizedChat(2), makeMessage({ isUser: true, mes: 'x'.repeat(500) })];
         const plan = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: 50,
                 queuedTokenBudget: 50,
             }),
@@ -78,7 +63,6 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('starts after the committed summary cursor', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(4, { userLength: 50, assistantLength: 50 });
         const store = makeSummaryStore({
             layers: [[{ text: 'old', sourceMessageIds: [chat[3].sc_id] }]],
@@ -86,19 +70,18 @@ describe('buildChatWindowPlan', () => {
         const plan = await buildChatWindowPlan(
             chat,
             store,
-            settings({ verbatimTokenBudget: 100, queuedTokenBudget: 100 }),
+            windowSettings({ verbatimTokenBudget: 100, queuedTokenBudget: 100 }),
         );
         expect(plan.sourceStartIdx).toBe(4);
         expect(plan.eligibleTurns.every((turn) => turn.index > 3)).toBe(true);
     });
 
     it('enforces min turns and does not trigger early from max turns', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(4, { userLength: 20, assistantLength: 20 });
         const gated = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: 20,
                 queuedTokenBudget: 20,
                 minSummaryTurns: 4,
@@ -107,7 +90,7 @@ describe('buildChatWindowPlan', () => {
         const below = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: 10000,
                 queuedTokenBudget: 10000,
                 maxSummaryTurns: 2,
@@ -118,7 +101,6 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('repairs full user-only overflow and force requires queued assistant turns', async () => {
-        installSummaryContext();
         const users = [
             makeMessage({ isUser: true, mes: 'x'.repeat(100) }),
             makeMessage({ isUser: true, mes: 'x'.repeat(100) }),
@@ -126,13 +108,13 @@ describe('buildChatWindowPlan', () => {
         const repair = await buildChatWindowPlan(
             users,
             makeSummaryStore(),
-            settings({ verbatimTokenBudget: 50, queuedTokenBudget: 50 }),
+            windowSettings({ verbatimTokenBudget: 50, queuedTokenBudget: 50 }),
         );
         const forceChat = makeSizedChat(2, { userLength: 10, assistantLength: 10 });
         const force = await buildChatWindowPlan(
             forceChat,
             makeSummaryStore(),
-            settings({ verbatimTokenBudget: 10000, queuedTokenBudget: 10000 }),
+            windowSettings({ verbatimTokenBudget: 10000, queuedTokenBudget: 10000 }),
             { ignoreReadiness: true },
         );
         expect(repair.reason).toBe('repair');
@@ -141,12 +123,11 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('splits all of the queued window into two and three balanced partitions', async () => {
-        installSummaryContext();
         const twoChat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const two = await buildChatWindowPlan(
             twoChat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: 100,
                 queuedTokenBudget: 500,
                 minSummaryBudget: 3000,
@@ -157,7 +138,7 @@ describe('buildChatWindowPlan', () => {
         const three = await buildChatWindowPlan(
             threeChat,
             makeSummaryStore(),
-            settings({
+            windowSettings({
                 verbatimTokenBudget: 100,
                 queuedTokenBudget: 800,
                 minSummaryBudget: 3000,
@@ -170,13 +151,12 @@ describe('buildChatWindowPlan', () => {
     });
 
     it('excludes non-conversation records from recent/queued accounting', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(2, { userLength: 40, assistantLength: 40 });
         chat.splice(2, 0, makeMessage({ mes: 'x'.repeat(1000), isSystem: true }));
         const plan = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
-            settings({ verbatimTokenBudget: 10000, queuedTokenBudget: 10000 }),
+            windowSettings({ verbatimTokenBudget: 10000, queuedTokenBudget: 10000 }),
         );
         expect(plan.liveTokens).toBe(
             2 * messageLineTokens(true, 40) + 2 * messageLineTokens(false, 40),

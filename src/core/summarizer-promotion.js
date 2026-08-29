@@ -29,11 +29,7 @@ import {
     isPromptMutationFrozen,
     updateCommittedInjection,
 } from './summarizer-commit.js';
-import {
-    getChatIdentity,
-    getSummaryStoreSnapshotEpoch,
-    isSnapshotStoreCurrent,
-} from './summarizer-snapshot.js';
+import { buildSnapshotBasis, isSnapshotStoreCurrent } from './summarizer-snapshot.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
 const MIN_PROMOTION_MERGE_COUNT = 3;
@@ -684,10 +680,8 @@ function capturePromotionSnapshot(layerIndex) {
     const store = getChatStore();
 
     return {
-        chatId: getChatIdentity(ctx),
-        chatRef: ctx.chat,
+        ...buildSnapshotBasis({ chatRef: ctx.chat, store, ctx }),
         layerIndex,
-        summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
     };
 }
 

@@ -8,7 +8,7 @@ import { buildSnippetMetadataFromState } from '../core/snippet-metadata.js';
 import { parseSnippet } from '../core/summarizer-state.js';
 import { callSummarizer, getIsSummarizing, setSummarizing } from '../core/summarizer.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
-import { updateInjection } from './injection.js';
+import { refreshExtensionState } from './persist.js';
 
 /**
  * @typedef {{ status: 'ready', snippet: SummaryceptionSnippet, context: string }} RegenerationTarget
@@ -230,7 +230,7 @@ function getSnippetAt(store, layerIndex, snippetIndex) {
 
 async function saveSnippetStore() {
     await saveChatStore();
-    updateInjection();
+    refreshExtensionState({ injection: true, ui: false });
 }
 
 function buildSnippetContext(store, excludeLayerIndex, excludeSnippetIndex) {

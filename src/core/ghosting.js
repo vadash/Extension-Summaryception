@@ -60,7 +60,7 @@ export async function unghostAllMessages() {
         return;
     }
 
-    const progressToast = createUnhideProgressToast(total);
+    const progressToast = createProgressToast('Unhiding messages', 'Clearing', total);
     await unhideRanges({ chat, store, ranges, progressToast, total });
     toastr.clear(progressToast);
     info(`Unghosted ${total} messages (only Summaryception-hidden ones)`);
@@ -104,7 +104,10 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
     const store = getChatStore();
     const ranges = collectHideRanges(chat, store, range);
     const total = countRangeMessages(ranges);
-    const progressToast = createHideProgressToast(options, total);
+    const progressToast =
+        options.showProgress && total > 0
+            ? createProgressToast('Hiding messages', 'Ghosting', total)
+            : null;
     let processed = 0;
 
     for (const hideRange of ranges) {
@@ -150,13 +153,7 @@ async function applyHideRange({ chat, store, range, epoch, chatSave }) {
         return false;
     }
 
-    try {
-        await executeSlashCommandsWithOptions(`/hide ${formatSlashRange(range)}`, {
-            showOutput: false,
-        });
-    } catch (e) {
-        error(`Failed to hide messages ${formatSlashRange(range)}:`, e);
-    }
+    await executeSlashRangeCommand('hide', range, error);
 
     await persistChatState({ chatSave });
     return true;
@@ -316,13 +313,7 @@ export function collectGhostedMessageIndices(chat, store, limit) {
 async function unhideRanges({ chat, store, ranges, progressToast = null, total = 0 }) {
     let processed = 0;
     for (const range of ranges) {
-        try {
-            await executeSlashCommandsWithOptions(`/unhide ${formatSlashRange(range)}`, {
-                showOutput: false,
-            });
-        } catch (e) {
-            warn(`Failed to unhide messages ${formatSlashRange(range)}:`, e);
-        }
+        await executeSlashRangeCommand('unhide', range, warn);
         clearGhostedRange(chat, store, range);
         processed += getRangeSize(range);
         updateUnhideProgress(progressToast, processed, total);
@@ -403,16 +394,14 @@ function getGhostEffectKind(startIdx, endIdx, options) {
 }
 
 /**
- * Create a progress toast for manual hide work.
- * @param {GhostRangeOptions} options
+ * Create a long-lived progress toast for ghosting work.
+ * @param {string} label
+ * @param {string} subtitle
  * @param {number} total
  * @returns {unknown}
  */
-function createHideProgressToast(options, total) {
-    if (!options.showProgress || total === 0) {
-        return null;
-    }
-    return toastr.info(`Hiding messages: 0 / ${total}`, `${TOAST_TITLE} - Ghosting`, {
+function createProgressToast(label, subtitle, total) {
+    return toastr.info(`${label}: 0 / ${total}`, `${TOAST_TITLE} - ${subtitle}`, {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,
@@ -420,16 +409,20 @@ function createHideProgressToast(options, total) {
 }
 
 /**
- * Create a progress toast for clearing Summaryception ghosting.
- * @param {number} total
- * @returns {unknown}
+ * Run a /hide or /unhide slash command for a range without output.
+ * @param {'hide' | 'unhide'} command
+ * @param {[number, number]} range
+ * @param {(message: string, err: unknown) => void} logFailure
+ * @returns {Promise<void>}
  */
-function createUnhideProgressToast(total) {
-    return toastr.info(`Unhiding messages: 0 / ${total}`, `${TOAST_TITLE} - Clearing`, {
-        timeOut: 0,
-        extendedTimeOut: 0,
-        tapToDismiss: false,
-    });
+async function executeSlashRangeCommand(command, range, logFailure) {
+    try {
+        await executeSlashCommandsWithOptions(`/${command} ${formatSlashRange(range)}`, {
+            showOutput: false,
+        });
+    } catch (e) {
+        logFailure(`Failed to ${command} messages ${formatSlashRange(range)}:`, e);
+    }
 }
 
 /**

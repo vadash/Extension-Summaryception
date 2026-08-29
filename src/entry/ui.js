@@ -109,12 +109,9 @@ function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
  * @returns {{ rawChatMin: number, rawChatMax: number, mainMin: number, mainMax: number }}
  */
 export function buildMainContextPreviewModel(s = getEffectiveSettings()) {
-    const memoryBudget = readTokenSetting(s.memoryTokenBudget, defaultSettings.memoryTokenBudget);
-    const verbatimBudget = readTokenSetting(
-        s.verbatimTokenBudget,
-        defaultSettings.verbatimTokenBudget,
-    );
-    const queuedBudget = readTokenSetting(s.queuedTokenBudget, defaultSettings.queuedTokenBudget);
+    const memoryBudget = readTokenSetting(s, 'memoryTokenBudget');
+    const verbatimBudget = readTokenSetting(s, 'verbatimTokenBudget');
+    const queuedBudget = readTokenSetting(s, 'queuedTokenBudget');
     return {
         rawChatMin: verbatimBudget,
         rawChatMax: verbatimBudget + queuedBudget,
@@ -128,17 +125,11 @@ export function buildMainContextPreviewModel(s = getEffectiveSettings()) {
  */
 export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const model = buildMainContextPreviewModel(s);
-    const maxL0Source = readTokenSetting(s.maxL0SourceTokens, defaultSettings.maxL0SourceTokens);
-    const minL0Source = readTokenSetting(s.minSummaryBudget, defaultSettings.minSummaryBudget);
-    const memoryBudget = readTokenSetting(s.memoryTokenBudget, defaultSettings.memoryTokenBudget);
-    const snippetsPerPromotion = readTokenSetting(
-        s.snippetsPerPromotion,
-        defaultSettings.snippetsPerPromotion,
-    );
-    const summaryTarget = readTokenSetting(
-        s.layer0SummaryTokenTarget,
-        defaultSettings.layer0SummaryTokenTarget,
-    );
+    const maxL0Source = readTokenSetting(s, 'maxL0SourceTokens');
+    const minL0Source = readTokenSetting(s, 'minSummaryBudget');
+    const memoryBudget = readTokenSetting(s, 'memoryTokenBudget');
+    const snippetsPerPromotion = readTokenSetting(s, 'snippetsPerPromotion');
+    const summaryTarget = readTokenSetting(s, 'layer0SummaryTokenTarget');
     const BASE_PROMPT_OVERHEAD = 2000;
     const DEEP_MEMORY_RATIO = 0.5;
     const l0Typical = minL0Source + memoryBudget + BASE_PROMPT_OVERHEAD;
@@ -160,9 +151,9 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
     setContextValueColor($l1Value, l1Total);
 }
 
-function readTokenSetting(value, fallback) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
+function readTokenSetting(settings, key) {
+    const number = Number(settings[key]);
+    return Number.isFinite(number) ? number : defaultSettings[key];
 }
 
 function formatContextTokenCount(tokens) {

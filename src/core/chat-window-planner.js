@@ -4,6 +4,7 @@ import {
     getPromptDepthsByChatIndex,
     isSummarizerConversationMessage,
     iterateChatRange,
+    toAssistantTurn,
 } from './chatutils.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
@@ -129,11 +130,7 @@ async function collectLiveData(chat, sourceStartIdx, settings) {
         addBudgetStats(liveStats, stats);
         entries.push({ index, message, stats });
         if (!message.is_user) {
-            visibleTurns.push({
-                index,
-                mes: String(message.mes),
-                name: message.name || 'Assistant',
-            });
+            visibleTurns.push(toAssistantTurn(message, index));
         }
     }
     return { entries, liveStats, visibleTurns };

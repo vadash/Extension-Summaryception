@@ -1,6 +1,6 @@
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { buildMemoryInjection } from './memory-injection.js';
+import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
 import { countMessageTokens } from './token-count.js';
 
 export { buildMemoryInjection } from './memory-injection.js';
@@ -13,6 +13,16 @@ export { buildMemoryInjection } from './memory-injection.js';
  * @property {string} mes - Assistant message text.
  * @property {string} name - Assistant display name.
  */
+
+/**
+ * Build an assistant turn view of a chat message.
+ * @param {ChatMessage} message - Assistant chat message
+ * @param {number} index - Chat index for the message
+ * @returns {AssistantTurn} Assistant turn
+ */
+export function toAssistantTurn(message, index) {
+    return { index, mes: String(message.mes), name: message.name || 'Assistant' };
+}
 
 /**
  * @typedef {object} IndexedChatMessage
@@ -115,7 +125,7 @@ export function getAssistantTurns(chat) {
     for (let i = 0; i < chat.length; i++) {
         const m = chat[i];
         if (isSummarizerConversationMessage(m) && !m.is_user) {
-            turns.push({ index: i, mes: String(m.mes), name: m.name || 'Assistant' });
+            turns.push(toAssistantTurn(m, i));
         }
     }
     return turns;
@@ -137,7 +147,7 @@ export function getVisibleAssistantTurns(chat) {
             m.mes &&
             m.mes.trim().length > 0
         ) {
-            turns.push({ index: i, mes: m.mes, name: m.name || 'Assistant' });
+            turns.push(toAssistantTurn(m, i));
         }
     }
     return turns;
@@ -175,6 +185,24 @@ export function formatMessageSpeakerLine(message, text) {
 }
 
 /**
+ * Render one chat message into speaker lines, with and without regex scripts.
+ * @param {ChatMessage} message
+ * @param {number | undefined} depth
+ * @param {{ applyRegexScripts?: boolean }} [options]
+ * @returns {Promise<{ rawText: string, finalText: string, rawLine: string, finalLine: string, changed: boolean }>}
+ */
+async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
+    const rawText = String(message.mes || '').trim();
+    const finalText = applyRegexScripts
+        ? await applyRegexToMessage(rawText, Boolean(message.is_user), depth)
+        : rawText;
+    const rawLine = formatMessageSpeakerLine(message, rawText);
+    const finalLine = formatMessageSpeakerLine(message, finalText);
+
+    return { rawText, finalText, rawLine, finalLine, changed: rawLine !== finalLine };
+}
+
+/**
  * Apply source regex scripts and count one rendered chat message.
  * @param {ChatMessage} message
  * @param {number | undefined} depth
@@ -182,15 +210,12 @@ export function formatMessageSpeakerLine(message, text) {
  * @returns {Promise<{ rawTokens: number, finalTokens: number, rawTokensEstimated: boolean, finalTokensEstimated: boolean, changed: boolean }>}
  */
 export async function countProcessedMessage(message, depth, settings) {
-    const rawText = String(message.mes || '').trim();
-    const finalText = settings.applyRegexScripts
-        ? await applyRegexToMessage(rawText, Boolean(message.is_user), depth)
-        : rawText;
-    const rawLine = formatMessageSpeakerLine(message, rawText);
-    const finalLine = formatMessageSpeakerLine(message, finalText);
+    const { rawLine, finalLine, changed } = await renderMessageLines(message, depth, {
+        applyRegexScripts: settings.applyRegexScripts,
+    });
     const tokens = await countMessageTokens(message, rawLine, finalLine);
 
-    return { ...tokens, changed: rawLine !== finalLine };
+    return { ...tokens, changed };
 }
 
 /**
@@ -261,21 +286,9 @@ async function renderPassageMessage({ message, depth, applyRegexScripts }) {
         return null;
     }
 
-    const rawText = message.mes.trim();
-    const finalText = await getPassageFinalText({
-        message,
-        rawText,
-        depth,
-        applyRegexScripts,
-    });
-    const rawLine = formatMessageSpeakerLine(message, rawText);
-    const finalLine = formatMessageSpeakerLine(message, finalText);
-
     return {
         message,
-        rawLine,
-        finalLine,
-        changed: rawLine !== finalLine,
+        ...(await renderMessageLines(message, depth, { applyRegexScripts })),
     };
 }
 
@@ -289,13 +302,6 @@ export function isSummaryceptionOwnedMessage(message) {
         return false;
     }
     return getChatStore().ghostedMessageIds.includes(message.sc_id);
-}
-
-async function getPassageFinalText({ message, rawText, depth, applyRegexScripts }) {
-    if (!applyRegexScripts) {
-        return rawText;
-    }
-    return await applyRegexToMessage(rawText, message.is_user, depth);
 }
 
 function addPassageTokenStats(accumulator, counted) {
@@ -348,8 +354,10 @@ export async function buildPassageFromRange(chat, startIdx, endIdx) {
  */
 export function buildFullContext(downToLayer = 0) {
     const store = getChatStore();
-    const memory = buildMemoryInjection(getLayersAtOrAbove(store.layers, downToLayer));
-    return memory || '(none yet)';
+    const injectionParts = buildMemoryInjectionParts(getLayersAtOrAbove(store.layers, downToLayer));
+    // Summarizer context is the raw memory body, never template-wrapped,
+    // so no injectionTemplate is supplied; '(none yet)' stands in when empty.
+    return renderInjectionTemplate(injectionParts, {}, { emptyFallback: '(none yet)' });
 }
 
 function getLayersAtOrAbove(layers, downToLayer) {

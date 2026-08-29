@@ -6,18 +6,10 @@ import {
     isProviderCacheMode,
 } from '../src/core/cache-staleness.js';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
-import { makeMessage, makeSummarySettings } from './test-helpers.js';
+import { cacheSettings, makeMessage } from './test-helpers.js';
 
 const NOW = Date.parse('2026-08-22T12:00:00Z');
 const TTL_MINUTES = 30;
-
-const cacheSettings = (overrides = {}) =>
-    makeSummarySettings({
-        memoryMode: MEMORY_MODES.PREFIX_CACHE,
-        cacheTtlMinutes: TTL_MINUTES,
-        minSummaryTurns: 3,
-        ...overrides,
-    });
 
 const planWithQueue = (turns = 5) => ({
     eligibleTurns: Array.from({ length: turns }),

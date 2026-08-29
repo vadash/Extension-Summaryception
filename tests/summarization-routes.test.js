@@ -8,21 +8,11 @@ import {
 } from '../src/core/summarization-routes.js';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
 import {
-    installSummaryContext,
     makeSizedChat,
     makeSummarySettings,
     makeSummaryStore,
+    readySettings,
 } from './test-helpers.js';
-
-const readySettings = (memoryMode) =>
-    makeSummarySettings({
-        memoryMode,
-        verbatimTokenBudget: 100,
-        queuedTokenBudget: 500,
-        minSummaryBudget: 3000,
-        maxL0SourceTokens: 4000,
-        minSummaryTurns: 1,
-    });
 
 describe('buildAutoSummaryRoutePlan', () => {
     it.each([
@@ -33,7 +23,6 @@ describe('buildAutoSummaryRoutePlan', () => {
             SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS,
         ],
     ])('uses one recent/queued readiness result for %s', async (mode, route, commitMode) => {
-        installSummaryContext();
         const chat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const plan = await buildAutoSummaryRoutePlan(chat, makeSummaryStore(), readySettings(mode));
         expect(plan.route).toBe(route);
@@ -43,7 +32,6 @@ describe('buildAutoSummaryRoutePlan', () => {
     });
 
     it('Balanced routes only the first partition', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const plan = await buildAutoSummaryRoutePlan(
             chat,
@@ -57,7 +45,6 @@ describe('buildAutoSummaryRoutePlan', () => {
     });
 
     it.each([MEMORY_MODES.PREFIX_CACHE])('%s routes every B partition atomically', async (mode) => {
-        installSummaryContext();
         const chat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const plan = await buildAutoSummaryRoutePlan(chat, makeSummaryStore(), readySettings(mode));
         expect(plan.partitions).toHaveLength(2);
@@ -66,7 +53,6 @@ describe('buildAutoSummaryRoutePlan', () => {
     });
 
     it('stays idle below Recent + Queued despite max turns', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(8, { userLength: 20, assistantLength: 60 });
         const plan = await buildAutoSummaryRoutePlan(
             chat,
@@ -85,7 +71,6 @@ describe('buildAutoSummaryRoutePlan', () => {
 
 describe('buildForceSummaryRoutePlan', () => {
     it('summarizes the queued block while preserving Recent Chat', async () => {
-        installSummaryContext();
         const chat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const plan = await buildForceSummaryRoutePlan(
             chat,
@@ -102,7 +87,6 @@ describe('buildForceSummaryRoutePlan', () => {
     });
 
     it('stays idle on empty chat', async () => {
-        installSummaryContext();
         const plan = await buildForceSummaryRoutePlan(
             [],
             makeSummaryStore(),

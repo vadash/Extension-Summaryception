@@ -64,6 +64,21 @@ export function fingerprintSourceRange(chat, startIdx, endIdx) {
 export function getSummaryStoreSnapshotEpoch(store) {
     return getSummaryStoreMutationEpoch(store);
 }
+/**
+ * Build the common basis shared by layer-0 and promotion snapshot capturers.
+ * @param {object} p
+ * @param {ChatMessage[]} p.chatRef - Chat array reference captured for later identity checks
+ * @param {SummaryceptionStore} p.store
+ * @param {object} p.ctx
+ * @returns {{ chatId: string, chatRef: ChatMessage[], summaryStoreEpoch: number }}
+ */
+export function buildSnapshotBasis({ chatRef, store, ctx }) {
+    return {
+        chatId: getChatIdentity(ctx),
+        chatRef,
+        summaryStoreEpoch: getSummaryStoreSnapshotEpoch(store),
+    };
+}
 
 /**
  * Check whether the active chat still matches a captured snapshot.

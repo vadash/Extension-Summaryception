@@ -1,4 +1,4 @@
-import { ConnectionError } from './connection-error.js';
+import { ConnectionError, wrapConnectionError } from './connection-error.js';
 import { generateRaw } from '../foundation/context.js';
 
 /**
@@ -39,10 +39,10 @@ export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
         result = await generateRaw(options);
     } catch (error) {
         if (error?.message?.includes('not available')) {
-            throw new ConnectionError(
-                'generateRaw is not available in the current SillyTavern context.',
-                { retryable: false },
-            );
+            throw wrapConnectionError(error, {
+                retryable: false,
+                message: 'generateRaw is not available in the current SillyTavern context.',
+            });
         }
         throw error;
     }

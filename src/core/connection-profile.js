@@ -1,4 +1,4 @@
-import { ConnectionError } from './connection-error.js';
+import { ConnectionError, wrapConnectionError } from './connection-error.js';
 import { tryExtractChatContent } from './connection-transport.js';
 import { getConnectionManagerRequestService } from '../foundation/context.js';
 import { trace, warn } from '../foundation/logger.js';
@@ -181,32 +181,5 @@ function handleProfileRequestError({ error, profileId }) {
         throw error;
     }
 
-    const err =
-        /** @type {{ message?: string, status?: number, response?: { status?: number } }} */ (
-            error
-        );
-    const msg = err?.message || String(error);
-    const status = err?.status || err?.response?.status;
-
-    if (status === 401 || msg.includes('401') || msg.toLowerCase().includes('unauthorized')) {
-        throw new ConnectionError(
-            'Connection Profile auth failed (401). This is likely the API key switching bug ' +
-                '(ST Issue #5348). Update SillyTavern to staging (March 30, 2026+) to fix this. ' +
-                `Original error: ${msg}`,
-            { retryable: false, status: 401 },
-        );
-    }
-
-    if (msg.includes('not found') || msg.includes('profile')) {
-        throw new ConnectionError(
-            `Connection Profile "${profileId}" not found. It may have been deleted. ` +
-                'Please re-select a profile in Summaryception settings.',
-            { retryable: false, status: 404 },
-        );
-    }
-
-    throw new ConnectionError(`Connection Profile request failed: ${msg}`, {
-        retryable: true,
-        status: status,
-    });
+    throw wrapConnectionError(error, { profileId }, 'Connection Profile');
 }

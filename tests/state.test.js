@@ -26,7 +26,6 @@ import {
 
 describe('getSettings', () => {
     it('returns a settings object and reuses the same reference on subsequent calls', () => {
-        installSummaryContext();
         const first = getSettings();
         expect(typeof first).toBe('object');
         // The module stores rather than re-clones an existing settings object.
@@ -110,7 +109,6 @@ describe('getEffectiveSettings', () => {
 
 describe('getChatStore', () => {
     it('creates a normalized default store on a fresh context', () => {
-        installSummaryContext();
         const store = getChatStore();
         expect(store).toMatchObject({ layers: [], ghostedMessageIds: [], mutationEpoch: 0 });
     });
@@ -140,7 +138,6 @@ describe('getChatStore', () => {
 
 describe('summary store mutation epoch', () => {
     it('counts up from a normalized baseline on each bump', () => {
-        installSummaryContext();
         const store = getChatStore();
         expect(bumpSummaryStoreMutationEpoch(store)).toBe(1);
         expect(store.mutationEpoch).toBe(1);
@@ -172,13 +169,11 @@ describe('getCurrentSummarizedBoundary', () => {
 
 describe('getPlayerName', () => {
     it('returns name1 from the installed context', () => {
-        installSummaryContext();
         expect(getPlayerName()).toBe('Player1');
     });
 
     it('falls back to "User" when name1 is absent', () => {
-        const ctx = installSummaryContext();
-        delete ctx.name1;
+        delete globalThis.SillyTavern.getContext().name1;
         expect(getPlayerName()).toBe('User');
     });
 });

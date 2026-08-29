@@ -9,6 +9,7 @@ import {
     isTraceEnabled,
     trace,
     warn,
+    serializeError,
 } from '../foundation/logger.js';
 import { RETRY_CONFIG } from '../foundation/retry.js';
 import {
@@ -627,11 +628,7 @@ function classifyAttemptError(err, signal) {
         /** @type {Error & { retryable?: boolean, message?: string, status?: number, response?: { status?: number } }} */ (
             err
         );
-    trace('  Caught error on attempt:', {
-        name: error?.name,
-        message: error?.message,
-        retryable: error?.retryable,
-    });
+    trace('  Caught error on attempt:', serializeError(error));
 
     const retryStatus = classifyAttemptRetryStatus(error, signal.aborted);
     if (retryStatus.aborted) {
@@ -1075,17 +1072,5 @@ function buildLlmOutputLog({ label, routeLabel, attempt, status, cleanedResult, 
  * @returns {object|null}
  */
 function serializeAttemptError(error) {
-    if (!error) {
-        return null;
-    }
-    const e =
-        /** @type {Error & { status?: number, statusCode?: number, retryable?: boolean, response?: { status?: number } }} */ (
-            error
-        );
-    return {
-        name: e.name || 'Error',
-        message: e.message || String(e),
-        status: e.status || e.statusCode || e.response?.status || null,
-        retryable: typeof e.retryable === 'boolean' ? e.retryable : null,
-    };
+    return error ? serializeError(error) : null;
 }

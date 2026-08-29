@@ -44,6 +44,22 @@ export function buildMemoryInjectionParts(
     return { stateText, chronologyParts, chronologyText, memoryText };
 }
 
+/**
+ * Substitute the memory body into the configured injection template.
+ * The replacer is a function so `$` sequences in memory text are never
+ * treated as replacement patterns.
+ * @param {{ memoryText?: string }} injectionParts - Injection parts carrying the memory body.
+ * @param {{ injectionTemplate?: string }} [settings] - Settings carrying the wrapper template.
+ * @param {{ emptyFallback?: string }} [options] - Text used when the memory body is empty.
+ * @returns {string}
+ */
+export function renderInjectionTemplate(injectionParts, settings, { emptyFallback = '' } = {}) {
+    return String(settings?.injectionTemplate || '{{summary}}').replaceAll(
+        '{{summary}}',
+        () => injectionParts.memoryText || emptyFallback || '',
+    );
+}
+
 function buildCurrentStateText(layers) {
     return getCurrentStateSnapshotText(layers).replace(/^\[STATE\]/, '[CURRENT STATE]');
 }

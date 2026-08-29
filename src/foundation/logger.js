@@ -106,6 +106,29 @@ export function error(...args) {
 }
 
 /**
+ * Coerce any thrown value into a plain object with the standard error fields.
+ * @param {unknown} err - A thrown value. It can be an Error, a plain object, a string, or null.
+ * @returns {{ name: string, message: string, status: number|null, retryable: boolean|null }}
+ */
+export function serializeError(err) {
+    const e =
+        /** @type {Error & { status?: number, statusCode?: number, retryable?: boolean | (() => boolean), response?: { status?: number } }} */ (
+            err
+        );
+    return {
+        name: (e && e.name) || 'Error',
+        message: e && e.message ? e.message : String(e),
+        status: (e && (e.status || e.statusCode || (e.response && e.response.status))) || null,
+        retryable:
+            e && typeof e.retryable === 'boolean'
+                ? e.retryable
+                : e && typeof e.retryable === 'function'
+                  ? e.retryable()
+                  : null,
+    };
+}
+
+/**
  * Trace visible/owned chat counts for ghosting diagnostics.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
