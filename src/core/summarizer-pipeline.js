@@ -1,4 +1,4 @@
-import { defaultSettings } from '../foundation/constants.js';
+import { TOAST_TITLE, defaultSettings } from '../foundation/constants.js';
 import { warn, isTraceEnabled, trace } from '../foundation/logger.js';
 import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
@@ -327,7 +327,7 @@ function notifyChinesePolicyRejection(percent) {
     );
     toastr.warning(
         `Summarizer response contained too much CN text (${displayPercent}%). Retrying...`,
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: 5000 },
     );
 }

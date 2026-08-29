@@ -12,6 +12,7 @@ export { RECALL_REPEAT_INJECTION_TEMPLATE } from './prompt-constants.js';
 
 export const MODULE_NAME = 'summaryception';
 export const LOG_PREFIX = '[Summaryception]';
+export const TOAST_TITLE = 'Summaryception';
 
 export const MEMORY_MODES = Object.freeze({
     BALANCED: 'balanced',

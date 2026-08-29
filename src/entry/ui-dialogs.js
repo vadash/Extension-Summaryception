@@ -1,9 +1,26 @@
+import { TOAST_TITLE } from '../foundation/constants.js';
+
 /**
  * Show the Slop Breaker no-op toast.
  * @returns {void}
  */
 export function showSlopBreakerNoop() {
-    toastr.info('Nothing to reset yet. Wait for an AI reply first.', 'Summaryception');
+    toastr.info('Nothing to reset yet. Wait for an AI reply first.', TOAST_TITLE);
+}
+/**
+ * Show the warning shown when a summarization run is already in progress.
+ * @returns {void}
+ */
+export function showBusySummaryToast() {
+    toastr.warning('Already summarizing. Please wait.', TOAST_TITLE);
+}
+
+/**
+ * Show the warning shown when foreground generation blocks a manual run.
+ * @returns {void}
+ */
+export function showForegroundActiveToast() {
+    toastr.warning('Foreground generation is active. Try again once it completes.', TOAST_TITLE);
 }
 
 /**
@@ -13,41 +30,33 @@ export function showSlopBreakerNoop() {
  */
 export function showCatchupOutcome(outcome) {
     if (outcome.blocked && outcome.totalBatches === 0) {
-        toastr.warning(
-            'Foreground generation is active. Try Force Summarize again after the response finishes.',
-            'Summaryception',
-            { timeOut: 5000 },
-        );
+        showForegroundActiveToast();
     } else if (outcome.cancelled) {
         toastr.warning(
             `Catch-up paused at ${outcome.completed}/${outcome.totalBatches}. Progress saved - will continue on next message.`,
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 5000 },
         );
     } else if (outcome.blocked) {
         toastr.warning(
             `Catch-up paused at ${outcome.completed}/${outcome.totalBatches}. Try again after generation finishes.`,
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 5000 },
         );
     } else if (outcome.failureLimitReached) {
         toastr.error(
             '3 consecutive failures - API may be down. Pausing catch-up. Progress saved; will resume on next message.',
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 8000 },
         );
     } else if (outcome.totalBatches > 0 && outcome.failed === 0) {
-        toastr.success(
-            `Catch-up complete! ${outcome.completed} batches processed.`,
-            'Summaryception',
-            {
-                timeOut: 4000,
-            },
-        );
+        toastr.success(`Catch-up complete! ${outcome.completed} batches processed.`, TOAST_TITLE, {
+            timeOut: 4000,
+        });
     } else if (outcome.failed > 0) {
         toastr.warning(
             `Catch-up finished. ${outcome.completed} succeeded, ${outcome.failed} failed (will retry on next trigger).`,
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 6000 },
         );
     }
@@ -60,36 +69,32 @@ export function showCatchupOutcome(outcome) {
  */
 export function showSlopBreakerOutcome(outcome) {
     if (outcome.fullyCommitted) {
-        toastr.success('Slop Breaker complete. Reloading chat context.', 'Summaryception', {
+        toastr.success('Slop Breaker complete. Reloading chat context.', TOAST_TITLE, {
             timeOut: 3000,
         });
     } else if (outcome.blocked && outcome.totalBatches === 0) {
-        toastr.warning(
-            'Foreground generation is active. Try Slop Breaker again after the response finishes.',
-            'Summaryception',
-            { timeOut: 5000 },
-        );
+        showForegroundActiveToast();
     } else if (outcome.totalBatches === 0) {
         showSlopBreakerNoop();
     } else if (outcome.cancelled && outcome.completed === 0) {
-        toastr.warning('Slop Breaker stopped. No new cut was completed.', 'Summaryception', {
+        toastr.warning('Slop Breaker stopped. No new cut was completed.', TOAST_TITLE, {
             timeOut: 5000,
         });
     } else if (outcome.cancelled || outcome.blocked) {
         toastr.warning(
             'Slop Breaker stopped. Partial progress was saved, but the intended cut was not completed.',
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 6000 },
         );
     } else if (outcome.completed === 0) {
-        toastr.error('Slop Breaker failed. No new cut was completed.', 'Summaryception', {
+        toastr.error('Slop Breaker failed. No new cut was completed.', TOAST_TITLE, {
             timeOut: 6000,
         });
     } else {
         toastr.warning(
             `Slop Breaker paused after ${outcome.completed} batch${outcome.completed === 1 ? '' : 'es'}. ` +
                 `${outcome.failed} failed; the intended cut was not completed.`,
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 6000 },
         );
     }

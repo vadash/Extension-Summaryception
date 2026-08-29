@@ -7,7 +7,11 @@ import {
 } from '../foundation/state.js';
 import { debug, info, trace } from '../foundation/logger.js';
 import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summarizer-batch.js';
-import { maybePromoteLayer, hasPromotionOverflow } from './summarizer-promotion.js';
+import {
+    drainPromotionOverflow,
+    hasPromotionOverflow,
+    maybePromoteLayer,
+} from './summarizer-promotion.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { recoverStalePromptFreeze, shouldStopPromptWork } from './summarizer-commit.js';
 import { formatTokenValue } from './token-count.js';
@@ -454,22 +458,7 @@ async function normalizeManualMemory(outcome) {
 }
 
 async function normalizePromotions() {
-    let failures = 0;
-    while (await hasPromotionOverflow(0)) {
-        const promoted = await maybePromoteLayer(0);
-        if (shouldStopPromptWork()) {
-            return 'blocked';
-        }
-        if (promoted) {
-            failures = 0;
-        } else {
-            failures++;
-            if (failures >= 3) {
-                return 'failed';
-            }
-        }
-    }
-    return 'normalized';
+    return await drainPromotionOverflow({ maxFailures: 3, isBlockedAfter: shouldStopPromptWork });
 }
 
 function isManualRunComplete(outcome, task) {

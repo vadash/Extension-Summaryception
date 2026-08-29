@@ -3,6 +3,7 @@ import {
     MEMORY_POSITIONS,
     UI_MODES,
     defaultSettings,
+    TOAST_TITLE,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
@@ -14,7 +15,8 @@ import {
     getCurrentSummarizedBoundary,
 } from '../foundation/state.js';
 import { getIsSummarizing } from '../core/summarizer.js';
-import { countTextTokens, formatTokenValue } from '../core/token-count.js';
+import { countTextTokens, formatCompactTokenCount, formatTokenValue } from '../core/token-count.js';
+
 import { buildAutoSummaryRoutePlan } from '../core/summarization-routes.js';
 import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
@@ -27,6 +29,7 @@ import {
     updateSnippetTextAt,
 } from '../features/snippet-manager.js';
 import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
+import { showBusySummaryToast } from './ui-dialogs.js';
 import {
     updateEasyConnectionSubPanels,
     updateEasyMergeConnectionSubPanels,
@@ -163,11 +166,7 @@ function readTokenSetting(value, fallback) {
 }
 
 function formatContextTokenCount(tokens) {
-    if (tokens >= 1000) {
-        const value = tokens / 1000;
-        return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}k`;
-    }
-    return String(Math.max(0, Math.round(tokens)));
+    return formatCompactTokenCount(tokens);
 }
 
 function setContextValueColor($element, tokens) {
@@ -962,7 +961,7 @@ async function commitSnippetEdit(textarea, position) {
         textarea.val(),
     );
     if (result.status === 'updated') {
-        toastr.success('Snippet updated', 'Summaryception', {
+        toastr.success('Snippet updated', TOAST_TITLE, {
             timeOut: 1500,
         });
     }
@@ -994,7 +993,7 @@ async function onSnippetRedoClick() {
 
     toastr.info(
         `Regenerating summary for turns ${target.range[0]}-${target.range[1]}...`,
-        'Summaryception',
+        TOAST_TITLE,
         {
             timeOut: 3000,
             progressBar: true,
@@ -1012,7 +1011,7 @@ async function onSnippetDeleteClick() {
     const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx);
     if (result.status === 'deleted') {
         updateUI();
-        toastr.info(`Snippet removed from Layer ${result.layerIndex}`, 'Summaryception');
+        toastr.info(`Snippet removed from Layer ${result.layerIndex}`, TOAST_TITLE);
     }
 }
 
@@ -1021,13 +1020,13 @@ function handleRegenerationTargetStatus(target) {
         return true;
     }
     if (target.status === 'busy') {
-        toastr.warning('Already summarizing. Please wait.', 'Summaryception');
+        showBusySummaryToast();
         return false;
     }
     if (target.status === 'unsupported') {
         toastr.warning(
             'Only Layer 0 (turn summary) snippets can be regenerated. Promoted meta-summaries have no source turns.',
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 5000 },
         );
     }
@@ -1049,17 +1048,17 @@ function handleRegenerationResult(result) {
         updateUI();
         toastr.success(
             `Snippet regenerated for turns ${result.range[0]}-${result.range[1]}`,
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 3000 },
         );
         return;
     }
     if (result.status === 'empty-source') {
-        toastr.error('Source turns are empty - cannot regenerate.', 'Summaryception');
+        toastr.error('Source turns are empty - cannot regenerate.', TOAST_TITLE);
     } else if (result.status === 'failed') {
-        toastr.error('Regeneration failed - original snippet kept.', 'Summaryception');
+        toastr.error('Regeneration failed - original snippet kept.', TOAST_TITLE);
     } else if (result.status === 'busy') {
-        toastr.warning('Already summarizing. Please wait.', 'Summaryception');
+        showBusySummaryToast();
     } else if (result.status === 'unsupported') {
         handleRegenerationTargetStatus(result);
     }

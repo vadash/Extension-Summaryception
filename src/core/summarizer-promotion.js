@@ -1,4 +1,4 @@
-import { INTERNAL_MAX_LAYER_DEPTH } from '../foundation/constants.js';
+import { INTERNAL_MAX_LAYER_DEPTH, TOAST_TITLE } from '../foundation/constants.js';
 import { getContext } from '../foundation/context.js';
 import {
     bumpSummaryStoreMutationEpoch,
@@ -316,7 +316,7 @@ async function generateValidatedPromotion(prepared) {
     toastr.info(
         `Promoting ${prepared.toMerge.length} memories: Layer ${prepared.layerIndex} -> ` +
             `Layer ${prepared.layerIndex + 1}`,
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: 3000, progressBar: true },
     );
 
@@ -360,7 +360,11 @@ async function commitValidatedPromotion({ prepared, promotedSnippet }) {
     });
 
     if (result === 'applied') {
-        await promoteOverflowLayers();
+        await drainPromotionOverflow({
+            maxFailures: 1,
+            isBlockedBefore: isPromptMutationFrozen,
+            isBlockedAfter: isPromptMutationFrozen,
+        });
     }
     return result !== 'stale';
 }
@@ -742,16 +746,36 @@ async function savePromotionCommit() {
 }
 
 /**
- * Continue promotion while any shallow layer remains over its limit.
- * @returns {Promise<void>}
+ * Drain promotion overflow until layers fit, a guard blocks, or consecutive
+ * failed promotions reach `maxFailures`.
+ * @param {object} [options]
+ * @param {number} [options.maxFailures] - Consecutive failed promotions tolerated before stopping.
+ * @param {() => boolean} [options.isBlockedBefore] - Guard checked before each promotion attempt.
+ * @param {() => boolean} [options.isBlockedAfter] - Guard checked after each promotion attempt.
+ * @returns {Promise<'normalized'|'blocked'|'failed'>}
  */
-async function promoteOverflowLayers() {
-    if (isPromptMutationFrozen()) {
-        return;
+export async function drainPromotionOverflow({
+    maxFailures = Infinity,
+    isBlockedBefore = () => false,
+    isBlockedAfter = () => false,
+} = {}) {
+    let failures = 0;
+    while (await hasPromotionOverflow(0)) {
+        if (isBlockedBefore()) {
+            return 'blocked';
+        }
+        const promoted = await maybePromoteLayer(0);
+        if (isBlockedAfter()) {
+            return 'blocked';
+        }
+        if (promoted) {
+            failures = 0;
+        } else {
+            failures++;
+            if (failures >= maxFailures) {
+                return 'failed';
+            }
+        }
     }
-
-    const promoted = await maybePromoteLayer(0);
-    if (promoted && !isPromptMutationFrozen()) {
-        await promoteOverflowLayers();
-    }
+    return 'normalized';
 }

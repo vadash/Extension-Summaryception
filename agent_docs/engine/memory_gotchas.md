@@ -4,6 +4,8 @@
 - Layer 0 converts turns outside the verbatim window into narrative and a rolling state snapshot.
 - State is a bounded snapshot. Only the newest state reaches the prompt.
 - Deeper layers merge older snippets after a layer exceeds its limit.
+- A promotion overflow drain stops after one declined promotion, not on an unbounded loop.
+- A promotion overflow drain stops after a fixed number of consecutive promotion failures.
 - Promotion uses the final state snapshot in the promoted span.
 - State compaction is deterministic and runs once per assembly.
 - State category budgets apply independently. Date and time remain unchanged.

@@ -1,6 +1,7 @@
 import {
     MEMORY_MODE_PRESETS,
     MEMORY_MODES,
+    TOAST_TITLE,
     MASK_USER_ROLE_MODES,
     applyMemoryModePreset,
     PROMOTION_PROMPT_PRESETS,
@@ -14,6 +15,7 @@ import {
     defaultSettings,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
+import { clampInteger } from '../foundation/numeric.js';
 import { rangesFromSortedIndices, resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { error, warn } from '../foundation/logger.js';
 import {
@@ -46,6 +48,7 @@ import {
     confirmSlopBreaker,
     createManualProgressToast,
     showCatchupOutcome,
+    showBusySummaryToast,
     showSlopBreakerNoop,
     showSlopBreakerOutcome,
     updateManualProgressToast,
@@ -284,7 +287,7 @@ function bindCustomPlacementHandlers() {
             eventName: 'input change',
             selector: '#sc_custom_memory_depth',
             key: 'customMemoryDepth',
-            read: ($element) => clampNumberInput($element.val(), 0, 10000),
+            read: ($element) => clampInteger($element.val(), 0, 10000),
         },
     ];
 
@@ -307,14 +310,6 @@ function requestAutoSummaryRefresh(reason) {
             warn(`Auto summarization request after ${reason} failed:`, e);
         })
         .finally(updateUI);
-}
-
-function clampNumberInput(value, min, max) {
-    const parsed = Number.parseInt(String(value), 10);
-    if (!Number.isFinite(parsed)) {
-        return min;
-    }
-    return Math.min(max, Math.max(min, parsed));
 }
 
 /**
@@ -406,9 +401,9 @@ function cancelManualRun(controller) {
 function onStopSummarize() {
     if (!getIsSummarizing() && !hasActiveAbortController()) {
         if (getSettings().autoPaused) {
-            toastr.info('Already paused.', 'Summaryception');
+            toastr.info('Already paused.', TOAST_TITLE);
         } else {
-            toastr.info('Nothing is running.', 'Summaryception');
+            toastr.info('Nothing is running.', TOAST_TITLE);
         }
         return;
     }
@@ -416,11 +411,9 @@ function onStopSummarize() {
     const s = getSettings();
     s.autoPaused = true;
     saveSettings();
-    toastr.warning(
-        'Summarization paused. Progress saved. Press Resume to continue.',
-        'Summaryception',
-        { timeOut: 5000 },
-    );
+    toastr.warning('Summarization paused. Progress saved. Press Resume to continue.', TOAST_TITLE, {
+        timeOut: 5000,
+    });
     $(this).prop('disabled', true);
     setTimeout(() => $(this).prop('disabled', false), 2000);
     updateUI();
@@ -433,12 +426,12 @@ function onStopSummarize() {
 function onResumeSummarize() {
     const s = getSettings();
     if (!s.autoPaused) {
-        toastr.info('Not paused.', 'Summaryception');
+        toastr.info('Not paused.', TOAST_TITLE);
         return;
     }
     s.autoPaused = false;
     saveSettings();
-    toastr.success('Resumed. Automatic summarization is active again.', 'Summaryception', {
+    toastr.success('Resumed. Automatic summarization is active again.', TOAST_TITLE, {
         timeOut: 3000,
     });
     updateUI();
@@ -454,6 +447,29 @@ async function onForceSummarize() {
 }
 
 /**
+ * Build the shared abort/progress wiring for a manual summarization run.
+ * @returns {{ options: object, clearProgressToast: () => void }}
+ */
+function makeManualRunOptions() {
+    const controller = new AbortController();
+    let progressToast = null;
+    const options = {
+        signal: controller.signal,
+        onStart: (progress) => {
+            progressToast = createManualProgressToast({
+                ...progress,
+                onCancel: () => cancelManualRun(controller),
+            });
+        },
+        onProgress: (progress) => updateManualProgressToast(progressToast, progress),
+    };
+    return {
+        options,
+        clearProgressToast: () => clearManualProgressToast(progressToast),
+    };
+}
+
+/**
  * Run Force Summarize from a panel button or the stale-cache advice toast.
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @returns {Promise<void>}
@@ -465,7 +481,7 @@ async function executeForceSummarize($button) {
         return;
     }
     if (getIsSummarizing()) {
-        toastr.warning('Already summarizing. Please wait.');
+        showBusySummaryToast();
         return;
     }
     showManualCacheWarning(s);
@@ -478,30 +494,19 @@ async function executeForceSummarize($button) {
         const plan = await buildForceSummaryRoutePlan(getChat(), getChatStore(), s);
 
         if (!plan.ready) {
-            toastr.info('Nothing eligible to summarize.', 'Summaryception');
+            toastr.info('Nothing eligible to summarize.', TOAST_TITLE);
             return;
         }
 
         const overflow = Math.max(plan.batchTurns.length, plan.overflowCount);
-        toastr.info(`${overflow} turns ready to process. Starting...`, 'Summaryception', {
+        toastr.info(`${overflow} turns ready to process. Starting...`, TOAST_TITLE, {
             timeOut: 2000,
         });
 
-        const controller = new AbortController();
-        let progressToast = null;
+        const manual = makeManualRunOptions();
         const outcome = await runManualWithProgress(
-            () =>
-                runCatchup({
-                    signal: controller.signal,
-                    onStart: (progress) => {
-                        progressToast = createManualProgressToast({
-                            ...progress,
-                            onCancel: () => cancelManualRun(controller),
-                        });
-                    },
-                    onProgress: (progress) => updateManualProgressToast(progressToast, progress),
-                }),
-            () => clearManualProgressToast(progressToast),
+            () => runCatchup(manual.options),
+            manual.clearProgressToast,
         );
         showCatchupOutcome(outcome);
         updateInjection();
@@ -527,7 +532,7 @@ async function onSlopBreaker() {
         return;
     }
     if (getIsSummarizing()) {
-        toastr.warning('Already summarizing. Please wait.');
+        showBusySummaryToast();
         return;
     }
     showManualCacheWarning(s);
@@ -545,21 +550,10 @@ async function onSlopBreaker() {
         .prop('disabled', true)
         .html('<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>');
     try {
-        const controller = new AbortController();
-        let progressToast = null;
+        const manual = makeManualRunOptions();
         const outcome = await runManualWithProgress(
-            () =>
-                runSlopBreaker({
-                    signal: controller.signal,
-                    onStart: (progress) => {
-                        progressToast = createManualProgressToast({
-                            ...progress,
-                            onCancel: () => cancelManualRun(controller),
-                        });
-                    },
-                    onProgress: (progress) => updateManualProgressToast(progressToast, progress),
-                }),
-            () => clearManualProgressToast(progressToast),
+            () => runSlopBreaker(manual.options),
+            manual.clearProgressToast,
         );
         showSlopBreakerOutcome(outcome);
         updateInjection();
@@ -578,7 +572,7 @@ function showManualCacheWarning(settings) {
     }
     toastr.info(
         'Manual summarization updates memory immediately and may reset cache savings for the next request.',
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: 5000 },
     );
 }
@@ -670,7 +664,7 @@ function triggerImport() {
             await persistAndRefresh({ ui: true });
             toastr.success(
                 `Memory imported. ${store.layers.reduce((sum, l) => sum + (l?.length || 0), 0)} snippets loaded.`,
-                'Summaryception',
+                TOAST_TITLE,
                 { timeOut: 4000 },
             );
         } catch (err) {
@@ -743,7 +737,7 @@ function onResetDefaults() {
 
     toastr.success(
         'Advanced settings reset to defaults. Memory mode, connection settings, and summary memory were preserved.',
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: 4000 },
     );
 }
@@ -773,7 +767,7 @@ function bindClickHandlers() {
             await clearSummaryceptionMemory({ updateUi: true });
             toastr.success(
                 'Memory cleared & messages unghosted. Reloading chat context.',
-                'Summaryception',
+                TOAST_TITLE,
                 { timeOut: 2000 },
             );
             reloadPage();
@@ -781,7 +775,7 @@ function bindClickHandlers() {
             error('Clear memory failed:', e);
             toastr.error(
                 'Clear failed. Open F12 and update Summaryception if this repeats.',
-                'Summaryception',
+                TOAST_TITLE,
                 { timeOut: 8000 },
             );
         }
@@ -811,7 +805,7 @@ function bindClickHandlers() {
         a.download = `summaryception_${Date.now()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        toastr.success('Memory exported', 'Summaryception');
+        toastr.success('Memory exported', TOAST_TITLE);
     });
 
     $(document).on('click', '#sc_import', triggerImport);
@@ -827,7 +821,7 @@ function bindClickHandlers() {
             return;
         }
         $('#sc_injection_template').val(RECALL_REPEAT_INJECTION_TEMPLATE).trigger('change');
-        toastr.success('Recall-repeat template inserted.', 'Summaryception');
+        toastr.success('Recall-repeat template inserted.', TOAST_TITLE);
     });
 
     $(document).on('click', '#sc_restore_injection_template', function () {
@@ -835,7 +829,7 @@ function bindClickHandlers() {
             return;
         }
         $('#sc_injection_template').val(defaultSettings.injectionTemplate).trigger('change');
-        toastr.success('Default injection template restored.', 'Summaryception');
+        toastr.success('Default injection template restored.', TOAST_TITLE);
     });
 }
 

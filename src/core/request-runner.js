@@ -1,4 +1,4 @@
-import { LOG_PREFIX, UI_MODES } from '../foundation/constants.js';
+import { LOG_PREFIX, TOAST_TITLE, UI_MODES } from '../foundation/constants.js';
 import {
     debug,
     error as logError,
@@ -502,7 +502,7 @@ async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, meta
 
     const guardError = buildEasyContextGuardError(guard, metadata);
     warn(guardError.message);
-    toastr.error(guardError.message, 'Summaryception', { timeOut: 10000 });
+    toastr.error(guardError.message, TOAST_TITLE, { timeOut: 10000 });
     return buildAttemptFailure(guardError, false, 'easy-context-guard');
 }
 
@@ -778,7 +778,7 @@ async function notifyRetryAndWait(
 
     toastr.warning(
         `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${maxRetries})`,
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: delay },
     );
 
@@ -801,7 +801,7 @@ async function notifyRouteCycleFailedAndWait({ healthBucket, signal }) {
     );
     toastr.warning(
         `Both summarizer routes failed. Retrying primary in ${delaySec}s...`,
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: delay },
     );
     await sleepUntilOrAborted(delay, signal);
@@ -829,7 +829,7 @@ function sleepUntilOrAborted(delay, signal) {
  */
 function abortWithToast() {
     debug('Summarization aborted by user.');
-    toastr.warning('Summarization aborted.', 'Summaryception', { timeOut: 3000 });
+    toastr.warning('Summarization aborted.', TOAST_TITLE, { timeOut: 3000 });
     return '';
 }
 
@@ -859,7 +859,7 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
     logError(`Summarization failed${retryText}:`, lastError);
     toastr.error(
         `Summarization failed${retryText}${status ? ` (${status})` : ''}. Batch skipped; will retry on next trigger.`,
-        'Summaryception',
+        TOAST_TITLE,
         { timeOut: 8000 },
     );
     trace('<<< EXITING callSummarizer WITH FAILURE');

@@ -72,8 +72,7 @@ export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT = buildSystemPrompt(
     'No preamble, no commentary, no markdown code fences.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
 );
 
-export const DEFAULT_SUMMARIZER_USER_PROMPT = buildUserPrompt({
-    inputBlocks: `<player_name>
+const LAYER0_INPUT_BLOCKS = `<player_name>
 {{player_name}}
 </player_name>
 
@@ -83,8 +82,9 @@ export const DEFAULT_SUMMARIZER_USER_PROMPT = buildUserPrompt({
 
 <passage_in_question>
 {{story_txt}}
-</passage_in_question>`,
-    schemaBlock: `Output exactly two sections:
+</passage_in_question>`;
+
+const LAYER0_SCHEMA_BLOCK = `Output exactly two sections:
 
 [NARRATIVE]
 <one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
@@ -102,72 +102,14 @@ Use 24-hour, hour-level precision only, e.g. 2024-07-04 16 Thu. Derive the ddd w
 If no explicit time appears in the passage, carry forward the prior current_date_time if known.
 
 Use only these keys and omit empty categories:
-{{state_schema}}`,
-    taskRules: `Compress only the essential narrative progression from <passage_in_question>, then rewrite the complete compact current-state snapshot at the end of that passage using <prior_context> as the baseline.
-If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
-Keep [STATE] compact; follow the sentence and line caps provided at the end of this prompt. Put the most important facts first within each value.
-${STATE_DEDUPLICATION_RULES}
-Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.
-Do not narrate events inside [STATE]. Only facts that remain useful after the recent verbatim window is gone.`,
-    criticalRules: `${ENGLISH_FIRST_LANGUAGE_RULE}
+{{state_schema}}`;
+
+const LAYER0_CRITICAL_RULES = `${ENGLISH_FIRST_LANGUAGE_RULE}
 ${LAYER0_DURABILITY_RULES}
 ${PROSE_DATE_FORMAT_RULE}
-${ANTI_RUN_ON_RULE}`,
-    triggerLine: EXECUTION_TRIGGER_L0,
-});
+${ANTI_RUN_ON_RULE}`;
 
-export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = buildUserPrompt({
-    inputBlocks: `<player_name>
-{{player_name}}
-</player_name>
-
-<prior_context>
-{{context_str}}
-</prior_context>
-
-<passage_in_question>
-{{story_txt}}
-</passage_in_question>`,
-    schemaBlock: `Output exactly two sections:
-
-[NARRATIVE]
-<one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
-Resolve any relative time reference in the passage (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the RESOLVED ABSOLUTE DATE inline in the prose instead of the relative word. Never leave a bare relative time word in the narrative.
-${PROSE_DATE_FORMAT_RULE}
-${LAYER0_DURABILITY_RULES}
-
-[STATE]
-Rewrite the COMPLETE current snapshot as key: value lines. Omission means the fact is no longer active or important enough for state; omitted values are not inherited.
-Do NOT extract static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions. Those belong in character cards or lorebooks.
-Do NOT write descriptive sentences in the state block. Use concise keys and values only.
-Always include temporal key:
-- current_date_time: YYYY-MM-DD HH ddd
-Use 24-hour, hour-level precision only, e.g. 2024-07-04 16 Thu. Derive the ddd weekday from the ISO date (2024-07-04 = Thu); never carry it over from the prior snapshot when the date changed. Normalize from raw bracket headers or passage timestamps when present. Drop minutes instead of preserving them.
-If no explicit time appears in the passage, carry forward the prior current_date_time if known.
-
-Use only these keys and omit empty categories:
-{{state_schema}}`,
-    taskRules: `The previous Layer 0 summary attempt failed output validation. Repair the response by summarizing the same passage again with stricter formatting.
-If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
-Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
-Keep the state compact; follow the sentence and line caps provided at the end of this prompt.
-${STATE_DEDUPLICATION_RULES}
-Always include current_date_time using YYYY-MM-DD HH ddd, carrying forward the prior value if no explicit time appears.
-Do not include prose, bullets, tables, duplicate section headers, markdown, or commentary inside [STATE].`,
-    criticalRules: `${ENGLISH_FIRST_LANGUAGE_RULE}
-${LAYER0_DURABILITY_RULES}
-${PROSE_DATE_FORMAT_RULE}
-${ANTI_RUN_ON_RULE}`,
-    triggerLine: EXECUTION_TRIGGER_L0,
-});
-
-export const DEFAULT_PROMOTION_SYSTEM_PROMPT = buildSystemPrompt(
-    'Role: prose-folding memory synthesizer. Fold durable state into narrative continuity, then output one consolidated [NARRATIVE] paragraph only.',
-    'No [STATE] block, no preamble, no commentary, no markdown.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
-);
-
-export const DEFAULT_PROMOTION_USER_PROMPT = buildUserPrompt({
-    inputBlocks: `<player_name>
+const PROMOTION_INPUT_BLOCKS = `<player_name>
 {{player_name}}
 </player_name>
 
@@ -181,7 +123,46 @@ export const DEFAULT_PROMOTION_USER_PROMPT = buildUserPrompt({
 
 <source_state>
 {{source_state}}
-</source_state>`,
+</source_state>`;
+
+const PROMOTION_CRITICAL_RULES = `${ENGLISH_FIRST_LANGUAGE_RULE}
+${PROSE_DATE_FORMAT_RULE}
+${ANTI_RUN_ON_RULE}`;
+
+export const DEFAULT_SUMMARIZER_USER_PROMPT = buildUserPrompt({
+    inputBlocks: LAYER0_INPUT_BLOCKS,
+    schemaBlock: LAYER0_SCHEMA_BLOCK,
+    taskRules: `Compress only the essential narrative progression from <passage_in_question>, then rewrite the complete compact current-state snapshot at the end of that passage using <prior_context> as the baseline.
+If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
+Keep [STATE] compact; follow the sentence and line caps provided at the end of this prompt. Put the most important facts first within each value.
+${STATE_DEDUPLICATION_RULES}
+Durable state belongs in [STATE]; ephemeral trivia does not. Do NOT preserve clothing, pose, momentary mood/arousal, ordinary props, completed errands, resolved hooks, physiological or sex counters, consumed food/drink, or soiled/used/disposed temporary items.
+Do not narrate events inside [STATE]. Only facts that remain useful after the recent verbatim window is gone.`,
+    criticalRules: LAYER0_CRITICAL_RULES,
+    triggerLine: EXECUTION_TRIGGER_L0,
+});
+
+export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = buildUserPrompt({
+    inputBlocks: LAYER0_INPUT_BLOCKS,
+    schemaBlock: LAYER0_SCHEMA_BLOCK,
+    taskRules: `The previous Layer 0 summary attempt failed output validation. Repair the response by summarizing the same passage again with stricter formatting.
+If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
+Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
+Keep the state compact; follow the sentence and line caps provided at the end of this prompt.
+${STATE_DEDUPLICATION_RULES}
+Always include current_date_time using YYYY-MM-DD HH ddd, carrying forward the prior value if no explicit time appears.
+Do not include prose, bullets, tables, duplicate section headers, markdown, or commentary inside [STATE].`,
+    criticalRules: LAYER0_CRITICAL_RULES,
+    triggerLine: EXECUTION_TRIGGER_L0,
+});
+
+export const DEFAULT_PROMOTION_SYSTEM_PROMPT = buildSystemPrompt(
+    'Role: prose-folding memory synthesizer. Fold durable state into narrative continuity, then output one consolidated [NARRATIVE] paragraph only.',
+    'No [STATE] block, no preamble, no commentary, no markdown.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
+);
+
+export const DEFAULT_PROMOTION_USER_PROMPT = buildUserPrompt({
+    inputBlocks: PROMOTION_INPUT_BLOCKS,
     schemaBlock: `Output exactly one section:
 
 [NARRATIVE]
@@ -210,28 +191,12 @@ Omit ephemeral trivia: physiological or sex counters, consumed food/drink, soile
 3. **Deduplication:** Omit transitional actions, low-impact micro-movements, scene replay, and momentary dialogue loops.
 4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 ${PROMOTION_MODERATE_MACRO_RULES}`,
-    criticalRules: `${ENGLISH_FIRST_LANGUAGE_RULE}
-${PROSE_DATE_FORMAT_RULE}
-${ANTI_RUN_ON_RULE}`,
+    criticalRules: PROMOTION_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_PROMO,
 });
 
 export const DEFAULT_PROMOTION_REPAIR_PROMPT = buildUserPrompt({
-    inputBlocks: `<player_name>
-{{player_name}}
-</player_name>
-
-<prior_context>
-{{context_str}}
-</prior_context>
-
-<narratives_to_consolidate>
-{{story_txt}}
-</narratives_to_consolidate>
-
-<source_state>
-{{source_state}}
-</source_state>`,
+    inputBlocks: PROMOTION_INPUT_BLOCKS,
     schemaBlock: `Output exactly one section:
 
 [NARRATIVE]
@@ -239,8 +204,6 @@ export const DEFAULT_PROMOTION_REPAIR_PROMPT = buildUserPrompt({
     taskRules: `Repair the previous Layer 1+ promotion draft. It failed the compression guard, so rewrite the same source memories more abstractly instead of adding detail.
 Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks; do not output [STATE], lists, markdown, commentary, or key-value syntax.
 Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.`,
-    criticalRules: `${ENGLISH_FIRST_LANGUAGE_RULE}
-${PROSE_DATE_FORMAT_RULE}
-${ANTI_RUN_ON_RULE}`,
+    criticalRules: PROMOTION_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_PROMO,
 });

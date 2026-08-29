@@ -20,6 +20,7 @@ import {
     saveSettingsDebounced,
 } from './context.js';
 import { resolveScIdsToIndices } from './message-identity.js';
+import { clampInteger, clampToStep } from './numeric.js';
 
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'custom']);
 const PROMPT_SETTING_BINDINGS = Object.freeze([
@@ -396,19 +397,6 @@ function normalizePromptSettings(settings) {
         }
     }
     return changed;
-}
-
-function clampInteger(value, min, max) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) {
-        return min;
-    }
-    return Math.min(max, Math.max(min, Math.round(number)));
-}
-
-function clampToStep(value, min, max, step) {
-    const clamped = clampInteger(value, min, max);
-    return Math.min(max, Math.max(min, Math.round(clamped / step) * step));
 }
 
 /**

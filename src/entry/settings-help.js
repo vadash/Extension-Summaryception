@@ -1,3 +1,4 @@
+import { clampNumericSetting } from '../foundation/numeric.js';
 import {
     CONNECTION_HELP_ENTRIES,
     selectorFor,
@@ -740,8 +741,16 @@ export function calculateHelpTooltipPosition({
     }
 
     return {
-        left: clamp(anchorRect.left, minLeft, maxLeft),
-        top: clamp(top, 8, Math.max(8, viewportHeight - tooltipHeight - 8)),
+        left: clampNumericSetting(anchorRect.left, {
+            fallback: minLeft,
+            min: minLeft,
+            max: maxLeft,
+        }),
+        top: clampNumericSetting(top, {
+            fallback: 8,
+            min: 8,
+            max: Math.max(8, viewportHeight - tooltipHeight - 8),
+        }),
     };
 }
 
@@ -1017,8 +1026,4 @@ function positionTooltip($settings, $tooltip, anchor) {
         left: `${position.left}px`,
         top: `${position.top}px`,
     });
-}
-
-function clamp(value, min, max) {
-    return Math.min(max, Math.max(min, value));
 }

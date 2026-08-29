@@ -1,3 +1,4 @@
+import { TOAST_TITLE } from '../foundation/constants.js';
 import { executeSlashCommandsWithOptions, getChat } from '../foundation/context.js';
 import {
     ensureMessageScId,
@@ -411,7 +412,7 @@ function createHideProgressToast(options, total) {
     if (!options.showProgress || total === 0) {
         return null;
     }
-    return toastr.info(`Hiding messages: 0 / ${total}`, 'Summaryception - Ghosting', {
+    return toastr.info(`Hiding messages: 0 / ${total}`, `${TOAST_TITLE} - Ghosting`, {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,
@@ -424,7 +425,7 @@ function createHideProgressToast(options, total) {
  * @returns {unknown}
  */
 function createUnhideProgressToast(total) {
-    return toastr.info(`Unhiding messages: 0 / ${total}`, 'Summaryception - Clearing', {
+    return toastr.info(`Unhiding messages: 0 / ${total}`, `${TOAST_TITLE} - Clearing`, {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,

@@ -1,3 +1,4 @@
+import { TOAST_TITLE } from '../foundation/constants.js';
 import { getContext, getChat } from '../foundation/context.js';
 import { ensureChatScIds, resolveScIdsToIndices } from '../foundation/message-identity.js';
 import {
@@ -592,7 +593,7 @@ function createSummarizationToast(showToasts) {
     if (!showToasts) {
         return () => {};
     }
-    const progressToast = toastr.info('Updating conversation memory…', 'Summaryception', {
+    const progressToast = toastr.info('Updating conversation memory…', TOAST_TITLE, {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,
@@ -607,7 +608,7 @@ function createSummarizationToast(showToasts) {
         toastr.clear(progressToast);
         (success ? toastr.success : toastr.warning)(
             success ? 'Conversation memory updated.' : 'Conversation memory was not updated.',
-            'Summaryception',
+            TOAST_TITLE,
             { timeOut: 3000 },
         );
     };

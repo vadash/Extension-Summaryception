@@ -17,4 +17,6 @@
 - Keep navigation sticky, opaque, keyboard accessible, and text-labelled.
 - Inherit host theme variables and use one restrained accent.
 - Keep status and actions visible without requiring a diagnostics view.
+- Import numeric clamp helpers from the foundation module. Do not reimplement clamp logic locally.
+- Format token counts with the shared compact formatter. Surfaces must agree on rounding.
 - Avoid horizontal scrolling, clipped labels, and missing focus states.

@@ -23,6 +23,7 @@ vi.mock('../src/foundation/state.js', () => stateMocks);
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     hasPromotionOverflow: vi.fn(async () => false),
     maybePromoteLayer: vi.fn(async () => true),
+    drainPromotionOverflow: vi.fn(async () => 'normalized'),
 }));
 vi.mock('../src/core/persist-state.js', () => ({
     flushPendingChatSave: vi.fn(async () => {}),
