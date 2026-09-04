@@ -11,6 +11,7 @@
 import { LOG_PREFIX } from './src/foundation/constants.js';
 import { getContext } from './src/foundation/context.js';
 import { getSettings } from './src/foundation/state.js';
+import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { setInjectionUpdater, setUiUpdater } from './src/core/summarizer.js';
 import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
@@ -46,6 +47,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     setUiUpdater(updateUI);
     setInjectionUpdater(updateInjection, reassertInjectionSnapshot);
     setUiRefresher(updateUI);
+    initSnippetBrowser(updateUI);
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',

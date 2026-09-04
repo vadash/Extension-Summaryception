@@ -1,6 +1,7 @@
 import { populateProfileDropdown } from '../core/connectionutil.js';
 import { getSettings } from '../foundation/state.js';
 import { bindDataSettingElements, bindElementSetting, readString } from './ui-bind.js';
+import { refreshEffectiveSettings } from './ui-events.js';
 
 // Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
 
@@ -17,7 +18,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'default',
         profileId: 'sc_easy_connection_profile',
         profileKey: 'connectionProfileId',
-        updatePanels: updateEasyConnectionSubPanels,
     },
     {
         sourceId: 'sc_easy_merge_connection_source',
@@ -25,7 +25,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'inherit',
         profileId: 'sc_easy_merge_connection_profile',
         profileKey: 'mergeConnectionProfileId',
-        updatePanels: updateEasyMergeConnectionSubPanels,
     },
     {
         sourceId: 'summaryception_connection_source',
@@ -33,7 +32,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'default',
         profileId: 'summaryception_connection_profile',
         profileKey: 'connectionProfileId',
-        updatePanels: updateConnectionSubPanels,
     },
     {
         sourceId: 'summaryception_merge_connection_source',
@@ -41,7 +39,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'inherit',
         profileId: 'summaryception_merge_connection_profile',
         profileKey: 'mergeConnectionProfileId',
-        updatePanels: updateMergeConnectionSubPanels,
     },
     {
         sourceId: 'summaryception_fallback_connection_source',
@@ -49,7 +46,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'disabled',
         profileId: 'summaryception_fallback_connection_profile',
         profileKey: 'fallbackConnectionProfileId',
-        updatePanels: updateFallbackConnectionSubPanels,
     },
 ]);
 
@@ -87,7 +83,7 @@ function bindConnectionSource(settings, binding) {
         eventName: 'change',
         key: binding.sourceKey,
         read: readString,
-        afterSave: (_settings, value) => binding.updatePanels(String(value)),
+        afterSave: refreshEffectiveSettings,
     });
 }
 

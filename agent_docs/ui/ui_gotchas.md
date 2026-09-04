@@ -2,6 +2,9 @@
 
 - Use jQuery for settings queries, delegated events, and rendering.
 - Data attributes declare setting bindings and slider value pairs.
+- Bind each control through one owner. Duplicate bindings cause double saves and double refreshes.
+- Derive panel visibility in the render pass, not in change handlers.
+- Compute route plans and metric counts once per refresh. Pass them to renderers as parameters.
 - Sliders save on input. Text and numeric controls save on change or blur.
 - Keep slider min, max, and step equal to the settings clamp bounds.
 - Operating mode gates runtime behavior. Complexity mode selects the visible panel.

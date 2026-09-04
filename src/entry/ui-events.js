@@ -251,30 +251,6 @@ function bindCustomPlacementHandlers() {
     const customPlacementBindings = [
         {
             eventName: 'change',
-            selector: '#sc_easy_connection_source',
-            key: 'connectionSource',
-            read: readString,
-        },
-        {
-            eventName: 'change',
-            selector: '#sc_easy_connection_profile',
-            key: 'connectionProfileId',
-            read: readString,
-        },
-        {
-            eventName: 'change',
-            selector: '#sc_easy_merge_connection_source',
-            key: 'mergeConnectionSource',
-            read: readString,
-        },
-        {
-            eventName: 'change',
-            selector: '#sc_easy_merge_connection_profile',
-            key: 'mergeConnectionProfileId',
-            read: readString,
-        },
-        {
-            eventName: 'change',
             selector: '#sc_custom_memory_position',
             key: 'customMemoryPosition',
             read: readString,
@@ -301,7 +277,10 @@ function bindCustomPlacementHandlers() {
     }
 }
 
-function refreshEffectiveSettings() {
+/**
+ *
+ */
+export function refreshEffectiveSettings() {
     updateInjection();
     updateUI();
 }

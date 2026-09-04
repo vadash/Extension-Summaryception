@@ -22,7 +22,7 @@ import { executeLayer0StoreTransaction } from './layer0-store-transaction.js';
 import { isSummarizerOutputSafe } from './prompts.js';
 import { parseSnippet } from './summarizer-state.js';
 import { getCurrentStateSnapshotText } from './memory-injection.js';
-import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
+import { formatTokenValue } from './token-count.js';
 import {
     buildSnapshotBasis,
     fingerprintSourceRange,
@@ -77,15 +77,9 @@ export async function summarizeAtomicLayer0Partitions(
     partitions,
     { showToasts = false, catchExceptions = false } = {},
 ) {
-    try {
-        return await summarizeAtomicLayer0PartitionsCore(partitions, { showToasts });
-    } catch (err) {
-        if (!catchExceptions) {
-            throw err;
-        }
-        error('summarizeAtomicLayer0Partitions exception:', err);
-        return false;
-    }
+    return await summarizeSafely(catchExceptions, 'summarizeAtomicLayer0Partitions', () =>
+        summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }),
+    );
 }
 
 /**
@@ -145,7 +139,9 @@ async function summarizeBatchCore({ chat, store, eligibleTurns, opts }) {
         return false;
     }
 
-    return await summarizeBatchSafely({ batch, chat, store, passageStart, endIdx, opts });
+    return await summarizeSafely(opts.catchExceptions, 'summarizeBatchFromTurns', () =>
+        performBatchSummary({ batch, chat, store, passageStart, endIdx, opts }),
+    );
 }
 
 async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
@@ -163,6 +159,12 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
     const snapshots = [];
     const pendingSnippets = [];
     const baseMutationEpoch = getSummaryStoreSnapshotEpoch(store);
+    const createToast = () => {
+        if (snapshots.length === 0) {
+            completeToast = createSummarizationToast(showToasts);
+        }
+        return completeToast;
+    };
 
     for (const partition of usablePartitions) {
         if (getSummaryStoreSnapshotEpoch(store) !== baseMutationEpoch) {
@@ -170,83 +172,139 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
             return false;
         }
 
-        const snapshot = await captureLayer0Snapshot({
+        const job = await runLayer0Summarization({
             chat,
             store,
             passageStart: partition.sourceStartIdx,
             endIdx: partition.sourceEndIdx,
             contextText,
+            metadata: { assistantTurnCount: partition.turns.length },
+            createToast,
         });
-        tracePassageTokens(snapshot);
-        if (!snapshot.passageText.trim()) {
+        if (!job) {
             completeToast(false);
             return false;
         }
 
-        if (snapshots.length === 0) {
-            completeToast = createSummarizationToast(showToasts);
-        }
-        let summary;
-        try {
-            summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
-                kind: 'layer0',
-                sourceRange: snapshot.sourceRange,
-                assistantTurnCount: partition.turns.length,
-                regexStats: snapshot.passageStats,
-                sourceState: snapshot.sourceState,
-            });
-        } catch (err) {
-            completeToast(false);
-            throw err;
-        }
-        if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
-            completeToast(false);
-            return false;
-        }
-
-        snapshots.push(snapshot);
-        pendingSnippets.push(buildLayer0Snippet(snapshot, summary));
+        snapshots.push(job.snapshot);
+        pendingSnippets.push(buildLayer0Snippet(job.snapshot, job.summary));
         contextText = buildPendingLayer0Context(store.layers, pendingSnippets);
     }
 
-    let result;
-    try {
-        result = await commitWhenSafe({
-            kind: 'layer0-atomic-cache',
-            snapshot: snapshots[0],
-            apply: async () => {
-                const committed = await commitAtomicLayer0Snippets({ snapshots, pendingSnippets });
-                completeToast(committed);
-                return committed;
-            },
-        });
-    } catch (err) {
-        completeToast(false);
-        throw err;
-    }
-    return result !== 'stale';
+    return await commitLayer0Job({
+        kind: 'layer0-atomic-cache',
+        snapshot: snapshots[0],
+        toast: completeToast,
+        commit: () => commitAtomicLayer0Snippets({ snapshots, pendingSnippets }),
+    });
 }
 
 /**
- * Summarize a batch and optionally swallow exceptions for catch-up mode.
- * @param {object} p - Batch parameters
+ * Rethrow unless catchExceptions is set; log and report failure otherwise.
+ * @param {boolean} catchExceptions - Swallow exceptions when true
+ * @param {string} source - Caller name used in log prefixes
+ * @param {() => Promise<boolean>} run - Summarization step to run
  * @returns {Promise<boolean>}
  */
-async function summarizeBatchSafely(p) {
+async function summarizeSafely(catchExceptions, source, run) {
     try {
-        return await performBatchSummary(p);
+        return await run();
     } catch (err) {
-        if (!p.opts.catchExceptions) {
+        if (!catchExceptions) {
             throw err;
         }
         trace('  CAUGHT EXCEPTION:', {
             ...serializeError(err),
             stack: err?.stack?.substring?.(0, 200),
         });
-        error('summarizeBatchFromTurns exception:', err);
-        trace('<<< EXITING summarizeBatchFromTurns - EXCEPTION');
+        error(`${source} exception:`, err);
+        trace(`<<< EXITING ${source} - EXCEPTION`);
         return false;
     }
+}
+
+/**
+ * Capture, call the summarizer, and validate one Layer 0 job.
+ * The toast is created only after the passage validates so earlier failures never leak it.
+ * @param {object} p
+ * @param {ChatMessage[]} p.chat - Chat array
+ * @param {SummaryceptionStore} p.store - Chat store
+ * @param {number} p.passageStart - First passage index
+ * @param {number} p.endIdx - Last passage index
+ * @param {string} [p.contextText] - Prebuilt pending context for multi-partition jobs
+ * @param {object} [p.metadata] - Extra callSummarizer options for this job
+ * @param {() => (success: boolean) => void} p.createToast - Toast factory invoked once the passage is valid
+ * @returns {Promise<{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, summary: string, completeToast: (success: boolean) => void} | null>}
+ */
+async function runLayer0Summarization({
+    chat,
+    store,
+    passageStart,
+    endIdx,
+    contextText,
+    metadata,
+    createToast,
+}) {
+    const snapshot = await captureLayer0Snapshot({
+        chat,
+        store,
+        passageStart,
+        endIdx,
+        contextText,
+    });
+    tracePassageTokens(snapshot);
+    if (!snapshot.passageText.trim()) {
+        return null;
+    }
+
+    const completeToast = createToast();
+
+    let summary;
+    try {
+        summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
+            kind: 'layer0',
+            sourceRange: snapshot.sourceRange,
+            regexStats: snapshot.passageStats,
+            sourceState: snapshot.sourceState,
+            ...metadata,
+        });
+    } catch (err) {
+        completeToast(false);
+        throw err;
+    }
+    if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
+        completeToast(false);
+        return null;
+    }
+    return { snapshot, summary, completeToast };
+}
+
+/**
+ * Commit a validated Layer 0 job as soon as the prompt guard allows, reporting on the toast.
+ * @param {object} p
+ * @param {string} p.kind - Commit job kind
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} p.snapshot - Job snapshot
+ * @param {(success: boolean) => void} p.toast - Toast completion callback
+ * @param {() => Promise<boolean>} p.commit - Commit executed inside commitWhenSafe's apply
+ * @returns {Promise<boolean>}
+ */
+async function commitLayer0Job({ kind, snapshot, toast, commit }) {
+    let result;
+    try {
+        result = await commitWhenSafe({
+            kind,
+            snapshot,
+            apply: async () => {
+                const committed = await commit();
+                toast(committed);
+                return committed;
+            },
+        });
+    } catch (err) {
+        toast(false);
+        throw err;
+    }
+    return result !== 'stale';
 }
 
 /**
@@ -255,54 +313,23 @@ async function summarizeBatchSafely(p) {
  * @returns {Promise<boolean>}
  */
 async function performBatchSummary({ chat, store, passageStart, endIdx, opts }) {
-    const snapshot = await captureLayer0Snapshot({ chat, store, passageStart, endIdx });
-    tracePassageTokens(snapshot);
-    if (!snapshot.passageText.trim()) {
-        trace('<<< EXITING summarizeBatchFromTurns - EMPTY PASSAGE');
+    const job = await runLayer0Summarization({
+        chat,
+        store,
+        passageStart,
+        endIdx,
+        createToast: () => createSummarizationToast(opts.showToasts),
+    });
+    if (!job) {
         return false;
     }
 
-    await traceTextTokens('  contextStr tokens:', snapshot.contextText);
-
-    const completeToast = createSummarizationToast(opts.showToasts);
-
-    trace('  About to call callSummarizer...');
-    let summary;
-    try {
-        summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
-            kind: 'layer0',
-            sourceRange: snapshot.sourceRange,
-            regexStats: snapshot.passageStats,
-            sourceState: snapshot.sourceState,
-        });
-    } catch (err) {
-        completeToast(false);
-        throw err;
-    }
-    await traceTextTokens('  summary tokens:', summary || '');
-
-    if (!summary) {
-        debug('Summarization failed for batch, leaving turns intact for next attempt.');
-        trace('<<< EXITING summarizeBatchFromTurns - EMPTY SUMMARY');
-        completeToast(false);
-        return false;
-    }
-    let result;
-    try {
-        result = await commitWhenSafe({
-            kind: 'layer0',
-            snapshot,
-            apply: async () => {
-                const committed = await commitLayer0Snippet({ snapshot, summary });
-                completeToast(committed);
-                return committed;
-            },
-        });
-    } catch (err) {
-        completeToast(false);
-        throw err;
-    }
-    return result !== 'stale';
+    return await commitLayer0Job({
+        kind: 'layer0',
+        snapshot: job.snapshot,
+        toast: job.completeToast,
+        commit: () => commitLayer0Snippet({ snapshot: job.snapshot, summary: job.summary }),
+    });
 }
 
 /**
@@ -324,21 +351,6 @@ function tracePassageTokens(snapshot) {
             stats.rawTokensEstimated,
         )} raw tokens)`,
     );
-}
-
-/**
- * Trace token count for one text value.
- * @param {string} label - Trace label
- * @param {string} text - Text to count
- * @returns {Promise<void>}
- */
-async function traceTextTokens(label, text) {
-    if (!isTraceEnabled()) {
-        return;
-    }
-
-    const tokenCount = await countTextTokens(text || '');
-    trace(label, formatTokenCount(tokenCount));
 }
 
 /**
