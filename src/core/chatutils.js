@@ -216,7 +216,6 @@ async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
  * @param {number} endIndex - Requested end index
  * @param {ExtensionSettings} settings
  * @yields {CountedChatMessage} Counted messages in traversal order
- * @returns {AsyncGenerator<CountedChatMessage>} Counted messages in traversal order
  */
 export async function* countedChatMessages(chat, startIndex, endIndex, settings) {
     const promptDepths = getPromptDepthsByChatIndex(chat);
@@ -298,18 +297,6 @@ function buildPassageResult(accumulator) {
             savedPercent: stats.rawTokens > 0 ? (stats.savedTokens / stats.rawTokens) * 100 : 0,
         },
     };
-}
-
-/**
- * Build passage text from a range of chat messages.
- * @param {ChatMessage[]} chat
- * @param {number} startIdx
- * @param {number} endIdx
- * @returns {Promise<string>}
- */
-export async function buildPassageFromRange(chat, startIdx, endIdx) {
-    const passage = await buildPassageFromRangeWithStats(chat, startIdx, endIdx);
-    return passage.text;
 }
 
 /**

@@ -79,15 +79,6 @@ export async function summarizeAtomicLayer0Partitions(
 }
 
 /**
- * Summarize one batch from pre-computed turns with exception catching.
- * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
- * @returns {Promise<boolean>}
- */
-export async function summarizeOneBatchFromTurns(visibleTurns) {
-    return await summarizeBatchFromTurns(visibleTurns, { catchExceptions: true });
-}
-
-/**
  * Repair ghosting for turns already marked as summarized.
  * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
  * @param {number} boundaryIndex

@@ -103,31 +103,6 @@ function bindConnectionProfile(settings, binding) {
 function bindConnectionInputs() {
     bindDataSettingElements(CONNECTION_DATA_SETTING_SELECTOR, {
         eventName: 'input',
-        beforeSave: syncMatchingConnectionInputs,
-    });
-}
-
-/**
- * Keep duplicate controls with the same saved connection setting visually in sync.
- * @param {ReturnType<typeof getSettings>} _settings
- * @param {unknown} value
- * @param {object} $source
- * @returns {void}
- */
-function syncMatchingConnectionInputs(_settings, value, $source) {
-    const key = String($source.attr('data-sc-setting') ?? '');
-    if (!key) {
-        return;
-    }
-    const sourceElement = $source[0];
-    $(CONNECTION_DATA_SETTING_SELECTOR).each(function () {
-        if (this === sourceElement) {
-            return;
-        }
-        const $element = $(this);
-        if ($element.attr('data-sc-setting') === key) {
-            $element.val(String(value));
-        }
     });
 }
 

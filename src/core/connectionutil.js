@@ -93,15 +93,6 @@ export function populateProfileDropdown(
 }
 
 /**
- * Get a human-readable name for the current connection source.
- * @param {ExtensionSettings} settings
- * @returns {string}
- */
-export function getConnectionDisplayName(settings) {
-    return getConnectionProvider(settings.connectionSource).displayName(settings);
-}
-
-/**
  * Resolve the connection settings that should be used for one summarizer call.
  * @param {ExtensionSettings} settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]

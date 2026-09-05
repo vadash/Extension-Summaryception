@@ -1,4 +1,3 @@
-import { summarizeBatchFromTurns } from './summarizer-batch.js';
 import { abortCurrentSummarizerRequest } from './summarizer-request.js';
 import { SummarizerQueue } from './summarizer-queue.js';
 import { withUsageRun } from './summarizer-usage.js';
@@ -17,7 +16,6 @@ import {
 } from './summarizer-commit.js';
 
 export { callSummarizer, hasActiveAbortController } from './summarizer-request.js';
-export { summarizeOneBatchFromTurns } from './summarizer-batch.js';
 export { maybePromoteLayer } from './summarizer-promotion.js';
 export { recoverStalePromptFreeze, resetPromptMutationGuard } from './summarizer-commit.js';
 
@@ -138,23 +136,6 @@ export function requestSummarization({ reason: _reason = 'auto', mode: _mode = '
  */
 export async function maybeSummarizeTurns() {
     await requestSummarization({ reason: 'maybe-summarize', mode: 'auto' });
-}
-
-/**
- * Summarize a single batch of turns in normal mode, with toasts.
- * @param {import('./chatutils.js').AssistantTurn[]} visibleTurns
- * @returns {Promise<boolean>}
- */
-export async function summarizeOneBatch(visibleTurns) {
-    return await withUsageRun('manual batch', async () => {
-        summarizerQueue.setSummarizing(true);
-        try {
-            return await summarizeBatchFromTurns(visibleTurns, { showToasts: true });
-        } finally {
-            summarizerQueue.setSummarizing(false);
-            await flushPendingChatSave();
-        }
-    });
 }
 
 /**

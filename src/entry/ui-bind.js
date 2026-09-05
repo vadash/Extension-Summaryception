@@ -1,4 +1,5 @@
 import { getSettings, saveSettings } from '../foundation/state.js';
+import { formatCompactTokenCount } from '../core/token-count.js';
 
 export const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setting]';
 
@@ -282,7 +283,7 @@ function syncSliderSettingPair(binding, settings) {
     const $slider = $(binding.sliderSelector);
     const value = normalizeSliderValue(settings[binding.key], $slider);
     $slider.val(value);
-    $(binding.partnerSelector).val(formatSliderChipValue(value, $slider));
+    $(binding.partnerSelector).val(formatCompactTokenCount(value));
 }
 
 /**
@@ -320,14 +321,6 @@ function parseSliderInputValue(value, { min, step }) {
 function parseSliderAttr(slider, attr, fallback) {
     const parsed = Number.parseFloat(String(slider.attr(attr)));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function formatSliderChipValue(value, slider) {
-    const step = parseSliderAttr(slider, 'step', 1);
-    if (step >= 1000 && value % 1000 === 0) {
-        return `${value / 1000}k`;
-    }
-    return String(value);
 }
 
 /**

@@ -78,14 +78,6 @@ export function isPromptMutationFrozen() {
 }
 
 /**
- * Get the current foreground generation epoch.
- * @returns {number}
- */
-export function getPromptMutationEpoch() {
-    return generationEpoch;
-}
-
-/**
  * Check whether a prompt mutation may start for the captured epoch.
  * @param {number} epoch
  * @returns {boolean}
@@ -163,17 +155,6 @@ export async function updateCommittedInjection(options = {}) {
 }
 
 /**
- * Reassert the last committed injection without recomputing from in-flight work.
- * @returns {void}
- */
-export function reassertCommittedInjection() {
-    if (isPromptMutationFrozen()) {
-        return;
-    }
-    reassertCommittedInjectionIfOpen();
-}
-
-/**
  * Queue a prompt-affecting effect until foreground generation finishes.
  * @param {PendingPromptEffect} effect
  * @returns {void}
@@ -206,22 +187,6 @@ export async function runPromptEffect(effect) {
 
     const completed = await effect.apply({ epoch });
     return completed ? 'applied' : 'queued';
-}
-
-/**
- * Get the number of commits waiting for the foreground guard to open.
- * @returns {number}
- */
-export function getPendingCommitCount() {
-    return pendingCommits.length;
-}
-
-/**
- * Get the number of prompt effects waiting for the foreground guard to open.
- * @returns {number}
- */
-export function getPendingPromptEffectCount() {
-    return pendingPromptEffects.length;
 }
 
 /**

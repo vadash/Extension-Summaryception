@@ -57,22 +57,9 @@ export async function updateUI() {
         const ghostedCount = getGhostedCount();
         const metrics = getLayerMetrics(store);
 
-        await renderStatusOverview(
-            'sc_status',
-            'enabled',
-            effectiveSettings,
-            plan,
-            ghostedCount,
-            metrics,
-        );
-        await renderStatusOverview(
-            'sc_easy_status',
-            'mode',
-            effectiveSettings,
-            plan,
-            ghostedCount,
-            metrics,
-        );
+        const overview = { settings: effectiveSettings, plan, ghostedCount, metrics };
+        await renderStatusOverview('sc_status', 'enabled', overview);
+        await renderStatusOverview('sc_easy_status', 'mode', overview);
         await renderBudgetStatus(effectiveSettings, store, plan);
         await renderMemoryBudget(effectiveSettings, store, 'easy_memory');
         renderLayerStats(effectiveSettings, store, ghostedCount);
@@ -156,12 +143,12 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
     const $l0Value = $('#sc_llm_context_l0');
     const $l1Value = $('#sc_llm_context_l1');
     $mainValue.text(
-        `${formatContextTokenCount(model.mainMin)} → ${formatContextTokenCount(model.mainMax)} + ST prompt`,
+        `${formatCompactTokenCount(model.mainMin)} → ${formatCompactTokenCount(model.mainMax)} + ST prompt`,
     );
     $l0Value.text(
-        `~${formatContextTokenCount(l0Typical)} (Max ~${formatContextTokenCount(l0Max)})`,
+        `~${formatCompactTokenCount(l0Typical)} (Max ~${formatCompactTokenCount(l0Max)})`,
     );
-    $l1Value.text(`Max ~${formatContextTokenCount(l1Total)} tokens`);
+    $l1Value.text(`Max ~${formatCompactTokenCount(l1Total)} tokens`);
     setContextValueColor($mainValue, model.mainMax);
     setContextValueColor($l0Value, l0Typical);
     setContextValueColor($l1Value, l1Total);
@@ -170,10 +157,6 @@ export function syncLLMContextPreview(s = getEffectiveSettings()) {
 function readTokenSetting(settings, key) {
     const number = Number(settings[key]);
     return Number.isFinite(number) ? number : defaultSettings[key];
-}
-
-function formatContextTokenCount(tokens) {
-    return formatCompactTokenCount(tokens);
 }
 
 function setContextValueColor($element, tokens) {
@@ -206,7 +189,8 @@ function syncConnectionPanels(s) {
     updateFallbackConnectionSubPanels(s.fallbackConnectionSource || 'disabled');
 }
 
-async function renderStatusOverview(prefix, modeField, s, plan, ghostedCount, metrics) {
+async function renderStatusOverview(prefix, modeField, overview) {
+    const { settings: s, plan, ghostedCount, metrics } = overview;
     $(`#${prefix}_${modeField}`).text(getModeLabel(s));
     $(`#${prefix}_worker`).text(await getWorkerLabel(s, plan));
     $(`#${prefix}_snippets`).text(String(metrics.totalSnippets));

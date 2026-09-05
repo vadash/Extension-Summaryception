@@ -42,7 +42,9 @@ export function appendRepairFeedback(prompt, repairFeedback) {
 }
 
 /**
- *
+ * Run one summarizer request attempt through guard, send, and result processing.
+ * @param {object} params - Attempt inputs for the route state machine.
+ * @returns {Promise<object>} Attempt outcome with status, result, error, and retry flags.
  */
 export async function runSingleAttempt(params) {
     if (params.attempt > 0) {

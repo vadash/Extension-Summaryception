@@ -1,8 +1,6 @@
 import { serializeError } from '../foundation/logger.js';
 import { isHardNetworkError } from './request-retry-policy.js';
 
-export const CONNECTION_MODULE_NAME = '[Summaryception][Connection]';
-
 /**
  * Error class for connection errors with explicit retryable flag.
  * The retry logic checks this to avoid burning through retries on errors that
