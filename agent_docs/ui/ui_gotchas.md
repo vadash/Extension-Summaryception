@@ -8,6 +8,8 @@
 - Sliders save on input. Text and numeric controls save on change or blur.
 - Keep slider min, max, and step equal to the settings clamp bounds.
 - Operating mode gates runtime behavior. Complexity mode selects the visible panel.
+- Bind plain settings through the data-attribute engine. Hand-bind only controls with special semantics.
+- One layer-label helper serves status panel, snippet browser, and slash commands.
 - Keep the selected panel editable while the extension is Off.
 - Show the Off banner beside the selected panel.
 - Open the Status tab on every startup.
