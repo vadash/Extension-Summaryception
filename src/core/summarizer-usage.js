@@ -201,15 +201,15 @@ function logRunMax(run) {
 
     debug(
         `LLM run ${run.label} max call: #${maxCall.callNumber} ` +
-            `${describeCall(maxCall.metadata)} total=${formatUsageTokenCount(
+            `${describeCall(maxCall.metadata)} total=${formatTokenValue(
                 maxCall.totalTokens,
                 isTotalEstimated(maxCall),
             )} ` +
-            `tokens (prompt=${formatUsageTokenCount(
+            `tokens (prompt=${formatTokenValue(
                 maxCall.promptTokens,
                 maxCall.promptTokensEstimated,
             )}, ` +
-            `completion=${formatUsageTokenCount(
+            `completion=${formatTokenValue(
                 maxCall.completionTokens,
                 maxCall.completionTokensEstimated,
             )})`,
@@ -246,9 +246,9 @@ function formatCallUsageLine(entry) {
     const statsPart = statsParts.length > 0 ? `; ${statsParts.join('; ')}` : '';
     return (
         `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
-        `input ${formatUsageTokenCount(inputTokens.count, inputTokens.estimated)}, ` +
-        `prompt ${formatUsageTokenCount(promptTokens.count, promptTokens.estimated)}, ` +
-        `output ${formatUsageTokenCount(
+        `input ${formatTokenValue(inputTokens.count, inputTokens.estimated)}, ` +
+        `prompt ${formatTokenValue(promptTokens.count, promptTokens.estimated)}, ` +
+        `output ${formatTokenValue(
             entry.completionTokens,
             entry.completionTokensEstimated,
         )}${statsPart}`
@@ -346,7 +346,7 @@ function formatPromotionOverflowStats(metadata = {}) {
         `${formatOverflowValue(metadata.overflowMemoryCount)}/${formatOverflowValue(
             metadata.overflowMemoryLimit,
         )} memories, ` +
-        `${formatUsageTokenCount(metadata.overflowTokens)}/${formatUsageTokenCount(
+        `${formatTokenValue(metadata.overflowTokens)}/${formatTokenValue(
             metadata.overflowTokenQuota,
         )} tokens`
     );
@@ -418,16 +418,6 @@ function formatRegexStats(metadata = {}) {
 }
 
 /**
- * Format an optional token count.
- * @param {number | null | undefined} count - Token count
- * @param {boolean} [estimated] - Whether the count came from fallback estimation
- * @returns {string}
- */
-function formatUsageTokenCount(count, estimated = false) {
-    return formatTokenValue(count, estimated);
-}
-
-/**
  * Check whether a total token count includes estimated values.
  * @param {SummarizerUsageInput} entry - Usage entry
  * @returns {boolean}
@@ -458,7 +448,7 @@ function formatNumber(value, digits) {
  * @param {[number, number] | undefined} range - Source range
  * @returns {string}
  */
-function formatRange(range) {
+export function formatRange(range) {
     if (!Array.isArray(range) || range.length < 2) {
         return '?';
     }
@@ -471,7 +461,7 @@ function formatRange(range) {
  * @param {string} singular - Singular label
  * @returns {string}
  */
-function formatCount(count, singular) {
+export function formatCount(count, singular) {
     if (typeof count !== 'number' || !Number.isFinite(count)) {
         return `? ${singular}s`;
     }

@@ -1,10 +1,5 @@
 import { defaultSettings } from '../foundation/constants.js';
-import {
-    countProcessedMessage,
-    getPromptDepthsByChatIndex,
-    isSummarizerConversationMessage,
-    iterateChatRange,
-} from './chatutils.js';
+import { countedChatMessages } from './chatutils.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
 const MIN_L0_SOURCE_TOKENS = 2000;
@@ -70,20 +65,12 @@ export async function buildLayer0Partitions({
  */
 export async function countSourceRangeTokens(chat, startIdx, endIdx, settings) {
     const stats = createBudgetStats();
-    const promptDepths = getPromptDepthsByChatIndex(chat);
-
     if (endIdx < startIdx) {
         return stats;
     }
 
-    for (const { index, message } of iterateChatRange(chat, startIdx, endIdx)) {
-        if (!isSummarizerConversationMessage(message)) {
-            continue;
-        }
-        addBudgetStats(
-            stats,
-            await countProcessedMessage(message, promptDepths.get(index), settings),
-        );
+    for await (const entry of countedChatMessages(chat, startIdx, endIdx, settings)) {
+        addBudgetStats(stats, entry.stats);
     }
 
     return stats;

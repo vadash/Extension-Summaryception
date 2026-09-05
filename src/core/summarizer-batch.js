@@ -9,11 +9,7 @@ import {
 } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
 import { ghostMessagesInRange, repairGhostingForRange } from './ghosting.js';
-import {
-    buildMemoryInjection,
-    buildPassageFromRangeWithStats,
-    buildFullContext,
-} from './chatutils.js';
+import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromState } from './snippet-metadata.js';
@@ -21,7 +17,7 @@ import { commitWhenSafe, updateCommittedInjection } from './summarizer-commit.js
 import { executeLayer0StoreTransaction } from './layer0-store-transaction.js';
 import { isSummarizerOutputSafe } from './prompts.js';
 import { parseSnippet } from './summarizer-state.js';
-import { getCurrentStateSnapshotText } from './memory-injection.js';
+import { buildMemoryInjection, getCurrentStateSnapshotText } from './memory-injection.js';
 import { formatTokenValue } from './token-count.js';
 import {
     buildSnapshotBasis,

@@ -72,7 +72,7 @@ export async function updateUI() {
             metrics,
         );
         await renderBudgetStatus(effectiveSettings, store, plan);
-        await renderEasyBudgetStatus(effectiveSettings, store);
+        await renderMemoryBudget(effectiveSettings, store, 'easy_memory');
         renderLayerStats(effectiveSettings, store, ghostedCount);
         await renderPreview();
         updateSnippetBrowser();
@@ -343,21 +343,32 @@ async function renderBudgetStatus(s, store, plan) {
     await renderMemoryBudget(s, store);
 }
 
-async function renderEasyBudgetStatus(s, store) {
-    await renderMemoryBudget(s, store, {
-        total: '#sc_easy_memory_budget_total',
-        bar: '#sc_easy_memory_budget_bar',
-        legend: '#sc_easy_memory_budget_legend',
-    });
+/**
+ * Render a context budget card into the `#sc_<prefix>_budget_{total,bar,legend}`
+ * selector triple, clearing it when the view model cannot be built.
+ * @param {string} prefix
+ * @param {Function} build - Returns the buildContextBudgetViewModel inputs.
+ * @returns {Promise<void>}
+ */
+async function renderBudgetCard(prefix, build) {
+    const total = `#sc_${prefix}_budget_total`;
+    const bar = `#sc_${prefix}_budget_bar`;
+    const legend = `#sc_${prefix}_budget_legend`;
+    try {
+        renderBudgetView(buildContextBudgetViewModel(await build()), { total, bar, legend });
+    } catch (e) {
+        warn(`${prefix} budget render error:`, e);
+        clearBudgetView(total, bar, legend);
+    }
 }
 
 async function renderVerbatimBudget(s, plan) {
-    try {
+    await renderBudgetCard('verbatim', () => {
         if (!plan) {
             throw new Error('Summary route plan unavailable');
         }
         const stats = plan.rawPlan.verbatimStats || { finalTokens: 0, finalTokensEstimated: false };
-        const view = buildContextBudgetViewModel({
+        return {
             budget: s.verbatimTokenBudget,
             verbatim: {
                 label: 'Recent Chat',
@@ -366,34 +377,17 @@ async function renderVerbatimBudget(s, plan) {
                 estimated: stats.finalTokensEstimated,
             },
             layers: [],
-        });
-        renderBudgetView(view, {
-            total: '#sc_verbatim_budget_total',
-            bar: '#sc_verbatim_budget_bar',
-            legend: '#sc_verbatim_budget_legend',
-        });
-    } catch (e) {
-        warn('Verbatim budget render error:', e);
-        clearBudgetView(
-            '#sc_verbatim_budget_total',
-            '#sc_verbatim_budget_bar',
-            '#sc_verbatim_budget_legend',
-        );
-    }
+        };
+    });
 }
 
 async function renderTriggerGauge(s, plan) {
-    const targets = {
-        total: '#sc_trigger_budget_total',
-        bar: '#sc_trigger_budget_bar',
-        legend: '#sc_trigger_budget_legend',
-    };
-    try {
+    await renderBudgetCard('trigger', () => {
         if (!plan) {
             throw new Error('Summary route plan unavailable');
         }
         const model = buildTriggerGaugeModel(plan, s);
-        const view = buildContextBudgetViewModel({
+        return {
             budget: model.triggerTokens,
             verbatim: {
                 label: 'Queued',
@@ -403,12 +397,8 @@ async function renderTriggerGauge(s, plan) {
             },
             layers: [],
             marker: { positionTokens: model.triggerTokens, label: model.label },
-        });
-        renderBudgetView(view, targets);
-    } catch (e) {
-        warn('Trigger gauge render error:', e);
-        clearBudgetView(targets.total, targets.bar, targets.legend);
-    }
+        };
+    });
 }
 
 /**
@@ -427,27 +417,15 @@ export function buildTriggerGaugeModel(plan, s) {
     };
 }
 
-async function renderMemoryBudget(
-    s,
-    store,
-    targets = {
-        total: '#sc_memory_budget_total',
-        bar: '#sc_memory_budget_bar',
-        legend: '#sc_memory_budget_legend',
-    },
-) {
-    try {
+async function renderMemoryBudget(s, store, prefix = 'memory') {
+    await renderBudgetCard(prefix, async () => {
         const usage = await getEffectiveMemoryUsage(store.layers, s);
-        const view = buildContextBudgetViewModel({
+        return {
             budget: s.memoryTokenBudget,
             verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
             layers: orderMemoryBudgetParts(usage.parts),
-        });
-        renderBudgetView(view, targets);
-    } catch (e) {
-        warn('Memory budget render error:', e);
-        clearBudgetView(targets.total, targets.bar, targets.legend);
-    }
+        };
+    });
 }
 
 function orderMemoryBudgetParts(parts) {

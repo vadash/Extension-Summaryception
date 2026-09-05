@@ -1,11 +1,5 @@
 import { getCurrentSummarizedBoundary } from '../foundation/state.js';
-import {
-    countProcessedMessage,
-    getPromptDepthsByChatIndex,
-    isSummarizerConversationMessage,
-    iterateChatRange,
-    toAssistantTurn,
-} from './chatutils.js';
+import { countedChatMessages, toAssistantTurn } from './chatutils.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
@@ -120,19 +114,20 @@ async function collectLiveData(chat, sourceStartIdx, settings) {
     const liveStats = createBudgetStats();
     const entries = [];
     const visibleTurns = [];
-    const promptDepths = getPromptDepthsByChatIndex(chat);
 
-    for (const { index, message } of iterateChatRange(chat, sourceStartIdx, chat.length - 1)) {
-        if (!isSummarizerConversationMessage(message)) {
-            continue;
-        }
-        const stats = await countProcessedMessage(message, promptDepths.get(index), settings);
+    for await (const { index, message, stats } of countedChatMessages(
+        chat,
+        sourceStartIdx,
+        chat.length - 1,
+        settings,
+    )) {
         addBudgetStats(liveStats, stats);
         entries.push({ index, message, stats });
         if (!message.is_user) {
             visibleTurns.push(toAssistantTurn(message, index));
         }
     }
+
     return { entries, liveStats, visibleTurns };
 }
 

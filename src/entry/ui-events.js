@@ -427,11 +427,19 @@ async function onForceSummarize() {
     await executeForceSummarize($(this));
 }
 
+const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
+
 /**
- * Build the shared abort/progress wiring for a manual summarization run.
- * @returns {{ options: object, clearProgressToast: () => void }}
+ * Shared manual-run driver: busy button, abort/progress wiring, outcome
+ * report, injection refresh, reload, and UI update. `run` receives the
+ * engine options carrying the abort signal; returning undefined skips the
+ * outcome report (nothing ran).
+ * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
+ * @param {string} idleHtml Button html restored after the run.
+ * @param {{ run: (options: object) => Promise<object | undefined>, report: (outcome: object) => void }} ops
+ * @returns {Promise<void>}
  */
-function makeManualRunOptions() {
+async function runManualSummarization($button, idleHtml, { run, report }) {
     const controller = new AbortController();
     let progressToast = null;
     const options = {
@@ -444,10 +452,23 @@ function makeManualRunOptions() {
         },
         onProgress: (progress) => updateManualProgressToast(progressToast, progress),
     };
-    return {
-        options,
-        clearProgressToast: () => clearManualProgressToast(progressToast),
-    };
+    if ($button) {
+        $button.prop('disabled', true).html(MANUAL_RUN_BUSY_HTML);
+    }
+    try {
+        const outcome = await run(options);
+        if (outcome !== undefined) {
+            report(outcome);
+            updateInjection();
+            reloadAfterManualRun(outcome);
+        }
+    } finally {
+        clearManualProgressToast(progressToast);
+        if ($button) {
+            $button.prop('disabled', false).html(idleHtml);
+        }
+        updateUI();
+    }
 }
 
 /**
@@ -469,26 +490,6 @@ function guardManualRun(s) {
 }
 
 /**
- * Disable a button with busy html while `fn` runs. Restore the idle html after.
- * @param {object | null} $button jQuery-wrapped button, or null to skip.
- * @param {{ busy: string, idle: string }} html Busy and idle button html.
- * @param {() => Promise<void>} fn Work to run while the button is busy.
- * @returns {Promise<void>}
- */
-async function withBusyButton($button, { busy, idle }, fn) {
-    if ($button) {
-        $button.prop('disabled', true).html(busy);
-    }
-    try {
-        await fn();
-    } finally {
-        if ($button) {
-            $button.prop('disabled', false).html(idle);
-        }
-    }
-}
-
-/**
  * Run Force Summarize from a panel button or the stale-cache advice toast.
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @returns {Promise<void>}
@@ -498,14 +499,11 @@ async function executeForceSummarize($button) {
     if (!guardManualRun(s)) {
         return;
     }
-    try {
-        await withBusyButton(
-            $button,
-            {
-                busy: '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>',
-                idle: '<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>',
-            },
-            async () => {
+    await runManualSummarization(
+        $button,
+        '<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>',
+        {
+            run: async (options) => {
                 const plan = await buildForceSummaryRoutePlan(getChat(), getChatStore(), s);
 
                 if (!plan.ready) {
@@ -518,19 +516,11 @@ async function executeForceSummarize($button) {
                     timeOut: 2000,
                 });
 
-                const manual = makeManualRunOptions();
-                const outcome = await runManualWithProgress(
-                    () => runCatchup(manual.options),
-                    manual.clearProgressToast,
-                );
-                showCatchupOutcome(outcome);
-                updateInjection();
-                reloadAfterManualRun(outcome);
+                return runCatchup(options);
             },
-        );
-    } finally {
-        updateUI();
-    }
+            report: showCatchupOutcome,
+        },
+    );
 }
 
 /**
@@ -552,27 +542,14 @@ async function onSlopBreaker() {
         return;
     }
 
-    try {
-        await withBusyButton(
-            $(this),
-            {
-                busy: '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>',
-                idle: '<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>',
-            },
-            async () => {
-                const manual = makeManualRunOptions();
-                const outcome = await runManualWithProgress(
-                    () => runSlopBreaker(manual.options),
-                    manual.clearProgressToast,
-                );
-                showSlopBreakerOutcome(outcome);
-                updateInjection();
-                reloadAfterManualRun(outcome);
-            },
-        );
-    } finally {
-        updateUI();
-    }
+    await runManualSummarization(
+        $(this),
+        '<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>',
+        {
+            run: (options) => runSlopBreaker(options),
+            report: showSlopBreakerOutcome,
+        },
+    );
 }
 
 function showManualCacheWarning(settings) {
@@ -584,20 +561,6 @@ function showManualCacheWarning(settings) {
         TOAST_TITLE,
         { timeOut: 5000 },
     );
-}
-
-/**
- * Clear progress UI even if a manual run throws.
- * @param {() => Promise<object>} run
- * @param {() => void} cleanup
- * @returns {Promise<object>}
- */
-async function runManualWithProgress(run, cleanup) {
-    try {
-        return await run();
-    } finally {
-        cleanup();
-    }
 }
 
 /**
@@ -701,13 +664,6 @@ function onResetDefaults() {
 
     const s = getSettings();
     const preservedMemoryMode = s.memoryMode;
-    const preservedCustomMemoryPosition = s.customMemoryPosition;
-    const preservedCustomMemoryRole = s.customMemoryRole;
-    const preservedCustomMemoryDepth = s.customMemoryDepth;
-    s.memoryMode = preservedMemoryMode;
-    s.customMemoryPosition = preservedCustomMemoryPosition;
-    s.customMemoryRole = preservedCustomMemoryRole;
-    s.customMemoryDepth = preservedCustomMemoryDepth;
     s.minSummaryTurns = defaultSettings.minSummaryTurns;
     s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
     s.maxL0SourceTokens = defaultSettings.maxL0SourceTokens;
@@ -871,16 +827,14 @@ function bindPromptPresetSelect(field) {
 }
 
 function bindPromptTextarea(field) {
-    for (const eventName of ['input', 'change']) {
-        $(document).on(eventName, field.textarea, function () {
-            const s = getSettings();
-            const currentText = $(this).val();
-            s[field.settingKey] = currentText;
+    $(document).on('input change', field.textarea, function () {
+        const s = getSettings();
+        const currentText = $(this).val();
+        s[field.settingKey] = currentText;
 
-            switchPromptFieldToCustom(field, s);
-            saveSettings();
-        });
-    }
+        switchPromptFieldToCustom(field, s);
+        saveSettings();
+    });
 }
 
 function switchPromptFieldToCustom(field, settings) {

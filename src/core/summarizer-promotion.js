@@ -460,39 +460,50 @@ async function validatePromotionCandidate({
     sourceTokens: providedSourceTokens,
 }) {
     const sourceTokens = providedSourceTokens || (await countTextTokens(sourceNarrativeText));
+    const sizeValidation = await validatePromotionSize({
+        layerIndex,
+        promotedSnippet,
+        settings,
+        sourceTokens,
+    });
+    if (!sizeValidation.valid) {
+        return sizeValidation;
+    }
+    return validatePromotionCompressesMemory({ layerIndex, mergeCount, promotedSnippet, settings });
+}
+
+async function validatePromotionSize({ layerIndex, promotedSnippet, settings, sourceTokens }) {
     if (!isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens })) {
         return { valid: false, reason: 'integrity' };
     }
-
     const outputTokens = await countTextTokens(promotedSnippet.text);
     const targetTokens = getLayer0SummaryTokenTarget(settings);
     const minTokens = getPromotionSummaryTokenTarget({ layerIndex, targetTokens });
     const hardMaxTokens = getPromotionSummaryTokenHardMax({ layerIndex, targetTokens });
-    if (outputTokens.count > hardMaxTokens) {
-        return rejectPromotionOverHardMax({
+    const tooShort = outputTokens.count < minTokens;
+    if (outputTokens.count > hardMaxTokens || tooShort) {
+        return rejectPromotionSize({
             layerIndex,
             promotedSnippet,
             sourceTokens,
             outputTokens,
             minTokens,
             hardMaxTokens,
+            tooShort,
         });
     }
+    return { valid: true };
+}
 
-    if (outputTokens.count < minTokens) {
-        return rejectPromotionBelowMin({
-            layerIndex,
-            promotedSnippet,
-            sourceTokens,
-            outputTokens,
-            minTokens,
-            hardMaxTokens,
-        });
-    }
-
+async function validatePromotionCompressesMemory({
+    layerIndex,
+    mergeCount,
+    promotedSnippet,
+    settings,
+}) {
     const store = getChatStore();
     const memoryTokensBefore = await getEffectiveMemoryUsage(store.layers, settings);
-    const nextLayers = buildHypotheticalPromotionLayers(
+    const nextLayers = buildHypotheticalLayersAfterPromotion(
         store.layers,
         layerIndex,
         mergeCount,
@@ -502,7 +513,6 @@ async function validatePromotionCandidate({
     if (memoryTokensAfter.total.count < memoryTokensBefore.total.count) {
         return { valid: true };
     }
-
     warn(
         `Promotion L${layerIndex} rejected: memory did not compress ` +
             `(${formatTokenValue(
@@ -529,13 +539,14 @@ function isPromotionSummarySafe({ layerIndex, promotedSnippet, sourceTokens }) {
     );
 }
 
-function rejectPromotionOverHardMax({
+function rejectPromotionSize({
     layerIndex,
     promotedSnippet,
     sourceTokens,
     outputTokens,
     minTokens,
     hardMaxTokens,
+    tooShort,
 }) {
     const diagnostics = buildRepairDiagnostics({
         scope: 'Layer 1+ promotion',
@@ -547,9 +558,11 @@ function rejectPromotionOverHardMax({
                 actualTokens: outputTokens.count,
                 targetTokens: minTokens,
                 hardMaxTokens,
+                ...(tooShort ? { minimumTokens: minTokens } : {}),
                 text: promotedSnippet.text,
-                repairInstruction:
-                    'rewrite as macro-level prose only; remove dialogue, scene replay, micro-actions, and transient detail',
+                repairInstruction: tooShort
+                    ? 'expand the fold: it over-merged; restore the dropped durable beats'
+                    : 'rewrite as macro-level prose only; remove dialogue, scene replay, micro-actions, and transient detail',
                 preservationInstruction:
                     'retain only macro-level durable chronology and continuity',
             },
@@ -557,15 +570,20 @@ function rejectPromotionOverHardMax({
         rejectedDraft: promotedSnippet.text,
     });
     warn(
-        `Promotion L${layerIndex} rejected: output exceeded the compression hard maximum ` +
-            `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
-            `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens; ` +
-            `target ${formatTokenValue(minTokens, sourceTokens.estimated)}, ` +
-            `hard maximum ${formatTokenValue(hardMaxTokens, sourceTokens.estimated)}).`,
+        tooShort
+            ? `Promotion L${layerIndex} rejected: output under the over-merge floor ` +
+                  `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
+                  `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens; ` +
+                  `minimum ${formatTokenValue(minTokens, sourceTokens.estimated)}).`
+            : `Promotion L${layerIndex} rejected: output exceeded the compression hard maximum ` +
+                  `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
+                  `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens; ` +
+                  `target ${formatTokenValue(minTokens, sourceTokens.estimated)}, ` +
+                  `hard maximum ${formatTokenValue(hardMaxTokens, sourceTokens.estimated)}).`,
     );
     return {
         valid: false,
-        reason: 'compression-ratio',
+        reason: tooShort ? 'too-short' : 'compression-ratio',
         sourceTokens,
         outputTokens,
         targetTokens: minTokens,
@@ -575,63 +593,19 @@ function rejectPromotionOverHardMax({
     };
 }
 
-function rejectPromotionBelowMin({
-    layerIndex,
-    promotedSnippet,
-    sourceTokens,
-    outputTokens,
-    minTokens,
-    hardMaxTokens,
-}) {
-    const diagnostics = buildRepairDiagnostics({
-        scope: 'Layer 1+ promotion',
-        totalTokens: outputTokens.count,
-        sections: [
-            {
-                id: 'draft',
-                label: '[NARRATIVE]',
-                actualTokens: outputTokens.count,
-                targetTokens: minTokens,
-                hardMaxTokens,
-                minimumTokens: minTokens,
-                text: promotedSnippet.text,
-                repairInstruction:
-                    'expand the fold: it over-merged; restore the dropped durable beats',
-                preservationInstruction:
-                    'retain only macro-level durable chronology and continuity',
-            },
-        ],
-        rejectedDraft: promotedSnippet.text,
-    });
-    warn(
-        `Promotion L${layerIndex} rejected: output under the over-merge floor ` +
-            `(${formatTokenValue(sourceTokens.count, sourceTokens.estimated)}->` +
-            `${formatTokenValue(outputTokens.count, outputTokens.estimated)} tokens; ` +
-            `minimum ${formatTokenValue(minTokens, sourceTokens.estimated)}).`,
-    );
-    return {
-        valid: false,
-        reason: 'too-short',
-        sourceTokens,
-        outputTokens,
-        targetTokens: minTokens,
-        hardMaxTokens,
-        requiredMaxTokens: hardMaxTokens,
-        diagnostics,
-    };
-}
-
-function buildHypotheticalPromotionLayers(layers, layerIndex, mergeCount, promotedSnippet) {
+function buildHypotheticalLayersAfterPromotion(layers, layerIndex, mergeCount, promotedSnippet) {
     const sourceLayers = Array.isArray(layers) ? layers : [];
     const nextLayers = sourceLayers.map((layer) => (Array.isArray(layer) ? [...layer] : layer));
     const sourceLayer = Array.isArray(nextLayers[layerIndex]) ? [...nextLayers[layerIndex]] : [];
+    sourceLayer.splice(0, mergeCount);
+    nextLayers[layerIndex] = sourceLayer;
+    if (!promotedSnippet) {
+        return nextLayers;
+    }
     const destLayer = Array.isArray(nextLayers[layerIndex + 1])
         ? [...nextLayers[layerIndex + 1]]
         : [];
-
-    sourceLayer.splice(0, mergeCount);
     destLayer.push(promotedSnippet);
-    nextLayers[layerIndex] = sourceLayer;
     nextLayers[layerIndex + 1] = destLayer;
     return nextLayers;
 }
@@ -647,20 +621,11 @@ async function wouldViolateLayer0RetentionFloor({
         return false;
     }
 
-    const projectedLayers = buildHypotheticalLayer0AfterPromotion(layers, mergeCount);
+    const projectedLayers = buildHypotheticalLayersAfterPromotion(layers, 0, mergeCount);
     const usage = await getEffectiveMemoryUsage(projectedLayers, settings);
     const projectedTokens = getTokenCountsByLayer(usage).get(0) || 0;
     const floor = Math.floor(quota * LAYER0_PROMOTION_RETENTION_FLOOR_RATIO);
     return projectedTokens < floor;
-}
-
-function buildHypotheticalLayer0AfterPromotion(layers, mergeCount) {
-    const sourceLayers = Array.isArray(layers) ? layers : [];
-    const nextLayers = sourceLayers.map((layer) => (Array.isArray(layer) ? [...layer] : layer));
-    const sourceLayer = Array.isArray(nextLayers[0]) ? [...nextLayers[0]] : [];
-    sourceLayer.splice(0, mergeCount);
-    nextLayers[0] = sourceLayer;
-    return nextLayers;
 }
 
 function buildPromotedSnippet(text, metadata) {

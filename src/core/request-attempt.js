@@ -8,6 +8,7 @@ import {
     warn,
     serializeError,
 } from '../foundation/logger.js';
+import { sleepOrAbort } from '../foundation/retry.js';
 import {
     ConnectionError,
     resolveSummarizerConnectionSettings,
@@ -270,6 +271,22 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
 }
 
 /**
+ * Log the report line, toast a warning lasting the delay, then wait it out (abort cuts it short).
+ * @param {object} p
+ * @param {number} p.delay - Milliseconds to wait
+ * @param {(line: string) => void} p.log - Structured log emitter (warn/info)
+ * @param {string} p.logLine - Structured log message
+ * @param {string} p.toastLine - Toast message
+ * @param {AbortSignal} p.signal
+ * @returns {Promise<void>}
+ */
+async function notifyAndWaitDelay({ delay, log, logLine, toastLine, signal }) {
+    log(logLine);
+    toastr.warning(toastLine, TOAST_TITLE, { timeOut: delay });
+    await sleepOrAbort(delay, signal);
+}
+
+/**
  * Notify the user about a retry attempt and wait the computed delay.
  * @param {Error} lastError - The error that triggered the retry
  * @param {number} attempt - Zero-based attempt index
@@ -286,19 +303,13 @@ export async function notifyRetryAndWait(
     const delay = computeRetryDelay(lastError, attempt);
     const delaySec = (delay / 1000).toFixed(1);
     const status = lastError?.status || lastError?.response?.status || '?';
-
-    warn(
-        `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
-        lastError.message || lastError,
-    );
-
-    toastr.warning(
-        `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${maxRetries})`,
-        TOAST_TITLE,
-        { timeOut: delay },
-    );
-
-    await sleepUntilOrAborted(delay, signal);
+    await notifyAndWaitDelay({
+        delay,
+        log: (line) => warn(line, lastError.message || lastError),
+        logLine: `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
+        toastLine: `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${maxRetries})`,
+        signal,
+    });
 }
 
 /**
@@ -311,31 +322,14 @@ export async function notifyRetryAndWait(
 export async function notifyRouteCycleFailedAndWait({ healthBucket, signal }) {
     const delay = computeRetryDelay(new Error('Both routes failed'), ROUTE_CYCLE_RETRY_ATTEMPT);
     const delaySec = (delay / 1000).toFixed(1);
-    info(
-        `Both primary and fallback exhausted for ${healthBucket}; ` +
+    await notifyAndWaitDelay({
+        delay,
+        log: info,
+        logLine:
+            `Both primary and fallback exhausted for ${healthBucket}; ` +
             `resetting health state and retrying primary in ${delaySec}s.`,
-    );
-    toastr.warning(
-        `Both summarizer routes failed. Retrying primary in ${delaySec}s...`,
-        TOAST_TITLE,
-        { timeOut: delay },
-    );
-    await sleepUntilOrAborted(delay, signal);
-}
-
-/**
- * Wait for a delay, resolving early if the signal is aborted.
- * @param {number} delay - Milliseconds to wait
- * @param {AbortSignal} signal
- * @returns {Promise<void>}
- */
-function sleepUntilOrAborted(delay, signal) {
-    return new Promise((resolve) => {
-        const timer = setTimeout(resolve, delay);
-        signal.addEventListener('abort', () => {
-            clearTimeout(timer);
-            resolve();
-        });
+        toastLine: `Both summarizer routes failed. Retrying primary in ${delaySec}s...`,
+        signal,
     });
 }
 

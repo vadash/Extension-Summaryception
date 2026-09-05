@@ -5,6 +5,7 @@ import {
     isPromptOutputLogEnabled,
     serializeError,
 } from '../foundation/logger.js';
+import { formatCount, formatRange } from './summarizer-usage.js';
 
 /**
  * Create the mutable log state tracked across one attempt.
@@ -47,43 +48,18 @@ function getAttemptLogStatus(result) {
  */
 export function describePromptLogCall(metadata = {}) {
     if (metadata.kind === 'layer0') {
-        return `L0 turns ${formatPromptLogRange(metadata.sourceRange)}`;
+        return `L0 turns ${formatRange(metadata.sourceRange)}`;
     }
     if (metadata.kind === 'promotion') {
         const sourceLayer = metadata.layerIndex ?? '?';
         const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
-        const count = formatPromptLogCount(metadata.mergedSnippetCount, 'snippet');
+        const count = formatCount(metadata.mergedSnippetCount, 'snippet');
         return `promotion L${sourceLayer}->L${destLayer} (${count})`;
     }
     if (metadata.kind === 'regenerate') {
-        return `regenerate turns ${formatPromptLogRange(metadata.sourceRange)}`;
+        return `regenerate turns ${formatRange(metadata.sourceRange)}`;
     }
     return metadata.kind || 'summarizer';
-}
-
-/**
- * Format a source range for prompt logs.
- * @param {[number, number] | undefined} range - Source range
- * @returns {string}
- */
-function formatPromptLogRange(range) {
-    if (!Array.isArray(range) || range.length < 2) {
-        return '?';
-    }
-    return `${range[0]}-${range[1]}`;
-}
-
-/**
- * Format a singular/plural count for prompt logs.
- * @param {number | undefined} count - Count value
- * @param {string} singular - Singular label
- * @returns {string}
- */
-function formatPromptLogCount(count, singular) {
-    if (typeof count !== 'number' || !Number.isFinite(count)) {
-        return `? ${singular}s`;
-    }
-    return `${count} ${singular}${count === 1 ? '' : 's'}`;
 }
 
 /**

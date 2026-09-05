@@ -12,6 +12,27 @@ export function sleep(ms) {
 }
 
 /**
+ * Wait for a specified number of milliseconds, resolving early if the signal is aborted.
+ * @param {number} ms - Milliseconds to sleep
+ * @param {AbortSignal} signal - Signal whose abort cuts the wait short
+ * @returns {Promise<void>} Resolves after the delay or on abort
+ */
+export function sleepOrAbort(ms, signal) {
+    return new Promise((resolve) => {
+        const onAbort = () => {
+            clearTimeout(timer);
+            resolve();
+        };
+        const onTimeout = () => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+        };
+        const timer = setTimeout(onTimeout, ms);
+        signal.addEventListener('abort', onAbort, { once: true });
+    });
+}
+
+/**
  * Parse Retry-After header from an error response.
  * @param {object} error - The error to inspect
  * @returns {number|null} Milliseconds to wait, or null if not found

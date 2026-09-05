@@ -1,9 +1,7 @@
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
-import { countMessageTokens } from './token-count.js';
-
-export { buildMemoryInjection } from './memory-injection.js';
+import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
 
@@ -203,19 +201,36 @@ async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
 }
 
 /**
- * Apply source regex scripts and count one rendered chat message.
- * @param {ChatMessage} message
- * @param {number | undefined} depth
- * @param {ExtensionSettings} settings
- * @returns {Promise<{ rawTokens: number, finalTokens: number, rawTokensEstimated: boolean, finalTokensEstimated: boolean, changed: boolean }>}
+ * @typedef {object} CountedChatMessage
+ * @property {number} index - Chat index for the message.
+ * @property {ChatMessage} message - Message at the index.
+ * @property {import('./token-count.js').CountedBudgetMessage} stats - Rendered token stats.
+ * @property {string} finalLine - Speaker line after regex scripts.
  */
-export async function countProcessedMessage(message, depth, settings) {
-    const { rawLine, finalLine, changed } = await renderMessageLines(message, depth, {
-        applyRegexScripts: settings.applyRegexScripts,
-    });
-    const tokens = await countMessageTokens(message, rawLine, finalLine);
 
-    return { ...tokens, changed };
+/**
+ * Scan an inclusive chat range with Layer 0 passage rules: prompt depths computed once,
+ * non-conversation records skipped, each survivor rendered and counted exactly once.
+ * @param {ChatMessage[]} chat - The SillyTavern chat array
+ * @param {number} startIndex - Requested start index
+ * @param {number} endIndex - Requested end index
+ * @param {ExtensionSettings} settings
+ * @yields {CountedChatMessage} Counted messages in traversal order
+ * @returns {AsyncGenerator<CountedChatMessage>} Counted messages in traversal order
+ */
+export async function* countedChatMessages(chat, startIndex, endIndex, settings) {
+    const promptDepths = getPromptDepthsByChatIndex(chat);
+    for (const { index, message } of iterateChatRange(chat, startIndex, endIndex)) {
+        if (!isSummarizerConversationMessage(message)) {
+            continue;
+        }
+        const depth = promptDepths.get(index);
+        const { rawLine, finalLine, changed } = await renderMessageLines(message, depth, {
+            applyRegexScripts: settings.applyRegexScripts,
+        });
+        const stats = { ...(await countMessageTokens(message, rawLine, finalLine)), changed };
+        yield { index, message, stats, finalLine };
+    }
 }
 
 /**
@@ -245,51 +260,21 @@ export async function countProcessedMessage(message, depth, settings) {
  * @returns {Promise<PassageWithStats>}
  */
 export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
-    const accumulator = createPassageStatsAccumulator();
-    const promptDepths = getPromptDepthsByChatIndex(chat);
-    const applyRegexScripts = getEffectiveSettings().applyRegexScripts;
+    const accumulator = { ...createBudgetStats(), finalLines: /** @type {string[]} */ ([]) };
 
-    for (let i = startIdx; i <= endIdx; i++) {
-        const rendered = await renderPassageMessage({
-            message: chat[i],
-            depth: promptDepths.get(i),
-            applyRegexScripts,
-        });
-        if (!rendered) {
-            continue;
+    if (endIdx >= startIdx) {
+        for await (const { stats, finalLine } of countedChatMessages(
+            chat,
+            startIdx,
+            endIdx,
+            getEffectiveSettings(),
+        )) {
+            accumulator.finalLines.push(finalLine);
+            addBudgetStats(accumulator, stats);
         }
-
-        accumulator.finalLines.push(rendered.finalLine);
-        accumulator.changedMessageCount += rendered.changed ? 1 : 0;
-        addPassageTokenStats(
-            accumulator,
-            await countMessageTokens(rendered.message, rendered.rawLine, rendered.finalLine),
-        );
     }
 
     return buildPassageResult(accumulator);
-}
-
-function createPassageStatsAccumulator() {
-    return {
-        finalLines: /** @type {string[]} */ ([]),
-        changedMessageCount: 0,
-        rawTokens: 0,
-        finalTokens: 0,
-        rawTokensEstimated: false,
-        finalTokensEstimated: false,
-    };
-}
-
-async function renderPassageMessage({ message, depth, applyRegexScripts }) {
-    if (!isSummarizerConversationMessage(message)) {
-        return null;
-    }
-
-    return {
-        message,
-        ...(await renderMessageLines(message, depth, { applyRegexScripts })),
-    };
 }
 
 /**
@@ -304,30 +289,13 @@ export function isSummaryceptionOwnedMessage(message) {
     return getChatStore().ghostedMessageIds.includes(message.sc_id);
 }
 
-function addPassageTokenStats(accumulator, counted) {
-    accumulator.rawTokens += counted.rawTokens;
-    accumulator.finalTokens += counted.finalTokens;
-    accumulator.rawTokensEstimated ||= counted.rawTokensEstimated;
-    accumulator.finalTokensEstimated ||= counted.finalTokensEstimated;
-}
-
 function buildPassageResult(accumulator) {
-    const finalText = accumulator.finalLines.join('\n');
-    const savedTokens = accumulator.rawTokens - accumulator.finalTokens;
-
+    const { finalLines, ...stats } = accumulator;
     return {
-        text: finalText,
+        text: finalLines.join('\n'),
         stats: {
-            rawTokens: accumulator.rawTokens,
-            finalTokens: accumulator.finalTokens,
-            savedTokens,
-            savedPercent:
-                accumulator.rawTokens > 0 ? (savedTokens / accumulator.rawTokens) * 100 : 0,
-            rawTokensEstimated: accumulator.rawTokensEstimated,
-            finalTokensEstimated: accumulator.finalTokensEstimated,
-            savedTokensEstimated:
-                accumulator.rawTokensEstimated || accumulator.finalTokensEstimated,
-            changedMessageCount: accumulator.changedMessageCount,
+            ...stats,
+            savedPercent: stats.rawTokens > 0 ? (stats.savedTokens / stats.rawTokens) * 100 : 0,
         },
     };
 }
