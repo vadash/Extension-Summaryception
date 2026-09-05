@@ -55,6 +55,7 @@ import {
 } from './ui-dialogs.js';
 import {
     SETTING_SLIDER_SELECTOR,
+    bindDataSettingElements,
     bindDocumentSetting,
     bindSliderSettingPairs,
     readChecked,
@@ -180,44 +181,41 @@ function bindToggleHandlers() {
         }
     });
 
-    /** @type {Array<{ selector: string, key: string, afterSave?: (settings: ReturnType<typeof getSettings>, value: unknown) => void }>} */
-    const toggles = [
-        { selector: '#sc_debug_mode', key: 'debugMode' },
-        { selector: '#sc_trace_mode', key: 'traceMode' },
-        { selector: '#sc_prompt_input_log_mode', key: 'promptInputLogMode' },
-        { selector: '#sc_prompt_output_log_mode', key: 'promptOutputLogMode' },
-        { selector: '#sc_apply_regex_scripts', key: 'applyRegexScripts' },
-        { selector: '#sc_hide_non_text_messages', key: 'hideNonTextMessages' },
-        { selector: '#sc_strip_chinese_ideographs', key: 'stripChineseIdeographs' },
-        {
-            selector: '#sc_inject_current_state',
-            key: 'injectCurrentState',
-            afterSave: () => {
-                updateInjection();
-                syncLLMContextPreview(getEffectiveSettings());
-            },
-        },
-        {
-            selector: '#sc_mask_user_role_as_assistant',
-            key: 'maskUserRoleAsAssistant',
-            afterSave: (_settings, value) => syncRoleMaskModeControl(Boolean(value)),
-        },
-        { selector: '#sc_state_cat_bonds', key: 'stateCatBonds' },
-        { selector: '#sc_state_cat_chekhov', key: 'stateCatChekhov' },
-        { selector: '#sc_state_cat_gm_notes', key: 'stateCatGmNotes' },
-        { selector: '#sc_state_cat_inventory', key: 'stateCatInventory' },
-        { selector: '#sc_state_cat_location', key: 'stateCatLocation' },
-    ];
+    // Plain on/off checkboxes: the key lives in data-sc-setting and the
+    // element kind supplies the boolean reader. Special toggles stay below.
+    const plainToggles = [
+        '#sc_debug_mode',
+        '#sc_trace_mode',
+        '#sc_prompt_input_log_mode',
+        '#sc_prompt_output_log_mode',
+        '#sc_apply_regex_scripts',
+        '#sc_hide_non_text_messages',
+        '#sc_strip_chinese_ideographs',
+        '#sc_state_cat_bonds',
+        '#sc_state_cat_chekhov',
+        '#sc_state_cat_gm_notes',
+        '#sc_state_cat_inventory',
+        '#sc_state_cat_location',
+    ].join(', ');
+    bindDataSettingElements(plainToggles, { eventName: 'change' });
 
-    for (const toggle of toggles) {
-        bindDocumentSetting({
-            eventName: 'change',
-            selector: toggle.selector,
-            key: toggle.key,
-            read: readChecked,
-            afterSave: toggle.afterSave,
-        });
-    }
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_inject_current_state',
+        key: 'injectCurrentState',
+        read: readChecked,
+        afterSave: () => {
+            updateInjection();
+            syncLLMContextPreview(getEffectiveSettings());
+        },
+    });
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_mask_user_role_as_assistant',
+        key: 'maskUserRoleAsAssistant',
+        read: readChecked,
+        afterSave: (_settings, value) => syncRoleMaskModeControl(Boolean(value)),
+    });
 
     bindDocumentSetting({
         eventName: 'change',
@@ -247,34 +245,21 @@ function bindToggleHandlers() {
 }
 
 function bindCustomPlacementHandlers() {
-    /** @type {Array<{ eventName: string, selector: string, key: string, read: (source: object) => unknown }>} */
-    const customPlacementBindings = [
-        {
-            eventName: 'change',
-            selector: '#sc_custom_memory_position',
-            key: 'customMemoryPosition',
-            read: readString,
-        },
-        {
-            eventName: 'change',
-            selector: '#sc_custom_memory_role',
-            key: 'customMemoryRole',
-            read: readString,
-        },
-        {
-            eventName: 'input change',
-            selector: '#sc_custom_memory_depth',
-            key: 'customMemoryDepth',
-            read: ($element) => clampInteger($element.val(), 0, 10000),
-        },
-    ];
-
-    for (const binding of customPlacementBindings) {
-        bindDocumentSetting({
-            ...binding,
-            afterSave: refreshEffectiveSettings,
-        });
-    }
+    // Position and role are plain selects: key and fixed option values live in
+    // settings.html, so the engine reads and writes them identically.
+    bindDataSettingElements('#sc_custom_memory_position, #sc_custom_memory_role', {
+        eventName: 'change',
+        afterSave: refreshEffectiveSettings,
+    });
+    // Depth clamps to 0..10000 and saves on both input and change, so it stays
+    // hand-bound: the engine has no clamped reader or dual-event binding.
+    bindDocumentSetting({
+        eventName: 'input change',
+        selector: '#sc_custom_memory_depth',
+        key: 'customMemoryDepth',
+        read: ($element) => clampInteger($element.val(), 0, 10000),
+        afterSave: refreshEffectiveSettings,
+    });
 }
 
 /**
@@ -294,26 +279,6 @@ function requestAutoSummaryRefresh(reason) {
 }
 
 /**
- * Bind the strip patterns input handler.
- * @returns {void}
- */
-function bindInputHelpers() {
-    bindDocumentSetting({
-        eventName: 'change',
-        selector: '#sc_strip_patterns',
-        key: 'stripPatterns',
-        read: readStripPatterns,
-    });
-}
-
-function readStripPatterns($element) {
-    return readString($element)
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-}
-
-/**
  * Bind handlers for slider inputs.
  * @returns {void}
  */
@@ -325,8 +290,6 @@ function bindSliderHandlers() {
             syncLLMContextPreview(getEffectiveSettings());
         },
     });
-
-    bindInputHelpers();
 }
 
 function enforceRetentionConstraints(changedKey) {
@@ -351,17 +314,14 @@ function enforceRetentionConstraints(changedKey) {
  * @returns {void}
  */
 function bindTextareaHandlers() {
-    /** @type {Array<{ id: string, key: 'injectionTemplate' }>} */
-    const textareas = [{ id: '#sc_injection_template', key: 'injectionTemplate' }];
-
-    for (const ta of textareas) {
-        bindDocumentSetting({
-            eventName: 'change',
-            selector: ta.id,
-            key: ta.key,
-            read: readString,
-        });
-    }
+    // Strip patterns: key and "lines" type are declared in settings.html.
+    bindDataSettingElements('#sc_strip_patterns', { eventName: 'change' });
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_injection_template',
+        key: 'injectionTemplate',
+        read: readString,
+    });
 }
 
 /**

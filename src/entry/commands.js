@@ -1,3 +1,4 @@
+import { layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { getChat, getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
 import { getChatStore, getCurrentSummarizedBoundary } from '../foundation/state.js';
@@ -29,11 +30,10 @@ export function registerSlashCommands() {
                     lines.push(
                         boundary < 0 ? 'No summaries.' : `Current summarized boundary: ${boundary}`,
                     );
-                    for (let i = 0; i < store.layers.length; i++) {
-                        const layer = store.layers[i];
-                        if (layer?.length > 0) {
-                            lines.push(`Layer ${i}: ${layer.length} snippets`);
-                        }
+                    const nonEmptyLayers = listNonEmptyLayers(store);
+                    for (let k = nonEmptyLayers.length - 1; k >= 0; k--) {
+                        const { index, layer } = nonEmptyLayers[k];
+                        lines.push(`${layerLabel(index)}: ${layer.length} snippets`);
                     }
                     return lines.join('\n');
                 },

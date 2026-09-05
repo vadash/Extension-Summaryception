@@ -1,6 +1,6 @@
 import { getActiveLineCap } from '../foundation/state-categories.js';
 import { countTextTokens } from './token-count.js';
-import { parseSnippet } from './summarizer-state.js';
+import { parseStateBlock } from './summarizer-state.js';
 
 export const STATE_KEY_CEILING = 12;
 export const TOKENS_PER_SENTENCE = 35;
@@ -162,12 +162,9 @@ export async function countLayer0SourceBudget({ sourceNarrativeTokens, sourceSta
     }
 
     const stateTokens = (await countTextTokens(stateText)).count;
-    const snippet = parseSnippet(
-        stateText.includes('[STATE]') ? stateText : `[STATE]\n${stateText}`,
-    );
     return {
         narrativeTokens,
         stateTokens,
-        stateKeyCount: Object.keys(snippet.state || {}).length,
+        stateKeyCount: Object.keys(parseStateBlock(stateText).state).length,
     };
 }

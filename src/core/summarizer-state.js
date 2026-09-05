@@ -1,5 +1,9 @@
 import { STATE_SNAPSHOT_COMPACTION_TARGET_CHARS } from '../foundation/prompt-constants.js';
-import { normalizeStructuralHeaderLines } from './structural-headers.js';
+import {
+    LEADING_NARRATIVE_HEADER_RE,
+    normalizeStructuralHeaderLines,
+    STATE_HEADER_RE,
+} from './structural-headers.js';
 
 const STATE_LINE_RE = /^\s*[-*]?\s*([a-zA-Z_][\w\s]*?)\s*[:=-]\s*(.+?)\s*$/;
 const ANY_SECTION_HEADER_RE = /^\s*\[[^\]]+\]\s*$/;
@@ -75,7 +79,7 @@ export function parseSnippet(text) {
     }
 
     const lines = source.split(/\r?\n/);
-    const stateStart = lines.findIndex((line) => /^\s*\[STATE\]\s*$/i.test(line));
+    const stateStart = lines.findIndex((line) => STATE_HEADER_RE.test(line));
     if (stateStart === -1) {
         return { narrative: stripNarrativeHeader(source), state: {} };
     }
@@ -84,6 +88,18 @@ export function parseSnippet(text) {
         narrative: stripNarrativeHeader(lines.slice(0, stateStart).join('\n')),
         state: parseStateLines(extractExplicitStateLines(lines, stateStart)),
     };
+}
+
+/**
+ * Parse text that may or may not carry a [STATE] header: prefix-wrap when the
+ * header is missing, then parseSnippet. Single home of the wrap idiom used by
+ * state compaction and the L0 source-state key count.
+ * @param {string} text - State body or a complete [STATE] block
+ * @returns {{ narrative: string, state: Record<string, string> }}
+ */
+export function parseStateBlock(text) {
+    const source = String(text || '');
+    return parseSnippet(/\[STATE\]/i.test(source) ? source : `[STATE]\n${source}`);
 }
 /**
  * Serialize state to the stored [STATE] block format.
@@ -115,7 +131,7 @@ export function compactStateSnapshotText(stateText) {
         return '';
     }
 
-    const parsed = parseSnippet(/\[STATE\]/i.test(source) ? source : `[STATE]\n${source}`);
+    const parsed = parseStateBlock(source);
     if (Object.keys(parsed.state).length === 0) {
         return '';
     }
@@ -274,7 +290,7 @@ function normalizeCurrentDateTime(value) {
 
 function stripNarrativeHeader(text) {
     return String(text || '')
-        .replace(/^\s*\[NARRATIVE\]\s*/i, '')
+        .replace(LEADING_NARRATIVE_HEADER_RE, '')
         .trim();
 }
 

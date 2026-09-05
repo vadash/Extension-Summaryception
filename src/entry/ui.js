@@ -3,6 +3,8 @@ import {
     MEMORY_POSITIONS,
     UI_MODES,
     defaultSettings,
+    layerLabel,
+    listNonEmptyLayers,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
@@ -535,23 +537,18 @@ function normalizeBudgetCount(count) {
  */
 function renderLayerStats(s, store, ghostedCount) {
     let statsHtml = `<div class="sc-layer-stat"><strong>${ghostedCount}</strong> messages ghosted (hidden from LLM, visible to you)</div>`;
-    if (store.layers) {
-        for (let i = store.layers.length - 1; i >= 0; i--) {
-            const layer = store.layers[i];
-            if (layer && layer.length > 0) {
-                const label = i === 0 ? 'Layer 0 (turn summaries)' : `Layer ${i} (depth ${i} meta)`;
-                statsHtml += `<div class="sc-layer-stat">
-                <span class="sc-layer-label">${label}:</span>
-                <strong>${layer.length}</strong> / ${s.snippetsPerLayer} memories
-                </div>`;
-            }
-        }
+    const nonEmptyLayers = listNonEmptyLayers(store);
+    for (const { index, layer } of nonEmptyLayers) {
+        statsHtml += `<div class="sc-layer-stat">
+        <span class="sc-layer-label">${layerLabel(index)}:</span>
+        <strong>${layer.length}</strong> / ${s.snippetsPerLayer} memories
+        </div>`;
     }
     const boundary = getCurrentSummarizedBoundary(getChat(), store);
     if (boundary >= 0) {
         statsHtml += `<div class="sc-layer-stat sc-muted">Current summarized boundary: ${boundary}</div>`;
     }
-    if (!store.layers?.length || store.layers.every((l) => !l || l.length === 0)) {
+    if (nonEmptyLayers.length === 0) {
         statsHtml = '<div class="sc-layer-stat sc-muted">No summaries yet for this chat.</div>';
     }
 

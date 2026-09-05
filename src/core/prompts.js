@@ -12,8 +12,15 @@ import {
     isLayer0SizeGuardCall,
 } from './layer0-compression.js';
 import { buildRepairDiagnostics, buildStructuralRepairFeedback } from './repair-diagnostics.js';
-import { compactStateSnapshotText, parseSnippet } from './summarizer-state.js';
-import { normalizeStructuralHeaderLines } from './structural-headers.js';
+import { compactStateSnapshotText, parseStateBlock } from './summarizer-state.js';
+import {
+    LEADING_STATE_HEADER_RE,
+    NARRATIVE_HEADER_LINES_RE,
+    NARRATIVE_HEADER_RE,
+    normalizeStructuralHeaderLines,
+    STATE_HEADER_LINES_RE,
+    STATE_HEADER_RE,
+} from './structural-headers.js';
 import { countTextTokens } from './token-count.js';
 import { getSourceTokenCount } from './token-budget.js';
 
@@ -24,8 +31,6 @@ const VISIBLE_CHARACTER_REGEX = /\S/gu;
 const SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD = 500;
 const MIN_OUTPUT_TOKENS_FOR_SUBSTANTIAL_SOURCE = 30;
 const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
-const NARRATIVE_HEADER_RE = /^\s*\[NARRATIVE\]\s*$/i;
-const STATE_HEADER_RE = /^\s*\[STATE\]\s*$/i;
 
 /**
  * Strip reasoning tags, thinking blocks, and other model artifacts
@@ -70,8 +75,8 @@ export function cleanSummarizerOutput(raw, options = {}) {
     text = normalizeStructuralHeaderLines(text);
 
     if (options.stripStructuralMarkers) {
-        text = text.replace(/^\s*\[NARRATIVE\]\s*$/gim, '');
-        text = text.replace(/^\s*\[STATE\]\s*$/gim, '');
+        text = text.replace(NARRATIVE_HEADER_LINES_RE, '');
+        text = text.replace(STATE_HEADER_LINES_RE, '');
     }
 
     // Clean up leftover whitespace
@@ -199,7 +204,7 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
         // deterministic, so a retry produces an identical result.
 
         const sourceStateKeyCount = Object.keys(
-            parseSnippet(`[STATE]\n${String(metadata.sourceState || '')}`).state,
+            parseStateBlock(String(metadata.sourceState || '')).state,
         ).length;
         return rejectLayer0Size(diagnostics, {
             sourceStateKeyCount,
@@ -334,7 +339,7 @@ async function compactStateNearMiss(stateText, stateTokens) {
         return { text: stateText, block: '', tokens: stateTokens, changed: false };
     }
 
-    const compactedStateBody = compactedState.replace(/^\s*\[STATE\]\s*/i, '').trim();
+    const compactedStateBody = compactedState.replace(LEADING_STATE_HEADER_RE, '').trim();
     const compactedTokens = await countTextTokens(compactedStateBody);
     if (compactedTokens.count > STATE_SNAPSHOT_MAX_TOKENS) {
         return { text: stateText, block: '', tokens: stateTokens, changed: false };
@@ -357,6 +362,9 @@ function rebuildLayer0Output(narrative, stateBlock) {
         .trim();
 }
 
+// Deliberately not parseSnippet: this requires BOTH headers before trusting a
+// section split, while parseSnippet needs only [STATE] and tolerates a
+// missing [NARRATIVE].
 function extractLayer0Sections(text) {
     const lines = String(text || '').split(/\r?\n/);
     const narrativeIndex = lines.findIndex((line) => NARRATIVE_HEADER_RE.test(line));

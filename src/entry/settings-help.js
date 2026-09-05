@@ -1,5 +1,6 @@
 import { clampNumericSetting } from '../foundation/numeric.js';
 import { SETTINGS_HELP, controlFor } from './settings-help-data.js';
+import { ensureChild } from './ui-dom.js';
 
 const HELP_EVENT_NS = '.summaryceptionSettingsHelp';
 const HELP_TOOLTIP_ID = 'sc_help_tooltip';
@@ -108,13 +109,23 @@ function resolveHelpTarget($selected) {
 function updateShortHint($settings, $target, $selected, entry) {
     const $hintHost = getHintHost($target, $selected);
     if ($hintHost.length) {
-        const $hint = getOrCreateHint($hintHost);
+        const $hint = ensureChild($hintHost, '.sc-hint, small', () =>
+            $('<small class="sc-hint"></small>').appendTo($hintHost),
+        ).addClass('sc-hint');
         $hint.text(entry.short);
         $hintHost.children('.sc-hint').not($hint).remove();
         return;
     }
 
-    const $rowHint = getOrCreateRowHint($settings, $target);
+    const key = String($target.attr('data-sc-help-key') || '');
+    const $rowHint = ensureChild(
+        $settings,
+        `.sc-hint.sc-help-row-hint[data-sc-help-key="${key}"]`,
+        () =>
+            $('<small class="sc-hint sc-help-row-hint"></small>')
+                .attr('data-sc-help-key', key)
+                .insertAfter($target),
+    );
     $rowHint.text(entry.short);
 }
 
@@ -130,42 +141,19 @@ function getHintHost($target, $selected) {
     return $label.length ? $label : $();
 }
 
-function getOrCreateHint($hintHost) {
-    const $existing = $hintHost.children('.sc-hint, small').first();
-    if ($existing.length) {
-        return $existing.addClass('sc-hint');
-    }
-    return $('<small class="sc-hint"></small>').appendTo($hintHost);
-}
-
-function getOrCreateRowHint($settings, $target) {
-    const key = String($target.attr('data-sc-help-key') || '');
-    const selector = `.sc-hint.sc-help-row-hint[data-sc-help-key="${key}"]`;
-    const $existing = $settings.find(selector).first();
-    if ($existing.length) {
-        return $existing;
-    }
-    return $('<small class="sc-hint sc-help-row-hint"></small>')
-        .attr('data-sc-help-key', key)
-        .insertAfter($target);
-}
-
 function addHelpIcon($target, $selected) {
-    if ($target.find('.sc-help-icon').length) {
-        return;
-    }
-
-    const $title = getTitleTarget($target, $selected);
-    const $icon = $('<span class="sc-help-icon fa-solid fa-circle-question"></span>').attr(
-        'aria-hidden',
-        'true',
-    );
-
-    if ($title.length) {
-        $icon.insertAfter($title);
-        return;
-    }
-    $icon.insertAfter($selected);
+    ensureChild($target, HELP_ICON_SELECTOR, () => {
+        const $icon = $('<span class="sc-help-icon fa-solid fa-circle-question"></span>').attr(
+            'aria-hidden',
+            'true',
+        );
+        const $title = getTitleTarget($target, $selected);
+        if ($title.length) {
+            $icon.insertAfter($title);
+            return $icon;
+        }
+        return $icon.insertAfter($selected);
+    });
 }
 
 function getTitleTarget($target, $selected) {
@@ -182,13 +170,10 @@ function getTitleTarget($target, $selected) {
 
 function addHiddenDescription($settings, key, entry) {
     const id = getDescriptionId(key);
-    const $existing = $settings.find(`#${id}`).first();
-    const text = `${entry.title}. ${entry.detail}`;
-    if ($existing.length) {
-        $existing.text(text);
-        return;
-    }
-    $('<span class="sc-sr-only"></span>').attr('id', id).text(text).appendTo($settings);
+    const $desc = ensureChild($settings, `#${id}`, () =>
+        $('<span class="sc-sr-only"></span>').attr('id', id).appendTo($settings),
+    );
+    $desc.text(`${entry.title}. ${entry.detail}`);
 }
 
 function annotateControls({ $settings, $target, $selected, key, entry }) {

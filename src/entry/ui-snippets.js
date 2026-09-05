@@ -1,4 +1,4 @@
-import { TOAST_TITLE } from '../foundation/constants.js';
+import { TOAST_TITLE, layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { getChatStore } from '../foundation/state.js';
 import {
     deleteSnippetAt,
@@ -8,6 +8,7 @@ import {
     updateSnippetTextAt,
 } from '../features/snippet-manager.js';
 import { showBusySummaryToast } from './ui-dialogs.js';
+import { ensureChild } from './ui-dom.js';
 
 let uiRefresher = null;
 
@@ -74,21 +75,12 @@ export function updateSnippetBrowser() {
  * @returns {SnippetBrowserView}
  */
 export function buildSnippetBrowserViewModel(store) {
-    const layers = [];
-    const sourceLayers = Array.isArray(store.layers) ? store.layers : [];
-    for (let i = sourceLayers.length - 1; i >= 0; i--) {
-        const layer = sourceLayers[i];
-        if (!layer || layer.length === 0) {
-            continue;
-        }
-        const label = i === 0 ? 'Layer 0 (Turn Summaries)' : `Layer ${i} (Meta-Summary)`;
-        layers.push({
-            key: getSnippetLayerKey(i),
-            index: i,
-            label,
-            snippets: layer.map((snippet, j) => buildSnippetBrowserItem(snippet, i, j)),
-        });
-    }
+    const layers = listNonEmptyLayers(store).map(({ index, layer }) => ({
+        key: getSnippetLayerKey(index),
+        index,
+        label: layerLabel(index),
+        snippets: layer.map((snippet, j) => buildSnippetBrowserItem(snippet, index, j)),
+    }));
     return { empty: layers.length === 0, layers };
 }
 
@@ -186,27 +178,17 @@ function removeMissingChildElements(parent, selector, keys) {
 }
 
 function getOrCreateChildElement(parent, className, key) {
-    const existing = parent
-        .children(`.${className}`)
-        .filter(function () {
-            return $(this).attr('data-key') === key;
-        })
-        .first();
-
-    if (existing.length) {
-        return existing;
-    }
-
-    return $(`<div class="${className}"></div>`);
+    return ensureChild(parent, `.${className}[data-key="${key}"]`, () =>
+        $(`<div class="${className}"></div>`),
+    );
 }
 
 function updateLayerElement(layerEl, layer) {
     layerEl.attr({ 'data-key': layer.key, 'data-layer': String(layer.index) });
 
-    let title = layerEl.children('.sc-browser-layer-title').first();
-    if (!title.length) {
-        title = $('<div class="sc-browser-layer-title"></div>').prependTo(layerEl);
-    }
+    const title = ensureChild(layerEl, '.sc-browser-layer-title', () =>
+        $('<div class="sc-browser-layer-title"></div>').prependTo(layerEl),
+    );
     title.text(layer.label);
 }
 
@@ -261,10 +243,9 @@ function updateSnippetRow(row, snippet) {
 }
 
 function ensureSnippetText(row, snippet) {
-    let text = row.children('.sc-snippet-text').first();
-    if (!text.length) {
-        text = $('<span class="sc-snippet-text"></span>');
-    }
+    const text = ensureChild(row, '.sc-snippet-text', () =>
+        $('<span class="sc-snippet-text"></span>'),
+    );
     text.attr({
         'data-layer': String(snippet.layerIndex),
         'data-idx': String(snippet.snippetIndex),
@@ -275,19 +256,17 @@ function ensureSnippetText(row, snippet) {
 }
 
 function ensureSnippetMeta(row, snippet) {
-    let meta = row.children('.sc-snippet-meta').first();
-    if (!meta.length) {
-        meta = $('<span class="sc-snippet-meta"></span>');
-    }
+    const meta = ensureChild(row, '.sc-snippet-meta', () =>
+        $('<span class="sc-snippet-meta"></span>'),
+    );
     meta.text(snippet.meta);
     return meta;
 }
 
 function ensureSnippetButton(row, className, label) {
-    let button = row.children(`.${className}`).first();
-    if (!button.length) {
-        button = $(`<button class="${className} menu_button"></button>`);
-    }
+    const button = ensureChild(row, `.${className}`, () =>
+        $(`<button class="${className} menu_button"></button>`),
+    );
     button.attr({
         type: 'button',
         title: label,
@@ -297,12 +276,11 @@ function ensureSnippetButton(row, className, label) {
 }
 
 function ensureSnippetRedo(row, snippet) {
-    let redo = row.children('.sc-snippet-redo').first();
     if (!snippet.canRedo) {
-        redo.remove();
+        row.children('.sc-snippet-redo').remove();
         return null;
     }
-    redo = ensureSnippetButton(row, 'sc-snippet-redo', 'Regenerate this snippet');
+    const redo = ensureSnippetButton(row, 'sc-snippet-redo', 'Regenerate this snippet');
     redo.addClass('fa-solid fa-rotate-right');
     return redo;
 }

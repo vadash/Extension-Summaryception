@@ -125,6 +125,34 @@ export const EXTENSION_PROMPT_ROLES = Object.freeze({
 
 export const INTERNAL_MAX_LAYER_DEPTH = 20;
 
+// ─── Layer Presentation ──────────────────────────────────────────────
+
+/**
+ * Human-facing label for a summary layer.
+ * @param {number} index - Zero-based layer index
+ * @returns {string}
+ */
+export function layerLabel(index) {
+    return index === 0 ? 'Layer 0 (Turn Summaries)' : `Layer ${index} (Meta-Summary)`;
+}
+
+/**
+ * List the store's non-empty summary layers, deepest first.
+ * @param {SummaryceptionStore} store
+ * @returns {Array<{ index: number, layer: SummaryceptionSnippet[] }>}
+ */
+export function listNonEmptyLayers(store) {
+    const sourceLayers = Array.isArray(store?.layers) ? store.layers : [];
+    const result = [];
+    for (let i = sourceLayers.length - 1; i >= 0; i--) {
+        const layer = sourceLayers[i];
+        if (layer?.length > 0) {
+            result.push({ index: i, layer });
+        }
+    }
+    return result;
+}
+
 // ─── Request Timeout Configuration ─────────────────────────────────
 // Per-route summarizer request timeouts in seconds. Stored on settings as
 // requestTimeoutSeconds / mergeRequestTimeoutSeconds / fallbackRequestTimeoutSeconds.

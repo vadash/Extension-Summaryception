@@ -170,6 +170,18 @@ export function readIntegerOrZero($element) {
     return Number.parseInt(readString($element), 10) || 0;
 }
 
+/**
+ * Read a textarea as a list of trimmed non-empty lines.
+ * @param {object} $element jQuery-wrapped element
+ * @returns {string[]}
+ */
+export function readLines($element) {
+    return readString($element)
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+}
+
 function readDataSettingKey($element) {
     return String($element.attr('data-sc-setting') ?? '').trim();
 }
@@ -179,11 +191,16 @@ function getDataSettingType($element) {
 }
 
 function getDataSettingReader($element) {
+    if ($element.is(':checkbox')) {
+        return readChecked;
+    }
     switch (getDataSettingType($element)) {
         case 'number':
             return readIntegerOrZero;
         case 'string':
             return readString;
+        case 'lines':
+            return readLines;
         case 'trimmed-string':
         default:
             return readTrimmedString;
