@@ -1,8 +1,8 @@
 import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
 import {
+    formatAnchoredSnippetNarrative,
     formatCompactSnippetAnchor,
     formatSnippetAnchor,
-    stripLeadingSnippetAnchor,
 } from './snippet-metadata.js';
 
 /**
@@ -101,19 +101,14 @@ function collectChronologyParts(layers, compactAnchors) {
 }
 
 function buildChronologySnippetText(snippet, layerIndex, compactAnchors) {
-    const parsed = parseSnippet(snippet?.text || '');
-    const anchor = compactAnchors
-        ? formatCompactSnippetAnchor(snippet)
-        : formatSnippetAnchor(snippet);
-    const narrative = anchor
-        ? stripLeadingSnippetAnchor(parsed.narrative)
-        : parsed.narrative.trim();
-    const pieces = [anchor, narrative];
+    const pieces = [
+        formatAnchoredSnippetNarrative(
+            snippet,
+            compactAnchors ? formatCompactSnippetAnchor : formatSnippetAnchor,
+        ),
+    ];
     if (layerIndex > 0) {
-        const historicalStateNote = formatHistoricalStateNote(parsed.state);
-        if (historicalStateNote) {
-            pieces.push(historicalStateNote);
-        }
+        pieces.push(formatHistoricalStateNote(parseSnippet(snippet?.text || '').state));
     }
     return pieces.filter(Boolean).join(' ');
 }

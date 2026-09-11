@@ -307,6 +307,32 @@ export const PROMOTION_REPAIR_PROMPT_PRESETS = {
 export const DEFAULT_PROMPT_PRESET = 'narrative';
 export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
 
+/**
+ * The six (presetKey, settingKey) prompt pairs shared by persistence
+ * normalization and the prompt UI bindings. Order defines UI field order.
+ * @type {ReadonlyArray<{ presetKey: string, settingKey: string }>}
+ */
+export const PROMPT_SETTING_KEYS = Object.freeze([
+    Object.freeze({
+        presetKey: 'summarizerSystemPromptPreset',
+        settingKey: 'summarizerSystemPrompt',
+    }),
+    Object.freeze({ presetKey: 'promptPreset', settingKey: 'summarizerUserPrompt' }),
+    Object.freeze({
+        presetKey: 'summarizerRepairPromptPreset',
+        settingKey: 'summarizerRepairPrompt',
+    }),
+    Object.freeze({
+        presetKey: 'promotionSystemPromptPreset',
+        settingKey: 'promotionSystemPrompt',
+    }),
+    Object.freeze({ presetKey: 'promotionPromptPreset', settingKey: 'promotionUserPrompt' }),
+    Object.freeze({
+        presetKey: 'promotionRepairPromptPreset',
+        settingKey: 'promotionRepairPrompt',
+    }),
+]);
+
 // ─── Retry Configuration ─────────────────────────────────────────────
 
 export const RETRY_CONFIG = {

@@ -128,7 +128,7 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
         }
 
         processed += getRangeSize(hideRange);
-        updateHideProgress(progressToast, processed, total);
+        updateProgress(progressToast, 'Hiding messages', { processed, total });
     }
 
     clearProgress(progressToast);
@@ -316,7 +316,7 @@ async function unhideRanges({ chat, store, ranges, progressToast = null, total =
         await executeSlashRangeCommand('unhide', range, warn);
         clearGhostedRange(chat, store, range);
         processed += getRangeSize(range);
-        updateUnhideProgress(progressToast, processed, total);
+        updateProgress(progressToast, 'Unhiding messages', { processed, total, everyN: 10 });
         await persistChatState();
     }
 }
@@ -426,31 +426,17 @@ async function executeSlashRangeCommand(command, range, logFailure) {
 }
 
 /**
- * Update the hide progress toast.
+ * Update a progress toast, optionally throttled to every Nth processed item.
  * @param {unknown} progressToast
- * @param {number} processed
- * @param {number} total
+ * @param {string} label
+ * @param {{ processed: number, total: number, everyN?: number }} p - Counts plus optional throttle step
  * @returns {void}
  */
-function updateHideProgress(progressToast, processed, total) {
-    if (!progressToast) {
+function updateProgress(progressToast, label, { processed, total, everyN = 1 }) {
+    if (!progressToast || processed % everyN !== 0) {
         return;
     }
-    updateProgressText(progressToast, 'Hiding messages', processed, total);
-}
-
-/**
- * Update the unhide progress toast at regular intervals.
- * @param {unknown} progressToast
- * @param {number} processed
- * @param {number} total
- * @returns {void}
- */
-function updateUnhideProgress(progressToast, processed, total) {
-    if (!progressToast || processed % 10 !== 0) {
-        return;
-    }
-    updateProgressText(progressToast, 'Unhiding messages', processed, total);
+    updateProgressText(progressToast, label, processed, total);
 }
 
 /**

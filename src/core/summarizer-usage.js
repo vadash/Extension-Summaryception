@@ -394,15 +394,27 @@ function describeCall(metadata = {}) {
         return `CHAT -> L0 turns ${formatRange(metadata.sourceRange)} (${turns})`;
     }
     if (metadata.kind === 'promotion') {
-        const snippets = formatCount(metadata.mergedSnippetCount, 'snippet');
-        const sourceLayer = metadata.layerIndex ?? '?';
-        const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
-        return `promotion L${sourceLayer} -> L${destLayer} (${snippets})`;
+        return `promotion ${formatPromotionLabel(metadata)}`;
     }
     if (metadata.kind === 'regenerate') {
         return `CHAT -> L0 regenerate turns ${formatRange(metadata.sourceRange)}`;
     }
     return metadata.kind || 'summarizer';
+}
+
+/**
+ * Format the promotion branch shared by all call labels: source layer,
+ * destination layer, and merged snippet count. Callers keep their own arrow
+ * spacing and prefix text.
+ * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
+ * @param {string} [arrow] - Separator between source and destination layer
+ * @returns {string}
+ */
+export function formatPromotionLabel(metadata = {}, arrow = ' -> ') {
+    const sourceLayer = metadata.layerIndex ?? '?';
+    const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
+    const count = formatCount(metadata.mergedSnippetCount, 'snippet');
+    return `L${sourceLayer}${arrow}L${destLayer} (${count})`;
 }
 
 /**

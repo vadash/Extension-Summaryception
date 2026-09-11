@@ -8,6 +8,7 @@ import {
     PROMOTION_REPAIR_PROMPT_PRESETS,
     PROMOTION_SYSTEM_PROMPT_PRESETS,
     PROMPT_PRESETS,
+    PROMPT_SETTING_KEYS,
     RECALL_REPEAT_INJECTION_TEMPLATE,
     SUMMARIZER_REPAIR_PROMPT_PRESETS,
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
@@ -21,8 +22,10 @@ import { error, warn } from '../foundation/logger.js';
 import {
     bumpSummaryStoreMutationEpoch,
     deriveAdvancedEngineTuning,
+    enforceRetentionInvariants,
     getEffectiveSettings,
     getSettings,
+    isValidSnippet,
     saveSettings,
     getChatStore,
 } from '../foundation/state.js';
@@ -63,56 +66,47 @@ import {
     syncRoleMaskModeControl,
 } from './ui-bind.js';
 
-const PROMPT_FIELDS = [
-    {
+// UI-specific metadata for each shared prompt pair, keyed by presetKey. The
+// (presetKey, settingKey) pairs themselves live in PROMPT_SETTING_KEYS.
+const PROMPT_FIELD_UI = {
+    summarizerSystemPromptPreset: {
         presetSelect: '#sc_summarizer_system_prompt_preset',
         textarea: '#sc_summarizer_system_prompt',
-        presetKey: 'summarizerSystemPromptPreset',
-        settingKey: 'summarizerSystemPrompt',
         presets: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
-        defaultPreset: defaultSettings.summarizerSystemPromptPreset,
     },
-    {
+    promptPreset: {
         presetSelect: '#sc_prompt_preset',
         textarea: '#sc_summarizer_user_prompt',
-        presetKey: 'promptPreset',
-        settingKey: 'summarizerUserPrompt',
         presets: PROMPT_PRESETS,
-        defaultPreset: defaultSettings.promptPreset,
     },
-    {
+    summarizerRepairPromptPreset: {
         presetSelect: '#sc_summarizer_repair_prompt_preset',
         textarea: '#sc_summarizer_repair_prompt',
-        presetKey: 'summarizerRepairPromptPreset',
-        settingKey: 'summarizerRepairPrompt',
         presets: SUMMARIZER_REPAIR_PROMPT_PRESETS,
-        defaultPreset: defaultSettings.summarizerRepairPromptPreset,
     },
-    {
+    promotionSystemPromptPreset: {
         presetSelect: '#sc_promotion_system_prompt_preset',
         textarea: '#sc_promotion_system_prompt',
-        presetKey: 'promotionSystemPromptPreset',
-        settingKey: 'promotionSystemPrompt',
         presets: PROMOTION_SYSTEM_PROMPT_PRESETS,
-        defaultPreset: defaultSettings.promotionSystemPromptPreset,
     },
-    {
+    promotionPromptPreset: {
         presetSelect: '#sc_promotion_prompt_preset',
         textarea: '#sc_promotion_user_prompt',
-        presetKey: 'promotionPromptPreset',
-        settingKey: 'promotionUserPrompt',
         presets: PROMOTION_PROMPT_PRESETS,
-        defaultPreset: defaultSettings.promotionPromptPreset,
     },
-    {
+    promotionRepairPromptPreset: {
         presetSelect: '#sc_promotion_repair_prompt_preset',
         textarea: '#sc_promotion_repair_prompt',
-        presetKey: 'promotionRepairPromptPreset',
-        settingKey: 'promotionRepairPrompt',
         presets: PROMOTION_REPAIR_PROMPT_PRESETS,
-        defaultPreset: defaultSettings.promotionRepairPromptPreset,
     },
-];
+};
+
+const PROMPT_FIELDS = PROMPT_SETTING_KEYS.map(({ presetKey, settingKey }) => ({
+    presetKey,
+    settingKey,
+    ...PROMPT_FIELD_UI[presetKey],
+    defaultPreset: defaultSettings[presetKey],
+}));
 
 /**
  * Save settings, then update injection and the UI.
@@ -204,10 +198,7 @@ function bindToggleHandlers() {
         selector: '#sc_inject_current_state',
         key: 'injectCurrentState',
         read: readChecked,
-        afterSave: () => {
-            updateInjection();
-            syncLLMContextPreview(getEffectiveSettings());
-        },
+        afterSave: refreshInjectionPreview,
     });
     bindDocumentSetting({
         eventName: 'change',
@@ -279,19 +270,32 @@ function requestAutoSummaryRefresh(reason) {
 }
 
 /**
+ * Re-render the injection preview after a saved setting changes it.
+ * @returns {void}
+ */
+function refreshInjectionPreview() {
+    updateInjection();
+    syncLLMContextPreview(getEffectiveSettings());
+}
+
+/**
  * Bind handlers for slider inputs.
  * @returns {void}
  */
 function bindSliderHandlers() {
     bindSliderSettingPairs(SETTING_SLIDER_SELECTOR, {
         beforeSave: (_settings, _value, _source, key) => enforceRetentionConstraints(key),
-        afterSave: () => {
-            updateInjection();
-            syncLLMContextPreview(getEffectiveSettings());
-        },
+        afterSave: refreshInjectionPreview,
     });
 }
 
+/**
+ * Re-sync slider partner settings in the same tick: lowering Model context
+ * retunes the engine, lowering Max turns pulls Min turns down with it, and
+ * the shared invariants keep the retention pairs ordered and capped.
+ * @param {string} changedKey - data-sc-setting key of the slider that changed
+ * @returns {void}
+ */
 function enforceRetentionConstraints(changedKey) {
     const s = getSettings();
     if (changedKey === 'advancedModelContext') {
@@ -300,13 +304,7 @@ function enforceRetentionConstraints(changedKey) {
     if (changedKey === 'maxSummaryTurns' && s.maxSummaryTurns < s.minSummaryTurns) {
         s.minSummaryTurns = s.maxSummaryTurns;
     }
-    if (s.maxSummaryTurns < s.minSummaryTurns) {
-        s.maxSummaryTurns = s.minSummaryTurns;
-    }
-    const cap = Number(s.maxL0SourceTokens);
-    if (s.minSummaryBudget > s.maxL0SourceTokens) {
-        s.minSummaryBudget = Number.isFinite(cap) && cap > 0 ? cap : s.maxL0SourceTokens;
-    }
+    enforceRetentionInvariants(s);
 }
 
 /**
@@ -562,28 +560,12 @@ function triggerImport() {
         try {
             const text = await file.text();
             const data = JSON.parse(text);
-            if (!data.layers || !Array.isArray(data.layers)) {
+            if (!validateImportPayload(data)) {
                 toastr.error('Invalid file format.');
                 return;
             }
 
             const store = getChatStore();
-            if (
-                !Array.isArray(data.ghostedMessageIds) ||
-                !data.layers.every(
-                    (layer) =>
-                        Array.isArray(layer) &&
-                        layer.every(
-                            (snippet) =>
-                                Array.isArray(snippet?.sourceMessageIds) &&
-                                snippet.sourceMessageIds.length > 0,
-                        ),
-                )
-            ) {
-                toastr.error('Invalid file format.');
-                return;
-            }
-
             await unghostAllMessages();
             store.layers = data.layers;
             store.ghostedMessageIds = data.ghostedMessageIds;
@@ -605,6 +587,22 @@ function triggerImport() {
         }
     };
     input.click();
+}
+
+/**
+ * Check an imported payload's shape before any store mutation: layers must be
+ * an array of snippet arrays, each snippet passing the persisted-snippet
+ * check, plus a ghosted-ID array. Rejects before getChatStore() touches
+ * chat metadata.
+ * @param {any} data - Parsed JSON payload
+ * @returns {boolean} True when the payload carries valid layers and ghosted IDs
+ */
+function validateImportPayload(data) {
+    return (
+        Array.isArray(data?.layers) &&
+        Array.isArray(data.ghostedMessageIds) &&
+        data.layers.every((layer) => Array.isArray(layer) && layer.every(isValidSnippet))
+    );
 }
 
 /**

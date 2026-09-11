@@ -5,7 +5,7 @@ import {
     isPromptOutputLogEnabled,
     serializeError,
 } from '../foundation/logger.js';
-import { formatCount, formatRange } from './summarizer-usage.js';
+import { formatPromotionLabel, formatRange } from './summarizer-usage.js';
 
 /**
  * Create the mutable log state tracked across one attempt.
@@ -51,10 +51,7 @@ export function describePromptLogCall(metadata = {}) {
         return `L0 turns ${formatRange(metadata.sourceRange)}`;
     }
     if (metadata.kind === 'promotion') {
-        const sourceLayer = metadata.layerIndex ?? '?';
-        const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
-        const count = formatCount(metadata.mergedSnippetCount, 'snippet');
-        return `promotion L${sourceLayer}->L${destLayer} (${count})`;
+        return `promotion ${formatPromotionLabel(metadata, '->')}`;
     }
     if (metadata.kind === 'regenerate') {
         return `regenerate turns ${formatRange(metadata.sourceRange)}`;

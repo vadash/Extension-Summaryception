@@ -61,12 +61,15 @@ export function extractSnippetMetadata(snippet = {}) {
 
 /**
  * Format a snippet as anchored narrative for chronology or promotion input.
+ * Parses the snippet, strips any stored leading anchor from the narrative when
+ * an anchor was produced, and joins anchor + narrative with single spaces.
  * @param {object} snippet
+ * @param {(snippet: object) => string} [formatAnchor] - Anchor formatter; defaults to the persisted anchor
  * @returns {string}
  */
-export function formatAnchoredSnippetNarrative(snippet = {}) {
+export function formatAnchoredSnippetNarrative(snippet = {}, formatAnchor = formatSnippetAnchor) {
     const parsed = parseSnippet(snippet?.text || '');
-    const anchor = formatSnippetAnchor(snippet);
+    const anchor = formatAnchor(snippet);
     const narrative = anchor
         ? stripLeadingSnippetAnchor(parsed.narrative)
         : parsed.narrative.trim();

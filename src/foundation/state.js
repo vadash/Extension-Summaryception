@@ -8,6 +8,7 @@ import {
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
+    PROMPT_SETTING_KEYS,
     REQUEST_TIMEOUT,
     UI_MODES,
     defaultSettings,
@@ -23,32 +24,6 @@ import { resolveScIdsToIndices } from './message-identity.js';
 import { clampInteger, clampToStep } from './numeric.js';
 
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'custom']);
-const PROMPT_SETTING_BINDINGS = Object.freeze([
-    {
-        presetKey: 'summarizerSystemPromptPreset',
-        promptKey: 'summarizerSystemPrompt',
-    },
-    {
-        presetKey: 'promptPreset',
-        promptKey: 'summarizerUserPrompt',
-    },
-    {
-        presetKey: 'summarizerRepairPromptPreset',
-        promptKey: 'summarizerRepairPrompt',
-    },
-    {
-        presetKey: 'promotionSystemPromptPreset',
-        promptKey: 'promotionSystemPrompt',
-    },
-    {
-        presetKey: 'promotionPromptPreset',
-        promptKey: 'promotionUserPrompt',
-    },
-    {
-        presetKey: 'promotionRepairPromptPreset',
-        promptKey: 'promotionRepairPrompt',
-    },
-]);
 
 /**
  * Get the extension settings object.
@@ -257,6 +232,28 @@ function normalizeVerbatimWindowSettings(settings) {
         L0_SOURCE_LIMITS.MAX,
         L0_SOURCE_LIMITS.STEP,
     );
+    enforceRetentionInvariants(settings);
+    settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
+    settings.queuedTokenBudget = clampToStep(settings.queuedTokenBudget, 4000, 64000, 1000);
+    settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
+    settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);
+    settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
+    settings.cacheTtlMinutes = clampToStep(
+        settings.cacheTtlMinutes,
+        CACHE_TTL.MIN_MINUTES,
+        CACHE_TTL.MAX_MINUTES,
+        CACHE_TTL.STEP_MINUTES,
+    );
+}
+
+/**
+ * Enforce the cross-setting retention invariants: maxSummaryTurns never
+ * drops below minSummaryTurns, and minSummaryBudget never exceeds the
+ * Layer 0 source token cap. Mutates the settings object in place.
+ * @param {ExtensionSettings} settings
+ * @returns {void}
+ */
+export function enforceRetentionInvariants(settings) {
     if (settings.maxSummaryTurns < settings.minSummaryTurns) {
         settings.maxSummaryTurns = settings.minSummaryTurns;
     }
@@ -269,17 +266,6 @@ function normalizeVerbatimWindowSettings(settings) {
         BATCH_TRIGGER_LIMITS.MIN,
         Math.min(BATCH_TRIGGER_LIMITS.MAX, sourceCap),
         BATCH_TRIGGER_LIMITS.STEP,
-    );
-    settings.verbatimTokenBudget = clampToStep(settings.verbatimTokenBudget, 4000, 64000, 1000);
-    settings.queuedTokenBudget = clampToStep(settings.queuedTokenBudget, 4000, 64000, 1000);
-    settings.memoryTokenBudget = clampToStep(settings.memoryTokenBudget, 4000, 32000, 1000);
-    settings.snippetsPerLayer = clampInteger(settings.snippetsPerLayer, 20, 40);
-    settings.snippetsPerPromotion = clampInteger(settings.snippetsPerPromotion, 3, 4);
-    settings.cacheTtlMinutes = clampToStep(
-        settings.cacheTtlMinutes,
-        CACHE_TTL.MIN_MINUTES,
-        CACHE_TTL.MAX_MINUTES,
-        CACHE_TTL.STEP_MINUTES,
     );
 }
 
@@ -367,7 +353,7 @@ export function deriveAdvancedEngineTuning(settings) {
 
 function normalizePromptSettings(settings) {
     let changed = false;
-    for (const binding of PROMPT_SETTING_BINDINGS) {
+    for (const binding of PROMPT_SETTING_KEYS) {
         const defaults = /** @type {Record<string, unknown>} */ (defaultSettings);
         const settingsRecord = /** @type {Record<string, unknown>} */ (
             /** @type {unknown} */ (settings)
@@ -377,12 +363,12 @@ function normalizePromptSettings(settings) {
 
         if (!isSettingValue(PROMPT_PRESET_VALUES, preset)) {
             settingsRecord[binding.presetKey] = defaults[binding.presetKey];
-            settingsRecord[binding.promptKey] = defaults[binding.promptKey];
+            settingsRecord[binding.settingKey] = defaults[binding.settingKey];
             changed = true;
             continue;
         }
 
-        const promptText = settingsRecord[binding.promptKey];
+        const promptText = settingsRecord[binding.settingKey];
         if (isCustom && typeof promptText === 'string' && promptText.trim()) {
             continue;
         }
@@ -391,8 +377,8 @@ function normalizePromptSettings(settings) {
             settingsRecord[binding.presetKey] = defaults[binding.presetKey];
             changed = true;
         }
-        if (settingsRecord[binding.promptKey] !== defaults[binding.promptKey]) {
-            settingsRecord[binding.promptKey] = defaults[binding.promptKey];
+        if (settingsRecord[binding.settingKey] !== defaults[binding.settingKey]) {
+            settingsRecord[binding.settingKey] = defaults[binding.settingKey];
             changed = true;
         }
     }
@@ -429,7 +415,7 @@ function createDefaultChatStore() {
  * @param {unknown} snippet
  * @returns {snippet is SummaryceptionSnippet}
  */
-function isValidSnippet(snippet) {
+export function isValidSnippet(snippet) {
     return (
         isPlainObject(snippet) &&
         typeof snippet.text === 'string' &&

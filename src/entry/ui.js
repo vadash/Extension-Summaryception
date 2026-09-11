@@ -23,13 +23,7 @@ import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
 import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
 import { updateSnippetBrowser } from './ui-snippets.js';
-import {
-    updateConnectionSubPanels,
-    updateEasyConnectionSubPanels,
-    updateEasyMergeConnectionSubPanels,
-    updateFallbackConnectionSubPanels,
-    updateMergeConnectionSubPanels,
-} from './ui-connection.js';
+import { syncConnectionPanels } from './ui-connection.js';
 
 const CONTEXT_COLOR_CLASSES = 'sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-danger';
 
@@ -180,14 +174,6 @@ function getContextColorClass(tokens) {
         return 'sc-ctx-warn';
     }
     return 'sc-ctx-safe';
-}
-
-function syncConnectionPanels(s) {
-    updateEasyConnectionSubPanels(s.connectionSource || 'default');
-    updateEasyMergeConnectionSubPanels(s.mergeConnectionSource || 'inherit');
-    updateConnectionSubPanels(s.connectionSource || 'default');
-    updateMergeConnectionSubPanels(s.mergeConnectionSource || 'inherit');
-    updateFallbackConnectionSubPanels(s.fallbackConnectionSource || 'disabled');
 }
 
 async function renderStatusOverview(prefix, modeField, overview) {

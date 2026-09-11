@@ -58,12 +58,7 @@ export function initConnectionUI() {
 
     bindConnectionRoutes(settings);
     bindConnectionInputs();
-
-    updateEasyConnectionSubPanels(settings.connectionSource || 'default');
-    updateEasyMergeConnectionSubPanels(settings.mergeConnectionSource || 'inherit');
-    updateConnectionSubPanels(settings.connectionSource || 'default');
-    updateMergeConnectionSubPanels(settings.mergeConnectionSource || 'inherit');
-    updateFallbackConnectionSubPanels(settings.fallbackConnectionSource || 'disabled');
+    syncConnectionPanels(settings);
 }
 
 function bindConnectionRoutes(settings) {
@@ -166,4 +161,17 @@ function toggleRouteSubPanels(prefix, source, { toggleResponseLength = false } =
     if (source === 'profile') {
         $profile.show();
     }
+}
+
+/**
+ * Sync every connection sub-panel's visibility from current settings.
+ * @param {ReturnType<typeof getSettings>} s
+ * @returns {void}
+ */
+export function syncConnectionPanels(s) {
+    updateEasyConnectionSubPanels(s.connectionSource || 'default');
+    updateEasyMergeConnectionSubPanels(s.mergeConnectionSource || 'inherit');
+    updateConnectionSubPanels(s.connectionSource || 'default');
+    updateMergeConnectionSubPanels(s.mergeConnectionSource || 'inherit');
+    updateFallbackConnectionSubPanels(s.fallbackConnectionSource || 'disabled');
 }
