@@ -365,11 +365,6 @@ async function commitValidatedPromotion({ prepared, promotedSnippet }) {
     return result !== 'stale';
 }
 
-function combinePromotedMemory(narrative) {
-    const parsed = parseSnippet(narrative);
-    return parsed.narrative.trim();
-}
-
 async function buildValidatedPromotionSnippet({
     layerIndex,
     mergeCount,
@@ -438,7 +433,7 @@ async function buildValidatedPromotionSnippet({
 }
 
 function buildPromotionCandidate(narrative, promotedMetadata) {
-    const metaSummary = combinePromotedMemory(narrative);
+    const metaSummary = parseSnippet(narrative).narrative.trim();
     if (!metaSummary) {
         return null;
     }
@@ -448,7 +443,7 @@ function buildPromotionCandidate(narrative, promotedMetadata) {
     if (!cleanSummary) {
         return null;
     }
-    return buildPromotedSnippet(cleanSummary, promotedMetadata);
+    return { text: cleanSummary, ...promotedMetadata };
 }
 
 async function validatePromotionCandidate({
@@ -628,13 +623,6 @@ async function wouldViolateLayer0RetentionFloor({
     return projectedTokens < floor;
 }
 
-function buildPromotedSnippet(text, metadata) {
-    return {
-        text,
-        ...metadata,
-    };
-}
-
 /**
  * Capture summary-store state for a promotion transaction.
  * @param {number} layerIndex
@@ -659,7 +647,7 @@ function capturePromotionSnapshot(layerIndex) {
  * @returns {Promise<boolean>}
  */
 async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
-    if (!isPromotionSnapshotValid(snapshot)) {
+    if (!isSnapshotStoreCurrent(snapshot, getContext(), getChatStore())) {
         return false;
     }
 
@@ -681,27 +669,10 @@ async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
     store.layers[layerIndex + 1] = destLayer;
     bumpSummaryStoreMutationEpoch(store);
 
-    await savePromotionCommit();
-
-    return true;
-}
-
-/**
- * Revalidate that summary layers were not changed during a promotion request.
- * @param {object} snapshot
- * @returns {boolean}
- */
-function isPromotionSnapshotValid(snapshot) {
-    return isSnapshotStoreCurrent(snapshot, getContext(), getChatStore());
-}
-
-/**
- * Persist a promotion and refresh injection when the foreground guard permits it.
- * @returns {Promise<void>}
- */
-async function savePromotionCommit() {
     await saveChatStore();
     await updateCommittedInjection({ logMemoryStatus: true });
+
+    return true;
 }
 
 /**

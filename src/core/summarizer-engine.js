@@ -100,7 +100,7 @@ export async function runElasticAutoCycle(queue, { refreshUi } = {}) {
     const prepared = await prepareSummaryCycle();
     if (await hasPromotionOverflow(0)) {
         queue.setPhase('promoting');
-        const promotionResult = await processPromotionCycle({ overflowKnown: true });
+        const promotionResult = await processPromotionCycle();
         return promotionResult;
     }
 
@@ -212,12 +212,7 @@ async function commitRoutePlan(routePlan, options = {}) {
     return await summarizeBatchFromTurns(routePlan.batchTurns, options);
 }
 
-async function processPromotionCycle({ overflowKnown = false } = {}) {
-    const hadOverflow = overflowKnown || (await hasPromotionOverflow(0));
-    if (!hadOverflow) {
-        return 'idle';
-    }
-
+async function processPromotionCycle() {
     const promoted = await maybePromoteLayer(0);
     if (shouldStopPromptWork()) {
         return 'blocked';
@@ -225,21 +220,22 @@ async function processPromotionCycle({ overflowKnown = false } = {}) {
     if (promoted) {
         return 'processed';
     }
-    return hadOverflow ? 'failed' : 'idle';
+    return 'failed';
 }
+
+const isManualTargetReached = (_outcome, task) =>
+    getCurrentSummarizedBoundary(getChat(), getChatStore()) >= task.targetIndex;
 
 const MANUAL_STRATEGIES = Object.freeze({
     [ELASTIC_STRATEGIES.FORCE]: {
         buildTask: buildForceTask,
         processBatch: processForceBatch,
-        isComplete: (_outcome, task) =>
-            getCurrentSummarizedBoundary(getChat(), getChatStore()) >= task.targetIndex,
+        isComplete: isManualTargetReached,
     },
     [ELASTIC_STRATEGIES.SLOP]: {
         buildTask: buildSlopTask,
         processBatch: processSlopBatch,
-        isComplete: (_outcome, task) =>
-            getCurrentSummarizedBoundary(getChat(), getChatStore()) >= task.targetIndex,
+        isComplete: isManualTargetReached,
     },
 });
 

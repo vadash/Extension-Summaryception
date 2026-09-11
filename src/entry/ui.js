@@ -21,7 +21,6 @@ import { countTextTokens, formatCompactTokenCount, formatTokenValue } from '../c
 import { buildAutoSummaryRoutePlan } from '../core/summarization-routes.js';
 import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
 import { assembleSummaryBlock } from '../features/injection.js';
-import { SETTINGS_HELP } from './settings-help-data.js';
 import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
 import { updateSnippetBrowser } from './ui-snippets.js';
 import {
@@ -55,7 +54,9 @@ export async function updateUI() {
             () => null,
         );
         const ghostedCount = getGhostedCount();
-        const metrics = getLayerMetrics(store);
+        const metrics = {
+            totalSnippets: listNonEmptyLayers(store).reduce((n, { layer }) => n + layer.length, 0),
+        };
 
         const overview = { settings: effectiveSettings, plan, ghostedCount, metrics };
         await renderStatusOverview('sc_status', 'enabled', overview);
@@ -229,9 +230,6 @@ function syncMemoryModeControls(s) {
     $('#sc_memory_help_prefix_cache').toggle(isPrefixCache);
     $('#sc_manual_cache_warning').toggle(isPrefixCache);
     $('.sc-cache-mode-row').toggle(isPrefixCache);
-    $('#sc_min_summary_turns, #sc_max_summary_turns').prop('disabled', false);
-    $('#sc_min_summary_turns, #sc_max_summary_turns').closest('.sc-row').removeClass('sc-disabled');
-    $('#sc_min_summary_budget_hint').text(SETTINGS_HELP.min_summary_budget.short);
 }
 
 function getGhostedCount() {
@@ -241,21 +239,6 @@ function getGhostedCount() {
     } catch (_e) {
         return 0;
     }
-}
-
-function getLayerMetrics(store) {
-    const layers = Array.isArray(store.layers) ? store.layers : [];
-    let totalSnippets = 0;
-    let deepestLayer = 0;
-    for (let i = 0; i < layers.length; i++) {
-        const layer = layers[i];
-        if (!Array.isArray(layer) || layer.length === 0) {
-            continue;
-        }
-        totalSnippets += layer.length;
-        deepestLayer = i;
-    }
-    return { totalSnippets, deepestLayer };
 }
 
 /**

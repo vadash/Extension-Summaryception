@@ -5,6 +5,7 @@ import {
     bumpSummaryStoreMutationEpoch,
     getChatStore,
     getCurrentSummarizedBoundary,
+    getSummaryStoreMutationEpoch,
     saveChatStore,
 } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
@@ -22,7 +23,6 @@ import { formatTokenValue } from './token-count.js';
 import {
     buildSnapshotBasis,
     fingerprintSourceRange,
-    getSummaryStoreSnapshotEpoch,
     isSnapshotStoreCurrent,
 } from './summarizer-snapshot.js';
 
@@ -145,7 +145,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
     let contextText = buildFullContext(0);
     const snapshots = [];
     const pendingSnippets = [];
-    const baseMutationEpoch = getSummaryStoreSnapshotEpoch(store);
+    const baseMutationEpoch = getSummaryStoreMutationEpoch(store);
     const createToast = () => {
         if (snapshots.length === 0) {
             completeToast = createSummarizationToast(showToasts);
@@ -154,7 +154,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, { showToasts }) {
     };
 
     for (const partition of usablePartitions) {
-        if (getSummaryStoreSnapshotEpoch(store) !== baseMutationEpoch) {
+        if (getSummaryStoreMutationEpoch(store) !== baseMutationEpoch) {
             completeToast(false);
             return false;
         }

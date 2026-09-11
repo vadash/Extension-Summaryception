@@ -121,7 +121,7 @@ export function applyChineseOutputPolicy(cleanedResult, settings = {}) {
  */
 export function validateSummarizerOutputIntegrity(text, metadata = {}) {
     const output = String(text || '').trim();
-    if (isLayer0StructuredCall(metadata)) {
+    if (isLayer0SizeGuardCall(metadata)) {
         const structuralError = validateLayer0Structure(output);
         if (structuralError) {
             return rejectIntegrity(structuralError);
@@ -420,10 +420,6 @@ function cleanWhitespace(text) {
 
 function countMatches(text, regex) {
     return text.match(regex)?.length || 0;
-}
-
-function isLayer0StructuredCall(metadata = {}) {
-    return metadata.kind === 'layer0' || metadata.kind === 'regenerate';
 }
 
 function validateLayer0Structure(text) {

@@ -418,12 +418,9 @@ async function onSnippetDeleteClick() {
 }
 
 function handleRegenerationTargetStatus(target) {
-    if (target.status === 'ready') {
-        return true;
-    }
     if (target.status === 'busy') {
         showBusySummaryToast();
-        return false;
+        return;
     }
     if (target.status === 'unsupported') {
         toastr.warning(
@@ -432,7 +429,6 @@ function handleRegenerationTargetStatus(target) {
             { timeOut: 5000 },
         );
     }
-    return false;
 }
 
 async function runSnippetRegeneration(btn, position) {
