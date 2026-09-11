@@ -609,7 +609,7 @@ function validateImportPayload(data) {
  * Keys a defaults reset never touches: the selected memory/UI/config modes,
  * every connection/merge/fallback route setting including per-route timeouts,
  * and debugMode (re-enabled explicitly after the reset loop).
- * @type {ReadonlySet<string>}
+ * @type {Set<string>}
  */
 const RESET_PRESERVED_KEYS = new Set([
     'memoryMode',
