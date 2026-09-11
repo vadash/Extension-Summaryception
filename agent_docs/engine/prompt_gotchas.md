@@ -17,3 +17,4 @@
 - Keep structural header patterns in the shared header module. Do not define local copies.
 - Section extraction rules differ by caller. One rule requires both headers; another requires only the state header.
 - Keep call-label and token-range formatting in one module. Prompt logs and usage lines share them.
+- Prompt preset keys and setting keys pair in one shared table. Add a new prompt field there only; both consumers derive from it.

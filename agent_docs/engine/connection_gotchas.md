@@ -8,3 +8,4 @@
 - Configure timeouts independently for each route.
 - Retry attempts use a shorter timeout than the first attempt.
 - Map all adapter failures through one shared error wrapper. Do not rebuild status or retryable per provider.
+- Build the request series context once at entry and thread it down. Per-route fallback flags and retry budgets stay per-route.

@@ -7,3 +7,4 @@
 - Recall depends on prompt quality, model behavior, and chat depth.
 - Cache TTL applies to Prefix Cache mode only.
 - Stale-cache advice needs a queue at or above Min Turns per Batch and a readable last-message time.
+- Retention clamp invariants live in one read-time normalizer. UI sliders delegate to it; keep no second enforcement.

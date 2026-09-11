@@ -25,3 +25,4 @@
 - Import numeric clamp helpers from the foundation module. Do not reimplement clamp logic locally.
 - Format token counts with the shared compact formatter. Surfaces must agree on rounding.
 - Avoid horizontal scrolling, clipped labels, and missing focus states.
+- Settings reset restores every default except one explicit preserve set. Extend that set, never a hand-copied field list.
