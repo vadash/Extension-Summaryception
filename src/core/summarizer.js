@@ -19,7 +19,6 @@ export { callSummarizer, hasActiveAbortController } from './summarizer-request.j
 export { maybePromoteLayer } from './summarizer-promotion.js';
 export { recoverStalePromptFreeze, resetPromptMutationGuard } from './summarizer-commit.js';
 
-/** @typedef {'auto'} SummarizationMode */
 /** @typedef {import('./summarizer-engine.js').ManualRunOptions} ManualRunOptions */
 /** @typedef {import('./summarizer-engine.js').ManualRunOutcome} ManualRunOutcome */
 
@@ -35,8 +34,8 @@ const summarizerQueue = new SummarizerQueue({
 });
 
 setCommitCallbacks({
-    requeue: (reason) => {
-        void requestSummarization({ reason, mode: 'auto' });
+    requeue: () => {
+        void requestSummarization();
     },
 });
 
@@ -92,8 +91,8 @@ export function setInjectionUpdater(updateInjection, reassertInjection) {
     setCommitCallbacks({
         updateInjection,
         reassertInjection,
-        requeue: (reason) => {
-            void requestSummarization({ reason, mode: 'auto' });
+        requeue: () => {
+            void requestSummarization();
         },
     });
 }
@@ -115,7 +114,7 @@ export async function endForegroundGeneration() {
     try {
         await endCommitFreeze();
         await flushPendingChatSave();
-        await requestSummarization({ reason: 'generation-ended', mode: 'auto' });
+        await requestSummarization();
     } finally {
         refreshUI();
     }
@@ -123,19 +122,10 @@ export async function endForegroundGeneration() {
 
 /**
  * Queue or coalesce an automatic summarization request.
- * @param {{ reason?: string, mode?: SummarizationMode }} [opts]
  * @returns {Promise<void>}
  */
-export function requestSummarization({ reason: _reason = 'auto', mode: _mode = 'auto' } = {}) {
+export function requestSummarization() {
     return summarizerQueue.request();
-}
-
-/**
- * Summarize the oldest verbatim turns if the overflow exceeds the limit.
- * @returns {Promise<void>}
- */
-export async function maybeSummarizeTurns() {
-    await requestSummarization({ reason: 'maybe-summarize', mode: 'auto' });
 }
 
 /**

@@ -34,7 +34,7 @@ import {
     abortSummarization,
     getIsSummarizing,
     hasActiveAbortController,
-    maybeSummarizeTurns,
+    requestSummarization,
     runCatchup,
     runSlopBreaker,
 } from '../core/summarizer.js';
@@ -262,7 +262,7 @@ export function refreshEffectiveSettings() {
 }
 
 function requestAutoSummaryRefresh(reason) {
-    void maybeSummarizeTurns()
+    void requestSummarization()
         .catch((e) => {
             warn(`Auto summarization request after ${reason} failed:`, e);
         })
@@ -374,7 +374,7 @@ function onResumeSummarize() {
         timeOut: 3000,
     });
     updateUI();
-    void maybeSummarizeTurns().catch((e) => warn('Resume-triggered summary failed:', e));
+    void requestSummarization().catch((e) => warn('Resume-triggered summary failed:', e));
 }
 
 /**
@@ -606,6 +606,30 @@ function validateImportPayload(data) {
 }
 
 /**
+ * Keys a defaults reset never touches: the selected memory/UI/config modes,
+ * every connection/merge/fallback route setting including per-route timeouts,
+ * and debugMode (re-enabled explicitly after the reset loop).
+ * @type {ReadonlySet<string>}
+ */
+const RESET_PRESERVED_KEYS = new Set([
+    'memoryMode',
+    'uiMode',
+    'configMode',
+    'connectionSource',
+    'connectionProfileId',
+    'requestTimeoutSeconds',
+    'mergeConnectionSource',
+    'mergeConnectionProfileId',
+    'mergeSummarizerResponseLength',
+    'mergeRequestTimeoutSeconds',
+    'fallbackConnectionSource',
+    'fallbackConnectionProfileId',
+    'fallbackSummarizerResponseLength',
+    'fallbackRequestTimeoutSeconds',
+    'debugMode',
+]);
+
+/**
  * Reset advanced settings to defaults.
  * @returns {void}
  */
@@ -621,36 +645,23 @@ function onResetDefaults() {
     }
 
     const s = getSettings();
-    const preservedMemoryMode = s.memoryMode;
-    s.minSummaryTurns = defaultSettings.minSummaryTurns;
-    s.maxSummaryTurns = defaultSettings.maxSummaryTurns;
-    s.maxL0SourceTokens = defaultSettings.maxL0SourceTokens;
-    s.minSummaryBudget = defaultSettings.minSummaryBudget;
-    const retentionPreset =
-        MEMORY_MODE_PRESETS[preservedMemoryMode] || MEMORY_MODE_PRESETS.balanced;
-    s.verbatimTokenBudget = retentionPreset.verbatimTokenBudget;
-    s.queuedTokenBudget = retentionPreset.queuedTokenBudget;
-    s.memoryTokenBudget = defaultSettings.memoryTokenBudget;
-    s.layer0SummaryTokenTarget = defaultSettings.layer0SummaryTokenTarget;
-    s.snippetsPerLayer = defaultSettings.snippetsPerLayer;
-    s.snippetsPerPromotion = defaultSettings.snippetsPerPromotion;
+    for (const key of Object.keys(defaultSettings)) {
+        if (RESET_PRESERVED_KEYS.has(key)) {
+            continue;
+        }
+        const value = defaultSettings[key];
+        s[key] = Array.isArray(value) ? [...value] : value;
+    }
 
     resetPromptFields(s);
-    s.injectionTemplate = defaultSettings.injectionTemplate;
-    s.stripPatterns = [...defaultSettings.stripPatterns];
-    s.summarizerResponseLength = defaultSettings.summarizerResponseLength;
 
-    // Reset debug
+    // Retention budgets follow the preserved memory mode's preset, not the plain defaults.
+    const retentionPreset = MEMORY_MODE_PRESETS[s.memoryMode] || MEMORY_MODE_PRESETS.balanced;
+    s.verbatimTokenBudget = retentionPreset.verbatimTokenBudget;
+    s.queuedTokenBudget = retentionPreset.queuedTokenBudget;
+
+    // Debug output deliberately re-enables on reset so F12 diagnostics stay available.
     s.debugMode = true;
-    s.traceMode = defaultSettings.traceMode;
-    s.promptInputLogMode = defaultSettings.promptInputLogMode;
-    s.promptOutputLogMode = defaultSettings.promptOutputLogMode;
-    s.applyRegexScripts = defaultSettings.applyRegexScripts;
-    s.hideNonTextMessages = defaultSettings.hideNonTextMessages;
-    s.stripChineseIdeographs = defaultSettings.stripChineseIdeographs;
-    s.injectCurrentState = defaultSettings.injectCurrentState;
-    s.maskUserRoleAsAssistant = defaultSettings.maskUserRoleAsAssistant;
-    s.maskUserRoleMode = defaultSettings.maskUserRoleMode;
 
     saveAndRefreshUi();
     toastr.success(

@@ -329,18 +329,7 @@ async function generateValidatedPromotion(prepared) {
         return null;
     }
 
-    return await buildValidatedPromotionSnippet({
-        layerIndex: prepared.layerIndex,
-        mergeCount: prepared.mergeCount,
-        settings: prepared.settings,
-        sourceNarrativeText: prepared.sourceNarrativeText,
-        sourceTokens: prepared.memoryTokensBefore,
-        storyTxt: prepared.storyTxt,
-        contextStr: prepared.contextStr,
-        metadata: prepared.promotionMetadata,
-        narrative: metaNarrative,
-        promotedMetadata: prepared.promotedMetadata,
-    });
+    return await buildValidatedPromotionSnippet({ prepared, narrative: metaNarrative });
 }
 
 async function commitValidatedPromotion({ prepared, promotedSnippet }) {
@@ -365,18 +354,18 @@ async function commitValidatedPromotion({ prepared, promotedSnippet }) {
     return result !== 'stale';
 }
 
-async function buildValidatedPromotionSnippet({
-    layerIndex,
-    mergeCount,
-    settings,
-    sourceNarrativeText,
-    sourceTokens,
-    storyTxt,
-    contextStr,
-    metadata,
-    narrative,
-    promotedMetadata,
-}) {
+async function buildValidatedPromotionSnippet({ prepared, narrative }) {
+    const {
+        layerIndex,
+        mergeCount,
+        settings,
+        sourceNarrativeText,
+        memoryTokensBefore: sourceTokens,
+        storyTxt,
+        contextStr,
+        promotionMetadata: metadata,
+        promotedMetadata,
+    } = prepared;
     const firstCandidate = buildPromotionCandidate(narrative, promotedMetadata);
     if (!firstCandidate) {
         return null;

@@ -11,8 +11,8 @@ import {
     endForegroundGeneration,
     hasActiveAbortController,
     hasFrozenPromptMutations,
-    maybeSummarizeTurns,
     recoverStalePromptFreeze,
+    requestSummarization,
     resetPromptMutationGuard,
 } from '../core/summarizer.js';
 import { updateInjection } from '../features/injection.js';
@@ -139,7 +139,7 @@ export function onMessageReceived(messageIndex) {
         if (msg && !msg.is_user && !msg.is_system) {
             debug('New assistant message at index', messageIndex);
             setTimeout(async () => {
-                await maybeSummarizeTurns();
+                await requestSummarization();
                 updateUI();
             }, 500);
         }
