@@ -12,10 +12,10 @@
 
 ## Global Boundaries
 
-- Reach SillyTavern runtime globals only through the foundation host facade.
+- Reach SillyTavern runtime globals only through the foundation host facade (ADR-0001). Optional host integrations may return a safe fallback.
 - Read runtime behavior from effective settings.
 - Use raw settings only for persistence and UI forms.
-- Any summary layer or snippet mutation must bump the store mutation epoch.
+- Any summary layer or snippet mutation must bump the store mutation epoch (ADR-0003).
 - Implicit any is allowed. Annotate parameters that hold structured objects so the type gate checks property reads.
 
 ## Commands
@@ -23,13 +23,11 @@
 - `npm test` runs the suite.
 - The pre-commit hook formats the whole repo, then stages every change. Keep the tree free of unrelated edits before a commit.
 
-## Documentation Map
+## Documentation
 
-- Architecture and state ownership: `agent_docs/architecture/architecture.md`
-- Summarizer, memory, prompts, and connections: `agent_docs/engine/engine.md`
-- UI and workflows: `agent_docs/ui/ui.md`
-- Testing contracts: `agent_docs/testing/testing.md`
-- Cost and budget tuning: `agent_docs/tuning/tuning.md`
+- Domain glossary: `CONTEXT.md`
+- Decisions: `docs/adr/`
+- Required host APIs target the current stable SillyTavern release.
 - Tests share one setup hook for context bootstrap. Do not repeat it per test.
 - Conditional source guidance: `src/AGENTS.md`
 - Conditional test guidance: `tests/AGENTS.md`
