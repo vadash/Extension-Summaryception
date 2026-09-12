@@ -28,9 +28,10 @@ describe('Layer 0 deferred cleanup commit', () => {
         const { toastr } = installBrowserRuntimeStub();
         const chat = buildChat();
         installSummaryContext({ chat, metadata: { summaryception: makeSummaryStore() } });
-        callSummarizer.mockResolvedValue(
-            `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
-        );
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
+        });
 
         await expect(summarizeBatchFromTurns([{ index: 1 }], { showToasts: true })).resolves.toBe(
             true,
@@ -60,9 +61,10 @@ describe('Layer 0 deferred cleanup commit', () => {
         delete chat[1].sc_id;
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        callSummarizer.mockResolvedValue(
-            `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
-        );
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
+        });
 
         await expect(summarizeBatchFromTurns([{ index: 1 }])).resolves.toBe(true);
 
@@ -98,7 +100,10 @@ describe('Layer 0 deferred cleanup commit', () => {
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
         expect(saveChat).not.toHaveBeenCalled();
-        resolveSummary(`[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`);
+        resolveSummary({
+            status: 'completed',
+            text: `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
+        });
         await expect(resultPromise).resolves.toBe(true);
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
@@ -120,9 +125,10 @@ describe('Layer 0 deferred cleanup commit', () => {
             }
         });
         installSummaryContext({ chat, metadata, saveMetadata });
-        callSummarizer.mockResolvedValue(
-            `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
-        );
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`,
+        });
         await expect(summarizeBatchFromTurns([{ index: 1 }])).rejects.toThrow(
             'metadata write failed',
         );
@@ -131,4 +137,29 @@ describe('Layer 0 deferred cleanup commit', () => {
         expect(metadata.summaryception.layers[0]).toEqual([]);
         expect(metadata.summaryception.mutationEpoch).toBe(0);
     });
+});
+
+describe('Layer 0 request outcome handling', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+        callSummarizer.mockReset();
+    });
+
+    it.each([['aborted'], ['blocked'], ['failed']])(
+        'skips the commit when the request outcome is %s',
+        async (status) => {
+            const chat = [
+                makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
+                makeMessage({ scId: 'assistant-id', mes: 'Assistant scene.' }),
+            ];
+            const metadata = { summaryception: makeSummaryStore() };
+            installSummaryContext({ chat, metadata });
+            callSummarizer.mockResolvedValue({ status });
+
+            await expect(summarizeBatchFromTurns([{ index: 1 }])).resolves.toBe(false);
+
+            expect(metadata.summaryception.layers[0]).toEqual([]);
+            expect(metadata.summaryception.mutationEpoch).toBe(0);
+        },
+    );
 });

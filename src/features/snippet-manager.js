@@ -141,12 +141,13 @@ async function regenerateSnippetWithTarget(target) {
         return { status: 'empty-source' };
     }
 
-    const newSummary = await callSummarizer(passage.text, target.context, {
+    const outcome = await callSummarizer(passage.text, target.context, {
         kind: 'regenerate',
         sourceRange: target.range,
         regexStats: passage.stats,
     });
 
+    const newSummary = outcome.status === 'completed' ? outcome.text : '';
     if (!newSummary) {
         return { status: 'failed' };
     }

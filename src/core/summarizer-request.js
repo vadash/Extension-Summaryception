@@ -30,7 +30,7 @@ export function abortCurrentSummarizerRequest() {
  * @param {string} storyTxt - The story text to summarize
  * @param {string} contextStr - The accumulated context string
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata for debug usage logs
- * @returns {Promise<string>} The generated summary, or '' on failure/abort
+ * @returns {Promise<import('./request-runner.js').RunOutcome>} Run Outcome; `completed` carries the summary text
  */
 export async function callSummarizer(storyTxt, contextStr, metadata = {}) {
     trace('>>> ENTERING callSummarizer');

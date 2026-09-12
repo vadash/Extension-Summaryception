@@ -246,9 +246,9 @@ async function runLayer0Summarization({
 
     const completeToast = createToast();
 
-    let summary;
+    let outcome;
     try {
-        summary = await callSummarizer(snapshot.passageText, snapshot.contextText, {
+        outcome = await callSummarizer(snapshot.passageText, snapshot.contextText, {
             kind: 'layer0',
             sourceRange: snapshot.sourceRange,
             regexStats: snapshot.passageStats,
@@ -259,6 +259,7 @@ async function runLayer0Summarization({
         completeToast(false);
         throw err;
     }
+    const summary = outcome.status === 'completed' ? outcome.text : '';
     if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
         completeToast(false);
         return null;

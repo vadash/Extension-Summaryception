@@ -320,16 +320,16 @@ async function generateValidatedPromotion(prepared) {
         return null;
     }
 
-    const metaNarrative = await callSummarizer(
+    const metaOutcome = await callSummarizer(
         prepared.storyTxt,
         prepared.contextStr,
         prepared.promotionMetadata,
     );
-    if (!metaNarrative) {
+    if (metaOutcome.status !== 'completed') {
         return null;
     }
 
-    return await buildValidatedPromotionSnippet({ prepared, narrative: metaNarrative });
+    return await buildValidatedPromotionSnippet({ prepared, narrative: metaOutcome.text });
 }
 
 async function commitValidatedPromotion({ prepared, promotedSnippet }) {
@@ -392,7 +392,7 @@ async function buildValidatedPromotionSnippet({ prepared, narrative }) {
         return null;
     }
 
-    const repairNarrative = await callSummarizer(storyTxt, contextStr, {
+    const repairOutcome = await callSummarizer(storyTxt, contextStr, {
         ...metadata,
         promotionRepair: {
             reason: firstValidation.reason,
@@ -405,7 +405,10 @@ async function buildValidatedPromotionSnippet({ prepared, narrative }) {
             diagnostics: firstValidation.diagnostics,
         },
     });
-    const repairedCandidate = buildPromotionCandidate(repairNarrative, promotedMetadata);
+    if (repairOutcome.status !== 'completed') {
+        return null;
+    }
+    const repairedCandidate = buildPromotionCandidate(repairOutcome.text, promotedMetadata);
     if (!repairedCandidate) {
         return null;
     }

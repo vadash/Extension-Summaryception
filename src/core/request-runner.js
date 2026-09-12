@@ -22,6 +22,30 @@ import {
     updateAttemptLogState,
 } from './request-attempt-log.js';
 
+/**
+ * Structured result of one summarizer request (ADR-0004). The deepest shared
+ * request entry returns this instead of an empty-string sentinel.
+ * @typedef {object} RunOutcome
+ * @property {'completed' | 'aborted' | 'blocked' | 'failed'} status - Terminal request status.
+ * @property {string} [text] - Summary text; present only when status is 'completed'.
+ */
+
+function buildCompletedOutcome(text) {
+    return { status: /** @type {'completed'} */ ('completed'), text };
+}
+
+function buildAbortedOutcome() {
+    return { status: /** @type {'aborted'} */ ('aborted') };
+}
+
+function buildBlockedOutcome() {
+    return { status: /** @type {'blocked'} */ ('blocked') };
+}
+
+function buildFailedOutcome() {
+    return { status: /** @type {'failed'} */ ('failed') };
+}
+
 function buildRouteCycleResult(result) {
     return { status: /** @type {'done'} */ ('done'), result };
 }
@@ -65,7 +89,7 @@ export class RequestRunner {
      * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
      * @param {AbortSignal} p.signal - Abort signal
      * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
-     * @returns {Promise<string>} Summary text, or '' on failure
+     * @returns {Promise<RunOutcome>} Structured outcome; `completed` carries the summary text.
      */
     async run({ settings, systemPrompt, prompt, repairPrompt, signal, metadata }) {
         // Shared, read-only context for every route cycle and attempt of this request.
@@ -136,7 +160,7 @@ export class RequestRunner {
     resolvePrimaryRouteResult(primary, healthBucket) {
         if (primary.status === 'success') {
             this.primaryRetryExhaustedBuckets.delete(healthBucket);
-            return buildRouteCycleResult(primary.result);
+            return buildRouteCycleResult(buildCompletedOutcome(primary.result));
         }
         if (primary.status === 'aborted') {
             return buildRouteCycleResult(abortWithToast());
@@ -164,7 +188,7 @@ export class RequestRunner {
         });
 
         if (fallback.status === 'success') {
-            return buildRouteCycleResult(fallback.result);
+            return buildRouteCycleResult(buildCompletedOutcome(fallback.result));
         }
         if (fallback.status === 'aborted') {
             return buildRouteCycleResult(abortWithToast());
@@ -175,7 +199,7 @@ export class RequestRunner {
             signal: series.signal,
         });
         this.primaryRetryExhaustedBuckets.delete(series.healthBucket);
-        return { status: /** @type {'retry'} */ ('retry'), result: '' };
+        return { status: /** @type {'retry'} */ ('retry'), result: null };
     }
 
     /**
@@ -396,13 +420,13 @@ function logRetryStopReason(reason, maxRetries) {
 }
 
 /**
- * Log and toast an abort and return the sentinel '' value.
- * @returns {string} Always ''
+ * Log and toast an abort, returning the aborted outcome.
+ * @returns {RunOutcome} The aborted outcome
  */
 function abortWithToast() {
     debug('Summarization aborted by user.');
     toastr.warning('Summarization aborted.', TOAST_TITLE, { timeOut: 3000 });
-    return '';
+    return buildAbortedOutcome();
 }
 
 /**
@@ -417,13 +441,13 @@ function abortWithToast() {
  * Toast and log a terminal summarization failure.
  * @param {SummarizerFailureError} lastError
  * @param {{ retriesExhausted?: boolean }} [options]
- * @returns {string} Always ''
+ * @returns {RunOutcome} The blocked or failed outcome
  */
 function failSummarization(lastError, { retriesExhausted = true } = {}) {
     if (lastError?.easyContextGuard) {
         logError('Summarization blocked by Easy context guard:', lastError);
         trace('<<< EXITING callSummarizer WITH EASY CONTEXT GUARD');
-        return '';
+        return buildBlockedOutcome();
     }
 
     const status = lastError?.status || lastError?.response?.status || '';
@@ -435,5 +459,5 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
         { timeOut: 8000 },
     );
     trace('<<< EXITING callSummarizer WITH FAILURE');
-    return '';
+    return buildFailedOutcome();
 }
