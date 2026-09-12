@@ -1,7 +1,8 @@
-import { TOAST_TITLE } from '../foundation/constants.js';
+import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { debug, error as logError, info, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG } from '../foundation/retry.js';
 import { resolveFallbackSummarizerConnectionSettings } from './connectionutil.js';
+import { getNotifyAdapter } from './notify.js';
 import {
     computeAttemptTimeoutMs,
     getPrimaryHealthBucket,
@@ -106,7 +107,7 @@ export class RequestRunner {
 
         while (true) {
             if (series.signal.aborted) {
-                return abortWithToast();
+                return abortRun();
             }
 
             const cycle = await this.runRouteCycle(series);
@@ -163,7 +164,7 @@ export class RequestRunner {
             return buildRouteCycleResult(buildCompletedOutcome(primary.result));
         }
         if (primary.status === 'aborted') {
-            return buildRouteCycleResult(abortWithToast());
+            return buildRouteCycleResult(abortRun());
         }
         if (!primary.retryable && !primary.hardFailover) {
             return buildRouteCycleResult(
@@ -191,7 +192,7 @@ export class RequestRunner {
             return buildRouteCycleResult(buildCompletedOutcome(fallback.result));
         }
         if (fallback.status === 'aborted') {
-            return buildRouteCycleResult(abortWithToast());
+            return buildRouteCycleResult(abortRun());
         }
 
         await notifyRouteCycleFailedAndWait({
@@ -420,12 +421,13 @@ function logRetryStopReason(reason, maxRetries) {
 }
 
 /**
- * Log and toast an abort, returning the aborted outcome.
+ * Emit the abort event and return the aborted outcome. Stopping a run is not
+ * a failure; entry renders the notice from this structured event (ADR-0004).
  * @returns {RunOutcome} The aborted outcome
  */
-function abortWithToast() {
+function abortRun() {
     debug('Summarization aborted by user.');
-    toastr.warning('Summarization aborted.', TOAST_TITLE, { timeOut: 3000 });
+    getNotifyAdapter().transient({ kind: NOTIFY_EVENTS.RUN_ABORTED });
     return buildAbortedOutcome();
 }
 
@@ -438,7 +440,8 @@ function abortWithToast() {
  */
 
 /**
- * Toast and log a terminal summarization failure.
+ * Emit the terminal failure event and return the outcome. The guard-block
+ * branch emits nothing: the attempt layer already emitted the guard event.
  * @param {SummarizerFailureError} lastError
  * @param {{ retriesExhausted?: boolean }} [options]
  * @returns {RunOutcome} The blocked or failed outcome
@@ -453,11 +456,12 @@ function failSummarization(lastError, { retriesExhausted = true } = {}) {
     const status = lastError?.status || lastError?.response?.status || '';
     const retryText = retriesExhausted ? ` after ${RETRY_CONFIG.maxRetries} retries` : '';
     logError(`Summarization failed${retryText}:`, lastError);
-    toastr.error(
-        `Summarization failed${retryText}${status ? ` (${status})` : ''}. Batch skipped; will retry on next trigger.`,
-        TOAST_TITLE,
-        { timeOut: 8000 },
-    );
+    getNotifyAdapter().transient({
+        kind: NOTIFY_EVENTS.RUN_FAILED,
+        retriesExhausted,
+        maxRetries: RETRY_CONFIG.maxRetries,
+        status: status || null,
+    });
     trace('<<< EXITING callSummarizer WITH FAILURE');
     return buildFailedOutcome();
 }

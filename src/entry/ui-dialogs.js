@@ -1,4 +1,5 @@
-import { GHOST_PROGRESS, TOAST_TITLE } from '../foundation/constants.js';
+import { formatTokenValue } from '../core/token-count.js';
+import { GHOST_PROGRESS, NOTIFY_EVENTS, TOAST_TITLE } from '../foundation/constants.js';
 
 /**
  * Show the Slop Breaker no-op toast.
@@ -238,6 +239,50 @@ const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 
  */
 
 /**
+ * Fixed display duration for retry warnings. Independent of the backoff wait,
+ * which lives in retry policy (ADR-0004).
+ */
+const RETRY_NOTICE_MS = 5000;
+
+/**
+ * Per-kind transient notice policy (ADR-0004): severity, fixed display
+ * duration, and phrasing built from the event's structured payload. Durations
+ * never derive from core wait times; unknown kinds stay silent.
+ * @type {Record<string, (event: import('../core/notify.js').NotifyTransientEvent) => void>}
+ */
+const NOTIFY_TRANSIENT_VIEWS = {
+    [NOTIFY_EVENTS.RUN_ABORTED]: () =>
+        toastr.warning('Summarization stopped.', TOAST_TITLE, { timeOut: 3000 }),
+    [NOTIFY_EVENTS.RUN_FAILED]: (event) =>
+        toastr.error(
+            `Summarization failed` +
+                `${event.retriesExhausted ? ` after ${event.maxRetries} retries` : ''}` +
+                `${event.status ? ` (${event.status})` : ''}. Batch skipped; will retry on next trigger.`,
+            TOAST_TITLE,
+            { timeOut: 8000 },
+        ),
+    [NOTIFY_EVENTS.EASY_GUARD_BLOCKED]: (event) =>
+        toastr.error(
+            `Easy mode blocked ${event.label}: summarizer request is ` +
+                `${formatTokenValue(event.tokens, event.estimated)} tokens, above the ` +
+                `${formatTokenValue(event.limit)} Easy Summarizer Context cap. ` +
+                'Raise the Easy context slider or switch to Advanced.',
+            TOAST_TITLE,
+            { timeOut: 10000 },
+        ),
+    [NOTIFY_EVENTS.RETRY_WAIT]: (event) =>
+        toastr.warning(
+            `Summarizer request failed. Retrying (attempt ${(event.attempt ?? 0) + 1} of ${event.maxRetries ?? 0})...`,
+            TOAST_TITLE,
+            { timeOut: RETRY_NOTICE_MS },
+        ),
+    [NOTIFY_EVENTS.ROUTE_CYCLE_WAIT]: () =>
+        toastr.warning('Both summarizer routes failed. Retrying primary...', TOAST_TITLE, {
+            timeOut: RETRY_NOTICE_MS,
+        }),
+};
+
+/**
  * Build the toastr-backed notify adapter (ADR-0004). Display durations and
  * update cadence live here; events carry structured data only.
  * @returns {import('../core/notify.js').NotifyAdapter}
@@ -245,8 +290,11 @@ const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 
 export function createToastrNotifyAdapter() {
     return {
         transient(event) {
-            // No core module emits transient events yet; unknown kinds stay silent.
-            void event;
+            const kind = /** @type {string} */ (event?.kind);
+            const view = NOTIFY_TRANSIENT_VIEWS[kind];
+            if (view) {
+                view(/** @type {import('../core/notify.js').NotifyTransientEvent} */ (event));
+            }
         },
         progress(event) {
             const view = NOTIFY_PROGRESS_VIEWS[event.label] || DEFAULT_PROGRESS_VIEW;

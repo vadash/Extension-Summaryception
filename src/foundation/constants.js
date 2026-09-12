@@ -21,6 +21,20 @@ export const TOAST_TITLE = 'Summaryception';
  */
 export const GHOST_PROGRESS = { HIDE: 'ghost-hide', UNHIDE: 'ghost-unhide' };
 
+/**
+ * Stable transient event kinds emitted on the notify adapter (ADR-0004); the
+ * entry adapter maps each kind to a user notice. Core carries these ids, never
+ * prose.
+ * @type {{ RUN_ABORTED: string, RUN_FAILED: string, EASY_GUARD_BLOCKED: string, RETRY_WAIT: string, ROUTE_CYCLE_WAIT: string }}
+ */
+export const NOTIFY_EVENTS = Object.freeze({
+    RUN_ABORTED: 'run-aborted',
+    RUN_FAILED: 'run-failed',
+    EASY_GUARD_BLOCKED: 'easy-guard-blocked',
+    RETRY_WAIT: 'retry-wait',
+    ROUTE_CYCLE_WAIT: 'route-cycle-wait',
+});
+
 export const MEMORY_MODES = Object.freeze({
     BALANCED: 'balanced',
     PREFIX_CACHE: 'prefix_cache',

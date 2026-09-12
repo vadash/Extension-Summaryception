@@ -17,8 +17,24 @@
  */
 
 /**
+ * Structured transient event payload (ADR-0004). Core sends only the fields
+ * its `kind` documents; entry views read only those fields.
+ * @typedef {object} NotifyTransientEvent
+ * @property {string} kind - Stable event kind from NOTIFY_EVENTS.
+ * @property {boolean} [retriesExhausted] - Whether retries ran out (run-failed).
+ * @property {number} [maxRetries] - Route retry budget (run-failed, retry-wait).
+ * @property {number | null} [status] - HTTP status, when known (run-failed).
+ * @property {string} [label] - Stable call label (easy-guard-blocked).
+ * @property {number} [tokens] - Request token count (easy-guard-blocked).
+ * @property {boolean} [estimated] - Token count is an estimate (easy-guard-blocked).
+ * @property {number} [limit] - Configured token cap (easy-guard-blocked).
+ * @property {number} [attempt] - Zero-based failed attempt index (retry-wait).
+ * @property {number} [delayMs] - Backoff wait in ms; display ignores it (retry-wait).
+ */
+
+/**
  * @typedef {object} NotifyAdapter
- * @property {(event: Record<string, unknown>) => void} transient - One-shot notice; event carries structured data only.
+ * @property {(event: NotifyTransientEvent) => void} transient - One-shot notice; event carries structured data only.
  * @property {(event: NotifyProgressEvent) => unknown} progress - Open a long-lived progress handle.
  * @property {(handle: unknown, event: NotifyUpdateEvent) => void} update - Report progress counts; display cadence is adapter policy.
  * @property {(handle: unknown, event?: Record<string, unknown>) => void} clear - Close a handle, optionally with a terminal event.

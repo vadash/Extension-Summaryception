@@ -1,4 +1,4 @@
-import { TOAST_TITLE, UI_MODES } from '../foundation/constants.js';
+import { NOTIFY_EVENTS, UI_MODES } from '../foundation/constants.js';
 import {
     debug,
     error as logError,
@@ -26,6 +26,7 @@ import {
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import { insertBeforeTrigger, EXECUTION_TRIGGER_L0 } from '../foundation/prompt-parts.js';
 import { describePromptLogCall } from './request-attempt-log.js';
+import { getNotifyAdapter } from './notify.js';
 
 /**
  * Append repair feedback before the L0 execution trigger.
@@ -70,7 +71,13 @@ async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, meta
 
     const guardError = buildEasyContextGuardError(guard, metadata);
     warn(guardError.message);
-    toastr.error(guardError.message, TOAST_TITLE, { timeOut: 10000 });
+    getNotifyAdapter().transient({
+        kind: NOTIFY_EVENTS.EASY_GUARD_BLOCKED,
+        label: guard.label,
+        tokens: guard.tokens.count,
+        estimated: guard.tokens.estimated,
+        limit: guard.limit,
+    });
     return buildAttemptFailure(guardError, false, 'easy-context-guard');
 }
 
@@ -273,18 +280,20 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
 }
 
 /**
- * Log the report line, toast a warning lasting the delay, then wait it out (abort cuts it short).
+ * Log the report line, emit the structured retry event, then wait out the
+ * delay (abort cuts the wait short). Display duration is adapter policy; the
+ * wait stays in retry policy (ADR-0004).
  * @param {object} p
  * @param {number} p.delay - Milliseconds to wait
  * @param {(line: string) => void} p.log - Structured log emitter (warn/info)
  * @param {string} p.logLine - Structured log message
- * @param {string} p.toastLine - Toast message
+ * @param {import('./notify.js').NotifyTransientEvent} p.event - Structured notify event
  * @param {AbortSignal} p.signal
  * @returns {Promise<void>}
  */
-async function notifyAndWaitDelay({ delay, log, logLine, toastLine, signal }) {
+async function emitRetryEventAndWait({ delay, log, logLine, event, signal }) {
     log(logLine);
-    toastr.warning(toastLine, TOAST_TITLE, { timeOut: delay });
+    getNotifyAdapter().transient(event);
     await sleepOrAbort(delay, signal);
 }
 
@@ -305,11 +314,16 @@ export async function notifyRetryAndWait(
     const delay = computeRetryDelay(lastError, attempt);
     const delaySec = (delay / 1000).toFixed(1);
     const status = lastError?.status || lastError?.response?.status || '?';
-    await notifyAndWaitDelay({
+    await emitRetryEventAndWait({
         delay,
         log: (line) => warn(line, lastError.message || lastError),
         logLine: `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
-        toastLine: `API error (${status}). Retrying in ${delaySec}s... (${attempt + 1}/${maxRetries})`,
+        event: {
+            kind: NOTIFY_EVENTS.RETRY_WAIT,
+            attempt,
+            delayMs: delay,
+            maxRetries,
+        },
         signal,
     });
 }
@@ -324,17 +338,28 @@ export async function notifyRetryAndWait(
 export async function notifyRouteCycleFailedAndWait({ healthBucket, signal }) {
     const delay = computeRetryDelay(new Error('Both routes failed'), ROUTE_CYCLE_RETRY_ATTEMPT);
     const delaySec = (delay / 1000).toFixed(1);
-    await notifyAndWaitDelay({
+    await emitRetryEventAndWait({
         delay,
         log: info,
         logLine:
             `Both primary and fallback exhausted for ${healthBucket}; ` +
             `resetting health state and retrying primary in ${delaySec}s.`,
-        toastLine: `Both summarizer routes failed. Retrying primary in ${delaySec}s...`,
+        event: {
+            kind: NOTIFY_EVENTS.ROUTE_CYCLE_WAIT,
+            delayMs: delay,
+        },
         signal,
     });
 }
 
+/**
+ * Check the Easy mode summarizer context cap.
+ * @param {ExtensionSettings} settings - Settings
+ * @param {string} systemPrompt - System prompt
+ * @param {string} prompt - Fully substituted user prompt
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @returns {Promise<{ ok: true } | { ok: false, limit: number, tokens: { count: number, estimated: boolean }, label: string }>}
+ */
 async function checkEasyContextGuard(settings, systemPrompt, prompt, metadata = {}) {
     if (settings.uiMode !== UI_MODES.EASY) {
         return { ok: true };

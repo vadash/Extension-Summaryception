@@ -10,8 +10,13 @@ const attemptMocks = vi.hoisted(() => ({
 vi.mock('../src/core/request-attempt.js', () => attemptMocks);
 
 import { RequestRunner } from '../src/core/request-runner.js';
+import { setNotifyAdapter } from '../src/core/notify.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
-import { installBrowserRuntimeStub, makeSummarySettings } from './test-helpers.js';
+import {
+    installBrowserRuntimeStub,
+    makeNotifyRecorder,
+    makeSummarySettings,
+} from './test-helpers.js';
 
 describe('RequestRunner.run outcomes', () => {
     afterEach(() => {
@@ -19,6 +24,7 @@ describe('RequestRunner.run outcomes', () => {
         for (const mock of Object.values(attemptMocks)) {
             mock.mockReset();
         }
+        setNotifyAdapter(null);
         delete globalThis.toastr;
         delete globalThis.$;
     });
@@ -50,7 +56,9 @@ describe('RequestRunner.run outcomes', () => {
     });
 
     it('returns aborted for an already-aborted signal without attempting', async () => {
-        const { toastr } = installBrowserRuntimeStub();
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
+        installBrowserRuntimeStub();
         const controller = new AbortController();
         controller.abort();
 
@@ -58,10 +66,12 @@ describe('RequestRunner.run outcomes', () => {
 
         expect(outcome).toEqual({ status: 'aborted' });
         expect(attemptMocks.runSingleAttempt).not.toHaveBeenCalled();
-        expect(toastr.warning).toHaveBeenCalled();
+        expect(recorder.events).toEqual([{ type: 'transient', kind: 'run-aborted' }]);
     });
 
     it('returns blocked when the Easy context guard rejects the request', async () => {
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
         installBrowserRuntimeStub();
         attemptMocks.runSingleAttempt.mockResolvedValue({
             success: false,
@@ -75,9 +85,12 @@ describe('RequestRunner.run outcomes', () => {
 
         expect(outcome).toEqual({ status: 'blocked' });
         expect(attemptMocks.runSingleAttempt).toHaveBeenCalledOnce();
+        expect(recorder.events).toEqual([]);
     });
 
     it('returns failed on a non-retryable error without the guard', async () => {
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
         installBrowserRuntimeStub();
         attemptMocks.runSingleAttempt.mockResolvedValue({
             success: false,
@@ -91,9 +104,20 @@ describe('RequestRunner.run outcomes', () => {
 
         expect(outcome).toEqual({ status: 'failed' });
         expect(attemptMocks.runSingleAttempt).toHaveBeenCalledOnce();
+        expect(recorder.events).toEqual([
+            {
+                type: 'transient',
+                kind: 'run-failed',
+                retriesExhausted: false,
+                maxRetries: RETRY_CONFIG.maxRetries,
+                status: null,
+            },
+        ]);
     });
 
     it('returns failed after exhausting retries for retryable errors', async () => {
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
         installBrowserRuntimeStub();
         attemptMocks.runSingleAttempt.mockResolvedValue({
             success: false,
@@ -107,5 +131,14 @@ describe('RequestRunner.run outcomes', () => {
 
         expect(outcome).toEqual({ status: 'failed' });
         expect(attemptMocks.runSingleAttempt).toHaveBeenCalledTimes(RETRY_CONFIG.maxRetries + 1);
+        expect(recorder.events).toEqual([
+            {
+                type: 'transient',
+                kind: 'run-failed',
+                retriesExhausted: true,
+                maxRetries: RETRY_CONFIG.maxRetries,
+                status: null,
+            },
+        ]);
     });
 });
