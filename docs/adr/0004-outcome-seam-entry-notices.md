@@ -1,0 +1,3 @@
+# Structured run outcomes cross the core seam; entry renders all notices
+
+Core modules return a structured Run Outcome (`completed`, `aborted`, `blocked`, `failed`) and receive an explicit notify adapter for mid-run notices (one-shot, progress handle, clear); every user-facing toast string lives in entry modules. Toasting directly from core was rejected: bare toastr globals bypass the host facade (ADR-0001), retry delays fused to toast lifetimes, and the `''` return collapsed abort, guard block, and failure into one indistinguishable sentinel. Per-call-site toast callbacks were rejected: one notify adapter with a silent test recorder is two real adapters at one seam, testable without DOM or toastr.

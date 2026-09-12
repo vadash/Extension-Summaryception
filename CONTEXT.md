@@ -36,6 +36,9 @@ _Avoid_: Append Only
 **Route Plan**:
 The set of request routes (new summary, deeper merge, fallback) built for one run.
 
+**Run Outcome**:
+The structured result of one summarizer request: `completed`, `aborted`, `blocked`, or `failed`. Outcomes and notify events carry data only; entry renders all user-facing notices.
+
 **Engine Gate**:
 The single gate that owns all automatic summarization work and its guards.
 
