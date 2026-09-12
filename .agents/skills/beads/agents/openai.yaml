@@ -1,4 +1,0 @@
-interface:
-    display_name: 'Beads'
-    short_description: 'Durable tasks and memory hygiene with bd'
-    default_prompt: 'Use $beads to manage durable project work and place shared memory in the correct owner.'
