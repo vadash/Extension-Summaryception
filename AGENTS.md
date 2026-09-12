@@ -33,3 +33,17 @@
 - Tests share one setup hook for context bootstrap. Do not repeat it per test.
 - Conditional source guidance: `src/AGENTS.md`
 - Conditional test guidance: `tests/AGENTS.md`
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues (vadash/Extension-Summaryception) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
