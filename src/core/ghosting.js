@@ -1,4 +1,5 @@
-import { TOAST_TITLE } from '../foundation/constants.js';
+import { GHOST_PROGRESS } from '../foundation/constants.js';
+import { getNotifyAdapter } from './notify.js';
 import { executeSlashCommandsWithOptions, getChat } from '../foundation/context.js';
 import {
     ensureMessageScId,
@@ -14,7 +15,7 @@ import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './su
 
 /**
  * @typedef {object} GhostRangeOptions
- * @property {boolean} [showProgress] - Show a progress toast for manual work.
+ * @property {boolean} [showProgress] - Open a notify progress handle for manual work.
  * @property {string} [kind] - Prompt-effect queue label.
  * @property {'immediate' | 'deferred'} [chatSave] - Chat-file persistence mode.
  */
@@ -60,9 +61,10 @@ export async function unghostAllMessages() {
         return;
     }
 
-    const progressToast = createProgressToast('Unhiding messages', 'Clearing', total);
-    await unhideRanges({ chat, store, ranges, progressToast, total });
-    toastr.clear(progressToast);
+    const notify = getNotifyAdapter();
+    const progress = notify.progress({ label: GHOST_PROGRESS.UNHIDE, total });
+    await unhideRanges({ chat, store, ranges, progress });
+    notify.clear(progress);
     info(`Unghosted ${total} messages (only Summaryception-hidden ones)`);
 }
 
@@ -104,15 +106,16 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
     const store = getChatStore();
     const ranges = collectHideRanges(chat, store, range);
     const total = countRangeMessages(ranges);
-    const progressToast =
+    const notify = getNotifyAdapter();
+    const progress =
         options.showProgress && total > 0
-            ? createProgressToast('Hiding messages', 'Ghosting', total)
+            ? notify.progress({ label: GHOST_PROGRESS.HIDE, total })
             : null;
     let processed = 0;
 
     for (const hideRange of ranges) {
         if (!canStartPromptMutation(epoch)) {
-            return queueRemainingGhosting(hideRange[0], range[1], options, progressToast);
+            return queueRemainingGhosting(hideRange[0], range[1], options, progress);
         }
 
         const applied = await applyHideRange({
@@ -124,14 +127,18 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
         });
 
         if (!applied) {
-            return queueRemainingGhosting(hideRange[0], range[1], options, progressToast);
+            return queueRemainingGhosting(hideRange[0], range[1], options, progress);
         }
 
         processed += getRangeSize(hideRange);
-        updateProgress(progressToast, 'Hiding messages', { processed, total });
+        if (progress) {
+            notify.update(progress, { processed });
+        }
     }
 
-    clearProgress(progressToast);
+    if (progress) {
+        notify.clear(progress);
+    }
     return true;
 }
 
@@ -164,11 +171,13 @@ async function applyHideRange({ chat, store, range, epoch, chatSave }) {
  * @param {number} nextStart
  * @param {number} endIdx
  * @param {GhostRangeOptions} options
- * @param {unknown} progressToast
+ * @param {unknown} progress
  * @returns {boolean}
  */
-function queueRemainingGhosting(nextStart, endIdx, options, progressToast) {
-    clearProgress(progressToast);
+function queueRemainingGhosting(nextStart, endIdx, options, progress) {
+    if (progress) {
+        getNotifyAdapter().clear(progress);
+    }
     queueGhostRange(nextStart, endIdx, options);
     return false;
 }
@@ -306,17 +315,17 @@ export function collectGhostedMessageIndices(chat, store, limit) {
  * @param {ChatMessage[]} p.chat
  * @param {SummaryceptionStore} p.store
  * @param {Array<[number, number]>} p.ranges
- * @param {unknown} [p.progressToast]
- * @param {number} [p.total]
+ * @param {unknown} [p.progress]
  * @returns {Promise<void>}
  */
-async function unhideRanges({ chat, store, ranges, progressToast = null, total = 0 }) {
+async function unhideRanges({ chat, store, ranges, progress = null }) {
+    const notify = getNotifyAdapter();
     let processed = 0;
     for (const range of ranges) {
         await executeSlashRangeCommand('unhide', range, warn);
         clearGhostedRange(chat, store, range);
         processed += getRangeSize(range);
-        updateProgress(progressToast, 'Unhiding messages', { processed, total, everyN: 10 });
+        notify.update(progress, { processed });
         await persistChatState();
     }
 }
@@ -394,21 +403,6 @@ function getGhostEffectKind(startIdx, endIdx, options) {
 }
 
 /**
- * Create a long-lived progress toast for ghosting work.
- * @param {string} label
- * @param {string} subtitle
- * @param {number} total
- * @returns {unknown}
- */
-function createProgressToast(label, subtitle, total) {
-    return toastr.info(`${label}: 0 / ${total}`, `${TOAST_TITLE} - ${subtitle}`, {
-        timeOut: 0,
-        extendedTimeOut: 0,
-        tapToDismiss: false,
-    });
-}
-
-/**
  * Run a /hide or /unhide slash command for a range without output.
  * @param {'hide' | 'unhide'} command
  * @param {[number, number]} range
@@ -422,43 +416,5 @@ async function executeSlashRangeCommand(command, range, logFailure) {
         });
     } catch (e) {
         logFailure(`Failed to ${command} messages ${formatSlashRange(range)}:`, e);
-    }
-}
-
-/**
- * Update a progress toast, optionally throttled to every Nth processed item.
- * @param {unknown} progressToast
- * @param {string} label
- * @param {{ processed: number, total: number, everyN?: number }} p - Counts plus optional throttle step
- * @returns {void}
- */
-function updateProgress(progressToast, label, { processed, total, everyN = 1 }) {
-    if (!progressToast || processed % everyN !== 0) {
-        return;
-    }
-    updateProgressText(progressToast, label, processed, total);
-}
-
-/**
- * Update a toast progress message.
- * @param {unknown} progressToast
- * @param {string} label
- * @param {number} processed
- * @param {number} total
- * @returns {void}
- */
-function updateProgressText(progressToast, label, processed, total) {
-    const pct = Math.round((processed / total) * 100);
-    $(progressToast).find('.toast-message').text(`${label}: ${processed} / ${total} (${pct}%)`);
-}
-
-/**
- * Clear an active progress toast.
- * @param {unknown} progressToast
- * @returns {void}
- */
-function clearProgress(progressToast) {
-    if (progressToast) {
-        toastr.clear(progressToast);
     }
 }

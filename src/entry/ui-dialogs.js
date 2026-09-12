@@ -1,4 +1,4 @@
-import { TOAST_TITLE } from '../foundation/constants.js';
+import { GHOST_PROGRESS, TOAST_TITLE } from '../foundation/constants.js';
 
 /**
  * Show the Slop Breaker no-op toast.
@@ -205,6 +205,81 @@ export function confirmSlopBreaker() {
             resolve(false);
         });
     });
+}
+
+/**
+ * Display policy for one progress label: title subtitle, action text, and the
+ * every-N-items update cadence.
+ * @typedef {object} ProgressView
+ * @property {string} subtitle - Title suffix after the toast title.
+ * @property {string} text - Action text leading each progress line.
+ * @property {number} everyN - Render only when processed is a multiple of this.
+ */
+
+/**
+ * Per-label progress display policy: title subtitle, action text, and the
+ * every-N-items update cadence. This is UI policy; core only reports counts.
+ * @type {Record<string, ProgressView>}
+ */
+const NOTIFY_PROGRESS_VIEWS = {
+    [GHOST_PROGRESS.HIDE]: { subtitle: 'Ghosting', text: 'Hiding messages', everyN: 1 },
+    [GHOST_PROGRESS.UNHIDE]: { subtitle: 'Clearing', text: 'Unhiding messages', everyN: 10 },
+};
+
+/** Fallback policy for progress labels without an entry mapping. */
+const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 };
+
+/**
+ * Opaque progress handle: the toast element plus the display policy it opened with.
+ * @typedef {object} ToastrProgressHandle
+ * @property {unknown} toast - toastr toast element.
+ * @property {ProgressView} view - Display policy for this handle.
+ * @property {number} total - Item total captured at open time.
+ */
+
+/**
+ * Build the toastr-backed notify adapter (ADR-0004). Display durations and
+ * update cadence live here; events carry structured data only.
+ * @returns {import('../core/notify.js').NotifyAdapter}
+ */
+export function createToastrNotifyAdapter() {
+    return {
+        transient(event) {
+            // No core module emits transient events yet; unknown kinds stay silent.
+            void event;
+        },
+        progress(event) {
+            const view = NOTIFY_PROGRESS_VIEWS[event.label] || DEFAULT_PROGRESS_VIEW;
+            const toast = toastr.info(
+                `${view.text}: 0 / ${event.total}`,
+                `${TOAST_TITLE} - ${view.subtitle}`,
+                {
+                    timeOut: 0,
+                    extendedTimeOut: 0,
+                    tapToDismiss: false,
+                },
+            );
+            return { toast, view, total: event.total };
+        },
+        update(handle, event) {
+            if (!handle) {
+                return;
+            }
+            const progress = /** @type {ToastrProgressHandle} */ (handle);
+            if (event.processed % progress.view.everyN !== 0) {
+                return;
+            }
+            const pct = Math.round((event.processed / progress.total) * 100);
+            $(progress.toast)
+                .find('.toast-message')
+                .text(`${progress.view.text}: ${event.processed} / ${progress.total} (${pct}%)`);
+        },
+        clear(handle) {
+            if (handle) {
+                toastr.clear(/** @type {ToastrProgressHandle} */ (handle).toast);
+            }
+        },
+    };
 }
 
 /**

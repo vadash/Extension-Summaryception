@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { repairMissingGhostingForSummaries } from '../src/core/ghosting-reconcile.js';
+import { ghostMessagesInRange, unghostAllMessages } from '../src/core/ghosting.js';
+import { setNotifyAdapter } from '../src/core/notify.js';
 import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
-import { makeMessage, makeSummaryStore, installSummaryContext } from './test-helpers.js';
+import {
+    makeMessage,
+    makeMessages,
+    makeNotifyRecorder,
+    makeSummaryStore,
+    installSummaryContext,
+} from './test-helpers.js';
 
 /**
  * Gap-hide contract: text-less messages inside the summarized range (images,
@@ -117,5 +125,72 @@ describe('hide non-text messages in summarized range', () => {
         await repairMissingGhostingForSummaries();
 
         expect(calls).toEqual(['/hide 1-5', '/hide 7-10']);
+    });
+});
+
+/**
+ * Ghosting reports its hide/unhide lifecycle through the notify adapter
+ * (ADR-0004). Tests assert the structured events, never toast text.
+ */
+describe('ghosting notify adapter events', () => {
+    it('emits structured hide progress events for manual range ghosting', async () => {
+        resetCommitStateForTests();
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
+        installSummaryContext({ chat: makeMessages(4) });
+
+        await ghostMessagesInRange(0, 3, { showProgress: true });
+
+        const progress = recorder.events.filter((event) => event.type === 'progress');
+        expect(progress).toHaveLength(1);
+        expect(progress[0].label).toBe('ghost-hide');
+        expect(progress[0].total).toBe(4);
+        const updates = recorder.events.filter((event) => event.type === 'update');
+        expect(updates.map((event) => event.processed)).toEqual([4]);
+        expect(updates[0].handle).toBe(progress[0].handle);
+        const clears = recorder.events.filter((event) => event.type === 'clear');
+        expect(clears).toHaveLength(1);
+        expect(clears[0].handle).toBe(progress[0].handle);
+    });
+
+    it('emits no progress events for background ghosting', async () => {
+        resetCommitStateForTests();
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
+        installSummaryContext({ chat: makeMessages(4) });
+
+        await ghostMessagesInRange(0, 3);
+
+        expect(recorder.events.filter((event) => event.type === 'progress')).toHaveLength(0);
+        expect(recorder.events.filter((event) => event.type === 'update')).toHaveLength(0);
+        expect(recorder.events.filter((event) => event.type === 'clear')).toHaveLength(0);
+    });
+
+    it('emits unhide progress events per range without core-side throttling', async () => {
+        resetCommitStateForTests();
+        const recorder = makeNotifyRecorder();
+        setNotifyAdapter(recorder);
+        const chat = [
+            makeMessage({ scId: 'message-0', isHidden: true }),
+            makeMessage({ scId: 'message-1' }),
+            makeMessage({ scId: 'message-2', isHidden: true }),
+        ];
+        installSummaryContext({
+            chat,
+            metadata: {
+                summaryception: makeSummaryStore({ ghostedMessageIds: ['message-0', 'message-2'] }),
+            },
+        });
+
+        await unghostAllMessages();
+
+        const progress = recorder.events.filter((event) => event.type === 'progress');
+        expect(progress).toHaveLength(1);
+        expect(progress[0].label).toBe('ghost-unhide');
+        expect(progress[0].total).toBe(2);
+        const updates = recorder.events.filter((event) => event.type === 'update');
+        expect(updates.map((event) => event.processed)).toEqual([1, 2]);
+        const clears = recorder.events.filter((event) => event.type === 'clear');
+        expect(clears).toHaveLength(1);
     });
 });

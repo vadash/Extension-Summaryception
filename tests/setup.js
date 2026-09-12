@@ -1,5 +1,6 @@
 import { beforeEach, vi } from 'vitest';
 
+import { setNotifyAdapter } from '../src/core/notify.js';
 import { installSummaryContext } from './test-helpers.js';
 
 const foundationMocks = vi.hoisted(() => {
@@ -229,4 +230,5 @@ globalThis.summaryceptionFoundationMocks = foundationMocks;
 beforeEach(() => {
     foundationMocks.reset();
     installSummaryContext();
+    setNotifyAdapter(null);
 });

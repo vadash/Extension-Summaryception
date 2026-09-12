@@ -14,6 +14,13 @@ export const MODULE_NAME = 'summaryception';
 export const LOG_PREFIX = '[Summaryception]';
 export const TOAST_TITLE = 'Summaryception';
 
+/**
+ * Stable progress labels emitted on the notify adapter (ADR-0004); the entry
+ * adapter maps them to on-screen text. Core carries these ids, never prose.
+ * @type {{ HIDE: string, UNHIDE: string }}
+ */
+export const GHOST_PROGRESS = { HIDE: 'ghost-hide', UNHIDE: 'ghost-unhide' };
+
 export const MEMORY_MODES = Object.freeze({
     BALANCED: 'balanced',
     PREFIX_CACHE: 'prefix_cache',

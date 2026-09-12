@@ -13,6 +13,8 @@ import { getContext } from './src/foundation/context.js';
 import { getSettings } from './src/foundation/state.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { setInjectionUpdater, setUiUpdater } from './src/core/summarizer.js';
+import { setNotifyAdapter } from './src/core/notify.js';
+import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
 import { setUiRefresher } from './src/features/persist.js';
 import { updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
@@ -46,6 +48,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     getSettings();
     setUiUpdater(updateUI);
     setInjectionUpdater(updateInjection, reassertInjectionSnapshot);
+    setNotifyAdapter(createToastrNotifyAdapter());
     setUiRefresher(updateUI);
     initSnippetBrowser(updateUI);
 
