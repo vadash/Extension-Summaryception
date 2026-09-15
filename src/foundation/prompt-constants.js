@@ -29,14 +29,24 @@ export const STATE_SNAPSHOT_REPAIR_CEILING_TOKENS = 1667;
  */
 export const STATE_SNAPSHOT_COMPACTION_TARGET_CHARS = 4400;
 export const STATE_SNAPSHOT_MAX_CHARS = 5000;
+/**
+ * Shared salience quartet for "core moments" across L0 and promotion slots;
+ * single source so the short mentions cannot drift apart.
+ */
+const CORE_MOMENT_TYPES = 'firsts, shifts, breaks, and unpaid choices';
+
 export const LAYER0_DURABILITY_RULES =
-    'Preserve each major durable beat once. Collapse repeated actions, physical interaction, or dialogue loops into one outcome sentence. Omit brands, shopping routes, meals, clothing, poses, body mechanics, ordinary props, and temporary physical conditions unless they create a lasting decision, rule, resource, injury, or unresolved hook.';
+    'Preserve each major durable beat once; shrink its wording, but never delete a beat the present situation depends on. ' +
+    'Keep a moment when it is a first (first vulnerability, first touch, first broken rule), a shift (trust, power, attraction, or perception that changes and stays changed), a break (a mask drops or distance collapses), or a choice whose debt is still unpaid; dropping it would make a current emotion or relationship state incomprehensible. ' +
+    'The older the material, the harder the cut. Collapse repeated actions, physical interaction, or dialogue loops into one outcome sentence. ' +
+    'Omit brands, shopping routes, meals, clothing, poses, body mechanics, ordinary props, small talk, and temporary physical conditions unless they create a lasting decision, rule, resource, injury, or unresolved hook. ' +
+    'Keep the cause-to-effect chain intact: never drop the link that explains how the present situation came to be.';
 
 export const STATE_DEDUPLICATION_RULES =
     'Use at most one line per supported key. Do not repeat the same fact across bonds, chekhov, gm_notes, inventory, or location. Bonds holds one pair per line. Chekhov holds one bullet per line. Inventory tracks the player only. GM Notes logs only what no other category owns.';
 
 export const PROMOTION_MODERATE_MACRO_RULES =
-    'Keep named people and places only when needed to understand a lasting relationship, obligation, location, or unresolved hook. Drop ages, brands, shopping routes, meals, clothing, one-off supplies, dialogue, and mechanical scene replay unless future continuity depends on them. Prefer cumulative outcomes over a list of scene beats.';
+    'Keep named people and places only when needed to understand a lasting relationship, obligation, location, or unresolved hook. Drop ages, brands, shopping routes, meals, clothing, one-off supplies, and mechanical scene replay; keep dialogue only when it is the reveal or the choice. Prefer cumulative outcomes over a list of scene beats; deeper folds cut harder.';
 
 /**
  * Prose date format rule, shared across Layer 0 and Layer 1+ prompts.
@@ -68,7 +78,9 @@ export const RECALL_REPEAT_INJECTION_TEMPLATE =
     DEFAULT_INJECTION_TEMPLATE + '\n\n---REPEATED FOR RECALL---\n\n' + DEFAULT_INJECTION_TEMPLATE;
 
 export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT = buildSystemPrompt(
-    'Role: narrative-state dual compressor. Output a [NARRATIVE] paragraph and a [STATE] key-value block.',
+    'Role: editorial narrative-state compressor. Distill the passage into one [NARRATIVE] paragraph and one [STATE] key-value block, keeping ' +
+        CORE_MOMENT_TYPES +
+        ' while cutting excess tissue.',
     'No preamble, no commentary, no markdown code fences.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
 );
 
@@ -87,7 +99,7 @@ const LAYER0_INPUT_BLOCKS = `<player_name>
 const LAYER0_SCHEMA_BLOCK = `Output exactly two sections:
 
 [NARRATIVE]
-<one dense chronological prose paragraph covering ONLY events, actions, dialogue, and outcomes. Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
+<one dense chronological prose paragraph covering the passage's events, actions, dialogue, outcomes, and its core emotional moments (${CORE_MOMENT_TYPES}). Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
 Resolve any relative time reference in the passage (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the RESOLVED ABSOLUTE DATE inline in the prose instead of the relative word. Never leave a bare relative time word in the narrative.
 ${PROSE_DATE_FORMAT_RULE}
 ${LAYER0_DURABILITY_RULES}
@@ -133,6 +145,9 @@ export const DEFAULT_SUMMARIZER_USER_PROMPT = buildUserPrompt({
     inputBlocks: LAYER0_INPUT_BLOCKS,
     schemaBlock: LAYER0_SCHEMA_BLOCK,
     taskRules: `Compress only the essential narrative progression from <passage_in_question>, then rewrite the complete compact current-state snapshot at the end of that passage using <prior_context> as the baseline.
+Read the entire provided passage before writing; never summarize only its tail.
+Treat <prior_context> as settled history: never restate it; add only what the passage changed: stakes, goals, feelings, trust, attraction, power, obligations, knowledge, resources, threats, or direction. If the passage repeats a prior pattern without escalation, record it in one clause or not at all.
+A relationship or emotional change recorded in [STATE] must have its causing moment in [NARRATIVE].
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 Keep [STATE] compact; follow the sentence and line caps provided at the end of this prompt. Put the most important facts first within each value.
 ${STATE_DEDUPLICATION_RULES}
@@ -146,6 +161,7 @@ export const DEFAULT_SUMMARIZER_REPAIR_PROMPT = buildUserPrompt({
     inputBlocks: LAYER0_INPUT_BLOCKS,
     schemaBlock: LAYER0_SCHEMA_BLOCK,
     taskRules: `The previous Layer 0 summary attempt failed output validation. Repair the response by summarizing the same passage again with stricter formatting.
+Apply the durability rules strictly: keep ${CORE_MOMENT_TYPES} with their cause-to-effect chain; cut excess tissue harder than the first attempt; read the entire provided passage.
 If the prose uses 2nd person ('you'), map it directly to <player_name>. Never use second-person pronouns in the output.
 Omission removes a fact rather than preserving it. Exclude transient scene detail, completed tasks, resolved hooks, and ordinary items.
 Keep the state compact; follow the sentence and line caps provided at the end of this prompt.
@@ -157,7 +173,7 @@ Do not include prose, bullets, tables, duplicate section headers, markdown, or c
 });
 
 export const DEFAULT_PROMOTION_SYSTEM_PROMPT = buildSystemPrompt(
-    'Role: prose-folding memory synthesizer. Fold durable state into narrative continuity, then output one consolidated [NARRATIVE] paragraph only.',
+    'Role: editorial memory synthesizer. Fold older layers into one consolidated [NARRATIVE] paragraph that keeps the plot skeleton and core emotional moments while cutting excess tissue.',
     'No [STATE] block, no preamble, no commentary, no markdown.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
 );
 
@@ -186,10 +202,11 @@ Do not output a [STATE] block, key-value lines, tables, bullets, or structured s
 Omit stale transient scene facts and static character background/profile facts such as origins, hometowns, backstory, personality traits, age, species, nationality, or static job descriptions.
 Omit ephemeral trivia: physiological or sex counters, consumed food/drink, soiled/used/disposed temporary items, and momentary pose/arousal/mood counters. Preserve obligation counters only when clearly unresolved, pending, owed, or referenced by an unresolved hook.
 ### SYNTHESIS PRIORITIES:
-1. **Durable Narrative State:** Permanent changes to relationships, agreements, rules, and core character development.
-2. **Unresolved Hooks:** Where the characters are currently positioned, what they intend to do next, or pending immediate agreements.
-3. **Deduplication:** Omit transitional actions, low-impact micro-movements, scene replay, and momentary dialogue loops.
-4. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
+1. **Plot Skeleton:** The beats whose consequences still shape the present, with the cause-to-effect chain intact; prefer shrinking and merging to deletion, and delete a beat only when the length contract leaves no room.
+2. **Core Moments:** Keep ${CORE_MOMENT_TYPES}: moments that durably changed feelings, trust, power, or perception; capture the moment and its meaning, never the scene replay.
+3. **Open Threads:** Unresolved hooks, debts, promises, dormant tensions, and what the characters intend next. Revise each thread in place to its current status; stale is not resolved; drop a thread only when it is fully resolved with no residual consequences. Record a recurring flash, fantasy, or dream pattern only as its psychological meaning and narrative potential, never the image itself; the meaning is the thread.
+4. **Deduplication:** Omit transitional actions, low-impact micro-movements, scene replay, and momentary dialogue loops.
+5. **Abstraction:** Merge repeated related beats into one cumulative state change, boundary, rule, or outcome.
 ${PROMOTION_MODERATE_MACRO_RULES}`,
     criticalRules: PROMOTION_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_PROMO,
@@ -202,7 +219,7 @@ export const DEFAULT_PROMOTION_REPAIR_PROMPT = buildUserPrompt({
 [NARRATIVE]
 <one dense third-person chronological prose paragraph. Never use second-person. Do not output [STATE]. ${ANTI_RUN_ON_RULE}>`,
     taskRules: `Repair the previous Layer 1+ promotion draft. It failed the compression guard, so rewrite the same source memories more abstractly instead of adding detail.
-Keep only durable macro-level chronology, current position, relationship/state changes, permanent rules, and unresolved hooks; do not output [STATE], lists, markdown, commentary, or key-value syntax.
+Keep only durable macro-level chronology, current position, relationship/state changes, core emotional moments, permanent rules, and open threads (unresolved hooks, debts, promises); revise threads in place and never silently drop one with residual consequences; do not output [STATE], lists, markdown, commentary, or key-value syntax.
 Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.`,
     criticalRules: PROMOTION_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_PROMO,
