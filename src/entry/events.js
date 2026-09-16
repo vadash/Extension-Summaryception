@@ -18,7 +18,7 @@ import { hasActiveAbortController } from '../core/summarizer-request.js';
 import { requestSummarization } from '../core/summarizer-queue.js';
 import { updateInjection } from '../features/injection.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
-import { showStaleCacheAdvice } from './ui-dialogs.js';
+import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
 
 let previousPromptSectionHashes = [];
 
@@ -201,6 +201,7 @@ export function onGenerationStarted(...args) {
     }
     info('Foreground generation start detected; freezing Summaryception prompt mutations.');
     beginForegroundGeneration();
+    pauseMemoryToastForGeneration();
     refreshUi();
 }
 

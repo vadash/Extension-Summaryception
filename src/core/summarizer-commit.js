@@ -85,12 +85,19 @@ export function isPromptMutationFrozen() {
 
 /**
  * Check whether a prompt mutation may start for the captured epoch.
+ *
+ * The stale-freeze heal is deliberately absent here: the heal's own flush
+ * must apply queued prompt effects and commits, and every effect queued by
+ * that flush would otherwise requeue against the heal's in-flight promise
+ * forever (an endless microtask loop that freezes the page). A generation
+ * starting mid-flush bumps the epoch and sets the freeze, so the epoch check
+ * alone gates the race.
  * @param {number} epoch
  * @returns {boolean}
  */
 export function canStartPromptMutation(epoch) {
     recoverStalePromptFreezeInBackground('prompt mutation start');
-    return !foregroundFrozen && !staleRecoveryPromise && epoch === generationEpoch;
+    return !foregroundFrozen && epoch === generationEpoch;
 }
 
 /**
