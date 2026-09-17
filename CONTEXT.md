@@ -31,7 +31,7 @@ One proposed merged snippet awaiting validation; at most one section-aware repai
 Code: `generateValidatedPromotion` (src/core/promotion-candidate.js)
 
 **Promotion Drain**:
-The single loop that clears promotion overflow — repeated single-layer Promotions until layers fit, the Foreground Gate blocks, or consecutive failures reach the budget. Returns a Run Outcome status and the attempt count.
+The single loop that clears promotion overflow — repeated single-layer Promotions until layers fit, the retention floor refuses the candidate, the Foreground Gate blocks, or consecutive failures reach the budget. Returns a Run Outcome status and the attempt count.
 Code: `drainPromotionOverflow` (src/core/summarizer-promotion.js)
 
 **Regeneration**:

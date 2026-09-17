@@ -213,8 +213,8 @@ async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
 /**
  * Drain promotion overflow: the single loop that owns overflow clearing.
  * Repeatedly promotes the shallowest over-limit layer until layers fit, the
- * Foreground Gate blocks, or consecutive failed promotions reach
- * `maxConsecutiveFailures`.
+ * retention floor refuses the candidate, the Foreground Gate blocks, or
+ * consecutive failed promotions reach `maxConsecutiveFailures`.
  * @param {object} [options]
  * @param {number} [options.maxConsecutiveFailures] - Consecutive failed promotions tolerated before stopping.
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter threaded from the engine; runs without one stay silent.
@@ -226,7 +226,7 @@ export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity
     let attempts = 0;
     for (;;) {
         const plan = await buildPromotionPlan(getChatStore(), s);
-        if (!plan.candidate) {
+        if (!plan.candidate || plan.retentionFloorViolated) {
             return { status: 'completed', attempts };
         }
         if ((await promptWorkGate('promotion drain')) === 'blocked') {

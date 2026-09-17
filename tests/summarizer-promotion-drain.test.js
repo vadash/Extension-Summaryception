@@ -48,6 +48,26 @@ describe('drainPromotionOverflow', () => {
         expect(callSummarizer).not.toHaveBeenCalled();
     });
 
+    it('treats a floor-refused candidate as nothing to promote', async () => {
+        // 21 snippets over the count quota of 20, but ~1071 tokens: promoting
+        // 3 leaves ~918 tokens below the 2400 retention floor (quota 6000).
+        const snippets = Array.from({ length: 21 }, (_, i) => ({
+            text: 'x'.repeat(51) + i,
+            sourceMessageIds: [`msg-${i}`],
+        }));
+        installSummaryContext({
+            metadata: { summaryception: makeSummaryStore({ layers: [snippets] }) },
+            settings: makeSummarySettings({ memoryTokenBudget: 10000, snippetsPerLayer: 20 }),
+        });
+
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3 })).resolves.toEqual({
+            status: 'completed',
+            attempts: 0,
+        });
+
+        expect(callSummarizer).not.toHaveBeenCalled();
+    });
+
     it('stops after one consecutive failed promotion at the auto budget', async () => {
         installOverflowingStore();
         callSummarizer.mockResolvedValue({ status: 'failed' });
