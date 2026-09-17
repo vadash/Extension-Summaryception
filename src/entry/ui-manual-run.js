@@ -8,7 +8,7 @@ import {
     resumeAutoSummarization,
     runManual,
 } from '../core/summarizer-engine.js';
-import { abortSummarization, getIsSummarizing } from '../core/summarizer-queue.js';
+import { isBusy, stopSummarization } from '../core/summarizer-queue.js';
 import { updateInjection } from '../features/injection.js';
 import { updateUI } from './ui.js';
 import {
@@ -34,7 +34,7 @@ let pauseLatchDeps;
  */
 function cancelManualRun(controller) {
     controller.abort();
-    abortSummarization();
+    stopSummarization();
 }
 
 const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
@@ -99,7 +99,7 @@ function guardManualRun(s) {
         toastr.warning('Enable Summaryception first.');
         return false;
     }
-    if (getIsSummarizing()) {
+    if (isBusy()) {
         showBusySummaryToast();
         return false;
     }

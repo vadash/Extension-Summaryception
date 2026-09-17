@@ -14,8 +14,7 @@ import {
     recoverStalePromptFreeze,
     resetPromptMutationGuard,
 } from '../core/summarizer-commit.js';
-import { hasActiveAbortController } from '../core/summarizer-request.js';
-import { requestSummarization } from '../core/summarizer-queue.js';
+import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
 import { updateInjection } from '../features/injection.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
 import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
@@ -195,7 +194,7 @@ export function onGenerationStarted(...args) {
         debug('Ignoring generation start from SillyTavern dry run.');
         return;
     }
-    if (hasActiveAbortController()) {
+    if (isRequestLive()) {
         debug('Ignoring generation start from active Summaryception request.');
         return;
     }
@@ -209,7 +208,7 @@ export function onGenerationStarted(...args) {
  *
  */
 export function onGenerationEnded() {
-    const hasActiveSummaryRequest = hasActiveAbortController();
+    const hasActiveSummaryRequest = isRequestLive();
     const hasFrozenMutations = isPromptMutationFrozen();
 
     if (hasActiveSummaryRequest && !hasFrozenMutations) {
@@ -342,7 +341,7 @@ let staleCacheAdviceKey = '';
 async function checkStaleCacheAdvice() {
     try {
         const settings = getEffectiveSettings();
-        if (!settings.enabled || !isProviderCacheMode(settings) || hasActiveAbortController()) {
+        if (!settings.enabled || !isProviderCacheMode(settings) || isRequestLive()) {
             return;
         }
         const chat = getChat();

@@ -6,7 +6,8 @@ import { SummarizerQueue } from '../src/core/summarizer-queue.js';
 function makeQueue(drainOneCycle) {
     return new SummarizerQueue({
         drainOneCycle,
-        abort: vi.fn(),
+        abortAllRequests: vi.fn(),
+        isRequestLive: vi.fn(() => false),
         refreshUi: vi.fn(),
         withUsageRun: vi.fn(async (_label, work) => await work()),
         yieldCycle: vi.fn(async () => {}),

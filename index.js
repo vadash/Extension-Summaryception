@@ -15,7 +15,6 @@ import { getSettings } from './src/foundation/state.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { requestSummarization, setNotify, summarizerQueue } from './src/core/summarizer-queue.js';
 import { initCommitCallbacks } from './src/core/summarizer-commit.js';
-import { hasActiveAbortController } from './src/core/summarizer-request.js';
 import { withUsageRun } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
 import { syncLLMContextPreview, updateUI } from './src/entry/ui.js';
@@ -58,7 +57,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     const notify = createToastrNotifyAdapter();
     setNotify(notify);
     const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun };
-    const pauseLatchDeps = { queue: summarizerQueue, hasActiveAbortController };
+    const pauseLatchDeps = { queue: summarizerQueue };
     initRefreshPort({ updateInjection, updateUI, updatePreview: syncLLMContextPreview });
     initSnippetBrowser(notify);
 

@@ -4,7 +4,10 @@ import { refreshUi } from '../foundation/refresh.js';
 import { silentAdapter } from './notify.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { runElasticAutoCycle } from './summarizer-engine.js';
-import { abortCurrentSummarizerRequest } from './summarizer-request.js';
+import {
+    abortAllRequests,
+    isRequestLive as isSummarizerRequestLive,
+} from './summarizer-request.js';
 import { withUsageRun } from './summarizer-usage.js';
 
 /**
@@ -16,12 +19,23 @@ import { withUsageRun } from './summarizer-usage.js';
 /**
  * @typedef {object} SummarizerQueueDependencies
  * @property {(ctx: SummarizerQueueContext) => Promise<import('./run-outcome.js').SummarizationRunOutcome>} drainOneCycle - Runs one automatic queue cycle.
- * @property {() => void} abort - Aborts the current summarizer request.
+ * @property {() => void} abortAllRequests - Aborts every live summarizer request.
+ * @property {() => boolean} isRequestLive - Whether any summarizer request is in flight.
  * @property {() => void} refreshUi - Refreshes visible extension UI state.
  * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
  * @property {{ log?: (...args: unknown[]) => void } | ((...args: unknown[]) => void)} [logger] - Optional queue logger.
  * @property {() => Promise<void>} [yieldCycle] - Yields between processed work units.
  * @property {() => Promise<void>} [afterDrain] - Runs after the worker drain completes.
+ */
+
+/**
+ * @typedef {'manual-run' | 'regeneration'} WorkGateKind
+ */
+
+/**
+ * @typedef {object} WorkGateRun
+ * @property {() => void} end - Release the lease; its owner calls this once its work settles.
+ * @property {() => boolean} isStopped - Whether stop() asked this run to stop.
  */
 
 /**
@@ -31,9 +45,19 @@ export class SummarizerQueue {
     /**
      * @param {SummarizerQueueDependencies} deps
      */
-    constructor({ drainOneCycle, abort, refreshUi, withUsageRun, logger, yieldCycle, afterDrain }) {
+    constructor({
+        drainOneCycle,
+        abortAllRequests,
+        isRequestLive,
+        refreshUi,
+        withUsageRun,
+        logger,
+        yieldCycle,
+        afterDrain,
+    }) {
         this.drainOneCycle = drainOneCycle;
-        this.abortRequest = abort;
+        this.abortAllRequests = abortAllRequests;
+        this.isRequestLive = isRequestLive;
         this.refreshUi = refreshUi;
         this.withUsageRun = withUsageRun;
         this.yieldCycle = yieldCycle || defaultYieldCycle;
@@ -44,7 +68,8 @@ export class SummarizerQueue {
         this.pending = false;
         this.dirty = false;
         this.workerPromise = null;
-        this.manualSummarizing = false;
+        /** Live foreground work leases opened through beginRun. @type {Set<{ kind: WorkGateKind, stopped: boolean }>} */
+        this.leases = new Set();
         /** @type {SummarizerQueuePhase} */
         this.phase = 'idle';
 
@@ -57,10 +82,17 @@ export class SummarizerQueue {
 
     /**
      * Queue or coalesce an automatic summarization request.
+     * While a foreground lease is live the request is remembered as dirty and
+     * the worker is not started; the next trigger's rerun picks it up.
      * @returns {Promise<void>}
      */
     request() {
         this.pending = true;
+
+        if (this.leases.size > 0) {
+            this.dirty = true;
+            return Promise.resolve();
+        }
 
         if (this.running) {
             this.dirty = true;
@@ -74,34 +106,47 @@ export class SummarizerQueue {
     }
 
     /**
-     * Abort in-flight summarization and clear queued work.
+     * Stop all summarizer work: abort every live request, set the stop intent
+     * on all live leases, and drop queued work. Leases are never released
+     * here; their owners observe isStopped() and end() themselves.
      * @returns {void}
      */
-    abort() {
-        this.abortRequest();
+    stop() {
+        this.abortAllRequests();
+        for (const lease of this.leases) {
+            lease.stopped = true;
+        }
         this.pending = false;
         this.dirty = false;
-        this.manualSummarizing = false;
         if (!this.running) {
             this.#setPhase('idle');
         }
     }
 
     /**
-     * Check whether the queue or a manual task is active.
+     * Whether any summarizer work is live: the automatic worker, a foreground
+     * lease, or a summarizer request.
      * @returns {boolean}
      */
-    getIsSummarizing() {
-        return this.running || this.manualSummarizing;
+    isBusy() {
+        return this.running || this.leases.size > 0 || this.isRequestLive();
     }
 
     /**
-     * Set the manual summarization busy state.
-     * @param {boolean} value
-     * @returns {void}
+     * Open a foreground work lease. The owner must call end() exactly once
+     * when its work settles and treat isStopped() as an external stop.
+     * @param {WorkGateKind} kind - What kind of foreground run is starting.
+     * @returns {WorkGateRun}
      */
-    setSummarizing(value) {
-        this.manualSummarizing = Boolean(value);
+    beginRun(kind) {
+        const lease = { kind, stopped: false };
+        this.leases.add(lease);
+        return {
+            end: () => {
+                this.leases.delete(lease);
+            },
+            isStopped: () => lease.stopped,
+        };
     }
 
     /**
@@ -227,7 +272,8 @@ let notifyAdapter = silentAdapter;
  */
 export const summarizerQueue = new SummarizerQueue({
     drainOneCycle: (queue) => runElasticAutoCycle(queue, { refreshUi, notify: notifyAdapter }),
-    abort: abortCurrentSummarizerRequest,
+    abortAllRequests,
+    isRequestLive: isSummarizerRequestLive,
     refreshUi,
     withUsageRun,
     yieldCycle: async () => {
@@ -245,28 +291,37 @@ export function requestSummarization() {
 }
 
 /**
- * Check whether a summarization cycle is currently running.
+ * Whether any summarizer work is live: the automatic worker, a foreground
+ * lease, or a summarizer request.
  * @returns {boolean}
  */
-export function getIsSummarizing() {
-    return summarizerQueue.getIsSummarizing();
+export function isBusy() {
+    return summarizerQueue.isBusy();
 }
 
 /**
- * Set the manual summarizing flag.
- * @param {boolean} value
- * @returns {void}
+ * Check whether a summarizer request is currently in flight.
+ * @returns {boolean}
  */
-export function setSummarizing(value) {
-    summarizerQueue.setSummarizing(value);
+export function isRequestLive() {
+    return summarizerQueue.isRequestLive();
 }
 
 /**
- * Abort the in-flight summarization request.
+ * Stop all summarizer work: abort live requests and ask foreground runs to stop.
  * @returns {void}
  */
-export function abortSummarization() {
-    summarizerQueue.abort();
+export function stopSummarization() {
+    summarizerQueue.stop();
+}
+
+/**
+ * Open a foreground Work Gate lease (Manual Run, Regeneration).
+ * @param {'manual-run' | 'regeneration'} kind - Work kind opening the lease.
+ * @returns {{ end: () => void, isStopped: () => boolean }} Lease handle; caller ends it in finally.
+ */
+export function beginRun(kind) {
+    return summarizerQueue.beginRun(kind);
 }
 
 /**

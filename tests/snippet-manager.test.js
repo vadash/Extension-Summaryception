@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const summarizerMocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
-    getIsSummarizing: vi.fn(() => false),
-    setSummarizing: vi.fn(),
+    isBusy: vi.fn(() => false),
+    beginRun: vi.fn(() => ({ end: vi.fn(), isStopped: vi.fn(() => false) })),
 }));
 vi.mock('../src/core/summarizer-request.js', () => ({
     callSummarizer: summarizerMocks.callSummarizer,

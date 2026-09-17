@@ -38,17 +38,25 @@ import { installSummaryContext } from './test-helpers.js';
 const TARGET_INDEX = 5;
 let boundary = 0;
 
-/** Build manual runner deps with a stub queue. */
-function makeDeps() {
-    return {
+/** Build manual runner deps with a stub queue and its lease handle. */
+function makeDeps({ stopAfterFirstBatch = false } = {}) {
+    const runToken = { end: vi.fn(), isStopped: vi.fn(() => false) };
+    const deps = {
         queue: {
             setPhase: vi.fn(),
-            setSummarizing: vi.fn(),
-            getIsSummarizing: vi.fn(() => true),
+            beginRun: vi.fn(() => runToken),
         },
+        runToken,
         refreshUi: vi.fn(),
         withUsageRun: vi.fn(async (_label, work) => await work()),
     };
+    if (stopAfterFirstBatch) {
+        // Flip the stop intent once the first batch has been processed.
+        runToken.isStopped.mockImplementation(
+            () => batchMocks.summarizeBatchFromTurns.mock.calls.length >= 1,
+        );
+    }
+    return deps;
 }
 
 /** Build a ready single-batch force route plan. */
@@ -146,6 +154,33 @@ describe('manual run progress callbacks', () => {
 
         expect(outcome.cancelled).toBe(true);
         expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
+    });
+});
+
+describe('manual run work gate', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        resetCommitStateForTests();
+        installSummaryContext({ chat: [] });
+        stateMocks.getChatStore.mockReturnValue({});
+        stateMocks.getEffectiveSettings.mockReturnValue({});
+        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        // Every batch fails without moving the summarized boundary.
+        batchMocks.summarizeBatchFromTurns.mockResolvedValue({ status: 'failed' });
+        routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
+    });
+
+    it('opens one lease and exits cancelled when the gate stops the run', async () => {
+        const deps = makeDeps({ stopAfterFirstBatch: true });
+
+        const outcome = await runManual(deps, ELASTIC_STRATEGIES.FORCE, {});
+
+        expect(deps.queue.beginRun).toHaveBeenCalledWith('manual-run');
+        expect(deps.runToken.end).toHaveBeenCalledTimes(1);
+        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
+        expect(outcome.cancelled).toBe(true);
+        expect(outcome.failed).toBe(1);
+        expect(outcome.failureLimitReached).toBe(false);
     });
 });
 

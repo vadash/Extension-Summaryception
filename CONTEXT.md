@@ -105,8 +105,13 @@ _Avoid_: UI refresher, refresh registry
 The single gate that owns all automatic summarization work and its guards.
 Code: module src/core/summarizer-engine.js
 
+**Work Gate**:
+The one gate that owns foreground summarization work: manual runs and snippet regenerations open a lease and release it when their work settles. Stop aborts every live request, sets the stop intent on all live leases, and drops queued automatic work; it never releases leases itself.
+Code: `beginRun`, `stop`, `isBusy` (src/core/summarizer-queue.js)
+_Avoid_: summarizing flag, busy flag
+
 **Summarizer Queue**:
-The coalescing worker that owns automatic summarization work: request, drain, and phase. One instance exists; its wrappers are the only way to start, poll, or abort a cycle.
+The coalescing worker that owns automatic summarization work: request, drain, and phase. One instance exists; automatic cycles start through request, foreground runs lease the queue through the Work Gate, and stop is the one way to end live work.
 Code: `SummarizerQueue` (src/core/summarizer-queue.js)
 _Avoid_: job runner, work queue
 

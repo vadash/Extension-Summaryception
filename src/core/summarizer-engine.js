@@ -140,8 +140,7 @@ export async function runManual(deps, strategy, options = {}) {
 
 /**
  * @typedef {object} PauseLatchDeps
- * @property {import('./summarizer-queue.js').SummarizerQueue} queue - Shared summarizer queue: getIsSummarizing/abort settle a live run, request kicks the resume cycle.
- * @property {() => boolean} hasActiveAbortController - Whether a summarizer request is in flight; injected from summarizer-request.js to avoid a cross-import.
+ * @property {import('./summarizer-queue.js').SummarizerQueue} queue - Shared summarizer queue: isBusy reports live work, stop settles it, request kicks the resume cycle.
  */
 
 /**
@@ -151,10 +150,10 @@ export async function runManual(deps, strategy, options = {}) {
  * @returns {Promise<'paused' | 'already-paused' | 'idle'>}
  */
 export async function pauseAutoSummarization(deps) {
-    if (!deps.queue.getIsSummarizing() && !deps.hasActiveAbortController()) {
+    if (!deps.queue.isBusy()) {
         return getSettings().autoPaused ? 'already-paused' : 'idle';
     }
-    deps.queue.abort();
+    deps.queue.stop();
     const s = getSettings();
     s.autoPaused = true;
     saveSettings();
@@ -315,12 +314,12 @@ async function buildSlopBatch(prepared, targetIndex) {
 async function executeManualTask(deps, strategy, target, options) {
     const outcome = createManualRunOutcome({ totalBatches: target.totalBatches });
     let consecutiveFailures = 0;
-
-    options.onStart?.(createProgress(outcome, strategy));
-    deps.queue.setSummarizing(true);
+    const runToken = deps.queue.beginRun('manual-run');
 
     try {
-        while (!isCancelled(options.signal)) {
+        options.onStart?.(createProgress(outcome, strategy));
+
+        while (!isCancelled(options.signal) && !runToken.isStopped()) {
             const batch = await strategy.buildBatch(undefined, target.targetIndex);
             if (!batch?.ready) {
                 break;
@@ -328,10 +327,10 @@ async function executeManualTask(deps, strategy, target, options) {
 
             const result = await processStrategyBatch(batch, strategy, options.notify);
             const step = await applyManualLoopStep({
-                deps,
                 outcome,
                 result,
                 signal: options.signal,
+                runToken,
                 notify: options.notify,
                 consecutiveFailures,
             });
@@ -344,12 +343,12 @@ async function executeManualTask(deps, strategy, target, options) {
             await sleep(200);
         }
 
-        if (isCancelled(options.signal)) {
+        if (isCancelled(options.signal) || runToken.isStopped()) {
             outcome.cancelled = true;
         }
         return outcome;
     } finally {
-        deps.queue.setSummarizing(false);
+        runToken.end();
         await flushPendingChatSave();
     }
 }
@@ -362,7 +361,7 @@ const MANUAL_FAILURE_LIMIT = 3;
  * The failure streak counts failed batches only: a committed batch resets it,
  * and a success whose boundary did not move preserves it.
  * @param {object} step - One loop step's inputs.
- * @param {ManualRunnerDeps} step.deps - Runner deps; the queue's summarizing state detects external stops.
+ * @param {import('./summarizer-queue.js').WorkGateRun} step.runToken - The run's work gate lease; a stopped lease detects external stops.
  * @param {ManualRunOutcome} step.outcome - Run outcome updated in place.
  * @param {{ success: boolean, committed: boolean, done?: boolean }} step.result - Batch result flags.
  * @param {AbortSignal} [step.signal] - Cancellation signal for the run.
@@ -370,7 +369,14 @@ const MANUAL_FAILURE_LIMIT = 3;
  * @param {number} step.consecutiveFailures - Failure streak before this step.
  * @returns {Promise<{ exit: boolean, consecutiveFailures: number }>} Exit decision and the updated streak.
  */
-async function applyManualLoopStep({ deps, outcome, result, signal, notify, consecutiveFailures }) {
+async function applyManualLoopStep({
+    outcome,
+    result,
+    signal,
+    runToken,
+    notify,
+    consecutiveFailures,
+}) {
     if (result.success && result.committed) {
         outcome.completed++;
         consecutiveFailures = 0;
@@ -396,7 +402,7 @@ async function applyManualLoopStep({ deps, outcome, result, signal, notify, cons
     if (result.done || outcome.blocked) {
         return { exit: true, consecutiveFailures };
     }
-    if (isCancelled(signal) || !deps.queue.getIsSummarizing()) {
+    if (isCancelled(signal) || runToken.isStopped()) {
         outcome.cancelled = true;
         return { exit: true, consecutiveFailures };
     }

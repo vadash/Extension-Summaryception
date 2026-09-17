@@ -4,26 +4,31 @@ import { silentAdapter } from './notify.js';
 import { RequestRunner } from './request-runner.js';
 import { buildSummarizerPipelineInput, traceSummarizerInputTokens } from './summarizer-pipeline.js';
 
-let currentAbortController = null;
+/** Live summarizer requests; each callSummarizer owns one entry for its duration. @type {Set<AbortController>} */
+const liveRequests = new Set();
+
 const requestRunner = new RequestRunner();
 
 /**
- * Check whether an abort controller is active.
+ * Check whether any summarizer request is in flight.
  * @returns {boolean}
  */
-export function hasActiveAbortController() {
-    return Boolean(currentAbortController);
+export function isRequestLive() {
+    return liveRequests.size > 0;
 }
 
 /**
- * Abort the in-flight summarizer request.
+ * Abort every live summarizer request.
  * @returns {void}
  */
-export function abortCurrentSummarizerRequest() {
-    if (currentAbortController) {
-        currentAbortController.abort();
-        debug('Abort signal sent.');
+export function abortAllRequests() {
+    if (liveRequests.size === 0) {
+        return;
     }
+    for (const controller of liveRequests) {
+        controller.abort();
+    }
+    debug('Abort signal sent.');
 }
 
 /**
@@ -51,15 +56,16 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}, notify
         settings,
     });
 
-    currentAbortController = new AbortController();
+    const controller = new AbortController();
+    liveRequests.add(controller);
 
     try {
         return await requestRunner.run({
             ...request,
-            signal: currentAbortController.signal,
+            signal: controller.signal,
             notify,
         });
     } finally {
-        currentAbortController = null;
+        liveRequests.delete(controller);
     }
 }

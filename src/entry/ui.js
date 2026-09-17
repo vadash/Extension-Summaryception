@@ -14,7 +14,7 @@ import {
     getCurrentSummarizedBoundary,
 } from '../foundation/state.js';
 import { countGhostedMessages } from '../core/ghosting.js';
-import { getIsSummarizing } from '../core/summarizer-queue.js';
+import { isBusy } from '../core/summarizer-queue.js';
 import { countTextTokens, formatCompactTokenCount } from '../core/token-count.js';
 
 import { describeAutoWork } from '../core/summarization-routes.js';
@@ -156,7 +156,7 @@ function getModeLabel(s) {
  * @returns {Promise<string>}
  */
 async function getWorkerLabel(s, work) {
-    if (getIsSummarizing()) {
+    if (isBusy()) {
         return 'Running';
     }
     if (!s.enabled) {

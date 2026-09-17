@@ -7,7 +7,7 @@ import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromState } from '../core/snippet-metadata.js';
 import { parseSnippet } from '../core/summarizer-state.js';
 import { callSummarizer } from '../core/summarizer-request.js';
-import { getIsSummarizing, setSummarizing } from '../core/summarizer-queue.js';
+import { beginRun, isBusy } from '../core/summarizer-queue.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
 
 /**
@@ -126,13 +126,13 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, notify) {
         return target;
     }
 
-    setSummarizing(true);
+    const run = beginRun('regeneration');
     try {
         return await withUsageRun('snippet regeneration', async () => {
             return await regenerateSnippetWithTarget(target, notify);
         });
     } finally {
-        setSummarizing(false);
+        run.end();
     }
 }
 
@@ -212,7 +212,7 @@ function resolveRegenerationTarget(store, chat, position, { includeContext = tru
     ) {
         return { status: 'unsupported' };
     }
-    if (getIsSummarizing()) {
+    if (isBusy()) {
         return { status: 'busy' };
     }
 
