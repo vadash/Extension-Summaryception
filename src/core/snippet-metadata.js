@@ -53,7 +53,7 @@ export function extractSnippetMetadata(snippet = {}) {
 
 /**
  * Derive structured display metadata for a snippet. Entry layers compose
- * user-facing strings from these fields; this module returns data only.
+ * user-facing strings from these fields. This module returns data only.
  * @param {object} snippet
  * @param {string[]} [snippet.sourceMessageIds] - Stable source message identifiers.
  * @param {number} [snippet.mergedCount] - How many child snippets were merged in.

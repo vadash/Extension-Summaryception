@@ -7,7 +7,7 @@ import { updateCommittedInjection } from './summarizer-commit.js';
 /**
  * Snippet Commit seam: the one transaction for every Summaryception snippet
  * mutation. Runs mutate, the Ghosting ownership step, the Mutation Epoch bump,
- * persistence, and the gated injection refresh in a fixed order; any failing
+ * persistence, and the gated injection refresh in a fixed order. Any failing
  * step restores the captured store state, runs the caller's rollback hook,
  * re-saves the store, and rethrows.
  * @param {SummaryceptionStore} store
@@ -15,15 +15,15 @@ import { updateCommittedInjection } from './summarizer-commit.js';
  * @param {object} [opts]
  * @param {'sync'|'none'|'clear'} [opts.ghost] - Ghost ownership step: full syncGhosting, skip, or clearAllGhosting. Defaults to 'sync'.
  * @param {'none'|'immediate'|'deferred'} [opts.chatSave] - Chat-file save mode on persist. Defaults to 'none'.
- * @param {import('./notify.js').NotifyAdapter} [opts.notify] - Threaded to ghosting.
+ * @param {import('./notify.js').NotifyAdapter} [opts.notify] - Passed through to the Ghosting steps.
  * @param {() => void} [opts.onRollback] - Extra restoration (e.g. chat array) after store rollback.
  * @returns {Promise<{ epoch: number }>} Throws after rollback when any step fails.
  */
 export async function commitSnippetMutation(store, mutate, opts = {}) {
     const { ghost = 'sync', chatSave = 'none', notify, onRollback } = opts;
 
-    // One-level-deep rollback point: in-place snippet field edits must roll
-    // back, so snippets are shallow-copied with their id arrays duplicated.
+    // The rollback point is one level deep. In-place snippet field edits must
+    // roll back, so snippets are shallow-copied with their id arrays duplicated.
     const rollbackPoint = {
         layers: store.layers.map((layer) =>
             layer?.map((snippet) => ({

@@ -14,7 +14,6 @@ const STALE_ADVICE_MIN_QUEUE_FILL = 0.25;
  */
 
 /**
- * Check whether the active memory mode relies on a provider prompt cache.
  * @param {ExtensionSettings} settings
  * @returns {boolean}
  */
@@ -24,9 +23,9 @@ export function isProviderCacheMode(settings) {
 
 /**
  * Read one message's creation time in epoch milliseconds.
- * SillyTavern writes `send_date` as ISO today, but imported chats keep legacy
- * epoch milliseconds or humanized strings; assistant messages also carry
- * `gen_started` / `gen_finished`. Returns null when no candidate parses.
+ * SillyTavern writes `send_date` as an ISO string, but imported chats keep
+ * legacy epoch milliseconds or humanized strings. Assistant messages also
+ * carry `gen_started` / `gen_finished`. Returns null when no candidate parses.
  * @param {ChatMessage | undefined} message
  * @returns {number | null}
  */
@@ -107,7 +106,6 @@ function hasQueueTokenFill(queuedTokens, settings) {
 }
 
 /**
- * Measure whole minutes between a timestamp and now.
  * @param {number} timestampMs
  * @param {number} nowMs
  * @returns {number}
@@ -127,7 +125,6 @@ function isPastTtl(staleMinutes, ttlMinutes) {
 }
 
 /**
- * Coerce one stored timestamp candidate to epoch milliseconds.
  * @param {unknown} value
  * @returns {number | null}
  */

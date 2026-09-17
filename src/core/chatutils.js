@@ -107,7 +107,8 @@ export function isSummarizerConversationMessage(message) {
     if (!message?.mes || !String(message.mes).trim()) {
         return false;
     }
-    // Only an explicit host system flag makes a message system; never infer from role or content.
+    // Only an explicit host system flag marks a message as system. Never infer
+    // it from role or content.
     if (message.is_system || message.is_hidden || message.extra?.type) {
         return false;
     }
@@ -132,7 +133,6 @@ export function collectAssistantTurns(chat, predicate) {
 }
 
 /**
- * Extract all assistant turns from the chat.
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @returns {AssistantTurn[]} Assistant turns
  */
@@ -316,8 +316,8 @@ function buildPassageResult(accumulator) {
 export function buildFullContext(downToLayer = 0) {
     const store = getChatStore();
     const injectionParts = buildMemoryInjectionParts(getLayersAtOrAbove(store.layers, downToLayer));
-    // Summarizer context is the raw memory body, never template-wrapped,
-    // so no injectionTemplate is supplied; '(none yet)' stands in when empty.
+    // Summarizer context is the raw memory body, never template-wrapped, so no
+    // injectionTemplate is supplied. '(none yet)' stands in when empty.
     return renderInjectionTemplate(injectionParts, {}, { emptyFallback: '(none yet)' });
 }
 

@@ -21,8 +21,6 @@ export class ConnectionError extends Error {
 
 /**
  * Detect an authentication failure (401 status or auth-related message text).
- * Procedure: Compare the error status and message against the known auth
- * failure patterns (401 status, "401" text, "unauthorized" text).
  * @param {string} msg - The error message
  * @param {number | null} status - The extracted HTTP status, or null
  * @returns {boolean}
@@ -33,10 +31,7 @@ function isAuthFailure(msg, status) {
 
 /**
  * Wrap a raw error into a ConnectionError with normalized fields.
- * Procedure: Extract status and retryable from the raw error, resolve the
- * cause chain message, apply the caller override, then shape the message per
- * the failure kind. An explicit message bypasses classification and is used
- * verbatim.
+ * An explicit message bypasses classification and is used verbatim.
  * @param {unknown} error - The raw error to wrap
  * @param {{ profileId?: string, retryable?: boolean | null, message?: string | null }} [options]
  * @param {string} [fallbackLabel] - Prefix for the classified message

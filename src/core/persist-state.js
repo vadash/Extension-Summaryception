@@ -27,7 +27,6 @@ export async function persistChatState({ chatSave = 'immediate' } = {}) {
 }
 
 /**
- * Flush a pending debounced chat-file write, if one exists.
  * @returns {Promise<void>}
  */
 export async function flushPendingChatSave() {

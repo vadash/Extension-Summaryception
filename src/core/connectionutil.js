@@ -185,7 +185,6 @@ function getRouteSettingValue(key, value) {
 }
 
 /**
- * Lowercase the first character of a prefixed route setting suffix.
  * @param {string} value
  * @returns {string}
  */
@@ -235,7 +234,6 @@ function getRouteIdentityValue(settings, key) {
 }
 
 /**
- * Resolve a provider by source, falling back to the default provider.
  * @param {string} [source]
  * @returns {ConnectionProvider}
  */

@@ -22,7 +22,7 @@ import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './su
  * @property {boolean} [showProgress] - Open a notify progress handle for manual work.
  * @property {string} [kind] - Prompt-effect queue label.
  * @property {'immediate' | 'deferred'} [chatSave] - Chat-file persistence mode.
- * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress events; when absent the work runs silent.
+ * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress events. When absent, the work runs silent.
  */
 
 /**
@@ -38,8 +38,8 @@ export async function repairGhostingForRange(startIdx, endIdx, options = {}) {
 
 /**
  * Assign Ghosting ownership and bump the Mutation Epoch when the owned id
- * list actually changed (order-sensitive element-wise compare): ownership is
- * store state, so consumers must see it move (ADR-0003).
+ * list actually changed. The compare is element-wise and order-sensitive.
+ * Ownership is store state, so consumers must see it move (ADR-0003).
  * @param {SummaryceptionStore} store
  * @param {string[]} nextIds
  * @returns {void}
@@ -56,12 +56,12 @@ function setGhostedMessageIds(store, nextIds) {
 
 /**
  * Reconcile Ghosting ownership with Snippet provenance. The desired id set is
- * every sourceMessageId across all layers: desired messages that still need
- * ownership or visual hide are hidden through the ranged hide engine, owned
- * ids no longer referenced by any layer are released through the unhide path.
- * Ownership ends up exactly the desired set; desired ids whose messages no
+ * every sourceMessageId across all layers. Desired messages that still need
+ * ownership or a visual hide go through the ranged hide engine. Owned ids no
+ * longer referenced by any layer are released through the unhide path.
+ * Ownership ends up exactly the desired set. Desired ids whose messages no
  * longer resolve stay owned but inert.
- * @param {GhostRangeOptions} [options] - Carries the notify adapter; without one the work runs silent.
+ * @param {GhostRangeOptions} [options] - Carries the notify adapter. Without one, the work runs silent.
  * @returns {Promise<{ hidden: number, unhidden: number }>} Messages covered by the applied hide and release ranges.
  */
 export async function syncGhosting(options = {}) {
@@ -107,8 +107,8 @@ export async function clearAllGhosting(_options = {}) {
 }
 
 /**
- * Count chat messages currently under Summaryception ghost ownership.
- * @returns {number} Owned ids that still resolve in the chat; 0 without a chat context.
+ * Count chat messages under Summaryception ghost ownership.
+ * @returns {number} Owned ids that still resolve in the chat. Returns 0 without a chat context.
  */
 export function countGhostedMessages() {
     try {
@@ -119,7 +119,6 @@ export function countGhostedMessages() {
 }
 
 /**
- * Ghost eligible messages in a specific chat range.
  * @internal
  * @param {number} startIdx
  * @param {number} endIdx
@@ -140,7 +139,7 @@ export async function ghostMessagesInRange(startIdx, endIdx, options = {}) {
  * @param {number} endIdx
  * @param {number} epoch
  * @param {GhostRangeOptions} options
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} True when the range finished or needed no work. False when remaining work moved to the deferred queue.
  */
 async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
     const chat = getChat();
@@ -219,7 +218,7 @@ async function applyHideRange({ chat, store, range, epoch, chatSave }) {
  * @param {number} endIdx
  * @param {GhostRangeOptions} options
  * @param {unknown} progress
- * @returns {boolean}
+ * @returns {boolean} Always false; the remaining work is queued for later.
  */
 function queueRemainingGhosting(nextStart, endIdx, options, progress) {
     if (progress) {
@@ -230,7 +229,6 @@ function queueRemainingGhosting(nextStart, endIdx, options, progress) {
 }
 
 /**
- * Queue remaining range ghosting work.
  * @param {number} startIdx
  * @param {number} endIdx
  * @param {GhostRangeOptions} options
@@ -278,7 +276,6 @@ function messageNeedsGhosting(msg, store) {
 }
 
 /**
- * Check whether a message is eligible for Summaryception ghosting.
  * @param {ChatMessage | undefined} msg
  * @param {SummaryceptionStore} store
  * @returns {boolean}
@@ -393,7 +390,6 @@ function normalizeRange(startIdx, endIdx, chatLength) {
 }
 
 /**
- * Format a slash-command range.
  * @param {[number, number]} range
  * @returns {string}
  */
@@ -402,7 +398,6 @@ function formatSlashRange(range) {
 }
 
 /**
- * Count messages covered by a set of ranges.
  * @param {Array<[number, number]>} ranges
  * @returns {number}
  */

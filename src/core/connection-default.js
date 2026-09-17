@@ -6,9 +6,9 @@ import { generateRaw } from '../foundation/context.js';
  * @type {ConnectionProvider}
  */
 export const DefaultProvider = {
-    // ponytail: ceiling — timeout/Stop only abandon the orphaned HTTP request,
-    // because host generateRaw() has no AbortSignal parameter. Forward the
-    // signal once SillyTavern's GenerateRawParams gains one.
+    // Cancellable is false because host generateRaw() takes no AbortSignal
+    // parameter. Timeout and Stop can only abandon the orphaned HTTP request.
+    // Forward the signal when SillyTavern's GenerateRawParams gains one.
     cancellable: false,
     async generate({ settings, systemPrompt, userPrompt }) {
         return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
@@ -20,10 +20,10 @@ export const DefaultProvider = {
 
 /**
  * Uses ST's built-in generateRaw(), which routes through the active connection.
- * @param {string} systemPrompt - The system prompt
- * @param {string} userPrompt - The user prompt
- * @param {number} responseLength - Desired response length
- * @returns {Promise<string>} The generated text
+ * @param {string} systemPrompt
+ * @param {string} userPrompt
+ * @param {number} responseLength
+ * @returns {Promise<string>}
  */
 export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
     /** @type {GenerateRawOptions} */

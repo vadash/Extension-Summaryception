@@ -31,7 +31,6 @@ export function tryExtractChatContent(responseObj) {
 }
 
 /**
- * Read a `.content` string property from an object.
  * @param {unknown} value
  * @returns {string|null}
  */

@@ -172,7 +172,7 @@ function parseProfileResponse(raw) {
 
 /**
  * Wrap a profile request error into a ConnectionError.
- * @param {object} params - Parameters
+ * @param {object} params
  * @param {unknown} params.error - The original error
  * @param {string} params.profileId - The profile ID
  * @returns {never} Always throws

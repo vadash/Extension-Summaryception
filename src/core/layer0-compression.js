@@ -202,12 +202,12 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
     });
 
     if (diagnostics.violations.length > 0) {
-        // The first-pass deterministic compactor already had its chance on the
-        // raw oversized state (above, via compactStateNearMiss). When a state
-        // violation still reaches diagnostics here, the compactor could not
-        // trim the block under the hard maximum, so an LLM repair is required.
-        // Do not add a second compaction pass: compactStateSnapshotText is
-        // deterministic, so a retry produces an identical result.
+        // The deterministic compactor already ran once on the raw oversized
+        // state, via compactStateNearMiss above. A state violation that still
+        // reaches diagnostics here means the compactor could not trim the
+        // block below the hard maximum, so the repair needs the LLM. Do not
+        // add a second compaction pass: compactStateSnapshotText is
+        // deterministic, so a retry would produce an identical result.
 
         const sourceStateKeyCount = Object.keys(
             parseStateBlock(String(metadata.sourceState || '')).state,
@@ -328,13 +328,10 @@ function buildLayer0SizeDiagnostics({
 }
 
 async function compactStateNearMiss(stateText, stateTokens) {
-    // Only skip when the block already fits; otherwise let the deterministic
-    // compactor try. Its own post-trim token check rejects anything that still
-    // can't fit, so there is no upper bound to tune here; refusing to try a
-    // trim based on the *oversize* magnitude is exactly what forced the
-    // wasteful full LLM retries seen in production (a 384/478-token block
-    // trims cleanly under the 300-token hard max once the compactor is allowed
-    // to run on it).
+    // The compactor's own post-trim token check rejects anything that still
+    // cannot fit, so there is no upper bound to tune here. A magnitude-based
+    // refusal would force full LLM retries for blocks that the compactor can
+    // trim below the hard maximum.
     if (stateTokens.count <= STATE_SNAPSHOT_MAX_TOKENS) {
         return { text: stateText, block: '', tokens: stateTokens, changed: false };
     }
@@ -368,9 +365,9 @@ function rebuildLayer0Output(narrative, stateBlock) {
         .trim();
 }
 
-// Deliberately not parseSnippet: this requires BOTH headers before trusting a
-// section split, while parseSnippet needs only [STATE] and tolerates a
-// missing [NARRATIVE].
+// Deliberately not parseSnippet: this function requires both headers before it
+// trusts a section split, while parseSnippet needs only [STATE] and tolerates
+// a missing [NARRATIVE].
 function extractLayer0Sections(text) {
     const lines = String(text || '').split(/\r?\n/);
     const narrativeIndex = lines.findIndex((line) => NARRATIVE_HEADER_RE.test(line));
@@ -548,7 +545,8 @@ function appendPromotionPromptConstraints(prompt, settings, metadata = {}) {
 }
 
 // Small cardinals for dual-framing the sentence cap in <output_schema>
-// (e.g. "AT MOST five (5)"). Falls back to the digit for larger values.
+// (e.g. "AT MOST five (5)"). The lookup falls back to the digit for larger
+// values.
 const SENTENCE_CAP_WORDS = [
     'zero',
     'one',
