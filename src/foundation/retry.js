@@ -1,6 +1,6 @@
-import { RETRY_ATTEMPT_RATIO, RETRY_CONFIG } from './constants.js';
+import { RETRY_CONFIG } from './constants.js';
 
-export { RETRY_ATTEMPT_RATIO, RETRY_CONFIG };
+export { RETRY_CONFIG };
 
 /**
  * Wait for a specified number of milliseconds.

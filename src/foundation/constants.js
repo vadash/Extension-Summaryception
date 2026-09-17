@@ -359,8 +359,6 @@ export const PROMPT_SETTING_KEYS = Object.freeze([
 
 // ─── Retry Configuration ─────────────────────────────────────────────
 
-export const RETRY_ATTEMPT_RATIO = 0.75; // retries run at this fraction of the first attempt's timeout
-
 export const RETRY_CONFIG = {
     maxRetries: 3,
     baseDelay: 2000,

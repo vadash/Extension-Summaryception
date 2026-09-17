@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { RETRY_ATTEMPT_RATIO, RETRY_CONFIG } from '../src/foundation/retry.js';
+import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import {
     classifyAttemptRetryStatus,
     computeAttemptTimeoutMs,
@@ -11,12 +11,11 @@ import {
 } from '../src/core/request-retry-policy.js';
 
 describe('computeAttemptTimeoutMs', () => {
-    it('returns the full configured timeout on the first attempt and the ratio on retries', () => {
+    it('returns the full configured timeout on every attempt', () => {
         const settings = { requestTimeoutSeconds: 30 };
         expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, settings)).toBe(30000);
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, settings)).toBe(
-            Math.round(30000 * RETRY_ATTEMPT_RATIO),
-        );
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, settings)).toBe(30000);
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 3, settings)).toBe(30000);
     });
 
     it('reads each route from its own settings field', () => {
@@ -30,16 +29,11 @@ describe('computeAttemptTimeoutMs', () => {
         expect(computeAttemptTimeoutMs({ useFallback: true }, 0, settings)).toBe(50000);
     });
 
-    it('uses fallback timeouts with the documented ordering when no setting is finite', () => {
-        const l0First = computeAttemptTimeoutMs({ kind: 'layer0' }, 0, {});
-        const l0Retry = computeAttemptTimeoutMs({ kind: 'layer0' }, 1, {});
-        const promoFirst = computeAttemptTimeoutMs({ kind: 'promotion' }, 0, {});
-        const promoRetry = computeAttemptTimeoutMs({ kind: 'promotion' }, 1, {});
-        // L0 (user-facing) waits longer than its retry; likewise for promotion.
-        expect(l0First).toBeGreaterThan(l0Retry);
-        expect(promoFirst).toBeGreaterThan(promoRetry);
-        // L0 first-attempt is more generous than promotion first-attempt.
-        expect(l0First).toBeGreaterThan(promoFirst);
+    it('uses fallback timeouts when no setting is finite', () => {
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, {})).toBe(120000);
+        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, {})).toBe(120000);
+        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 0, {})).toBe(90000);
+        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 1, {})).toBe(90000);
     });
 });
 
