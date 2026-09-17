@@ -21,9 +21,9 @@ describe('RequestRunner.run outcomes', () => {
         }
     });
 
-    function makeRequest({ signal, notify } = {}) {
+    function makeRequest({ signal, notify, settings } = {}) {
         return {
-            settings: makeSummarySettings(),
+            settings: settings ?? makeSummarySettings(),
             systemPrompt: 'system',
             prompt: 'prompt',
             repairPrompt: 'repair',
@@ -123,6 +123,34 @@ describe('RequestRunner.run outcomes', () => {
                 kind: 'run-failed',
                 retriesExhausted: true,
                 attempts: RETRY_CONFIG.maxRetries + 1,
+                status: null,
+            },
+        ]);
+    });
+
+    it('gives up with failed after one full primary+fallback cycle instead of looping forever', async () => {
+        const recorder = makeNotifyRecorder();
+        attemptMocks.runSingleAttempt.mockResolvedValue({
+            success: false,
+            error: new Error('timeout'),
+            aborted: false,
+            shouldRetry: true,
+            hardFailover: false,
+        });
+        const settings = makeSummarySettings({ fallbackConnectionSource: 'profile' });
+
+        const outcome = await new RequestRunner().run(makeRequest({ settings, notify: recorder }));
+
+        expect(outcome.status).toBe('failed');
+        expect(attemptMocks.runSingleAttempt).toHaveBeenCalledTimes(
+            2 * (RETRY_CONFIG.maxRetries + 1),
+        );
+        expect(recorder.events).toEqual([
+            {
+                type: 'transient',
+                kind: 'run-failed',
+                retriesExhausted: true,
+                attempts: 2 * (RETRY_CONFIG.maxRetries + 1),
                 status: null,
             },
         ]);

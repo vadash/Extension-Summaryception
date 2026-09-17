@@ -1,6 +1,6 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { debug, error as logError, info, trace } from '../foundation/logger.js';
-import { RETRY_CONFIG } from '../foundation/retry.js';
+import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET } from '../foundation/retry.js';
 import { resolveFallbackSummarizerConnectionSettings } from './connectionutil.js';
 import { silentAdapter } from './notify.js';
 import {
@@ -114,6 +114,7 @@ export class RequestRunner {
             notify,
             healthBucket: getPrimaryHealthBucket(metadata),
             fallbackSettings: resolveFallbackSummarizerConnectionSettings(settings, metadata),
+            routeCycleFailures: 0,
         };
 
         while (true) {
@@ -124,6 +125,10 @@ export class RequestRunner {
             const cycle = await this.runRouteCycle(series);
 
             if (cycle.status === 'retry') {
+                series.routeCycleFailures += 1;
+                if (series.routeCycleFailures >= ROUTE_CYCLE_FAILURE_BUDGET) {
+                    return cycle.outcome;
+                }
                 continue;
             }
 
@@ -232,7 +237,15 @@ export class RequestRunner {
             notify: series.notify,
         });
         this.primaryRetryExhaustedBuckets.delete(series.healthBucket);
-        return { status: /** @type {'retry'} */ ('retry'), result: null };
+        return {
+            status: /** @type {'retry'} */ ('retry'),
+            result: null,
+            outcome: failSummarization(
+                fallback.error,
+                { attempts: primary.attempts + fallback.attempts },
+                series.notify,
+            ),
+        };
     }
 
     /**

@@ -366,3 +366,8 @@ export const RETRY_CONFIG = {
     backoffMultiplier: 2,
     retryableStatuses: [429, 500, 502, 503, 504],
 };
+
+// Consecutive failed primary+fallback route cycles before one request gives up
+// with a failed Run Outcome instead of retrying forever (mirrors the Promotion
+// Drain failure budget).
+export const ROUTE_CYCLE_FAILURE_BUDGET = 1;

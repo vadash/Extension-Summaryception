@@ -1,6 +1,6 @@
-import { RETRY_CONFIG } from './constants.js';
+import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET } from './constants.js';
 
-export { RETRY_CONFIG };
+export { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET };
 
 /**
  * Wait for a specified number of milliseconds.
