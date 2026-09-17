@@ -9,8 +9,8 @@ import {
 } from './test-helpers.js';
 
 /**
- * The summarizer output module emits structured notify events (ADR-0004) instead of
- * calling the notification library; the entry adapter renders the language-mix
+ * The summarizer output module emits structured notify events (ADR-0004) instead
+ * of calling the notification library. The entry adapter renders the language-mix
  * retry warning.
  */
 describe('summarizer output notify events', () => {

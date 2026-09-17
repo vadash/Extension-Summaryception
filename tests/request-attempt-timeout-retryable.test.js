@@ -21,10 +21,9 @@ import { isCancellableConnection } from '../src/core/connectionutil.js';
 import { makeSummarySettings } from './test-helpers.js';
 
 /**
- * Attempt-timeout retryability follows the route's cancellation capability:
- * on an uncancellable route (host generateRaw has no abort signal) a timed-out
- * request is orphaned, so the timeout must not be retried; cancellable routes
- * genuinely cancel the request and may retry.
+ * On an uncancellable route, the host generateRaw call has no abort signal. A
+ * timed-out request keeps running there, so the runner must not retry the
+ * timeout. Cancellable routes cancel the request for real, so they may retry.
  */
 describe('attempt timeout retryability vs cancellation capability', () => {
     afterEach(() => {
@@ -49,7 +48,10 @@ describe('attempt timeout retryability vs cancellation capability', () => {
         };
     }
 
-    /** Run one attempt whose request never resolves; classify like the runner does. */
+    /**
+     * The request mock never resolves, which makes the attempt hang. The
+     * runner classifies each failure the same way.
+     */
     async function runHungAttempt(params) {
         connectionMocks.sendSummarizerRequest.mockReturnValue(new Promise(() => {}));
         let caught;

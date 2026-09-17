@@ -10,9 +10,8 @@ import {
 import { installSummaryContext } from './test-helpers.js';
 
 /**
- * initCommitCallbacks is the one-time wiring seam for the Foreground Gate:
- * all three slots register together, a second init throws, and pre-init
- * calls are silent no-ops until the composition root initializes.
+ * initCommitCallbacks is the one-time wiring seam for the Foreground Gate.
+ * The composition root calls it once.
  */
 describe('initCommitCallbacks', () => {
     afterEach(() => {

@@ -51,7 +51,6 @@ function makeDeps({ stopAfterFirstBatch = false } = {}) {
         withUsageRun: vi.fn(async (_label, work) => await work()),
     };
     if (stopAfterFirstBatch) {
-        // Flip the stop intent once the first batch has been processed.
         runToken.isStopped.mockImplementation(
             () => batchMocks.summarizeBatchFromTurns.mock.calls.length >= 1,
         );
@@ -90,7 +89,7 @@ describe('manual run progress callbacks', () => {
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
         stateMocks.getCurrentSummarizedBoundary.mockImplementation(() => boundary);
-        // Committing one batch advances the summarized boundary to the target.
+        // One commit moves the boundary to the target, so the plan turns unready and the run ends after one batch.
         batchMocks.summarizeBatchFromTurns.mockImplementation(async () => {
             boundary = TARGET_INDEX;
             return { status: 'completed' };
@@ -224,8 +223,8 @@ describe('manual run failure limit', () => {
     });
 
     it('halts as blocked when a completed batch does not move the boundary', async () => {
-        // Failure, then a completed batch whose boundary never moves, then two
-        // failures the halt must never reach.
+        // One failure, then a completed batch that never moves the boundary.
+        // The blocked halt must stop the run before the two trailing failures.
         batchMocks.summarizeBatchFromTurns
             .mockResolvedValueOnce({ status: 'failed' })
             .mockResolvedValueOnce({ status: 'completed' })

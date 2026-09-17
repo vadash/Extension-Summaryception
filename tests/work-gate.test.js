@@ -20,7 +20,7 @@ vi.mock('../src/core/summarizer-pipeline.js', () => ({
 import { abortAllRequests, callSummarizer, isRequestLive } from '../src/core/summarizer-request.js';
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';
 
-/** Build a queue with injected fake dependencies; no host context needed. */
+/** Build a queue with injected fake dependencies. The queue needs no host context. */
 function makeGateQueue(drainOneCycle, { isRequestLive = () => false } = {}) {
     return new SummarizerQueue({
         drainOneCycle,
@@ -191,7 +191,7 @@ describe('work gate leases', () => {
         run.end();
         expect(queue.isBusy()).toBe(false);
 
-        // The next trigger's rerun picks the deferred work up.
+        // The next trigger's rerun picks up the deferred work.
         await queue.request();
         expect(calls).toBe(1);
     });

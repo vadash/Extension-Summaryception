@@ -9,10 +9,7 @@ import {
 } from '../src/core/summarizer-commit.js';
 import { installSummaryContext } from './test-helpers.js';
 
-/**
- * promptWorkGate is the single foreground ask: it attempts stale-freeze
- * recovery first, then reports whether prompt-affecting work may start.
- */
+/** promptWorkGate is the single foreground ask for prompt-affecting work. */
 describe('promptWorkGate', () => {
     afterEach(() => {
         resetCommitStateForTests();
@@ -49,7 +46,7 @@ describe('promptWorkGate', () => {
     });
 
     it('recovers a stale freeze inside the ask and reopens the gate', async () => {
-        // No streaming processor and no stop button: SillyTavern is not generating.
+        // No streaming processor and no stop button, so SillyTavern is not generating.
         installSummaryContext({ chat: [] });
         beginForegroundGeneration();
         vi.useFakeTimers({ toFake: ['Date'] });

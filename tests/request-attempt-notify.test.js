@@ -24,7 +24,7 @@ import {
 
 /**
  * The attempt layer emits structured notify events (ADR-0004) instead of
- * calling the notification library. Retry waits stay in retry policy; the
+ * calling the notification library. Retry waits stay in retry policy. The
  * abort signal cuts them short independently of any display duration.
  */
 describe('request attempt notify events', () => {

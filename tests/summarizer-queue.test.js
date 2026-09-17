@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';
 
-/** Build a queue with injected fake dependencies; no host context needed. */
+/** Every host dependency is injected, so the queue needs no host context. */
 function makeQueue(drainOneCycle) {
     return new SummarizerQueue({
         drainOneCycle,

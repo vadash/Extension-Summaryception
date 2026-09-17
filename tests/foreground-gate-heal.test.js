@@ -18,9 +18,9 @@ describe('stale freeze heal flush', () => {
     });
 
     // Reproduces the user report: a summary commit queues behind an active
-    // foreground generation, the stale-freeze heal flushes it at generation
-    // end, and the commit's own prompt effects (injection update, ghosting)
-    // must apply during that same flush instead of being requeued forever.
+    // foreground generation, and the stale-freeze heal flushes it at generation
+    // end. The commit's prompt effects (injection update, ghosting) must apply
+    // during that same flush instead of staying queued forever.
     it('applies prompt effects queued by the heal flush and settles', async () => {
         installSummaryContext({ chat: [] });
         const updateInjection = vi.fn();
@@ -35,9 +35,9 @@ describe('stale freeze heal flush', () => {
                 kind: 'heal repro commit',
                 // Mirrors commitSnippetMutation, whose apply runs
                 // updateCommittedInjection after real async steps (ghosting
-                // commands, persistence). The boundary is load-bearing: the
+                // commands, persistence). The boundary is load-bearing. The
                 // heal assigns staleRecoveryPromise only after its synchronous
-                // prefix suspends; the deferral happens in the continuation.
+                // prefix suspends, and the deferral happens in the continuation.
                 apply: async () => {
                     await Promise.resolve();
                     await updateCommittedInjection();
@@ -54,8 +54,8 @@ describe('stale freeze heal flush', () => {
             return verdict;
         });
 
-        // The flush drains through microtasks; bound it so a requeue spin
-        // fails the test instead of hanging the worker.
+        // The flush drains through microtasks, so the bound makes a requeue
+        // spin fail the test instead of hanging the worker.
         let microtasks = 0;
         try {
             const verdict = await Promise.race([

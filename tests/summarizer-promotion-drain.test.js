@@ -19,9 +19,8 @@ import {
 } from './test-helpers.js';
 
 /**
- * drainPromotionOverflow is the single owner of overflow clearing: one loop,
- * one failure budget, one Foreground Gate. Tests drive the real module through its
- * interface with a mocked summarizer request.
+ * drainPromotionOverflow is the single owner of overflow clearing. Tests
+ * drive the real module and mock only the summarizer request.
  */
 describe('drainPromotionOverflow', () => {
     afterEach(() => {

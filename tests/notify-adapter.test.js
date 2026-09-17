@@ -22,7 +22,7 @@ function installTextCapture() {
 /**
  * The entry adapter maps structured notify events onto toastr (ADR-0004).
  * Tests assert notification kind, persistence, cadence, and processed/total
- * counts; wording stays unasserted per house test rules.
+ * counts. Wording stays unasserted per house test rules.
  */
 describe('toastr notify adapter mapping', () => {
     it('opens one persistent info toast per progress handle', () => {
@@ -143,8 +143,8 @@ describe('toastr notify adapter mapping', () => {
         expect(toastr.warning).not.toHaveBeenCalled();
         expect(toastr.error).not.toHaveBeenCalled();
     });
-    // Severity, fragments, and non-persistence are the adapter contract; the
-    // exact display durations are entry-owned (ADR-0004).
+    // Severity, fragments, and non-persistence are the adapter contract. The
+    // entry owns the exact display durations (ADR-0004).
     it.each([
         {
             event: { kind: 'run-aborted' },
@@ -200,7 +200,7 @@ describe('toastr notify adapter mapping', () => {
             for (const [name, value] of Object.entries(options ?? {})) {
                 expect(opts[name]).toBe(value);
             }
-            // Transient notices auto-dismiss; only the persistent progress
+            // Transient notices auto-dismiss. Only the persistent progress
             // toasts pin timeOut to zero.
             expect(opts.timeOut).toBeGreaterThan(0);
         },

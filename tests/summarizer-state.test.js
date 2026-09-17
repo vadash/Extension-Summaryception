@@ -4,7 +4,7 @@ import { compileGlobalState, parseSnippet } from '../src/core/summarizer-state.j
 
 describe('parseSnippet current_date_time weekday normalization', () => {
     it('corrects a hallucinated weekday against the ISO date', () => {
-        // Dec 3 2024 is Tuesday, not Friday (the kind of slip seen in f12 log).
+        // Dec 3 2024 is Tuesday, not Friday. The fixture reproduces the weekday slip seen in the f12 log.
         const parsed = parseSnippet(
             '[NARRATIVE]\nScene.\n\n[STATE]\ncurrent_date_time: 2024-12-03 06 Fri',
         );
@@ -12,7 +12,7 @@ describe('parseSnippet current_date_time weekday normalization', () => {
     });
 
     it('preserves an already-correct weekday', () => {
-        // July 4 2024 is Thursday, the canonical prompt example, verified correct.
+        // July 4 2024 is Thursday. The value matches the canonical example in the prompt.
         const parsed = parseSnippet(
             '[NARRATIVE]\nScene.\n\n[STATE]\ncurrent_date_time: 2024-07-04 16 Thu',
         );
@@ -30,7 +30,6 @@ describe('parseSnippet current_date_time weekday normalization', () => {
         const parsed = parseSnippet(
             '[NARRATIVE]\nScene.\n\n[STATE]\ncurrent_date_time: 2024-07-04 16:32 Wed',
         );
-        // Wrong weekday AND minutes present; hour retained, minutes dropped, weekday fixed.
         expect(parsed.state.current_date_time).toBe('2024-07-04 16 Thu');
     });
 
