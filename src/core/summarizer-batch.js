@@ -1,11 +1,7 @@
 import { BATCH_PROGRESS } from '../foundation/constants.js';
 import { getContext, getChat } from '../foundation/context.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
-import {
-    getChatStore,
-    getCurrentSummarizedBoundary,
-    getSummaryStoreMutationEpoch,
-} from '../foundation/state.js';
+import { getChatStore, getCurrentSummarizedBoundary } from '../foundation/state.js';
 import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
 import { repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
@@ -154,13 +150,19 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
     let contextText = buildFullContext(0);
     const snapshots = [];
     const pendingSnippets = [];
-    const baseMutationEpoch = getSummaryStoreMutationEpoch(store);
 
     try {
         for (const partition of usablePartitions) {
-            if (getSummaryStoreMutationEpoch(store) !== baseMutationEpoch) {
-                progress.settle();
-                return { status: 'failed', completed: snapshots.length, failed: 1 };
+            // Live freshness ask before each request: catches both same-store
+            // mutations (epoch drift) and chat switches (identity check). A
+            // stale run aborts instead of burning doomed requests per partition;
+            // dirty flags / chat reconciliation re-trigger the work.
+            if (
+                snapshots.length > 0 &&
+                !isSnapshotStoreCurrent(snapshots[0], getContext(), store)
+            ) {
+                progress.settle(BATCH_PROGRESS.ABORTED);
+                return { status: 'aborted', completed: snapshots.length };
             }
 
             const result = await runLayer0Summarization({

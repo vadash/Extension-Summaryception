@@ -273,6 +273,67 @@ describe('Layer 0 atomic multi-partition progress', () => {
         expect(clears[0].event).toEqual({ kind: 'batch-memory-failed' });
     });
 
+    it('aborts remaining partitions when the store mutates mid-run', async () => {
+        const recorder = makeNotifyRecorder();
+        const chat = [
+            makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
+            makeMessage({ scId: 'assistant-id', mes: 'First assistant scene.' }),
+            makeMessage({ isUser: true, scId: 'user-id-2', mes: 'User scene two.' }),
+            makeMessage({ scId: 'assistant-id-2', mes: 'Second assistant scene.' }),
+        ];
+        const metadata = { summaryception: makeSummaryStore() };
+        installSummaryContext({ chat, metadata });
+        callSummarizer.mockImplementation(async () => {
+            metadata.summaryception.mutationEpoch += 1;
+            return { status: 'completed', text: VALID_SUMMARY };
+        });
+        const partitions = [
+            { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
+            { turns: [{ index: 3 }], sourceStartIdx: 3, sourceEndIdx: 3 },
+        ];
+
+        await expect(summarizeAtomicLayer0Partitions(partitions, {}, recorder)).resolves.toEqual({
+            status: 'aborted',
+            completed: 1,
+        });
+
+        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        const clears = recorder.events.filter((event) => event.type === 'clear');
+        expect(clears).toHaveLength(1);
+        expect(clears[0].event).toEqual({ kind: 'batch-memory-aborted' });
+    });
+
+    it('aborts remaining partitions when the chat switches mid-run', async () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
+            makeMessage({ scId: 'assistant-id', mes: 'First assistant scene.' }),
+            makeMessage({ isUser: true, scId: 'user-id-2', mes: 'User scene two.' }),
+            makeMessage({ scId: 'assistant-id-2', mes: 'Second assistant scene.' }),
+        ];
+        const metadata = { summaryception: makeSummaryStore() };
+        installSummaryContext({ chat, metadata });
+        callSummarizer.mockImplementation(async () => {
+            installSummaryContext({
+                chat: [makeMessage({ scId: 'other-chat', mes: 'Other chat.' })],
+                metadata,
+            });
+            return { status: 'completed', text: VALID_SUMMARY };
+        });
+        const partitions = [
+            { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
+            { turns: [{ index: 3 }], sourceStartIdx: 3, sourceEndIdx: 3 },
+        ];
+
+        await expect(
+            summarizeAtomicLayer0Partitions(partitions, {}, makeNotifyRecorder()),
+        ).resolves.toEqual({
+            status: 'aborted',
+            completed: 1,
+        });
+
+        expect(callSummarizer).toHaveBeenCalledTimes(1);
+    });
+
     it('restores chat and Layer 0 when atomic post-mutation persistence fails', async () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
