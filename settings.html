@@ -409,7 +409,7 @@
                             <small>Per-attempt timeout for Layer 0 summary and regeneration calls. Raise this for slow local models.</small>
                         </label>
                         <div class="sc-slider-row">
-                            <input type="range" id="sc_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout_val" />
+                            <input type="range" id="sc_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout_val" />
                             <input id="sc_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout" />
                         </div>
                     </div>
@@ -460,7 +460,7 @@
                             <small>Per-attempt timeout for Layer 1+ promotion merge calls. Lower than Layer 0 by default.</small>
                         </label>
                         <div class="sc-slider-row">
-                            <input type="range" id="sc_merge_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout_val" />
+                            <input type="range" id="sc_merge_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout_val" />
                             <input id="sc_merge_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="90" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout" />
                         </div>
                     </div>
@@ -511,7 +511,7 @@
                             <small>Per-attempt timeout for the fallback route after the primary route fails.</small>
                         </label>
                         <div class="sc-slider-row">
-                            <input type="range" id="sc_fallback_request_timeout" min="60" max="300" step="10" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout_val" />
+                            <input type="range" id="sc_fallback_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout_val" />
                             <input id="sc_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout" />
                         </div>
                     </div>

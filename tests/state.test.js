@@ -70,6 +70,20 @@ describe('memory mode budgets', () => {
             queuedTokenBudget: SLIDER_LIMITS.queuedTokenBudget.MAX,
         });
     });
+    it('clamps route timeouts above the slider max', () => {
+        installSummaryContext({
+            settings: {
+                requestTimeoutSeconds: 8000,
+                mergeRequestTimeoutSeconds: 8000,
+                fallbackRequestTimeoutSeconds: 8000,
+            },
+        });
+        expect(getSettings()).toMatchObject({
+            requestTimeoutSeconds: SLIDER_LIMITS.requestTimeoutSeconds.MAX,
+            mergeRequestTimeoutSeconds: SLIDER_LIMITS.mergeRequestTimeoutSeconds.MAX,
+            fallbackRequestTimeoutSeconds: SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MAX,
+        });
+    });
 
     it('applies presets only on real mode transitions', () => {
         const settings = { ...defaultSettings, memoryMode: MEMORY_MODES.BALANCED };
