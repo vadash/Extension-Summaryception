@@ -44,6 +44,18 @@ Hiding summarized turns from model context through the host command while keepin
 Ownership sync derives the desired ghosted ids from Snippet provenance across all layers: it hides desired messages that are not covered yet and releases owned ids no longer referenced.
 Code: `syncGhosting` (src/core/ghosting.js)
 
+**Batch**:
+The assistant turns one Layer 0 summarizer request covers. Batch ranges count assistant turns only; user messages between them belong to the request's Passage.
+Code: `summarizeBatchFromTurns` (src/core/summarizer-batch.js)
+
+**Passage**:
+The contiguous chat-index range of raw messages one summarizer request summarizes, including the user messages interleaved with a Batch. A Passage therefore starts one or more indices before its Batch.
+Code: `passageStart` / `passageText` (src/core/summarizer-batch.js)
+
+**Chat Index**:
+A message's position in the chat array. Every range in the extension — Batch, Passage, Verbatim Window — is a chat-index range; stable identity uses Summaryception IDs (`sc_id`), never indices.
+Code: `AssistantTurn.index` (src/core/chatutils.js), `sc_id` (src/foundation/message-identity.js)
+
 **Verbatim Window**:
 The recent chat range kept in model context without summarization.
 Code: `verbatimBudget` / `verbatimStartIdx` (src/core/chat-window-planner.js)

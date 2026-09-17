@@ -11,7 +11,6 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @typedef {object} SummarizerCallMetadata
  * @property {'layer0' | 'promotion' | 'regenerate' | string} [kind] - Call category
  * @property {[number, number]} [sourceRange] - Source chat index range
- * @property {number} [assistantTurnCount] - Assistant turns summarized
  * @property {PassageRegexStats} [regexStats] - Passage regex stats
  * @property {number} [sourceTokensBefore] - Source text size before summarization
  * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
@@ -392,8 +391,7 @@ function formatOverflowValue(value) {
  */
 function describeCall(metadata = {}) {
     if (metadata.kind === 'layer0') {
-        const turns = formatCount(metadata.assistantTurnCount, 'assistant turn');
-        return `CHAT -> L0 turns ${formatRange(metadata.sourceRange)} (${turns})`;
+        return `CHAT -> L0 turns ${formatRange(metadata.sourceRange)}`;
     }
     if (metadata.kind === 'promotion') {
         return `promotion ${formatPromotionLabel(metadata)}`;

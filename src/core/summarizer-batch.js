@@ -169,7 +169,6 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
                 passageStart: partition.sourceStartIdx,
                 endIdx: partition.sourceEndIdx,
                 contextText,
-                metadata: { assistantTurnCount: partition.turns.length },
                 notify,
                 progress,
                 total: usablePartitions.length,
@@ -298,7 +297,6 @@ async function summarizeSafely(catchExceptions, source, run) {
  * @param {number} p.passageStart - First passage index
  * @param {number} p.endIdx - Last passage index
  * @param {string} [p.contextText] - Prebuilt pending context for multi-partition jobs
- * @param {object} [p.metadata] - Extra callSummarizer options for this job
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter
  * @param {BatchProgressOwner} p.progress - Shared batch progress owner for this run
  * @param {number} p.total - Total partitions in the batch
@@ -310,7 +308,6 @@ async function runLayer0Summarization({
     passageStart,
     endIdx,
     contextText,
-    metadata,
     notify,
     progress,
     total,
@@ -341,7 +338,6 @@ async function runLayer0Summarization({
                 sourceRange: snapshot.sourceRange,
                 regexStats: snapshot.passageStats,
                 sourceState: snapshot.sourceState,
-                ...metadata,
             },
             notify,
         );
