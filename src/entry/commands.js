@@ -5,8 +5,6 @@ import { getChatStore, getCurrentSummarizedBoundary } from '../foundation/state.
 import { assembleSummaryBlock } from '../features/injection.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
 
-// ─── Slash Commands ──────────────────────────────────────────────────
-
 /**
  *
  */

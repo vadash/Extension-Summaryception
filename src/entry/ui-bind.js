@@ -290,9 +290,9 @@ function syncSliderSettingPair(binding, settings) {
 }
 
 /**
- * Normalize a slider value against the declared SLIDER_LIMITS bounds for its
- * setting. Bounds live in the shared map; the read-time settings normalizer
- * stays the only enforcement.
+ * Normalize a slider value against the SLIDER_LIMITS bounds declared for its
+ * setting. Bounds live in the shared map. The read-time settings normalizer
+ * is the only enforcement.
  * @param {unknown} value
  * @param {string} key Settings key whose SLIDER_LIMITS entry applies
  * @returns {number}

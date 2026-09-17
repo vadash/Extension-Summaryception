@@ -47,8 +47,8 @@ export async function updateUI() {
         syncEnabledContent(s);
 
         syncRoleMaskModeControl(s.maskUserRoleAsAssistant);
-        // alwaysOn category: the input is disabled in markup, so reflect it as
-        // permanently ticked rather than reading the (ignored) persisted flag.
+        // alwaysOn category: markup disables the input, so show it as
+        // permanently ticked. The persisted flag for this category is ignored.
         $('#sc_state_cat_date_time').prop('checked', true);
         const work = await describeAutoWork(getChat(), store, effectiveSettings).catch(() => null);
         const ghostedCount = countGhostedMessages();
@@ -84,16 +84,15 @@ function syncSettingsInputs(s, effectiveSettings) {
 }
 
 function syncEnabledContent(s) {
-    // Show the off banner when the extension is off, but keep the complexity
-    // panel (chosen via configMode) visible below it so configuration stays
-    // editable while off; turning off no longer hides the settings UI.
+    // Off shows the banner and keeps the complexity panel (from configMode)
+    // visible, so configuration stays editable while the extension is off.
     const off = s.uiMode === UI_MODES.OFF;
     const complexity = off ? s.configMode || UI_MODES.EASY : s.uiMode;
     $('#sc_off_content').toggle(off);
     $('#sc_easy_content').toggle(complexity === UI_MODES.EASY);
     $('#sc_enabled_content').toggle(complexity === UI_MODES.ADVANCED);
-    // Stop latches autoPaused; show Resume while paused so users can continue
-    // without re-triggering automatic work while they finish changing settings.
+    // Stop sets the autoPaused latch. Show Resume while paused so users can
+    // continue without re-triggering automatic work.
     const paused = Boolean(s.autoPaused);
     $('#sc_stop_summarize, #sc_easy_stop_summarize').toggle(s.enabled && !paused);
     $('#sc_resume_summarize, #sc_easy_resume_summarize').toggle(s.enabled && paused);

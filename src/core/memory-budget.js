@@ -22,7 +22,6 @@ import { getEffectiveSettings } from '../foundation/state.js';
  */
 
 /**
- * Build the full injected memory text for arbitrary layers/settings.
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
  * @returns {string}
@@ -39,7 +38,6 @@ export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings
 }
 
 /**
- * Count the exact assembled memory injection and expose budget display parts.
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
  * @returns {Promise<EffectiveMemoryUsage>}

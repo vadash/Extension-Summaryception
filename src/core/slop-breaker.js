@@ -14,7 +14,6 @@ import { buildLayer0Partitions } from './partition-planner.js';
  */
 
 /**
- * Build the Slop Breaker plan for the current chat tail.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
  * @param {ExtensionSettings} settings
@@ -58,7 +57,6 @@ export async function getSlopBreakerPlan(chat, store, settings, { targetIndex } 
 }
 
 /**
- * Determine the fixed endpoint for a Slop Breaker cut.
  * @param {number} boundaryIndex
  * @returns {number | null}
  */
@@ -101,7 +99,6 @@ function isCountableConversationMessage(message) {
 }
 
 /**
- * Build an empty Slop Breaker plan.
  * @param {number} targetIndex
  * @returns {SlopBreakerPlan}
  */

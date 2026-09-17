@@ -3,8 +3,6 @@ import { refreshFull } from '../foundation/refresh.js';
 import { getSettings } from '../foundation/state.js';
 import { bindDataSettingElements, bindElementSetting, readString } from './ui-bind.js';
 
-// Connection settings UI - jQuery-based DOM access consistent with the rest of the UI layer.
-
 const CONNECTION_DATA_SETTING_SELECTOR = [
     '#sc_summarizer_response_length',
     '#sc_merge_summarizer_response_length',
@@ -50,7 +48,6 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
 ]);
 
 /**
- * Initialize connection settings panel: bind inputs/selects and set initial visibility.
  * @returns {void}
  */
 export function initConnectionUI() {
@@ -102,7 +99,6 @@ function bindConnectionInputs() {
 }
 
 /**
- * Show or hide connection sub-panels based on source.
  * @param {string} source
  * @returns {void}
  */
@@ -125,7 +121,6 @@ export function updateEasyMergeConnectionSubPanels(source) {
 }
 
 /**
- * Show or hide Layer 1+ merge connection sub-panels based on source.
  * @param {string} source
  * @returns {void}
  */
@@ -134,7 +129,6 @@ export function updateMergeConnectionSubPanels(source) {
 }
 
 /**
- * Show or hide fallback connection sub-panels based on source.
  * @param {string} source
  * @returns {void}
  */
@@ -143,7 +137,6 @@ export function updateFallbackConnectionSubPanels(source) {
 }
 
 /**
- * Show or hide connection sub-panels for one route.
  * @param {'' | '_merge' | '_fallback'} prefix
  * @param {string} source
  * @param {{ toggleResponseLength?: boolean }} [options]
@@ -164,7 +157,6 @@ function toggleRouteSubPanels(prefix, source, { toggleResponseLength = false } =
 }
 
 /**
- * Sync every connection sub-panel's visibility from current settings.
  * @param {ReturnType<typeof getSettings>} s
  * @returns {void}
  */

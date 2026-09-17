@@ -14,7 +14,6 @@ import {
  */
 
 /**
- * Build clean dual-track memory from summary layers.
  * @param {Array<Array<{ text: string }>>} layers
  * @returns {string}
  */
@@ -23,7 +22,6 @@ export function buildMemoryInjection(layers) {
 }
 
 /**
- * Build memory injection sections while preserving per-layer chronology parts.
  * @param {Array<Array<{ text: string }>>} layers
  * @param {{ compactAnchors?: boolean, injectCurrentState?: boolean }} [options]
  * @returns {MemoryInjectionParts}
@@ -45,7 +43,6 @@ export function buildMemoryInjectionParts(
 }
 
 /**
- * Substitute the memory body into the configured injection template.
  * The replacer is a function so `$` sequences in memory text are never
  * treated as replacement patterns.
  * @param {{ memoryText?: string }} injectionParts - Injection parts carrying the memory body.
@@ -65,9 +62,9 @@ function buildCurrentStateText(layers) {
 }
 
 /**
- * Return the raw serialized current `[STATE]` body (no `[CURRENT STATE]`
- * rename) for the source-state token/key counts used by the Layer 0 budget
- * hint. Returns `''` when the layers hold no state.
+ * Skips the `[CURRENT STATE]` rename so the Layer 0 budget hint counts
+ * source-state tokens and keys from the raw serialized `[STATE]` body.
+ * Returns `''` when the layers hold no state.
  * @param {Array<Array<{ text: string }>>} layers
  * @returns {string}
  */

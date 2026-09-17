@@ -13,7 +13,6 @@ const REDUCTION_GUIDANCE = [
 ];
 
 /**
- * Build pure, structured diagnostics for a rejected compression draft.
  * @param {object} p
  * @param {string} [p.scope] - Prompt family or output contract name
  * @param {number} p.totalTokens - Total draft tokens, for diagnostics only
@@ -133,7 +132,6 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
 }
 
 /**
- * Count sentences in a narrative passage.
  * @param {string} text
  * @returns {number}
  */

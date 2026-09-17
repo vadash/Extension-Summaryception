@@ -1,7 +1,4 @@
 /**
- * Shared jQuery DOM helpers for the entry modules.
- */
-/**
  * Find the first descendant of $parent matching selector, creating it via
  * make() when absent. make() owns placement of any node it creates.
  * @param {object} $parent jQuery-wrapped search root

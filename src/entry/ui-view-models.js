@@ -9,7 +9,6 @@ import { formatTokenValue } from '../core/token-count.js';
  */
 
 /**
- * Get color class based on token count thresholds.
  * @param {number} tokens
  * @returns {string}
  */
@@ -27,7 +26,6 @@ export function getContextColorClass(tokens) {
 }
 
 /**
- * Build a DOM-neutral token budget view model.
  * @param {{ budget: number, verbatim: ContextBudgetTokenPart, layers: ContextBudgetTokenPart[], wrapper?: ContextBudgetTokenPart | null, marker?: { positionTokens: number, label: string } | null }} input
  * @returns {{ budget: number, used: number, overage: number, denominator: number, totalLabel: string, marker: { percent: number, label: string } | null, segments: Array<ContextBudgetTokenPart & { percent: number, small: boolean }> }}
  */
@@ -74,7 +72,6 @@ export function buildContextBudgetViewModel({
 }
 
 /**
- * Format a budget token count.
  * @param {number} count
  * @param {boolean} estimated
  * @returns {string}
@@ -84,7 +81,6 @@ export function formatBudgetTokenLabel(count, estimated = false) {
 }
 
 /**
- * Compute the queued-chat gauge from the auto work read model.
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
  * @param {ReturnType<import('../foundation/state.js').getEffectiveSettings>} s
  * @returns {{ queuedTokens: number, queuedEstimated: boolean, triggerTokens: number, label: string }}

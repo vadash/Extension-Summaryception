@@ -10,8 +10,8 @@ import {
 } from '../foundation/constants.js';
 import { getSettings, saveSettings } from '../foundation/state.js';
 
-// UI-specific metadata for each shared prompt pair, keyed by presetKey. The
-// (presetKey, settingKey) pairs themselves live in PROMPT_SETTING_KEYS.
+// PROMPT_SETTING_KEYS owns the (presetKey, settingKey) pairs. This map adds
+// the UI selectors and preset tables, keyed by presetKey.
 const PROMPT_FIELD_UI = {
     summarizerSystemPromptPreset: {
         presetSelect: '#sc_summarizer_system_prompt_preset',
@@ -53,7 +53,6 @@ const PROMPT_FIELDS = PROMPT_SETTING_KEYS.map(({ presetKey, settingKey }) => ({
 }));
 
 /**
- * Bind preset and edit handlers for every Prompt Profile.
  * @returns {void}
  */
 export function bindPromptProfiles() {

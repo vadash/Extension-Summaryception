@@ -35,7 +35,7 @@ function storeSettingsTab(tabName) {
     try {
         sessionStorage.setItem(SETTINGS_TAB_STORAGE_KEY, tabName);
     } catch (_e) {
-        // Session storage can be unavailable in hardened browser contexts.
+        // Hardened browser contexts can block session storage.
     }
 }
 

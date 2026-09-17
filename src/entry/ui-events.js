@@ -33,7 +33,6 @@ import { bindManualRunControls, reloadPage } from './ui-manual-run.js';
 import { bindPromptProfiles } from './ui-prompts.js';
 
 /**
- * Save settings, then update injection and the UI.
  * @returns {void}
  */
 function saveAndRefreshUi() {
@@ -74,8 +73,9 @@ function bindModeHandlers() {
 
         s.uiMode = mode;
         s.enabled = mode !== UI_MODES.OFF;
-        // Remember the complexity panel so it stays visible when the extension
-        // is turned off; selecting Easy/Advanced updates it, Off leaves it.
+        // Remember the complexity panel so it stays visible when the
+        // extension is off. Selecting Easy or Advanced updates it. Off
+        // leaves it unchanged.
         if (mode === UI_MODES.EASY || mode === UI_MODES.ADVANCED) {
             s.configMode = mode;
         }
@@ -87,14 +87,14 @@ function bindModeHandlers() {
 }
 
 /**
- * Bind change handlers for toggle-style settings.
  * @returns {void}
  */
 function bindToggleHandlers() {
     $(document).on('change', '#sc_enabled', function () {
         const s = getSettings();
         s.enabled = $(this).prop('checked');
-        // Preserve the chosen complexity panel; only flip on/off, not Easy↔Advanced.
+        // Preserve the chosen complexity panel. This toggle flips on/off
+        // only, never Easy/Advanced.
         s.uiMode = s.enabled ? s.configMode || UI_MODES.EASY : UI_MODES.OFF;
         saveAndRefreshUi();
         if (s.enabled) {
@@ -189,7 +189,6 @@ function requestAutoSummaryRefresh(reason) {
 }
 
 /**
- * Bind handlers for slider inputs.
  * @returns {void}
  */
 function bindSliderHandlers() {
@@ -201,9 +200,9 @@ function bindSliderHandlers() {
 }
 
 /**
- * Re-sync slider partner settings in the same tick: lowering Model context
- * retunes the engine, lowering Max turns pulls Min turns down with it, and
- * the shared invariants keep the retention pairs ordered and capped.
+ * Re-sync slider partner settings in the same tick. Lowering Model context
+ * retunes the engine. Lowering Max turns pulls Min turns down with it. The
+ * shared invariants keep the retention pairs ordered and capped.
  * @param {string} changedKey - data-sc-setting key of the slider that changed
  * @returns {void}
  */
@@ -236,8 +235,8 @@ function bindTextareaHandlers() {
 /**
  * Import summary memory from a JSON file.
  *
- * Vanilla document.createElement is used for the ephemeral <input type="file">
- * because it never enters the live DOM - we read its files and discard it.
+ * The ephemeral <input type="file"> never enters the live DOM, so vanilla
+ * document.createElement suffices. We read its files and discard it.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
  * @returns {void}
  */

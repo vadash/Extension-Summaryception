@@ -6,13 +6,12 @@ import { isPlainObject } from '../foundation/state.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 
 /**
- * Synthetic user block used by compatibility modes for APIs that reject
+ * Synthetic user block for the compatibility modes. Some APIs reject
  * requests with zero user messages.
  */
 const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 
 /**
- * Apply the assistant-role mask to a SillyTavern generation payload.
  * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {Partial<ExtensionSettings>} settings - Effective Summaryception settings.
  * @returns {number} Number of messages rewritten.
