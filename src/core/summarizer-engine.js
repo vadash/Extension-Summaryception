@@ -339,6 +339,10 @@ async function executeManualTask(deps, strategy, target, options) {
                 break;
             }
 
+            if (result.committed) {
+                deps.refreshUi();
+            }
+
             options.onProgress?.(createProgress(outcome, strategy));
             await sleep(200);
         }

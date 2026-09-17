@@ -118,6 +118,22 @@ describe('manual run progress callbacks', () => {
         expect(outcome.fullyCommitted).toBe(true);
     });
 
+    it('refreshes the UI after each committed batch', async () => {
+        stubRoutePlan(routeMocks.buildForceSummaryRoutePlan, forceRoutePlan());
+        // Each commit advances the boundary partway; two commits reach the target.
+        batchMocks.summarizeBatchFromTurns.mockImplementation(async () => {
+            boundary += 3;
+            return { status: 'completed' };
+        });
+
+        const deps = makeDeps();
+        await runManual(deps, ELASTIC_STRATEGIES.FORCE, {});
+
+        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
+        // One refresh per committed batch plus the end-of-run refresh.
+        expect(deps.refreshUi).toHaveBeenCalledTimes(3);
+    });
+
     it('reports start and progress for slop breaker', async () => {
         stubRoutePlan(routeMocks.buildSlopSummaryRoutePlan, {
             ready: true,
