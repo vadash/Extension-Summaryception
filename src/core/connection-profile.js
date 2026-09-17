@@ -8,6 +8,7 @@ import { trace, warn } from '../foundation/logger.js';
  * @type {ConnectionProvider}
  */
 export const ProfileProvider = {
+    cancellable: true,
     async generate({ settings, systemPrompt, userPrompt, signal }) {
         return await sendViaProfile({
             profileId: settings.connectionProfileId,

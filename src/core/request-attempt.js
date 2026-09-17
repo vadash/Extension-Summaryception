@@ -11,6 +11,7 @@ import {
 import { sleepOrAbort } from '../foundation/retry.js';
 import {
     ConnectionError,
+    isCancellableConnection,
     resolveSummarizerConnectionSettings,
     sendSummarizerRequest,
 } from './connectionutil.js';
@@ -89,7 +90,9 @@ async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, meta
 }
 
 async function sendAttemptRequest({ settings, systemPrompt, prompt, signal, metadata, timeoutMs }) {
-    const abortContext = createAttemptAbortContext(signal, timeoutMs);
+    const effectiveSettings = resolveSummarizerConnectionSettings(settings, metadata);
+    const timeoutRetryable = isCancellableConnection(effectiveSettings);
+    const abortContext = createAttemptAbortContext(signal, timeoutMs, timeoutRetryable);
 
     try {
         return await Promise.race([
@@ -250,9 +253,11 @@ function buildAttemptFailure(error, shouldRetry, failureStatus = 'failed') {
  * Build an attempt-local abort context that closes the provider request on user abort or timeout.
  * @param {AbortSignal} userSignal
  * @param {number} timeoutMs
+ * @param {boolean} timeoutRetryable - Whether a fired timeout may be retried; false on
+ *   uncancellable routes so the runner fails/fails-over instead of stacking orphaned requests.
  * @returns {{ signal: AbortSignal, promise: Promise<never>, cleanup: () => void }}
  */
-function createAttemptAbortContext(userSignal, timeoutMs) {
+function createAttemptAbortContext(userSignal, timeoutMs, timeoutRetryable) {
     const controller = new AbortController();
     let timer;
     let abortUserRequest = () => {};
@@ -274,7 +279,7 @@ function createAttemptAbortContext(userSignal, timeoutMs) {
 
         timer = setTimeout(() => {
             const error = new ConnectionError(`Request timed out after ${timeoutMs / 1000}s`, {
-                retryable: true,
+                retryable: timeoutRetryable,
             });
             reject(error);
             controller.abort(error);

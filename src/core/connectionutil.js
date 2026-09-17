@@ -16,6 +16,8 @@ export { ConnectionError };
 
 /**
  * Registered connection providers keyed by settings.connectionSource.
+ * Each adapter declares a `cancellable` capability: whether it forwards an
+ * AbortSignal so timeouts/Stop genuinely cancel the in-flight request.
  * @type {Readonly<Record<string, ConnectionProvider>>}
  */
 export const providers = Object.freeze({
@@ -61,6 +63,17 @@ export async function sendSummarizerRequest({
         userPrompt,
         signal,
     });
+}
+
+/**
+ * Check whether the effective route's provider can actually cancel an
+ * in-flight request. The capability is read from the adapter registry;
+ * unknown sources are treated as uncancellable.
+ * @param {ExtensionSettings} effectiveSettings - Route-resolved connection settings
+ * @returns {boolean} True only when the registered provider declares `cancellable`
+ */
+export function isCancellableConnection(effectiveSettings) {
+    return providers[effectiveSettings?.connectionSource]?.cancellable === true;
 }
 
 /**

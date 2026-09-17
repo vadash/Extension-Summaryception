@@ -58,7 +58,8 @@
 - Retry with exponential backoff.
 - Hard network errors skip remaining primary retries and start fallback.
 - Configure timeouts independently for each route.
-- Retry attempts use a shorter timeout than the first attempt.
+- Every attempt of a route series uses the full configured timeout; retries never run shorter.
+- Timeouts on uncancellable adapters are non-retryable; adapters declare `cancellable`.
 - Map all adapter failures through one shared error wrapper. Do not rebuild status or retryable per provider.
 - Build the request series context once at entry and thread it down. Per-route fallback flags and retry budgets stay per-route.
 

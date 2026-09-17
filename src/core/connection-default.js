@@ -6,6 +6,10 @@ import { generateRaw } from '../foundation/context.js';
  * @type {ConnectionProvider}
  */
 export const DefaultProvider = {
+    // ponytail: ceiling — timeout/Stop only abandon the orphaned HTTP request,
+    // because host generateRaw() has no AbortSignal parameter. Forward the
+    // signal once SillyTavern's GenerateRawParams gains one.
+    cancellable: false,
     async generate({ settings, systemPrompt, userPrompt }) {
         return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
     },

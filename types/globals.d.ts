@@ -166,6 +166,8 @@ interface ConnectionGenerateParams {
 }
 
 interface ConnectionProvider {
+    /** Whether generate() forwards an AbortSignal (timeouts genuinely cancel). */
+    cancellable: boolean;
     generate(params: ConnectionGenerateParams): Promise<string>;
     displayName(settings: ExtensionSettings): string;
 }
