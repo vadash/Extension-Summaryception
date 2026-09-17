@@ -1,17 +1,17 @@
 /**
  * OpenVault-style prompt assemblers shared by every summarizer prompt template.
  *
- * System prompt = `<role>` + optional `<role_invariants>`.
- * User prompt   = `<input>` blocks → `<output_schema>` → `<task_rules>` →
- *                  `<critical_rules>` (omitted when empty) → bare `EXECUTION_TRIGGER` line.
+ * A system prompt is `<role>` plus optional `<role_invariants>`.
+ * A user prompt is the `<input>` blocks, then `<output_schema>`, then
+ * `<task_rules>`, then `<critical_rules>` (omitted when empty), then the
+ * bare `EXECUTION_TRIGGER` line.
  *
  * Pure functions; no settings or runtime imports.
  */
 
 /**
- * Assemble a system prompt from a role sentence and optional role invariants.
- * @param {string} role - The role sentence.
- * @param {string} [invariants] - Role invariants block; appended only when non-empty.
+ * @param {string} role
+ * @param {string} [invariants]
  * @returns {string}
  */
 export function buildSystemPrompt(role, invariants) {
@@ -23,11 +23,10 @@ export function buildSystemPrompt(role, invariants) {
 }
 
 /**
- * Assemble a user prompt from its ordered structural blocks.
  * @param {object} args
  * @param {string} args.inputBlocks - One or more `<input>` XML blocks.
  * @param {string} args.schemaBlock - The `<output_schema>` body.
- * @param {string} args.taskRules - The `<task_rules>` body (durability + format rules).
+ * @param {string} args.taskRules - The `<task_rules>` body (durability and format rules).
  * @param {string} [args.criticalRules] - The `<critical_rules>` body; omitted when empty.
  * @param {string} args.triggerLine - Bare affirmative imperative line.
  * @returns {string}
@@ -48,31 +47,25 @@ export function buildUserPrompt({
     return parts.join('\n\n');
 }
 
-/**
- * Bare imperative line for Layer 0 generate/repair user prompts.
- */
 export const EXECUTION_TRIGGER_L0 =
     'Now output the two sections ([NARRATIVE] then [STATE]) with no preamble, code fences, or commentary.';
 
-/**
- * Bare imperative line for Layer 1+ promotion generate/repair user prompts.
- */
 export const EXECUTION_TRIGGER_PROMO =
     'Now output exactly one [NARRATIVE] paragraph with no preamble, code fences, or commentary.';
 
 /**
  * Insert `insert` immediately before the trailing `triggerLine` of an
- * assembled user prompt. Static templates produced by `buildUserPrompt`
- * end with `triggerLine`; runtime appenders use this to place dynamic
+ * assembled user prompt. Runtime appenders use this to place dynamic
  * budget hints, source-range lines, and repair-feedback blocks above the
- * bare execution trigger so the model begins emitting immediately.
+ * bare execution trigger so the model starts emitting at once.
  *
- * When the prompt does NOT end with `triggerLine` (e.g. a custom
- * user-edited setting), falls back to appending after the body so dynamic
- * content is never lost. Empty `insert` returns the prompt unchanged.
- * @param {string} prompt - Fully-assembled user prompt ending in `triggerLine`.
- * @param {string} insert - Dynamic block to place before the trigger.
- * @param {string} triggerLine - Bare imperative line the prompt must end with.
+ * When the prompt does not end with `triggerLine` (for example a custom
+ * user-edited setting instead of a `buildUserPrompt` template), the
+ * fallback appends after the body so the dynamic content is never lost.
+ * Empty `insert` returns the prompt unchanged.
+ * @param {string} prompt
+ * @param {string} insert
+ * @param {string} triggerLine
  * @returns {string}
  */
 export function insertBeforeTrigger(prompt, insert, triggerLine) {
@@ -84,8 +77,6 @@ export function insertBeforeTrigger(prompt, insert, triggerLine) {
         const extra = String(insert ?? '').trim();
         return extra ? `${head}\n\n${extra}\n\n${trigger}` : `${head}\n\n${trigger}`;
     }
-    // Fallback: append after body (preserves prior behavior if the template
-    // does not end with the expected trigger (e.g. a custom user setting).
     const extra = String(insert ?? '').trim();
     return extra ? `${body.trimEnd()}\n\n${extra}` : body;
 }

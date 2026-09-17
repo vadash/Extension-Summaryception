@@ -79,10 +79,8 @@ export const MEMORY_MODE_PRESETS = Object.freeze({
 const SELECTABLE_MEMORY_MODES = Object.freeze([MEMORY_MODES.BALANCED, MEMORY_MODES.PREFIX_CACHE]);
 
 /**
- * Apply a mode's initial retention preset to settings.
- * Every actual mode transition intentionally overwrites the recent and queued budgets (and the Append Only baked cap)
- * with the destination preset. Reselecting the already-active mode is a no-op,
- * and an invalid mode leaves settings untouched.
+ * Apply a mode's initial retention preset to settings. Every mode transition
+ * overwrites the recent and queued budgets with the destination preset.
  * @param {ExtensionSettings} settings
  * @param {string} mode
  * @returns {boolean} true when settings were mutated, false otherwise.

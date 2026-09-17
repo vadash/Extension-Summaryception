@@ -55,9 +55,9 @@ const SNAPSHOT_STATE_KEYS = Object.freeze([
 // Per-category soft char budgets. Internal-only; never surfaced to the
 // model. Bound each category's serialized length so one runaway category
 // cannot monopolize the global budget. current_date_time is exempt from
-// per-category trim (priorityRank -1 = carried verbatim). Sum ≈ 1780 chars
-// (≈445 tokens) leaves headroom under the 1000-token hard cap for the [STATE]
-// wrapper and key labels.
+// per-category trim (priorityRank -1 = carried verbatim). The total budget
+// leaves headroom under the hard token cap for the [STATE] wrapper and key
+// labels.
 const STATE_CATEGORY_CHAR_BUDGET = Object.freeze({
     current_date_time: 200,
     bonds: 440,
@@ -167,11 +167,8 @@ function compactSnapshotState(state) {
             break;
         }
 
-        // Per-category trim: hold each category under its own soft char cap so
-        // one runaway category can't monopolize the global budget. Runs even
-        // when the global budget is under-run (intentional: category bounding
-        // is independent of global headroom). current_date_time is exempt
-        // (priorityRank -1 = carried verbatim).
+        // Category bounding is independent of global headroom, so the
+        // per-category cap applies even when the global budget is under-run.
         let compactValue = value;
         const categoryCap = STATE_CATEGORY_CHAR_BUDGET[key];
         if (key !== 'current_date_time' && categoryCap && value.length > categoryCap) {
@@ -256,7 +253,7 @@ function parseStateLines(lines) {
 }
 
 /**
- * Correctly derives the ISO weekday from the date and rewrites the value's
+ * Derives the ISO weekday from the date and rewrites the value's
  * weekday token when it is missing or wrong. Preserves the hour and drops
  * stray minutes (per the HH-resolution contract). Returns the input verbatim
  * when no valid ISO date is present, so malformed values stay untouched.

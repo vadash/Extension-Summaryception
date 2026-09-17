@@ -8,15 +8,13 @@
 
 const SILLYTAVERN_MACRO_SYSTEM_PATH = '/scripts/macros/macro-system.js';
 /**
- * Get the raw SillyTavern context object.
- * @returns {SillyTavernContext} The current SillyTavern context
+ * @returns {SillyTavernContext}
  */
 export function getContext() {
     return SillyTavern.getContext();
 }
 
 /**
- * Get the active chat array.
  * @returns {ChatMessage[]}
  */
 export function getChat() {
@@ -24,7 +22,7 @@ export function getChat() {
 }
 
 /**
- * Get the chat metadata object (per-chat extension storage root).
+ * Per-chat extension storage root.
  * @returns {Record<string, SummaryceptionStore>}
  */
 export function getChatMetadata() {
@@ -32,7 +30,7 @@ export function getChatMetadata() {
 }
 
 /**
- * Get the extension settings object (cross-chat settings root).
+ * Cross-chat settings root.
  * @returns {Record<string, ExtensionSettings>}
  */
 export function getExtensionSettings() {
@@ -40,7 +38,7 @@ export function getExtensionSettings() {
 }
 
 /**
- * Get the player's display name.
+ * Player display name.
  * @returns {string}
  */
 export function getName1() {
@@ -48,7 +46,6 @@ export function getName1() {
 }
 
 /**
- * Persist extension settings.
  * @returns {void}
  */
 export function saveSettingsDebounced() {
@@ -56,7 +53,6 @@ export function saveSettingsDebounced() {
 }
 
 /**
- * Persist chat metadata.
  * @returns {Promise<void>}
  */
 export async function saveMetadata() {
@@ -64,7 +60,7 @@ export async function saveMetadata() {
 }
 
 /**
- * Persist the active chat. No-op when the runtime lacks saveChat.
+ * No-op when the runtime lacks saveChat.
  * @returns {Promise<void>}
  */
 export async function saveChat() {
@@ -79,7 +75,7 @@ export async function saveChat() {
 }
 
 /**
- * Reload the current chat from disk and refresh the rendered UI.
+ * No-op when the host lacks reloadCurrentChat.
  * @returns {Promise<void>}
  */
 export async function reloadCurrentChat() {
@@ -90,8 +86,7 @@ export async function reloadCurrentChat() {
 }
 
 /**
- * Shift existing rendered message ids after an inserted chat index.
- * @param {number} index
+ * @param {number} index - Inserted chat index.
  * @returns {void}
  */
 export function shiftRenderedMessageIds(index) {
@@ -102,9 +97,8 @@ export function shiftRenderedMessageIds(index) {
 }
 
 /**
- * Execute a slash command through SillyTavern's command parser.
- * @param {string} command - The slash command string
- * @param {Record<string, unknown>} [options] - Command options
+ * @param {string} command
+ * @param {Record<string, unknown>} [options]
  * @returns {Promise<void>}
  */
 export async function executeSlashCommandsWithOptions(command, options = {}) {
@@ -112,10 +106,10 @@ export async function executeSlashCommandsWithOptions(command, options = {}) {
 }
 
 /**
- * Set an extension prompt via SillyTavern's PromptManager bridge.
- * @param {string} name - Extension identifier
- * @param {string} text - Prompt text
- * @param {{ position?: number, depth?: number, scan?: boolean, role?: unknown }} [options] - Optional position/depth/scan/role
+ * Set an extension prompt through SillyTavern's PromptManager bridge.
+ * @param {string} name
+ * @param {string} text
+ * @param {{ position?: number, depth?: number, scan?: boolean, role?: unknown }} [options]
  * @returns {void}
  */
 export function setExtensionPrompt(name, text, options = {}) {
@@ -124,9 +118,8 @@ export function setExtensionPrompt(name, text, options = {}) {
 }
 
 /**
- * Register a SillyTavern macro with the current registry.
  * @param {string} name - Macro identifier without braces.
- * @param {(context?: object) => string} handler - Macro expansion handler.
+ * @param {(context?: object) => string} handler
  * @param {string} [description] - Macro description for ST docs/autocomplete.
  * @returns {Promise<boolean>} Whether the registry accepted the macro.
  */
@@ -142,8 +135,8 @@ export async function registerMacro(name, handler, description = '') {
 }
 
 /**
- * Call SillyTavern's active generateRaw function, preserving `this` binding.
- * @param {GenerateRawOptions} options - Generate options
+ * Call SillyTavern's active generateRaw, preserving its `this` binding.
+ * @param {GenerateRawOptions} options
  * @returns {Promise<string>}
  */
 export async function generateRaw(options) {
@@ -155,8 +148,8 @@ export async function generateRaw(options) {
 }
 
 /**
- * Call SillyTavern's active tokenizer, preserving `this` binding.
- * @param {string} text - Text to count
+ * Call SillyTavern's active tokenizer, preserving its `this` binding.
+ * @param {string} text
  * @returns {Promise<number>}
  */
 export async function callTokenCountAsync(text) {
@@ -199,7 +192,6 @@ export function getRequestHeaders() {
 }
 
 /**
- * Get SillyTavern's PromptManager, or null if unavailable.
  * @returns {SillyTavernPromptManager | null}
  */
 export function getPromptManager() {
@@ -207,7 +199,6 @@ export function getPromptManager() {
 }
 
 /**
- * Get SillyTavern's ConnectionManagerRequestService, or null if unavailable.
  * @returns {ConnectionManagerRequestService | null}
  */
 export function getConnectionManagerRequestService() {
@@ -215,7 +206,6 @@ export function getConnectionManagerRequestService() {
 }
 
 /**
- * Get SillyTavern's SlashCommandParser, or null if unavailable.
  * @returns {SlashCommandParser | null}
  */
 export function getSlashCommandParser() {
@@ -223,7 +213,6 @@ export function getSlashCommandParser() {
 }
 
 /**
- * Get SillyTavern's SlashCommand helper class, or null if unavailable.
  * @returns {SlashCommand | null}
  */
 export function getSlashCommand() {
@@ -231,7 +220,6 @@ export function getSlashCommand() {
 }
 
 /**
- * Get SillyTavern's event source, or null if unavailable.
  * @returns {SillyTavernEventSource | null}
  */
 export function getEventSource() {
@@ -239,7 +227,6 @@ export function getEventSource() {
 }
 
 /**
- * Get SillyTavern's event types enum, or null if unavailable.
  * @returns {Record<string, string> | null}
  */
 export function getEventTypes() {
@@ -247,7 +234,6 @@ export function getEventTypes() {
 }
 
 /**
- * Get SillyTavern's active streaming processor, or null if unavailable.
  * @returns {SillyTavernStreamingProcessor | null}
  */
 export function getStreamingProcessor() {
@@ -255,7 +241,6 @@ export function getStreamingProcessor() {
 }
 
 /**
- * Check whether SillyTavern's chat send control is currently showing stop mode.
  * @returns {boolean}
  */
 export function isSendButtonInStopMode() {
@@ -298,7 +283,6 @@ function isJQueryElementVisible(element) {
 }
 
 /**
- * Check common stop-mode markers on a jQuery-like button object.
  * @param {object} element - jQuery-like object
  * @returns {boolean}
  */
@@ -318,15 +302,18 @@ function hasStopButtonMarker(element) {
     return text.includes('fa-stop') || text.includes('fa-circle-stop') || text.includes('stop');
 }
 
+/**
+ * SillyTavern versions expose eventTypes or event_types; read both.
+ * @param {SillyTavernContext} ctx
+ */
 function getContextEventTypes(ctx) {
     return ctx.eventTypes || ctx.event_types || null;
 }
 
 /**
- * Read a best-effort string value from a jQuery-like object.
  * @param {object} element - jQuery-like object
- * @param {string} method - Method name
- * @param {string} [arg] - Optional method argument
+ * @param {string} method
+ * @param {string} [arg]
  * @returns {string}
  */
 function readJQueryValue(element, method, arg) {

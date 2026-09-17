@@ -1,19 +1,17 @@
 /**
- * Modular STATE category catalog: single source of truth for which state
- * categories exist, their toggle settings, trim priority, and per-category
- * schema text emitted to the L0 summarizer.
+ * Single source of truth for the STATE categories: their toggle settings,
+ * trim priority, and per-category schema text for the L0 summarizer.
  *
- * Consumed by: settings defaults/types, UI toggles + help, L0 schema assembly
+ * Consumers: settings defaults/types, UI toggles and help, L0 schema assembly
  * (summarizer-pipeline.js), the snapshot trim loop (summarizer-state.js), and
- * the L0 budget hint (budget-hint-builder.js).
- * Runtime code resolves effective settings at the call site and passes them in;
- * this module stays a pure data + pure-function foundation module with no
- * upward dependency on core.
+ * the L0 budget hint (budget-hint-builder.js). Consumers resolve effective
+ * settings at the call site, so this module stays pure data and pure
+ * functions with no dependency on core.
  */
 
 /**
- * Frozen catalog of STATE categories. `priorityRank` ascending = trim order:
- * lowest rank loses tokens first. `current_date_time` rank -1 = never trimmed.
+ * `priorityRank` ascending is the trim order: the lowest rank loses tokens
+ * first. `current_date_time` has rank -1 and is never trimmed.
  * `lineCapDefault` is the countable per-category line ceiling surfaced to the
  * summarizer (token caps never appear in the model prompt).
  * @type {ReadonlyArray<{
@@ -67,7 +65,6 @@ export const STATE_CATEGORIES = Object.freeze([
 ]);
 
 /**
- * Look up a category object by canonical key.
  * @param {string} key
  * @returns {object | undefined}
  */
@@ -76,10 +73,10 @@ export function getCategoryByKey(key) {
 }
 
 /**
- * Whether a category is enabled. `alwaysOn` categories are always true
- * regardless of the persisted flag. Optional categories read the persisted
- * flag directly, so a raw settings object that predates a key reads as off
- * until `getSettings()` normalization fills in the (enabled) default.
+ * `alwaysOn` categories are always true regardless of the persisted flag.
+ * Optional categories read the persisted flag directly, so raw settings that
+ * predate a key read as off until `getSettings()` normalization fills in the
+ * enabled default.
  * @param {ExtensionSettings} settings
  * @param {string} key
  * @returns {boolean}
@@ -112,8 +109,7 @@ export function getEnabledCategories(settings) {
 }
 
 /**
- * Array of enabled canonical key strings (subset of STATE_CATEGORIES keys),
- * ordered by `priorityRank` ascending with `current_date_time` first.
+ * Canonical keys of `getEnabledCategories(settings)`, in the same order.
  * @param {ExtensionSettings} settings
  * @returns {string[]}
  */
@@ -122,10 +118,9 @@ export function getEnabledStateKeys(settings) {
 }
 
 /**
- * Sum of enabled `lineCapDefault`, clamped to [1, ceiling].
- * `ceiling` defaults to Infinity (unclamped) so this pure foundation module
- * need not import the core STATE_KEY_CEILING; the core budget-hint builder
- * passes the real ceiling when it needs the clamp.
+ * `ceiling` defaults to Infinity so this foundation module does not import
+ * the core STATE_KEY_CEILING; the core budget-hint builder passes the real
+ * ceiling when it needs the clamp.
  * @param {ExtensionSettings} settings
  * @param {number} [ceiling]
  * @returns {number}
@@ -136,12 +131,14 @@ export function getActiveLineCap(settings, ceiling = Number.POSITIVE_INFINITY) {
     return Math.max(1, Math.min(sum, top));
 }
 
-// ─── Per-category schema fragments ────────────────────────────────────
-// Bodies adapted 1:1 from FF5's <internal_*> tags
-// (docs/Freaky Frankenstein 5.0 - Internal States.json) with
-// {{setvar::...}}/{{getvar::...}} plumbing stripped; the extension stores
-// state in [STATE], not ST setvars. `{cap}` is replaced with the concrete
-// `lineCapDefault` integer at build time. Token caps never appear here.
+/**
+ * Schema fragment per category. Bodies are adapted 1:1 from the FF5
+ * <internal_*> tags (docs/Freaky Frankenstein 5.0 - Internal States.json)
+ * with the {{setvar::...}}/{{getvar::...}} plumbing stripped, because the
+ * extension stores state in [STATE], not in SillyTavern setvars. Build time
+ * replaces `{cap}` with the concrete `lineCapDefault` integer. Token caps
+ * never appear here.
+ */
 const SCHEMA_FRAGMENTS = Object.freeze({
     current_date_time:
         'current_date_time: <YYYY-MM-DD HH ddd>. Hour-level 24h precision. Normalize from raw bracket headers or passage timestamps; drop minutes. Carry forward prior value if no explicit time in passage. REQUIRED every snapshot.',
@@ -156,9 +153,9 @@ const SCHEMA_FRAGMENTS = Object.freeze({
 });
 
 /**
- * Assemble the per-enabled-category schema text substituted for
- * `{{state_schema}}` in the L0 summarizer templates. One fragment per
- * enabled category in priorityRank-asc order, each with `{cap}` filled.
+ * Build the text substituted for `{{state_schema}}` in the L0 summarizer
+ * templates: one fragment per enabled category in ascending `priorityRank`
+ * order, with `{cap}` filled in.
  * @param {ExtensionSettings} settings
  * @returns {string}
  */

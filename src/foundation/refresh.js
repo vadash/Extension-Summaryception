@@ -1,7 +1,7 @@
 /**
  * Refresh port: the one interface that syncs visible UI and prompt injection
  * after state changes. Entry registers the effects once at the composition
- * root; callers pick a scope. Callers without a registered port fall back to
+ * root. Callers pick a scope. Callers without a registered port fall back to
  * silent no-ops, mirroring the notify silent adapter.
  */
 
@@ -9,7 +9,6 @@
 let effects = null;
 
 /**
- * Register the refresh effects once at the composition root.
  * @param {{ updateInjection: () => void, updateUI: () => void, updatePreview: () => void }} port
  * @returns {void}
  */

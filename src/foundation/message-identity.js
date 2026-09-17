@@ -1,9 +1,7 @@
-// Stable per-message identity and runtime index resolution.
-
 /**
- * Generate a UUID. Prefers native crypto.randomUUID and falls back to a v4
- * UUID built from crypto.getRandomValues where randomUUID is unavailable
- * (insecure HTTP contexts). Single crypto access point (ADR-0001).
+ * Falls back to a v4 UUID built from crypto.getRandomValues when
+ * crypto.randomUUID is unavailable (insecure HTTP contexts). Single crypto
+ * access point (ADR-0001).
  * @returns {string}
  */
 export function createUuid() {
@@ -24,7 +22,6 @@ export function createUuid() {
 }
 
 /**
- * Ensure one chat message has a Summaryception-owned ID.
  * @param {ChatMessage | unknown} message
  * @returns {string | null}
  */
@@ -41,7 +38,6 @@ export function ensureMessageScId(message) {
 }
 
 /**
- * Ensure every object message in a chat has a stable ID.
  * @param {ChatMessage[] | unknown} chat
  * @returns {boolean} Whether any message changed.
  */
@@ -61,7 +57,6 @@ export function ensureChatScIds(chat) {
 }
 
 /**
- * Map stable message IDs to their first current chat index.
  * @param {ChatMessage[] | unknown} chat
  * @returns {Map<string, number>}
  */
@@ -80,7 +75,6 @@ export function getMessageIndexByScId(chat) {
 }
 
 /**
- * Resolve stable message IDs to sorted current chat indices.
  * @param {ChatMessage[] | unknown} chat
  * @param {unknown} ids
  * @returns {number[]}
@@ -106,7 +100,6 @@ export function resolveScIdsToIndices(chat, ids) {
 }
 
 /**
- * Convert sorted indices into contiguous ranges.
  * @param {number[]} indices
  * @returns {Array<[number, number]>}
  */

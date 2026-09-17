@@ -29,8 +29,7 @@ import { clampInteger, clampToStep } from './numeric.js';
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'custom']);
 
 /**
- * Get the extension settings object.
- * @returns {ExtensionSettings} The current settings
+ * @returns {ExtensionSettings}
  */
 export function getSettings() {
     const extensionSettings = getExtensionSettings();
@@ -67,7 +66,6 @@ export function getSettings() {
 }
 
 /**
- * Get settings after applying the selected Easy/Advanced operating mode.
  * Runtime code should use this when behavior must follow the visible mode.
  * @returns {ExtensionSettings}
  */
@@ -107,7 +105,6 @@ const RESET_PRESERVED_KEYS = new Set([
     'debugMode',
 ]);
 
-/** Preset text tables for each prompt profile, keyed by the profile's preset setting. */
 const PROMPT_PRESET_TABLES = Object.freeze({
     summarizerSystemPromptPreset: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     promptPreset: PROMPT_PRESETS,
@@ -118,8 +115,7 @@ const PROMPT_PRESET_TABLES = Object.freeze({
 });
 
 /**
- * Reset every Prompt Profile to its default preset unless set to custom.
- * Custom profiles keep their edited text.
+ * Custom preset selections keep their edited text.
  * @param {ExtensionSettings} settings - Settings object mutated in place.
  * @returns {void}
  */
@@ -142,11 +138,8 @@ function resetPromptValues(settings) {
 }
 
 /**
- * Reset all settings to their defaults in place, preserving the selected
- * modes, connection routes, and per-route timeouts. Prompt profiles return
- * to their default preset unless set to custom. Retention budgets follow the
- * preserved memory mode's preset, and debug output re-enables so F12
- * diagnostics stay available.
+ * Restores every default except the keys in RESET_PRESERVED_KEYS and the
+ * prompt profile pairs, which resetPromptValues handles.
  * @returns {void}
  */
 export function resetSettingsToDefaults() {
@@ -174,7 +167,6 @@ export function resetSettingsToDefaults() {
 }
 
 /**
- * Get the chat-specific summary store.
  * @returns {SummaryceptionStore}
  */
 export function getChatStore() {
@@ -194,7 +186,6 @@ export async function saveChatStore() {
 }
 
 /**
- * Get the current summary-store mutation epoch.
  * @param {SummaryceptionStore} store
  * @returns {number}
  */
@@ -213,9 +204,8 @@ export function bumpSummaryStoreMutationEpoch(store) {
 }
 
 /**
- * Collect unique snippet provenance ids across summary layers, keeping
- * first-seen order. Non-string and blank ids are skipped; ids are compared
- * and kept raw (never trimmed).
+ * Deduplicates across layers, keeping first-seen order. Ids are compared
+ * and kept raw (never trimmed); non-string and blank ids are skipped.
  * @param {Array<Array<SummaryceptionSnippet>> | null | undefined} layers
  * @param {{ layerIndex?: number }} [options] - Read only this layer when given.
  * @returns {string[]}
@@ -426,9 +416,8 @@ export function enforceRetentionInvariants(settings) {
 }
 
 /**
- * Clamp the three per-route request timeout settings (in seconds) to the slider bounds.
- * Applies to Layer 0 (requestTimeoutSeconds), L1+ merge (mergeRequestTimeoutSeconds),
- * and the fallback route (fallbackRequestTimeoutSeconds).
+ * Clamp the three per-route request timeouts (in seconds) to the slider
+ * bounds: Layer 0, L1+ merge, and the fallback route.
  * @param {ExtensionSettings} settings
  * @returns {void}
  */
@@ -459,9 +448,8 @@ function normalizeModeSettings(settings, hadMode) {
     }
 
     // configMode tracks the Easy/Advanced complexity panel independently of
-    // on/off, so config stays visible (and editable) even when the extension
-    // is off. Backfill from the current/active mode when it's a complexity
-    // mode, else from the default.
+    // on/off, so config stays visible and editable even when the extension
+    // is off.
     if (
         !Object.hasOwn(settings, 'configMode') ||
         !isSettingValue([UI_MODES.EASY, UI_MODES.ADVANCED], settings.configMode)
@@ -567,7 +555,6 @@ function createDefaultChatStore() {
 }
 
 /**
- * Check whether a persisted snippet is usable.
  * @param {unknown} snippet
  * @returns {snippet is SummaryceptionSnippet}
  */
@@ -585,7 +572,6 @@ function normalizeSnippet(snippet) {
 }
 
 /**
- * Check whether a value is a plain object record.
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
  */
@@ -619,7 +605,6 @@ function normalizeStringArray(values) {
 }
 
 /**
- * Normalize the summary-layer mutation epoch.
  * @param {unknown} value
  * @returns {number}
  */
@@ -631,7 +616,6 @@ function normalizeMutationEpoch(value) {
 }
 
 /**
- * Get the player's display name.
  * @returns {string} The player name from ST context, or 'User' as fallback
  */
 export function getPlayerName() {

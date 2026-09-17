@@ -15,17 +15,16 @@ export const STATE_SNAPSHOT_SOFT_TARGET_TOKENS = 700;
 export const STATE_SNAPSHOT_MAX_TOKENS = 1000;
 /**
  * Highest [STATE] token count still eligible for deterministic compaction
- * before falling back to a full LLM retry. Overshoots up to this ceiling are
- * trimmed in-process; anything larger is treated as unrepairable and retried.
- * Scaled with the raised hard cap (1000): 1667 holds the ~1.67× ceiling ratio
- * so modular multi-category overshoots still land in-process.
+ * before a full LLM retry. Overshoots up to this ceiling are trimmed
+ * in-process; anything larger is treated as unrepairable and retried. The
+ * ~1.67x ratio to STATE_SNAPSHOT_MAX_TOKENS keeps multi-category overshoots
+ * inside the in-process path.
  */
 export const STATE_SNAPSHOT_REPAIR_CEILING_TOKENS = 1667;
 /**
  * Char budget the deterministic state compactor aims for. Kept below the
  * hard max so accepted trims land comfortably under STATE_SNAPSHOT_MAX_TOKENS
  * even for denser scripts (Cyrillic averages ~3.5 chars/token vs ~4.2 English).
- * Scaled with the hard cap (1000/600 = 1.67× from the previous 2640).
  */
 export const STATE_SNAPSHOT_COMPACTION_TARGET_CHARS = 4400;
 export const STATE_SNAPSHOT_MAX_CHARS = 5000;

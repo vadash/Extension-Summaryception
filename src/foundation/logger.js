@@ -11,7 +11,6 @@ function getDebugSettings() {
 }
 
 /**
- * Check whether debug logging is enabled.
  * @returns {boolean}
  */
 export function isDebugEnabled() {
@@ -19,7 +18,6 @@ export function isDebugEnabled() {
 }
 
 /**
- * Check whether trace logging is enabled.
  * @returns {boolean}
  */
 export function isTraceEnabled() {
@@ -28,7 +26,6 @@ export function isTraceEnabled() {
 }
 
 /**
- * Check whether full LLM input logging is enabled.
  * @returns {boolean}
  */
 export function isPromptInputLogEnabled() {
@@ -36,7 +33,6 @@ export function isPromptInputLogEnabled() {
 }
 
 /**
- * Check whether full LLM output logging is enabled.
  * @returns {boolean}
  */
 export function isPromptOutputLogEnabled() {
@@ -44,7 +40,6 @@ export function isPromptOutputLogEnabled() {
 }
 
 /**
- * Check whether any full LLM prompt/response logging is enabled.
  * @returns {boolean}
  */
 export function isPromptLogEnabled() {
@@ -52,7 +47,6 @@ export function isPromptLogEnabled() {
 }
 
 /**
- * Emit a low-frequency informational log when debug logging is enabled.
  * @param {...unknown} args - Console arguments
  * @returns {void}
  */
@@ -63,7 +57,6 @@ export function info(...args) {
 }
 
 /**
- * Emit a diagnostic log when debug logging is enabled.
  * @param {...unknown} args - Console arguments
  * @returns {void}
  */
@@ -74,7 +67,6 @@ export function debug(...args) {
 }
 
 /**
- * Emit a high-volume trace log when debug and trace logging are enabled.
  * @param {...unknown} args - Console arguments
  * @returns {void}
  */
@@ -88,7 +80,6 @@ export function trace(...args) {
 }
 
 /**
- * Emit an always-visible warning.
  * @param {...unknown} args - Console arguments
  * @returns {void}
  */
@@ -97,7 +88,6 @@ export function warn(...args) {
 }
 
 /**
- * Emit an always-visible error.
  * @param {...unknown} args - Console arguments
  * @returns {void}
  */
@@ -106,7 +96,6 @@ export function error(...args) {
 }
 
 /**
- * Read an HTTP status from an error-like object.
  * @param {Error & { status?: number, statusCode?: number, response?: { status?: number } } | null} node
  * @returns {number | null}
  */
@@ -118,7 +107,6 @@ function statusOf(node) {
 }
 
 /**
- * Read the caller-supplied retryable hint from an error-like object.
  * @param {Error & { retryable?: boolean | (() => boolean) } | null} node
  * @returns {boolean | null}
  */
@@ -136,10 +124,6 @@ function retryableOf(node) {
 }
 
 /**
- * Coerce any thrown value into a plain object with the standard error fields.
- * Procedure: Read the top-level fields, then walk the `cause` chain resolving
- * the deepest informative message and the deepest status found at any level.
- * Cyclic chains stop at the first revisited error.
  * @param {unknown} err - A thrown value. It can be an Error, a plain object, a string, or null.
  * @returns {{ name: string, message: string, status: number|null, retryable: boolean|null }}
  */

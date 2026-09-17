@@ -61,7 +61,6 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  */
 
 /**
- * Run one automatic elastic summarization action.
  * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
  * @param {{ refreshUi?: () => void, notify?: import('./notify.js').NotifyAdapter }} [opts]
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
@@ -361,7 +360,6 @@ async function executeManualTask(deps, strategy, target, options) {
 const MANUAL_FAILURE_LIMIT = 3;
 
 /**
- * Apply one manual batch result to the run outcome and decide the loop's exit.
  * The failure streak counts failed batches only: a committed batch resets it,
  * and a success whose boundary did not move preserves it.
  * @param {object} step - One loop step's inputs.

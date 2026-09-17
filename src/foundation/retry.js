@@ -3,7 +3,6 @@ import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET } from './constants.js';
 export { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET };
 
 /**
- * Wait for a specified number of milliseconds.
  * @param {number} ms - Milliseconds to sleep
  * @returns {Promise<void>} Resolves after the delay
  */
@@ -12,7 +11,6 @@ export function sleep(ms) {
 }
 
 /**
- * Wait for a specified number of milliseconds, resolving early if the signal is aborted.
  * @param {number} ms - Milliseconds to sleep
  * @param {AbortSignal} signal - Signal whose abort cuts the wait short
  * @returns {Promise<void>} Resolves after the delay or on abort
@@ -33,7 +31,6 @@ export function sleepOrAbort(ms, signal) {
 }
 
 /**
- * Parse Retry-After header from an error response.
  * @param {object} error - The error to inspect
  * @returns {number|null} Milliseconds to wait, or null if not found
  */
@@ -73,7 +70,6 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 ];
 
 /**
- * Check if the error message contains a retryable pattern.
  * @param {string} msg - The error message string
  * @returns {boolean} True if a retryable pattern is found
  */
@@ -87,7 +83,6 @@ function msgHasRetryablePattern(msg) {
 }
 
 /**
- * Check if the error status code is in the retryable list.
  * @param {object} error - The error to check
  * @returns {boolean} True if the status code is retryable
  */
@@ -100,7 +95,6 @@ function statusCodeIsRetryable(error) {
 }
 
 /**
- * Check for well-known retryable error types.
  * @param {object} error
  * @returns {boolean}
  */
@@ -112,7 +106,6 @@ function isRetryableTypeError(error) {
 }
 
 /**
- * Determine if an error warrants a retry attempt.
  * @param {object} error - The error to evaluate
  * @returns {boolean} True if the error is retryable
  */

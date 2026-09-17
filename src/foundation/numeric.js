@@ -1,11 +1,9 @@
 /**
- * Shared numeric coercion and clamping helpers.
  * Single source of truth for parsing untyped settings/input values into
  * finite numbers with bounds.
  */
 
 /**
- * Coerce a value to a finite number or return the fallback.
  * @param {unknown} value
  * @param {number} fallback
  * @returns {number}
@@ -16,7 +14,6 @@ export function coerceFiniteNumber(value, fallback) {
 }
 
 /**
- * Coerce to a finite integer clamped to [min, max]; non-finite values fall back to min.
  * @param {unknown} value
  * @param {number} min
  * @param {number} max
@@ -31,7 +28,6 @@ export function clampInteger(value, min, max) {
 }
 
 /**
- * Clamp a value to [min, max] on a step grid.
  * @param {unknown} value
  * @param {number} min
  * @param {number} max
@@ -44,8 +40,6 @@ export function clampToStep(value, min, max, step) {
 }
 
 /**
- * Coerce an untyped setting value to a number with optional rounding and bounds.
- * Non-finite input falls back to `fallback` (itself clamped).
  * @param {unknown} value
  * @param {object} options
  * @param {number} options.fallback Value used when input is not a finite number.
