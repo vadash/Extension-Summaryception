@@ -146,7 +146,26 @@ Older major versions are still available as branches. Open SillyTavern's extensi
 
 Extension refuses to update: remove and install it again.
 
-Major updates can reset settings or misbehave: clear memories before updating and stick to the named vXX branches.
+Major updates can reset settings or misbehave: clear memories before updating and stick to the named branches.
+
+### Continuity issues
+
+Make sure each bot message contain timestamps! Exact format is not important. Some gaps are allowed, as long as it repeated once every 4-5 bot messages.Example prompt:
+
+```
+{{// Grounds scene with date, time, location, weather. Affected entire RP.}}{{trim}}
+
+<header_instructions>
+Start every response with:
+[ 🕰️ Time HH:MM AM/PM | 🗓️ Day # - 🗓️ DayOfWeek, Month DD, YYYY Era | 📍 Location - Specific Area | [WeatherEmoji] Weather, Temp °F ]
+
+Rules:
+- Time: Advance logically; execute skips for sleep, work, or travel.
+- Era: Use AD/BC or setting-appropriate fantasy era.
+- Location: General - Specific area. Update on movement.
+- NPCs: Physically react to weather, temp, and time (shiver, sweat, fatigue).
+</header_instructions>
+```
 
 ## License
 
