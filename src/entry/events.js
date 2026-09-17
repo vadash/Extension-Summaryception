@@ -129,7 +129,8 @@ let reconcileQueued = false;
 let promptFreezeRecoveryBound = false;
 
 /**
- *
+ * Debounces the automatic cycle so fast message streams queue one request.
+ * @returns {void}
  */
 export function onMessageReceived(messageIndex) {
     try {
@@ -148,7 +149,8 @@ export function onMessageReceived(messageIndex) {
 }
 
 /**
- *
+ * Reconciles the loaded chat before any automatic cycle can read it.
+ * @returns {void}
  */
 export function onChatChanged() {
     debug('Chat changed.');
@@ -187,7 +189,8 @@ export function bindPromptFreezeRecoveryEvents() {
 }
 
 /**
- *
+ * Freezes prompt mutations for host generations; dry runs and own requests are excluded.
+ * @returns {void}
  */
 export function onGenerationStarted(...args) {
     if (isDryRunEvent(args[1], args[2])) {
@@ -205,7 +208,8 @@ export function onGenerationStarted(...args) {
 }
 
 /**
- *
+ * Unfreezes prompt mutations after a host generation ends.
+ * @returns {void}
  */
 export function onGenerationEnded() {
     const hasActiveSummaryRequest = isRequestLive();
