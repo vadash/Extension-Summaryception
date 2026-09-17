@@ -403,11 +403,23 @@ export function validateLayer0Structure(text) {
     const lines = String(text || '').split(/\r?\n/);
     const narrativeIndexes = findHeaderIndexes(lines, NARRATIVE_HEADER_RE);
     const stateIndexes = findHeaderIndexes(lines, STATE_HEADER_RE);
-    if (narrativeIndexes.length === 0 || stateIndexes.length === 0) {
-        return 'missing required [NARRATIVE] or [STATE] header';
+    if (narrativeIndexes.length === 0 && stateIndexes.length === 0) {
+        return 'missing both [NARRATIVE] and [STATE] headers';
     }
-    if (narrativeIndexes.length > 1 || stateIndexes.length > 1) {
-        return 'duplicate [NARRATIVE] or [STATE] header';
+    if (narrativeIndexes.length === 0) {
+        return 'missing [NARRATIVE] header';
+    }
+    if (stateIndexes.length === 0) {
+        return 'missing [STATE] header';
+    }
+    if (narrativeIndexes.length > 1 && stateIndexes.length > 1) {
+        return 'duplicate [NARRATIVE] and [STATE] headers';
+    }
+    if (narrativeIndexes.length > 1) {
+        return 'duplicate [NARRATIVE] header';
+    }
+    if (stateIndexes.length > 1) {
+        return 'duplicate [STATE] header';
     }
 
     const narrativeIndex = narrativeIndexes[0];

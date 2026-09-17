@@ -215,7 +215,7 @@ function rejectIntegrity(reason) {
  * @param {ExtensionSettings} settings - Active settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for the language-mix rejection; defaults to the silent adapter
- * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>}
+ * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>} Rejected attempts keep the cleaned LLM output in `text` for the attempt log; only `empty` has none.
  */
 export async function processSummarizerResponse(
     rawResult,
@@ -232,7 +232,7 @@ export async function processSummarizerResponse(
         notifyLanguageMixRejection(chinesePolicyResult.percent, notify);
         return {
             status: 'cn-rejected',
-            text: '',
+            text: cleanedResult,
             error: chinesePolicyResult.error,
             repairFeedback: '',
         };
@@ -252,7 +252,7 @@ export async function processSummarizerResponse(
         warn(integrityResult.error.message);
         return {
             status: 'integrity-rejected',
-            text: '',
+            text: chinesePolicyResult.text,
             error: integrityResult.error,
             repairFeedback: '',
         };
