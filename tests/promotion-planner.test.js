@@ -8,11 +8,8 @@ import {
 import { makeSummarySettings, makeSummaryStore } from './test-helpers.js';
 
 /**
- * buildPromotionPlan is a pure read model over (store, settings): per-layer
- * quotas, the effective merge count, the first promotable over-limit candidate,
- * and the Layer 0 retention-floor verdict. Token counts come from the setup
- * context's length-based test tokenizer, so expectations below are string
- * lengths of the assembled chronology.
+ * The setup context installs a length-based test tokenizer, so the expected
+ * token counts below are string lengths of the assembled chronology.
  */
 
 const CHRONOLOGY_HEADER = '[CHRONOLOGY]\n';
@@ -133,7 +130,7 @@ describe('buildPromotionPlan', () => {
         const store = makeSummaryStore({ layers: [layer0, layer1] });
         const settings = makeSummarySettings({ memoryTokenBudget: 10000 });
 
-        // L0 is count-exceeded (25 > 24); L1 is token-exceeded (10004 > 3000).
+        // Layer 0 exceeds the count limit (25 > 24). Layer 1 exceeds its token quota (10004 > 3000).
         await expect(buildPromotionPlan(store, settings)).resolves.toEqual({
             quotas: [
                 {
@@ -257,7 +254,7 @@ describe('buildPromotionPlan', () => {
     });
 
     it('flags the retention floor only for a Layer 0 candidate that would breach it', async () => {
-        // 25 snippets: removing 3 leaves 22 x 200 chars = 4421 tokens >= floor 2400.
+        // Removing 3 of 25 snippets leaves 22 x 200 chars = 4421 tokens >= floor 2400.
         const keeping = Array.from({ length: 25 }, () => snip('x'.repeat(200)));
         const settled = await buildPromotionPlan(
             makeSummaryStore({ layers: [keeping] }),
@@ -266,7 +263,7 @@ describe('buildPromotionPlan', () => {
         expect(settled.candidate).toMatchObject({ layerIndex: 0, count: 25 });
         expect(settled.retentionFloorViolated).toBe(false);
 
-        // 5 snippets: removing 3 leaves 401 tokens < floor 2400.
+        // Removing 3 of 5 snippets leaves 401 tokens < floor 2400.
         const breaching = Array.from({ length: 5 }, () => snip('x'.repeat(200)));
         const breached = await buildPromotionPlan(
             makeSummaryStore({ layers: [breaching] }),

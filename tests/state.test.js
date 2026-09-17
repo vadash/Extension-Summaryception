@@ -30,9 +30,7 @@ describe('getSettings', () => {
     it('returns a settings object and reuses the same reference on subsequent calls', () => {
         const first = getSettings();
         expect(typeof first).toBe('object');
-        // The module stores rather than re-clones an existing settings object.
         expect(getSettings()).toBe(first);
-        // A handful of known default keys are present.
         for (const key of ['enabled', 'minSummaryTurns', 'memoryTokenBudget']) {
             expect(Object.hasOwn(first, key)).toBe(true);
         }
@@ -41,11 +39,8 @@ describe('getSettings', () => {
     it('backfills missing keys in place onto a raw partial settings object', () => {
         const ctx = installSillyTavernStub({ settings: { enabled: true } });
         const settings = getSettings();
-        // The stored reference is the returned reference.
         expect(ctx.extensionSettings.summaryception).toBe(settings);
-        // It gained default keys it did not have before…
         expect(Object.hasOwn(settings, 'memoryTokenBudget')).toBe(true);
-        // …while the originally-provided key survived unchanged.
         expect(settings.enabled).toBe(true);
     });
 
@@ -104,16 +99,12 @@ describe('memory mode budgets', () => {
 
 describe('getEffectiveSettings', () => {
     it('forces enabled:false in OFF mode (the OFF branch disables the effective settings)', () => {
-        // The settings normalizer enforces the invariant enabled === (uiMode !== 'off'),
-        // so OFF deterministically yields disabled effective settings. We assert
-        // the OFF-branch output directly: the plan's "raw stays enabled:true" half
-        // is not reflectable through getSettings() because normalizeModeSettings
-        // overwrites enabled to match the mode; drift noted, contract class
-        // (branching) preserved.
+        // normalizeModeSettings overwrites enabled to match uiMode. A raw
+        // enabled:true under OFF is therefore unobservable through
+        // getSettings(), so this test asserts the effective output only.
         installSummaryContext({ settings: { uiMode: UI_MODES.OFF, enabled: true } });
         const effective = getEffectiveSettings();
         expect(effective.enabled).toBe(false);
-        // Calling again stays OFF deterministically.
         expect(getEffectiveSettings().enabled).toBe(false);
     });
 

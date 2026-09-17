@@ -11,7 +11,6 @@ import { makeMessage, makeSummaryStore, installSummaryContext } from './test-hel
  * load untouched, while desired ids whose visual hide was lost are re-hidden.
  */
 describe('Ghosting ownership sync across chat load', () => {
-    /** Install a loaded chat plus store and record every host side effect. */
     function installLoadedChat({ chat, store }) {
         resetCommitStateForTests();
         const calls = [];

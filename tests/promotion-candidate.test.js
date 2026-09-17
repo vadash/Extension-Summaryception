@@ -14,11 +14,7 @@ import {
 } from './test-helpers.js';
 
 /**
- * generateValidatedPromotion owns the summarizer round-trip for one promotion:
- * request, size/integrity validation, at most one section-aware repair pass,
- * and the memory-compression check against the live store.
- *
- * Numbers rely on the setup context's length-based test tokenizer and a
+ * The setup context installs a length-based test tokenizer and a
  * layer0SummaryTokenTarget of 100, so a Layer 0 promotion accepts 40..175
  * tokens and rejects anything outside that band.
  */

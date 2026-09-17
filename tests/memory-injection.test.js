@@ -6,9 +6,6 @@ import {
     renderInjectionTemplate,
 } from '../src/core/memory-injection.js';
 
-/**
- * Build a Layer 0 snippet carrying a [NARRATIVE] and a compact [STATE] block.
- */
 function snippetWithState(narrative, stateLines) {
     const state = stateLines.map((line) => line).join('\n');
     return {

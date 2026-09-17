@@ -18,7 +18,6 @@ import {
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
 /**
- * Install one chat turn pair plus a ready Layer 0 snippet covering them.
  * @returns {{ store: object, snippet: object }}
  */
 function installReadySnippet() {

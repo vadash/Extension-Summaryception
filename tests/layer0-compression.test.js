@@ -50,7 +50,6 @@ describe('isLayer0SizeGuardCall', () => {
 
     it('is false for promotion; the load-bearing asymmetry vs isLayer0CompressionCall', () => {
         expect(isLayer0SizeGuardCall({ kind: 'promotion' })).toBe(false);
-        // Guard says no; compression says yes for the same metadata.
         expect(isLayer0CompressionCall({ kind: 'promotion' })).toBe(true);
     });
 });

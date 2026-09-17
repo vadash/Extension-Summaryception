@@ -12,7 +12,6 @@ describe('parseRetryAfter', () => {
             response: { headers: { 'retry-after': '3' } },
             retryAfter: '5',
         };
-        // Header value of 3 seconds wins over the 5-second field.
         expect(parseRetryAfter(error)).toBe(3000);
     });
 

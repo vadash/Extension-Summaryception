@@ -26,7 +26,7 @@ describe('hide non-text messages in summarized range', () => {
         return [
             makeMessage({ mes: 'turn zero', scId: 'message-0' }),
             makeMessage({ mes: 'turn one', scId: 'message-1' }),
-            // No text: an image or tool-call message that carries no summary text.
+            // Stands in for an image or tool-call message, which carries no summary text.
             makeMessage({ mes: '', name: 'Image', scId: 'message-2' }),
             makeMessage({ mes: 'turn three', scId: 'message-3' }),
         ];
@@ -46,7 +46,6 @@ describe('hide non-text messages in summarized range', () => {
         });
     }
 
-    /** Collect /hide commands and return a predicate testing index coverage. */
     async function runWith({ hideNonTextMessages }) {
         resetCommitStateForTests();
         const calls = [];
@@ -62,7 +61,6 @@ describe('hide non-text messages in summarized range', () => {
         return calls;
     }
 
-    /** True when one of the /hide ranges contains the index. */
     function isHidden(calls, index) {
         return calls.some((cmd) => {
             if (!cmd.startsWith('/hide')) {
@@ -174,7 +172,6 @@ describe('ghosting notify adapter events', () => {
  * ownership equal to the desired set.
  */
 describe('syncGhosting ownership sync', () => {
-    /** Install a chat plus store and record every slash command. */
     function installWith(chat, store) {
         resetCommitStateForTests();
         const calls = [];

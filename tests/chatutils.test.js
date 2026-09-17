@@ -41,12 +41,10 @@ describe('getAssistantTurns', () => {
     });
 
     it('skips empty/whitespace messages and defaults a missing name', () => {
-        // Whitespace-only assistant message is dropped.
         installSummaryContext({ chat: [] });
         const whitespace = getAssistantTurns([makeMessage({ mes: '   ' })]);
         expect(whitespace).toHaveLength(0);
 
-        // A bare assistant message without a name field defaults to 'Assistant'.
         const bare = getAssistantTurns([{ is_user: false, is_system: false, mes: 'hi' }]);
         expect(bare).toHaveLength(1);
         expect(bare[0].name).toBe('Assistant');
@@ -85,9 +83,8 @@ describe('getVisibleAssistantTurns', () => {
         expect(turns).toHaveLength(1);
         expect(turns[0].mes).toBe('plain assistant');
 
-        // The contract contrast being defended: the ghost flag excludes a
-        // turn from getVisibleAssistantTurns but the SAME turn stays in
-        // getAssistantTurns (ghosted-away turns still count as assistant turns).
+        // A ghosted turn still counts as an assistant turn, so
+        // getAssistantTurns keeps it even though getVisibleAssistantTurns excludes it.
         expect(getAssistantTurns(chat)).toHaveLength(2);
     });
 });
@@ -126,16 +123,14 @@ describe('iterateChatRange', () => {
 describe('getPromptDepthsByChatIndex', () => {
     it('skips system messages and assigns depth by distance from the last non-system message', () => {
         const chat = [
-            makeMessage({ mes: 'a' }), // index 0, non-system
-            makeMessage({ isSystem: true, mes: 'sys' }), // index 1, system; absent from map
-            makeMessage({ mes: 'b' }), // index 2
-            makeMessage({ mes: 'c' }), // index 3, last non-system, depth 0
+            makeMessage({ mes: 'a' }),
+            makeMessage({ isSystem: true, mes: 'sys' }),
+            makeMessage({ mes: 'b' }),
+            makeMessage({ mes: 'c' }),
         ];
         const depths = getPromptDepthsByChatIndex(chat);
-        // System index is not a key.
         expect(depths.has(1)).toBe(false);
         expect([...depths.keys()].sort((x, y) => x - y)).toEqual([0, 2, 3]);
-        // Depth grows with distance from the last prompt-visible message.
         expect(depths.get(3)).toBe(0);
         expect(depths.get(2)).toBe(1);
         expect(depths.get(0)).toBe(2);
@@ -146,22 +141,17 @@ describe('findLastMessage', () => {
     it('scans backward for the latest matching message and respects the minIndex floor', () => {
         const chat = [
             makeMessage({ mes: 'a' }),
-            makeMessage({ isUser: true, mes: 'u1' }), // index 1
+            makeMessage({ isUser: true, mes: 'u1' }),
             makeMessage({ mes: 'b' }),
-            makeMessage({ isUser: true, mes: 'u2' }), // index 3
-            makeMessage({ mes: 'c' }), // index 4
+            makeMessage({ isUser: true, mes: 'u2' }),
+            makeMessage({ mes: 'c' }),
         ];
         const isUser = (m) => m.is_user;
 
-        // Backward scan from 4 finds the latest user at index 3.
         expect(findLastMessage(chat, 4, isUser)?.index).toBe(3);
-        // minIndex=2 still permits reaching index 3.
         expect(findLastMessage(chat, 4, isUser, 2)?.index).toBe(3);
-        // minIndex above the latest match finds nothing.
         expect(findLastMessage(chat, 4, isUser, 4)).toBeNull();
-        // startIndex below minIndex short-circuits.
         expect(findLastMessage(chat, 1, isUser, 3)).toBeNull();
-        // No predicate match at all.
         expect(findLastMessage(chat, 0, () => false)).toBeNull();
     });
 });

@@ -93,14 +93,16 @@ describe('state-categories catalog', () => {
 
     it('isCategoryEnabled handles unknown keys and always-on override of a falsey flag', () => {
         expect(isCategoryEnabled(allEnabled, 'definitely_not_a_key')).toBe(false);
-        // alwaysOn wins even when the persisted flag is falsey / unset.
+        // current_date_time is alwaysOn in the catalog, so it wins over the
+        // falsey persisted flag.
         expect(isCategoryEnabled({}, 'current_date_time')).toBe(true);
         expect(isCategoryEnabled({ stateCatDateTime: false }, 'current_date_time')).toBe(true);
     });
 
     it('an un-normalized settings object missing every stateCat* key reads as date-time-only', () => {
         // Raw objects bypass the getSettings() backfill, so only the alwaysOn
-        // category survives. Normalized settings get the all-enabled defaults.
+        // category survives. Normalized settings get the defaultSettings
+        // flags instead.
         const legacy = { someOtherSetting: true };
         expect(getEnabledStateKeys(legacy)).toStrictEqual(['current_date_time']);
         expect(getActiveLineCap(legacy)).toBe(2);
