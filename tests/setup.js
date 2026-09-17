@@ -224,7 +224,7 @@ beforeEach(() => {
     installSummaryContext();
 });
 
-// Host display mocks are installed per test; clear only what a test installed.
+// Host display mocks are installed per test. Clear only what a test installed.
 afterEach(() => {
     if ('toastr' in globalThis) {
         delete globalThis.toastr;

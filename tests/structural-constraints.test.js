@@ -35,11 +35,11 @@ describe('computeSentenceCap', () => {
     });
 
     it('preserves the intended layer ordering l0 > l1 > l2 at a large slider target', () => {
-        // Promotions run a tighter safety multiplier than the direct L0 pass, so
-        // both promotion bands (l1, l2) fall below l0. At T=2000 the three
-        // ratio×safety products (l0 1.275, l1 0.875, l2 0.75) stay far enough
-        // apart that Math.floor preserves ordering.
-        // A future refactor that intentionally re-orders bands SHOULD fail here.
+        // Promotions use a tighter safety multiplier than the direct L0 pass,
+        // so both promotion bands (l1, l2) fall below l0. At the tested target
+        // the per-band products of ratio, safety multiplier, and target differ
+        // enough that Math.floor preserves the band ordering. A refactor that
+        // intentionally re-orders the bands must update this test.
         const l0 = computeSentenceCap('l0', 2000);
         const l1 = computeSentenceCap('l1', 2000);
         const l2 = computeSentenceCap('l2', 2000);
@@ -114,7 +114,6 @@ describe('buildSizeConstraintsBlock', () => {
             repairLine: 'R',
         });
         expect(result.startsWith('<summaryception_promotion_constraints>\nL')).toBe(true);
-        // Both target and repair lines sit between the wrapper tags.
         expect(result).toContain('R</summaryception_promotion_constraints>');
         expect(result.endsWith('</summaryception_promotion_constraints>')).toBe(true);
     });
@@ -153,8 +152,8 @@ describe('buildLayer0BudgetHint', () => {
             settings: defaultSettings,
         });
         expect(result).toContain('Existing [STATE]: 4 keys.');
-        // The [STATE] cap line equals computeStateLineCap(4) (cross-check via
-        // the same exported function the builder uses; never a literal).
+        // Cross-checks the cap through the same exported function the builder
+        // uses, never through a literal.
         expect(result).toContain(`at most ${computeStateLineCap(4)} lines`);
     });
 
@@ -173,11 +172,11 @@ describe('buildLayer0BudgetHint', () => {
             targetTokens: 250,
             settings,
         });
-        // With all six categories enabled the raw sum is 36, clamped to the
-        // STATE_KEY_CEILING (12); the same contract getActiveLineCap encodes.
+        // With all six categories enabled the raw sum is 36. STATE_KEY_CEILING
+        // (12) clamps it. getActiveLineCap must encode the same contract.
         expect(getActiveLineCap(settings, STATE_KEY_CEILING)).toBe(12);
         expect(result).toContain('at most 12 lines');
-        // Must never leak the unclamped 36 figure.
+        // The hint must never leak the unclamped 36 figure.
         expect(result).not.toContain('at most 36 lines');
     });
 });

@@ -6,8 +6,8 @@ import { SLIDER_LIMITS, defaultSettings } from '../src/foundation/constants.js';
 const SETTINGS_HTML_URL = new URL('../settings.html', import.meta.url);
 
 /**
- * Parse the relevant attributes of every <input> tag in the raw HTML source.
- * Plain regex over the file: bounds checks must run in plain node, no DOM.
+ * Scan the raw source with a plain regex because the bounds checks must run
+ * in plain node, with no DOM.
  * @param {string} html - Raw settings.html source
  * @returns {Array<{id: string|null, type: string|null, key: string|null, min: string|null, max: string|null, step: string|null, value: string|null}>}
  */
@@ -32,8 +32,6 @@ function parseInputs(html) {
 const num = (raw) => (raw === null ? null : Number(raw));
 
 /**
- * Decode a rendered display default: k-suffix values scale ('48k' → 48000),
- * plain numbers parse as-is.
  * @param {string} raw - value attribute text
  * @returns {number}
  */
@@ -44,12 +42,12 @@ function decodeDefault(raw) {
 
 describe('settings.html bounds agreement', () => {
     const inputs = parseInputs(readFileSync(SETTINGS_HTML_URL, 'utf8'));
-    // Registry-governed controls: range sliders carry data-sc-slider-setting,
-    // numeric steppers carry data-sc-setting.
+    // Registry-governed controls. Range sliders carry data-sc-slider-setting.
+    // Numeric steppers carry data-sc-setting.
     const boundsControls = inputs.filter(
         (el) => (el.type === 'range' || el.type === 'number') && el.key !== null,
     );
-    // Sliders plus their partner text displays, wherever a default is rendered.
+    // Sliders and their partner text displays, wherever a default is rendered.
     const defaultValueBearers = inputs.filter(
         (el) =>
             el.key !== null &&

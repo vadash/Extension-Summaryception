@@ -51,7 +51,6 @@ describe('addBudgetStats', () => {
         });
         expect(stats.rawTokensEstimated).toBe(true);
         expect(stats.savedTokensEstimated).toBe(true);
-        // A later exact message must not clear the sticky estimated flag.
         addBudgetStats(stats, {
             rawTokens: 5,
             finalTokens: 5,

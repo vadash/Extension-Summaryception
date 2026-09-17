@@ -9,7 +9,6 @@ import { vi } from 'vitest';
 
 let nextMessageId = 0;
 
-/** Build a stub chat message. */
 export function makeMessage(options = {}) {
     const {
         isUser = false,
@@ -59,8 +58,8 @@ export function makeSizedChat(turnCount, { userLength = 100, assistantLength = 1
 
 /**
  * Predict a message's token count under the default String-length test tokenizer.
- *  Mirrors the "Player: "/"Assistant: " line format used by the planner modules;
- *  this is the single coupling point if speaker names ever change.
+ * Mirrors the "Player: "/"Assistant: " line format used by the planner modules.
+ * This is the single coupling point if speaker names ever change.
  */
 export function messageLineTokens(isUser, mesLength) {
     return (isUser ? 'Player: ' : 'Assistant: ').length + mesLength;
@@ -132,7 +131,6 @@ export function makeSummaryStore(overrides = {}) {
     };
 }
 
-/** Build a mock toastr global. */
 export function makeToastrMock() {
     return {
         info: vi.fn(),

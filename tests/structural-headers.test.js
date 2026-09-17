@@ -19,7 +19,6 @@ describe('normalizeStructuralHeaderLines', () => {
     it('uppercases a line-start marker and separates the following line by exactly one newline', () => {
         const result = normalizeStructuralHeaderLines('  [narrative]\nfoo');
         expect(result).toContain('[NARRATIVE]');
-        // Marker isolated from the following content by a single newline.
         expect(result).toContain('[NARRATIVE]\nfoo');
         expect(result).not.toContain('[NARRATIVE]\n\nfoo');
     });

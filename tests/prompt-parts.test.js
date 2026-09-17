@@ -127,16 +127,14 @@ describe('insertBeforeTrigger', () => {
         const result = insertBeforeTrigger(custom, insert, EXECUTION_TRIGGER_PROMO);
 
         expect(result.trimEnd().endsWith(insert.trim())).toBe(true);
-        // The custom body is still present somewhere in the result.
         expect(result).toContain('user body');
     });
 
     it('does not throw on a null prompt and preserves the trimmed insert in the result', () => {
         const insert = '<summaryception_source_budget>\nY\n</summaryception_source_budget>';
         const result = insertBeforeTrigger(null, insert, EXECUTION_TRIGGER_PROMO);
-        // Null body coerces to ''; a non-empty trigger fails the endswith
-        // guard, so the fallback appends the insert after the trim()'d empty
-        // body. The contract is null-safety (no throw) + insert preservation.
+        // A null prompt coerces to ''. The empty body does not end with the
+        // trigger, so the append fallback adds the insert.
         expect(result).toContain(insert);
         expect(typeof result).toBe('string');
     });

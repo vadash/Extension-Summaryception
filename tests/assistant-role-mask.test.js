@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import { maskUserRoleAsAssistantInGenerateData } from '../src/core/assistant-role-mask.js';
 import { MASK_USER_ROLE_MODES } from '../src/foundation/constants.js';
 
-/** Build a fresh 2-user / 1-assistant message array. */
 function msgs() {
     return [
         { role: 'user', content: 'a' },
@@ -12,7 +11,6 @@ function msgs() {
     ];
 }
 
-/** Settings enabling the mask in a given mode with debug output off. */
 function onSettings(maskUserRoleMode) {
     return { enabled: true, maskUserRoleAsAssistant: true, maskUserRoleMode };
 }

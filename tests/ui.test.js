@@ -124,7 +124,7 @@ describe('data-attr setting binding engine', () => {
                 '#sc_memory_token_budget': {
                     type: 'range',
                     id: 'sc_memory_token_budget',
-                    // Intentionally stale drift: the template says max 16000,
+                    // The stale max is intentional: the template says 16000, but
                     // SLIDER_LIMITS.memoryTokenBudget.MAX is 32000.
                     min: '4000',
                     max: '16000',
