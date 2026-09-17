@@ -16,7 +16,7 @@ import { ensureChild } from './ui-dom.js';
 let notifyAdapter = null;
 
 /**
- * Register the notify adapter used for snippet regeneration notices.
+ * Core receives the notify adapter only through this call; it serves only snippet regeneration notices.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter distributed to core calls.
  * @returns {void}
  */
@@ -29,7 +29,7 @@ export function initSnippetBrowser(notify) {
  * @property {string} key - Stable row key for this render pass
  * @property {number} layerIndex - Source layer index
  * @property {number} snippetIndex - Source snippet index within the layer
- * @property {string} text - Snippet text
+ * @property {string} text
  * @property {string} meta - Compact source metadata label
  * @property {boolean} canRedo - Whether the row can be regenerated
  */
@@ -51,7 +51,7 @@ export function initSnippetBrowser(notify) {
 const SNIPPET_BROWSER_EVENT_NS = '.summaryceptionSnippetBrowser';
 
 /**
- * Render the snippet browser with fine-grained DOM updates.
+ * The renderer matches rows by stable keys, so focus and scroll position survive re-renders.
  * @returns {void}
  */
 export function updateSnippetBrowser() {
@@ -66,7 +66,7 @@ export function updateSnippetBrowser() {
 }
 
 /**
- * Build a DOM-neutral view model for the snippet browser.
+ * The view model is DOM-neutral; the renderer consumes only this view, never the store.
  * @param {ReturnType<typeof getChatStore>} store
  * @returns {SnippetBrowserView}
  */
@@ -81,7 +81,6 @@ export function buildSnippetBrowserViewModel(store) {
 }
 
 /**
- * Build the stable row key used by the snippet browser renderer.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @returns {string}
@@ -317,6 +316,7 @@ function getSnippetPosition(element) {
 }
 
 function startSnippetEdit(textEl, position, initialText) {
+    // Enter and blur can both request a finish; the latch keeps it to one run.
     let finished = false;
     const textarea = $('<textarea class="sc-snippet-edit"></textarea>').val(initialText);
     const finish = async (shouldSave) => {
@@ -363,7 +363,7 @@ async function commitSnippetEdit(textarea, position) {
             timeOut: 1500,
         });
     }
-    // 'unchanged'/'missing'/'empty' stay silent: re-render restores truth; accidental Enter must not toast.
+    // Stay silent for 'unchanged', 'missing', and 'empty': the re-render restores the true state, and an accidental Enter must not toast.
 }
 
 function resizeSnippetEdit(textarea) {

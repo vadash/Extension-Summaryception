@@ -15,7 +15,6 @@ import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
 
 /**
- * Build the summary block by combining all layer snippets.
  * @returns {string} The assembled summary block, or '' if no snippets exist
  */
 export function assembleSummaryBlock() {
@@ -34,7 +33,6 @@ let _memoryMacroRegistered = false;
 export const MEMORY_MACRO_NAME = 'summaryception_memory';
 
 /**
- * Update the committed memory injection.
  * @param {{ logMemoryStatus?: boolean }} [options] - Diagnostic logging options
  * @returns {void}
  */
@@ -88,7 +86,6 @@ export function reassertInjectionSnapshot() {
 }
 
 /**
- * Register the Summaryception memory macro for prompt templates.
  * @returns {Promise<boolean>} Whether ST accepted the macro registration.
  */
 export async function registerSummaryceptionMemoryMacro() {
@@ -105,7 +102,6 @@ export async function registerSummaryceptionMemoryMacro() {
 }
 
 /**
- * Resolve SillyTavern extension prompt options from the configured memory placement.
  * @param {ExtensionSettings} [settings]
  * @returns {{ position: number, depth: number, scan: boolean, role: number }}
  */
@@ -131,7 +127,8 @@ export function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
 }
 
 /**
- * Build the prompt text that should be committed for the current store/settings.
+ * Macro-only placement serves memory through the macro, so this builds
+ * text only for standard placements.
  * @param {ExtensionSettings} [settings]
  * @returns {string}
  */
@@ -187,7 +184,6 @@ function queueMemoryStatusLog(text, layers) {
 }
 
 /**
- * Count and log compact memory status.
  * @param {string} text - Injection text
  * @param {unknown[]} layers - Summary memory layers
  * @returns {Promise<void>}

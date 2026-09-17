@@ -828,7 +828,6 @@ const HELP_ENTRIES = [
 ];
 
 /**
- * Metadata for settings help annotations and tooltips.
  * @type {Record<string, {selector: string, title: string, short: string, detail: string, controls?: string[]}>}
  */
 export const SETTINGS_HELP = defineHelpMap(HELP_ENTRIES);

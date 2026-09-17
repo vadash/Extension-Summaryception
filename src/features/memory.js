@@ -8,8 +8,8 @@ import { commitSnippetMutation } from '../core/snippet-commit.js';
 // ─── Memory Clear Workflow ───────────────────────────────────────────
 
 /**
- * Clear all Summaryception memory for the current chat and unghost all messages.
- * Shared between the UI button handler and the /sc-clear slash command.
+ * Unghosts all messages in the chat.
+ * Shared by the UI button handler and the /sc-clear slash command.
  * @param {{ updateUi?: boolean }} [opts]
  */
 export async function clearSummaryceptionMemory(
@@ -45,10 +45,7 @@ export async function clearSummaryceptionMemory(
 // ─── Memory Import Workflow ──────────────────────────────────────────
 
 /**
- * Check an imported payload's shape before any store mutation: layers must be
- * an array of snippet arrays, each snippet passing the persisted-snippet
- * check, plus a ghosted-ID array. Rejects before getChatStore() touches
- * chat metadata.
+ * Rejects an invalid payload before getChatStore() touches chat metadata.
  * @param {any} data - Parsed JSON payload
  * @returns {boolean} True when the payload carries valid layers and ghosted IDs
  */
@@ -61,9 +58,8 @@ function validateImportPayload(data) {
 }
 
 /**
- * Import summary memory from a parsed JSON export into the current chat store.
- * Unlike clearSummaryceptionMemory, which throws to its caller, invalid
- * payloads are a guard rather than a fault, so every outcome arrives as a
+ * Unlike clearSummaryceptionMemory, which throws to its caller, an invalid
+ * payload is a guard rather than a fault. Every outcome arrives as a
  * structured status for the entry layer to notice.
  * @param {any} data - Parsed JSON payload
  * @param {{ notify?: import('../core/notify.js').NotifyAdapter }} [opts]

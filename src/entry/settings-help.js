@@ -18,7 +18,6 @@ const HELP_TOOLTIP_DELAY_MS = 500;
 let helpTooltipTimer = null;
 
 /**
- * Annotate the rendered settings DOM and bind the shared help tooltip.
  * @returns {void}
  */
 export function initSettingsHelp() {
@@ -36,7 +35,7 @@ export function initSettingsHelp() {
 }
 
 /**
- * Calculate viewport coordinates for the shared settings help tooltip.
+ * The tooltip uses fixed positioning, so the coordinates are viewport-relative.
  * @param {object} p
  * @param {{left: number, right: number, top: number, bottom: number}} p.anchorRect
  * @param {{left: number, right: number}} p.settingsRect
@@ -287,6 +286,7 @@ function showTooltip($settings, $tooltip, $target, anchor) {
         return;
     }
 
+    // The tooltip renders invisibly so positionTooltip can measure its real size first.
     $tooltip
         .empty()
         .append($('<div class="sc-help-tooltip-title"></div>').text(entry.title))

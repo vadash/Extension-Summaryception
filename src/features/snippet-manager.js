@@ -18,7 +18,6 @@ import { withUsageRun } from '../core/summarizer-usage.js';
  */
 
 /**
- * Get snippet text for an entry-layer editor.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @returns {{ status: 'found', text: string } | { status: 'missing', text: '' }}
@@ -32,7 +31,6 @@ export function getSnippetTextAt(layerIndex, snippetIndex) {
 }
 
 /**
- * Get the regeneration target for a snippet as seen by the UI.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @returns {RegenerationTarget | RegenerationUnavailable}
@@ -42,8 +40,8 @@ export function getSnippetRegenerationTarget(layerIndex, snippetIndex) {
 }
 
 /**
- * Whether a snippet can be regenerated: a contiguous Layer 0 source range.
- * True while summarization is busy; the click path reports busy.
+ * True for a contiguous Layer 0 source range. Also true while
+ * summarization is busy, so the caller can report the busy status.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @returns {boolean}
@@ -61,7 +59,6 @@ export function isRegenerationCandidate(layerIndex, snippetIndex) {
 }
 
 /**
- * Persist an edited snippet.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @param {string} text
@@ -92,7 +89,7 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
 }
 
 /**
- * Delete one snippet and repair any Layer 0 ghosting ownership.
+ * Deletion also repairs any Layer 0 ghosting ownership.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @returns {Promise<{ status: 'deleted', layerIndex: number } | { status: 'missing' }>}
@@ -111,7 +108,6 @@ export async function deleteSnippetAt(layerIndex, snippetIndex) {
 }
 
 /**
- * Regenerate one Layer 0 snippet from its source turns.
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @param {import('../core/notify.js').NotifyAdapter} [notify] - Adapter for regeneration notices; absent runs stay silent.
@@ -137,7 +133,6 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, notify) {
 }
 
 /**
- * Run the summarizer for a validated regeneration target.
  * @param {RegenerationTarget} target
  * @param {import('../core/notify.js').NotifyAdapter} [notify] - Adapter for regeneration notices.
  * @returns {Promise<RegenerationRunResult>}
@@ -187,9 +182,9 @@ async function regenerateSnippetWithTarget(target, notify) {
 }
 
 /**
- * Resolve a snippet into a regeneration target: the single source of truth
- * shared by the UI check and the regeneration runner. A target is ready only
- * for a contiguous Layer 0 source range while no summarization is running.
+ * Single source of truth for regeneration targets, shared by the UI check
+ * and the regeneration runner. A target is ready only for a contiguous
+ * Layer 0 source range while no summarization is running.
  * @param {SummaryceptionStore} store
  * @param {ChatMessage[]} chat
  * @param {{ layerIndex: number, snippetIndex: number }} position
