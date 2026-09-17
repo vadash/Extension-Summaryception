@@ -11,7 +11,7 @@ import { addBudgetStats, createBudgetStats } from './token-count.js';
  * @property {number} verbatimStartIdx First chat index kept verbatim after the queued window.
  * @property {import('./chatutils.js').AssistantTurn[]} visibleTurns Assistant turns in the live chat window.
  * @property {import('./chatutils.js').AssistantTurn[]} eligibleTurns Visible turns before the verbatim start, queued for summarization.
- * @property {import('./chatutils.js').AssistantTurn[]} batchTurns Turns of the first partition, i.e. the current summarization batch.
+ * @property {import('./chatutils.js').AssistantTurn[]} batchTurns Turns of the first partition, that is, the current summarization batch.
  * @property {import('./partition-planner.js').SourcePartition[]} partitions Layer-0 source partitions covering the queued window.
  * @property {number} overflowCount Number of eligible turns awaiting summarization.
  * @property {number} softOverflowCount Eligible turns beyond the current batch.

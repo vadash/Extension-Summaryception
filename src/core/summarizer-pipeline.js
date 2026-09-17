@@ -24,7 +24,6 @@ import { buildStateSchemaText } from '../foundation/state-categories.js';
  */
 
 /**
- * Build the prompt-side inputs for a summarizer request.
  * @param {SummarizerPipelineInputRequest} request
  * @returns {Promise<{ settings: ExtensionSettings, systemPrompt: string, prompt: string, repairPrompt: string, metadata: import('./summarizer-usage.js').SummarizerCallMetadata }>}
  */
@@ -70,7 +69,6 @@ export async function buildSummarizerPipelineInput({
 }
 
 /**
- * Trace token counts for summarizer input text.
  * @param {string} storyTxt - Story text
  * @param {string} contextStr - Context text
  * @returns {Promise<void>}
@@ -90,7 +88,6 @@ export async function traceSummarizerInputTokens(storyTxt, contextStr) {
 }
 
 /**
- * Estimate and record usage for a successful summarizer response.
  * @param {object} p
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
@@ -174,7 +171,6 @@ async function attachBudgetHint(metadata, settings) {
 }
 
 /**
- * Resolve the system and user prompt template for a summarizer call.
  * @param {ExtensionSettings} settings - Settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @returns {{ systemPrompt: string, userPromptTemplate: string }}
@@ -230,7 +226,6 @@ function getStringSetting(value, fallback) {
 }
 
 /**
- * Build the configured user prompt with runtime substitutions.
  * @param {object} p
  * @param {string} p.template - User prompt template
  * @param {string} p.storyTxt - Story text

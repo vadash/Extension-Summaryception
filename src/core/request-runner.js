@@ -85,7 +85,7 @@ export class RequestRunner {
     /**
      * Run retry attempts until success, abort, non-retryable error, or exhaustion.
      * @param {object} p
-     * @param {ExtensionSettings} p.settings - Settings
+     * @param {ExtensionSettings} p.settings
      * @param {string} p.systemPrompt - System prompt sent to the summarizer
      * @param {string} p.prompt - Fully substituted user prompt
      * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
@@ -392,7 +392,6 @@ export class RequestRunner {
 }
 
 /**
- * Build the aborted outcome of one route's attempt series.
  * @param {Error} error
  * @returns {{ status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }}
  */
@@ -408,7 +407,6 @@ function buildSeriesAbortResult(error) {
 }
 
 /**
- * Build the success outcome of one route's attempt series.
  * @param {{ result: string, error: Error }} attemptResult
  * @returns {{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }}
  */
@@ -424,7 +422,6 @@ function buildSeriesSuccessResult(attemptResult) {
 }
 
 /**
- * Build the failure outcome of one route's attempt series.
  * @param {{ error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean, attempts: number }} fields
  * @returns {{ status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean, attempts: number }}
  */
@@ -475,8 +472,8 @@ function logRetryStopReason(reason, maxRetries) {
 }
 
 /**
- * Emit the abort event and return the aborted outcome. Stopping a run is not
- * a failure; entry renders the notice from this structured event (ADR-0004).
+ * Stopping a run is not a failure. Entry renders the notice from this
+ * structured event (ADR-0004).
  * @param {import('./notify.js').NotifyAdapter} notify - Notify adapter threaded from the request series
  * @returns {RunOutcome} The aborted outcome
  */
@@ -495,8 +492,8 @@ function abortRun(notify) {
  */
 
 /**
- * Emit the terminal failure event and return the outcome. The guard-block
- * branch emits nothing: the attempt layer already emitted the guard event.
+ * The guard-block branch emits no event because the attempt layer already
+ * emitted the guard event.
  * @param {SummarizerFailureError} lastError
  * @param {{ retriesExhausted?: boolean, attempts?: number }} [options]
  * @param {import('./notify.js').NotifyAdapter} notify - Notify adapter threaded from the request series

@@ -27,7 +27,6 @@ import { insertBeforeTrigger, EXECUTION_TRIGGER_L0 } from '../foundation/prompt-
 import { describePromptLogCall } from './request-attempt-log.js';
 
 /**
- * Append repair feedback before the L0 execution trigger.
  * @param {string} prompt
  * @param {string} repairFeedback
  * @returns {string}
@@ -162,9 +161,8 @@ function buildAttemptSuccess(result) {
 }
 
 /**
- * Trace the summarizer request metadata.
  * @param {object} p
- * @param {ExtensionSettings} p.settings - Settings
+ * @param {ExtensionSettings} p.settings
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
@@ -185,7 +183,6 @@ async function traceSummarizerRequest({ settings, systemPrompt, prompt, metadata
 }
 
 /**
- * Classify an exception from a summarizer attempt.
  * @param {unknown} err - Thrown error
  * @param {AbortSignal} signal - Abort signal
  * @returns {{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string }}
@@ -231,7 +228,6 @@ export function classifyAttemptError(err, signal) {
 }
 
 /**
- * Build a failed attempt result.
  * @param {Error} error - Attempt error
  * @param {boolean} shouldRetry - Whether retry should continue
  * @param {string} [failureStatus] - Attempt failure classification
@@ -299,9 +295,8 @@ function createAttemptAbortContext(userSignal, timeoutMs, timeoutRetryable) {
 }
 
 /**
- * Log the report line, emit the structured retry event, then wait out the
- * delay (abort cuts the wait short). Display duration is adapter policy; the
- * wait stays in retry policy (ADR-0004).
+ * Display duration is adapter policy. The wait stays in retry policy
+ * (ADR-0004).
  * @param {object} p
  * @param {number} p.delay - Milliseconds to wait
  * @param {(line: string) => void} p.log - Structured log emitter (warn/info)
@@ -318,7 +313,6 @@ async function emitRetryEventAndWait({ delay, log, logLine, event, signal, notif
 }
 
 /**
- * Notify the user about a retry attempt and wait the computed delay.
  * @param {object} p
  * @param {Error & { status?: number, response?: { status?: number } }} p.lastError - The error that triggered the retry.
  * @param {number} p.attempt - Zero-based attempt index.
@@ -373,9 +367,8 @@ export async function notifyRouteCycleFailedAndWait({ healthBucket, signal, noti
 }
 
 /**
- * Check the Easy mode summarizer context cap.
- * @param {ExtensionSettings} settings - Settings
- * @param {string} systemPrompt - System prompt
+ * @param {ExtensionSettings} settings
+ * @param {string} systemPrompt
  * @param {string} prompt - Fully substituted user prompt
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @returns {Promise<{ ok: true } | { ok: false, limit: number, tokens: { count: number, estimated: boolean }, label: string }>}

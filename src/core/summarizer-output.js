@@ -34,14 +34,12 @@ function cleanSummarizerOutput(raw, options = {}) {
 
     const s = getEffectiveSettings();
 
-    // Remove configurable strip patterns
     for (const pattern of s.stripPatterns || []) {
         while (text.includes(pattern)) {
             text = text.replace(pattern, '');
         }
     }
 
-    // Remove common reasoning blocks (content between tag pairs)
     const blockPatterns = [
         /<\|channel>thought[\s\S]*?<channel\|>/gi,
         /<thinking>[\s\S]*?<\/thinking>/gi,
@@ -68,7 +66,6 @@ function cleanSummarizerOutput(raw, options = {}) {
         text = text.replace(STATE_HEADER_LINES_RE, '');
     }
 
-    // Clean up leftover whitespace
     text = text.replace(/\n{3,}/g, '\n').trim();
 
     return text;
@@ -145,7 +142,6 @@ export function isSummarizerOutputSafe(text, metadata = {}, warnPrefix = '') {
 }
 
 /**
- * Count Han ideographs and visible characters in text.
  * @param {string} text - Text to inspect
  * @returns {{ chineseIdeographs: number, visibleCharacters: number, ratio: number }}
  */
@@ -161,7 +157,6 @@ function getChineseIdeographStats(text) {
 }
 
 /**
- * Remove Han ideographs from text.
  * @param {string} text - Text to clean
  * @returns {string}
  */

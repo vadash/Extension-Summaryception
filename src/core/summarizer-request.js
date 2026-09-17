@@ -10,7 +10,6 @@ const liveRequests = new Set();
 const requestRunner = new RequestRunner();
 
 /**
- * Check whether any summarizer request is in flight.
  * @returns {boolean}
  */
 export function isRequestLive() {
@@ -18,7 +17,6 @@ export function isRequestLive() {
 }
 
 /**
- * Abort every live summarizer request.
  * @returns {void}
  */
 export function abortAllRequests() {
@@ -32,12 +30,11 @@ export function abortAllRequests() {
 }
 
 /**
- * Call the configured summarizer backend with retry logic.
- * @param {string} storyTxt - The story text to summarize
- * @param {string} contextStr - The accumulated context string
+ * @param {string} storyTxt
+ * @param {string} contextStr
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata for debug usage logs
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for mid-run notices; defaults to the silent adapter
- * @returns {Promise<import('./request-runner.js').RunOutcome>} Run Outcome; `completed` carries the summary text
+ * @returns {Promise<import('./request-runner.js').RunOutcome>} `completed` carries the summary text
  */
 export async function callSummarizer(storyTxt, contextStr, metadata = {}, notify = silentAdapter) {
     trace('>>> ENTERING callSummarizer');

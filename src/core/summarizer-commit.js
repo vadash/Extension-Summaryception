@@ -10,11 +10,11 @@ import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/con
  * @property {ChatMessage[]} chatRef - Chat array reference captured before the request.
  * @property {[number, number]} sourceRange - Transient source chat index range.
  * @property {string[]} sourceMessageIds - Stable IDs for the captured source messages.
- * @property {string} sourceFingerprint - Fingerprint of source messages.
+ * @property {string} sourceFingerprint
  * @property {number} summaryStoreEpoch - Summary-layer mutation epoch.
- * @property {string} passageText - Request passage text.
- * @property {import('./chatutils.js').PassageRegexStats} passageStats - Passage regex stats.
- * @property {string} contextText - Request context text.
+ * @property {string} passageText
+ * @property {import('./chatutils.js').PassageRegexStats} passageStats
+ * @property {string} contextText
  * @property {string} sourceState - Source-layer state snapshot text at capture time.
  */
 
@@ -33,7 +33,7 @@ import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/con
 /**
  * @typedef {object} PendingPromptEffect
  * @property {string} kind - Human-readable effect type.
- * @property {(ctx: PromptEffectContext) => Promise<boolean> | boolean} apply - Applies the effect.
+ * @property {(ctx: PromptEffectContext) => Promise<boolean> | boolean} apply
  */
 /** Silent default so pre-init gate calls stay no-ops. */
 const noOpCallback = () => {};
@@ -75,7 +75,6 @@ export function initCommitCallbacks({ updateInjection, reassertInjection, requeu
 }
 
 /**
- * Check whether prompt-affecting mutations are currently frozen.
  * @returns {boolean}
  */
 export function isPromptMutationFrozen() {
@@ -84,8 +83,6 @@ export function isPromptMutationFrozen() {
 }
 
 /**
- * Check whether a prompt mutation may start for the captured epoch.
- *
  * The stale-freeze heal is deliberately absent here: the heal's own flush
  * must apply queued prompt effects and commits, and every effect queued by
  * that flush would otherwise requeue against the heal's in-flight promise
@@ -113,7 +110,6 @@ export function beginForegroundGeneration() {
 }
 
 /**
- * Unfreeze prompt-affecting mutations and flush queued commits.
  * @returns {Promise<void>}
  */
 export async function endForegroundGeneration() {
@@ -266,7 +262,6 @@ export function resetPromptMutationGuard() {
 }
 
 /**
- * Reset transient guard state. Intended for tests.
  * @returns {void}
  */
 export function resetCommitStateForTests() {
@@ -320,7 +315,6 @@ function recoverStalePromptFreezeInBackground(reason) {
 }
 
 /**
- * Reassert the committed injection only when the guard is already open.
  * @returns {void}
  */
 function reassertCommittedInjectionIfOpen() {
@@ -351,7 +345,6 @@ async function applyCommit(commit) {
 }
 
 /**
- * Flush all queued commits in FIFO order.
  * @returns {Promise<void>}
  */
 async function flushPendingCommits() {
@@ -364,7 +357,6 @@ async function flushPendingCommits() {
 }
 
 /**
- * Flush all queued prompt effects in FIFO order.
  * @returns {Promise<void>}
  */
 async function flushPendingPromptEffects() {

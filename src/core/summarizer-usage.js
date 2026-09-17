@@ -67,7 +67,6 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
 let activeRun = null;
 
 /**
- * Start collecting usage for a scoped summarization run.
  * @param {string} label - Human-readable run label
  * @returns {UsageRun}
  */
@@ -104,7 +103,6 @@ export function endUsageRun(run) {
 }
 
 /**
- * Run an async function inside a usage aggregation scope.
  * @template T
  * @param {string} label - Human-readable run label
  * @param {() => Promise<T>} callback - Work to run
@@ -163,7 +161,6 @@ export function recordSummarizerUsage(usage) {
 }
 
 /**
- * Add usage to one run and assign that run's local call number.
  * @param {UsageRun} run - Active run
  * @param {SummarizerUsageInput} usage - Usage input
  * @returns {SummarizerUsageEntry}
@@ -179,7 +176,6 @@ function addUsageToRun(run, usage) {
 }
 
 /**
- * Log the max-token call for a completed run.
  * @param {UsageRun} run - Completed run
  * @returns {void}
  */
@@ -232,7 +228,6 @@ function detachEndedRun(run) {
 }
 
 /**
- * Build the compact per-call usage log.
  * @param {SummarizerUsageEntry} entry - Usage entry
  * @returns {string}
  */
@@ -284,7 +279,6 @@ function getInputTokenCount(entry) {
 }
 
 /**
- * Estimate prompt/context overhead by subtracting source text from full prompt tokens.
  * @param {SummarizerUsageEntry} entry - Usage entry
  * @param {{ count: number | null | undefined, estimated: boolean }} inputTokens - Source tokens
  * @returns {{ count: number | null | undefined, estimated: boolean }}
@@ -311,7 +305,6 @@ function getPromptOverheadTokenCount(entry, inputTokens) {
 }
 
 /**
- * Format memory compression stats for a promotion call log.
  * @param {SummarizerUsageEntry} entry - Usage entry
  * @returns {string}
  */
@@ -330,7 +323,6 @@ function formatPromotionMemoryStats(entry) {
 }
 
 /**
- * Format the promotion overflow reason for a call log.
  * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
  * @returns {string}
  */
@@ -354,7 +346,6 @@ function formatPromotionOverflowStats(metadata = {}) {
 }
 
 /**
- * Calculate rounded compression savings.
  * @param {number | undefined} before - Source token count
  * @param {number | null | undefined} after - Output token count
  * @returns {number | null}
@@ -373,7 +364,6 @@ function getSavedPercent(before, after) {
 }
 
 /**
- * Format an optional count limit.
  * @param {number | undefined} value - Count value
  * @returns {string}
  */
@@ -385,7 +375,6 @@ function formatOverflowValue(value) {
 }
 
 /**
- * Describe a summarizer call from its metadata.
  * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
  * @returns {string}
  */
@@ -403,9 +392,8 @@ function describeCall(metadata = {}) {
 }
 
 /**
- * Format the promotion branch shared by all call labels: source layer,
- * destination layer, and merged snippet count. Callers keep their own arrow
- * spacing and prefix text.
+ * Contributes only the source layer, destination layer, and merged snippet
+ * count; callers keep their own arrow spacing and prefix text.
  * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
  * @param {string} [arrow] - Separator between source and destination layer
  * @returns {string}
@@ -418,7 +406,6 @@ export function formatPromotionLabel(metadata = {}, arrow = ' -> ') {
 }
 
 /**
- * Format passage regex stats for a call log.
  * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
  * @returns {string}
  */
@@ -430,7 +417,6 @@ function formatRegexStats(metadata = {}) {
 }
 
 /**
- * Check whether a total token count includes estimated values.
  * @param {SummarizerUsageInput} entry - Usage entry
  * @returns {boolean}
  */
@@ -443,7 +429,6 @@ function isTotalEstimated(entry) {
 }
 
 /**
- * Format a number with optional fixed precision.
  * @param {number} value - Number to format
  * @param {number} [digits] - Decimal digits
  * @returns {string}
@@ -456,7 +441,6 @@ function formatNumber(value, digits) {
 }
 
 /**
- * Format a chat index range.
  * @param {[number, number] | undefined} range - Source range
  * @returns {string}
  */
@@ -468,7 +452,6 @@ export function formatRange(range) {
 }
 
 /**
- * Format a singular/plural count.
  * @param {number | undefined} count - Count value
  * @param {string} singular - Singular label
  * @returns {string}

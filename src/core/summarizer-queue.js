@@ -13,7 +13,7 @@ import { withUsageRun } from './summarizer-usage.js';
 /**
  * @typedef {object} SummarizerQueueContext
  * @property {(phase: SummarizerQueuePhase) => void} setPhase - Update the visible queue phase.
- * @property {() => SummarizerQueuePhase} getPhase - Read the current queue phase.
+ * @property {() => SummarizerQueuePhase} getPhase
  */
 
 /**
@@ -150,7 +150,6 @@ export class SummarizerQueue {
     }
 
     /**
-     * Read the current worker phase.
      * @returns {SummarizerQueuePhase}
      */
     getPhase() {
@@ -220,7 +219,6 @@ export class SummarizerQueue {
     }
 
     /**
-     * Update phase and refresh observers when it changes.
      * @param {SummarizerQueuePhase} phase
      * @param {{ force?: boolean }} [opts]
      * @returns {void}
@@ -249,7 +247,6 @@ async function defaultYieldCycle() {
 async function defaultAfterDrain() {}
 
 /**
- * Check whether a value is a supported queue phase.
  * @param {unknown} phase
  * @returns {phase is SummarizerQueuePhase}
  */
@@ -283,7 +280,6 @@ export const summarizerQueue = new SummarizerQueue({
 });
 
 /**
- * Queue or coalesce an automatic summarization request.
  * @returns {Promise<void>}
  */
 export function requestSummarization() {
@@ -300,7 +296,6 @@ export function isBusy() {
 }
 
 /**
- * Check whether a summarizer request is currently in flight.
  * @returns {boolean}
  */
 export function isRequestLive() {
@@ -308,7 +303,6 @@ export function isRequestLive() {
 }
 
 /**
- * Stop all summarizer work: abort live requests and ask foreground runs to stop.
  * @returns {void}
  */
 export function stopSummarization() {
@@ -316,8 +310,7 @@ export function stopSummarization() {
 }
 
 /**
- * Open a foreground Work Gate lease (Manual Run, Regeneration).
- * @param {'manual-run' | 'regeneration'} kind - Work kind opening the lease.
+ * @param {'manual-run' | 'regeneration'} kind
  * @returns {{ end: () => void, isStopped: () => boolean }} Lease handle; caller ends it in finally.
  */
 export function beginRun(kind) {

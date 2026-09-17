@@ -8,7 +8,6 @@ import {
 import { formatPromotionLabel, formatRange } from './summarizer-usage.js';
 
 /**
- * Create the mutable log state tracked across one attempt.
  * @returns {{ status: string, cleanedResult: string, error: Error | null }}
  */
 export function createAttemptLogState() {
@@ -20,7 +19,6 @@ export function createAttemptLogState() {
 }
 
 /**
- * Record an attempt outcome into the transaction log state.
  * @param {{ status: string, cleanedResult: string, error: Error | null }} logState - Mutable log state
  * @param {{ success: boolean, result?: string, cleanedResult?: string, aborted?: boolean, failureStatus?: string, error: Error }} result - Attempt outcome
  * @returns {void}
@@ -42,7 +40,6 @@ function getAttemptLogStatus(result) {
 }
 
 /**
- * Describe a summarizer request for prompt logs.
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
  * @returns {string}
  */
@@ -60,13 +57,12 @@ export function describePromptLogCall(metadata = {}) {
 }
 
 /**
- * Log a full prompt/response transaction for one LLM attempt.
  * @param {object} p
  * @param {string} p.label - Human-readable call label
  * @param {string} p.routeLabel - Connection route label
  * @param {number} p.attempt - Zero-based attempt number
- * @param {string} p.status - Attempt status
- * @param {number} p.durationMs - Attempt duration
+ * @param {string} p.status
+ * @param {number} p.durationMs
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - User prompt sent to the summarizer
  * @param {string} p.cleanedResult - Cleaned summary text
@@ -133,7 +129,6 @@ export function logLlmAttemptTransaction({
 }
 
 /**
- * Build a copyable prompt-input log payload.
  * @param {object} p
  * @param {string} p.label
  * @param {string} p.routeLabel
@@ -156,7 +151,6 @@ function buildLlmInputLog({ label, routeLabel, attempt, systemPrompt, prompt }) 
 }
 
 /**
- * Build a copyable prompt-output log payload.
  * @param {object} p
  * @param {string} p.label
  * @param {string} p.routeLabel
@@ -179,7 +173,6 @@ function buildLlmOutputLog({ label, routeLabel, attempt, status, cleanedResult, 
 }
 
 /**
- * Serialize an attempt error into JSON-safe details.
  * @param {Error | null} error
  * @returns {object|null}
  */

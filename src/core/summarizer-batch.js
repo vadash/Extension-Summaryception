@@ -96,13 +96,12 @@ async function repairGhosting(visibleTurns, boundaryIndex, notify) {
 }
 
 /**
- * Core logic for summarizing a batch of turns.
  * @param {object} p
- * @param {ChatMessage[]} p.chat - Chat array
- * @param {SummaryceptionStore} p.store - Chat store
- * @param {import('./chatutils.js').AssistantTurn[]} p.eligibleTurns - Eligible turns
- * @param {{ catchExceptions: boolean, sourceEndIdx?: number }} p.opts - Options
- * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
+ * @param {import('./chatutils.js').AssistantTurn[]} p.eligibleTurns
+ * @param {{ catchExceptions: boolean, sourceEndIdx?: number }} p.opts
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
 async function summarizeBatchCore({ chat, store, eligibleTurns, opts, notify }) {
@@ -131,10 +130,10 @@ async function summarizeBatchCore({ chat, store, eligibleTurns, opts, notify }) 
     );
 }
 /**
- * Atomic-partition core. One shared progress owner opens at the first
+ * One shared progress owner opens at the first
  * validated passage and settles exactly once at the terminal outcome.
  * @param {import('./partition-planner.js').SourcePartition[]} partitions
- * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter
+ * @param {import('./notify.js').NotifyAdapter | undefined} notify
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
 async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
@@ -211,9 +210,9 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
 }
 
 /**
- * Close a batch progress handle with a terminal event kind. No-ops when the
- * adapter or the handle never opened (silent runs, failures before validation).
- * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter
+ * No-ops when the adapter or the handle never opened (silent runs, failures
+ * before validation).
+ * @param {import('./notify.js').NotifyAdapter | undefined} notify
  * @param {unknown} progress - Progress handle, or null before the first validation
  * @param {string} kind - Terminal event kind from BATCH_PROGRESS
  * @returns {void}
@@ -233,8 +232,7 @@ function closeBatchProgress(notify, progress, kind) {
  */
 
 /**
- * Build the batch progress owner for one summarization run.
- * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter
+ * @param {import('./notify.js').NotifyAdapter | undefined} notify
  * @returns {BatchProgressOwner}
  */
 function createBatchProgress(notify) {
@@ -267,9 +265,9 @@ function createBatchProgress(notify) {
 
 /**
  * Rethrow unless catchExceptions is set; log and report failure otherwise.
- * @param {boolean} catchExceptions - Swallow exceptions when true
+ * @param {boolean} catchExceptions
  * @param {string} source - Caller name used in log prefixes
- * @param {() => Promise<import('./run-outcome.js').SummarizationRunOutcome>} run - Summarization step to run
+ * @param {() => Promise<import('./run-outcome.js').SummarizationRunOutcome>} run
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
 async function summarizeSafely(catchExceptions, source, run) {
@@ -290,18 +288,17 @@ async function summarizeSafely(catchExceptions, source, run) {
 }
 
 /**
- * Capture, call the summarizer, and validate one Layer 0 job.
  * The progress handle opens only after the passage validates so earlier
  * failures never leak it.
  * @param {object} p
- * @param {ChatMessage[]} p.chat - Chat array
- * @param {SummaryceptionStore} p.store - Chat store
- * @param {number} p.passageStart - First passage index
- * @param {number} p.endIdx - Last passage index
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
+ * @param {number} p.passageStart
+ * @param {number} p.endIdx
  * @param {string} [p.contextText] - Prebuilt pending context for multi-partition jobs
- * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @param {BatchProgressOwner} p.progress - Shared batch progress owner for this run
- * @param {number} p.total - Total partitions in the batch
+ * @param {number} p.total
  * @returns {Promise<{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, summary: string, status?: undefined} | {status: 'idle' | 'aborted' | 'failed'}>}
  */
 async function runLayer0Summarization({
@@ -363,8 +360,8 @@ async function runLayer0Summarization({
  * Commit a validated Layer 0 job as soon as the prompt guard allows, closing
  * the batch progress with the terminal outcome exactly once.
  * @param {object} p
- * @param {string} p.kind - Commit job kind
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} p.snapshot - Job snapshot
+ * @param {string} p.kind
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} p.snapshot
  * @param {BatchProgressOwner} p.progress - Batch progress owner for this run
  * @param {() => Promise<boolean>} p.commit - Commit executed inside commitWhenSafe's apply
  * @returns {Promise<boolean>}
@@ -389,14 +386,13 @@ async function commitLayer0Job({ kind, snapshot, progress, commit }) {
 }
 
 /**
- * Build the passage, call the summarizer, and commit the result.
- * @param {object} p - Batch parameters
- * @param {import('./chatutils.js').AssistantTurn[]} p.batch - Eligible turns
- * @param {ChatMessage[]} p.chat - Chat array
- * @param {SummaryceptionStore} p.store - Chat store
- * @param {number} p.passageStart - First passage index
- * @param {number} p.endIdx - Last passage index
- * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter
+ * @param {object} p
+ * @param {import('./chatutils.js').AssistantTurn[]} p.batch
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
+ * @param {number} p.passageStart
+ * @param {number} p.endIdx
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
 async function performBatchSummary({ chat, store, passageStart, endIdx, notify }) {
@@ -434,8 +430,7 @@ async function performBatchSummary({ chat, store, passageStart, endIdx, notify }
 }
 
 /**
- * Trace token stats for the passage sent to the summarizer.
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot - Job snapshot
+ * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
  * @returns {void}
  */
 function tracePassageTokens(snapshot) {
@@ -586,7 +581,6 @@ function isLayer0SnapshotValid(snapshot) {
 }
 
 /**
- * Get the first and last chat indices for a batch.
  * @param {import('./chatutils.js').AssistantTurn[]} batch
  * @returns {{ startIdx: number, endIdx: number }}
  */
@@ -598,7 +592,6 @@ function getBatchRange(batch) {
 }
 
 /**
- * Resolve the source range endpoint for a batch.
  * @param {number} batchEndIdx - Last assistant turn in the batch
  * @param {number | undefined} sourceEndIdx - Optional forced source endpoint
  * @returns {number}
@@ -615,8 +608,7 @@ function getSourceEndIdx(batchEndIdx, sourceEndIdx) {
 }
 
 /**
- * Ensure Layer 0 exists in the chat store.
- * @param {object} store - Chat store
+ * @param {object} store
  * @returns {void}
  */
 function ensureLayer0(store) {
