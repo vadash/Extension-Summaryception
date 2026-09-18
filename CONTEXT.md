@@ -157,3 +157,13 @@ _Avoid_: message pair, turn
 **Catch-up Window**:
 The most recent four Exchanges a single combined Auditor call covers after missed turns. Older Exchanges stay unknown to the Continuity State; the window only bounds coverage, never `turn_count`.
 _Avoid_: catch-up cap, recovery span
+
+**Auditor Flags**:
+The five per-pair booleans one Auditor reply carries (positive_interaction, slight, insult, betrayal, apology). All bond, sparks, grudge, and gate numbers are derived from them by code.
+Code: `applyPairFlags` (src/foundation/continuity.js)
+_Avoid_: sentiment scores, bond math
+
+**Canonical-name Registry**:
+The naming rule for Continuity State keys: copy each character's name exactly as the character card spells it (Latin spelling, never inflected prose forms); the player is always `User`, pair keys are `Name↔User`.
+Code: `USER_PAIR_PATTERN` (src/foundation/continuity.js); rule text in the Auditor default prompt
+_Avoid_: name normalization
