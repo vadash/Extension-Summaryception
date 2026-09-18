@@ -158,6 +158,11 @@ _Avoid_: message pair, turn
 The most recent four Exchanges a single combined Auditor call covers after missed turns. Older Exchanges stay unknown to the Continuity State; the window only bounds coverage, never `turn_count`.
 _Avoid_: catch-up cap, recovery span
 
+**Auditor Anchor**:
+The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping the anchored reply rewinds coverage one Exchange so the settled variation audits next.
+Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` (src/core/continuity-runner.js)
+_Avoid_: cursor, checkpoint
+
 **Auditor Flags**:
 The five per-pair booleans one Auditor reply carries (positive_interaction, slight, insult, betrayal, apology). All bond, sparks, grudge, and gate numbers are derived from them by code.
 Code: `applyPairFlags` (src/foundation/continuity.js)

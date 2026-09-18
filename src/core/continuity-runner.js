@@ -1,10 +1,21 @@
-import { classifyContinuity, applyPairFlags, deriveTurnCount } from '../foundation/continuity.js';
+import {
+    classifyContinuity,
+    applyPairFlags,
+    deriveTurnCount,
+    listAssistantIndicesAfter,
+} from '../foundation/continuity.js';
 import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import { debug, warn } from '../foundation/logger.js';
 import { getMessageIndexByScId } from '../foundation/message-identity.js';
 import { listNonEmptyLayers } from '../foundation/constants.js';
+import { AUDITOR_REPAIR_SECTIONS } from '../foundation/prompt-constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
-import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
+import {
+    bumpSummaryStoreMutationEpoch,
+    getChatStore,
+    getEffectiveSettings,
+    saveChatStore,
+} from '../foundation/state.js';
 import {
     buildRepairDiagnostics,
     buildStructuralRepairFeedback,
@@ -55,6 +66,39 @@ export function isAuditorTriggerMessage(message, type) {
         return false;
     }
     return type === 'normal';
+}
+
+/**
+ * Rewind the audit anchor over a swiped or continued assistant reply: the
+ * swipe replaced the anchored draft, so the next audit must re-cover that
+ * exchange. Only the anchored message rewinds, which makes repeat swipe
+ * events for the same draft idempotent. Store mutation mirrors the
+ * snippet-commit order: mutate, bump, persist.
+ * @param {ChatMessage | null | undefined} message - The swiped or continued assistant message.
+ * @returns {void}
+ */
+export function rewindContinuityAnchor(message) {
+    const anchorScId = String(message?.sc_id ?? '');
+    const store = getChatStore();
+    if (store.continuity.anchor_sc_id !== anchorScId) {
+        return;
+    }
+    const anchorIndex = getMessageIndexByScId(getChat()).get(anchorScId);
+    if (anchorIndex === undefined) {
+        return;
+    }
+    const chat = getChat();
+    let previousScId = '';
+    for (let index = anchorIndex - 1; index >= 0; index--) {
+        const candidate = chat[index];
+        if (candidate && !candidate.is_user && !candidate.is_system) {
+            previousScId = String(candidate.sc_id ?? '');
+            break;
+        }
+    }
+    store.continuity.anchor_sc_id = previousScId;
+    bumpSummaryStoreMutationEpoch(store);
+    void saveChatStore();
 }
 
 /**
@@ -192,7 +236,7 @@ async function dispatchAuditRound(storyTxt, contextStr, deps) {
     if (typeof text !== 'string') {
         return { status: 'frozen' };
     }
-    return { status: 'ok', audit: classifyAuditResponse(text), text };
+    return { status: 'ok', audit: classifyContinuity(text), text };
 }
 
 /**
@@ -248,6 +292,7 @@ async function freezeContinuity(identity) {
         return { status: 'aborted' };
     }
     store.continuity.stale = true;
+    bumpSummaryStoreMutationEpoch(store);
     if (!(await persistAudit(identity))) {
         return { status: 'aborted' };
     }
@@ -292,26 +337,19 @@ function isSameChatIdentity(a, b) {
 }
 
 /**
- * Latest assistant message sc_id at or after the anchor; the success path
- * re-points the anchor here.
+ * Latest assistant message sc_id after the anchor; the success path re-points
+ * the anchor here. The anchor is validated by resolveAnchorTurns before the
+ * audit runs, so a missing anchor has no indices to walk.
  * @param {ChatMessage[]} chat
  * @param {string} anchorScId
  * @returns {string}
  */
 function lastAssistantScIdAfter(chat, anchorScId) {
-    const indexById = getMessageIndexByScId(chat);
-    let startIndex = 0;
-    if (anchorScId) {
-        startIndex = (indexById.get(anchorScId) ?? -1) + 1;
+    const indices = listAssistantIndicesAfter(chat, anchorScId) ?? [];
+    if (indices.length === 0) {
+        return '';
     }
-    let lastScId = '';
-    for (let index = startIndex; index < chat.length; index++) {
-        const message = chat[index];
-        if (message && !message.is_user && !message.is_system) {
-            lastScId = String(message.sc_id ?? '');
-        }
-    }
-    return lastScId;
+    return String(chat[indices[indices.length - 1]].sc_id ?? '');
 }
 
 /**
@@ -322,18 +360,7 @@ function lastAssistantScIdAfter(chat, anchorScId) {
  * @returns {string}
  */
 function buildAuditStory(chat, anchorScId) {
-    const indexById = getMessageIndexByScId(chat);
-    let startIndex = 0;
-    if (anchorScId) {
-        startIndex = (indexById.get(anchorScId) ?? -1) + 1;
-    }
-    const assistantIndices = [];
-    for (let index = startIndex; index < chat.length; index++) {
-        const message = chat[index];
-        if (message && !message.is_user && !message.is_system) {
-            assistantIndices.push(index);
-        }
-    }
+    const assistantIndices = listAssistantIndicesAfter(chat, anchorScId) ?? [];
     const windowIndices = assistantIndices.slice(-AUDIT_WINDOW_EXCHANGES);
     const included = new Set(windowIndices);
     for (const index of windowIndices) {
@@ -380,37 +407,6 @@ function buildAuditorContext(prior, store) {
 }
 
 /**
- * Parse one auditor reply: schema verdicts plus the raw per-pair flag
- * objects, which classifyContinuity's numeric normalization would drop.
- * @param {string} text
- * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }}
- */
-function classifyAuditResponse(text) {
-    let parsed;
-    /** @type {Record<string, Record<string, unknown>>} */
-    const flags = {};
-    try {
-        parsed = JSON.parse(text);
-    } catch {
-        return { state: null, sectionVerdicts: ['parse'], flags };
-    }
-    const { state, sectionVerdicts } = classifyContinuity(parsed);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const bonds = /** @type {{ bonds?: unknown }} */ (parsed).bonds;
-        if (bonds && typeof bonds === 'object' && !Array.isArray(bonds)) {
-            for (const [pair, value] of Object.entries(
-                /** @type {Record<string, unknown>} */ (bonds),
-            )) {
-                if (value && typeof value === 'object' && !Array.isArray(value)) {
-                    flags[pair] = /** @type {Record<string, unknown>} */ (value);
-                }
-            }
-        }
-    }
-    return { state, sectionVerdicts, flags };
-}
-
-/**
  * Apply one validated audit through the JS rulebook: this module is the sole
  * writer of bond/sparks/grudge; the Auditor's booleans and section payloads
  * never touch the counters directly.
@@ -431,47 +427,9 @@ function applyAuditResult(prior, audit, turnCount, anchorScId) {
     prior.turn_count = turnCount;
     prior.anchor_sc_id = anchorScId;
     prior.stale = false;
+    bumpSummaryStoreMutationEpoch(getChatStore());
     debug('Continuity audit applied:', { turnCount, anchorScId });
 }
-
-const AUDITOR_REPAIR_SECTIONS = Object.freeze({
-    parse: {
-        id: 'parse',
-        label: 'JSON object',
-        repairInstruction:
-            'The previous reply was not valid JSON. Reply with the complete JSON state object only.',
-    },
-    turn_count: {
-        id: 'turn_count',
-        label: 'turn_count',
-        repairInstruction:
-            'The "turn_count" key was missing. Emit the complete JSON state object including it.',
-    },
-    bonds: {
-        id: 'bonds',
-        label: 'bonds',
-        repairInstruction:
-            'The "bonds" section was missing, malformed, or named a pair outside the exchanges. Emit a complete "bonds" object keyed "<Name>↔User" with the five booleans per pair.',
-    },
-    agendas: {
-        id: 'agendas',
-        label: 'agendas',
-        repairInstruction:
-            'The "agendas" section was missing or malformed. Emit a complete "agendas" object (empty is valid).',
-    },
-    gm_notes: {
-        id: 'gm_notes',
-        label: 'gm_notes',
-        repairInstruction:
-            'The "gm_notes" section was missing, malformed, or used an unknown tag. Emit the note array using only [R], [T], and [S] tags.',
-    },
-    physics: {
-        id: 'physics',
-        label: 'physics',
-        repairInstruction:
-            'The "physics" section was missing or malformed. Emit all five physics fields.',
-    },
-});
 
 /**
  * Section-aware repair feedback for one rejected auditor reply.

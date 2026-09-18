@@ -12,6 +12,7 @@ import { buildSummarizerPipelineInput } from '../src/core/summarizer-pipeline.js
 import {
     abortActiveAuditorRun,
     isAuditorTriggerMessage,
+    rewindContinuityAnchor,
     runAuditorExtraction,
 } from '../src/core/continuity-runner.js';
 import { defaultSettings } from '../src/foundation/constants.js';
@@ -234,6 +235,29 @@ describe('runAuditorExtraction', () => {
         expect(continuity.stale).toBe(false);
     });
 
+    it('bumps the store mutation epoch after applying an audit', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+
+        await runAuditorExtraction();
+
+        expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(1);
+    });
+
+    it('bumps the store mutation epoch when the audit freezes', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({ status: 'completed', text: 'not json' });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('failed');
+        expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(1);
+        expect(ctx.chatMetadata.summaryception.continuity.stale).toBe(true);
+    });
+
     it('freezes the previous state with a stale marker when the repair also fails', async () => {
         installSoloChat();
         callSummarizer
@@ -372,6 +396,48 @@ describe('runAuditorExtraction', () => {
         releaseSecond({ status: 'completed', text: auditorJson() });
         expect((await second).status).toBe('aborted');
         expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a2');
+    });
+});
+
+describe('rewindContinuityAnchor', () => {
+    it('rewinds the anchor to the closest preceding assistant message on a swipe', () => {
+        const ctx = installSoloChat();
+
+        rewindContinuityAnchor(ctx.chat[3]);
+
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a1');
+    });
+
+    it('resets to cold start when no assistant message precedes the anchor', () => {
+        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a2' })];
+        const ctx = installSoloChat({ chat, continuity: priorContinuity({ anchor_sc_id: 'a2' }) });
+
+        rewindContinuityAnchor(chat[1]);
+
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('');
+    });
+
+    it('treats a repeat swipe of the same message as a no-op', () => {
+        const ctx = installSoloChat();
+
+        rewindContinuityAnchor(ctx.chat[3]);
+        rewindContinuityAnchor(ctx.chat[3]);
+
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a1');
+        expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(1);
+    });
+
+    it('bumps the store mutation epoch and persists when the anchor rewinds', () => {
+        const saves = [];
+        const ctx = installSoloChat();
+        ctx.saveMetadata = async () => {
+            saves.push('metadata');
+        };
+
+        rewindContinuityAnchor(ctx.chat[3]);
+
+        expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(1);
+        expect(saves).toEqual(['metadata']);
     });
 });
 

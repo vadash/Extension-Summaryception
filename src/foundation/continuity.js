@@ -172,19 +172,24 @@ export function normalizeContinuity(continuity) {
  * or merging: the caller owns the freeze decision from sectionVerdicts.
  * Field damage is clamped into the returned state; missing sections, an
  * unknown pair key, or an unknown note tag produce a section verdict.
+ * The returned flags mirror the raw per-pair bond payloads (record values
+ * only) before numeric normalization, so the rulebook can read what the
+ * Auditor actually said.
  * @param {string | unknown} raw - Raw JSON text or an already-parsed value.
- * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[] }}
+ * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }}
  */
 export function classifyContinuity(raw) {
     let parsed;
     try {
         parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     } catch {
-        return { state: null, sectionVerdicts: ['parse'] };
+        return { state: null, sectionVerdicts: ['parse'], flags: {} };
     }
     const source = isRecord(parsed) ? parsed : {};
     const state = createDefaultContinuity();
     const sectionVerdicts = [];
+    /** @type {Record<string, Record<string, unknown>>} */
+    const flags = {};
 
     if (source.turn_count === undefined) {
         sectionVerdicts.push('turn_count');
@@ -199,6 +204,9 @@ export function classifyContinuity(raw) {
                 unknownPair = true;
             }
             state.bonds[key] = normalizeBondPair(value);
+            if (isRecord(value)) {
+                flags[key] = value;
+            }
         }
         if (unknownPair) {
             sectionVerdicts.push('bonds');
@@ -231,7 +239,7 @@ export function classifyContinuity(raw) {
         sectionVerdicts.push('physics');
     }
 
-    return { state, sectionVerdicts };
+    return { state, sectionVerdicts, flags };
 }
 
 /**
@@ -268,9 +276,8 @@ export function applyPairFlags(pair, flags, turnCount) {
             next.sparks = Math.max(0, next.sparks - 1);
         }
         if (next.sparks >= 7) {
-            // Grudge 3+ dulls positive gains: floor(1 / 2) drops the +1 to 0,
-            // but the sparks are still spent.
-            next.bond += next.grudge >= 3 ? Math.floor(1 / 2) : 1;
+            // Grudge 3+ dulls the gain to zero; the sparks are still spent.
+            next.bond += next.grudge >= 3 ? 0 : 1;
             next.sparks = 0;
         }
     }
@@ -291,15 +298,16 @@ export function applyPairFlags(pair, flags, turnCount) {
 }
 
 /**
- * Count assistant messages strictly after the anchor sc_id. Identity-based on
- * purpose: swipes, continues, deletions, and forks all break index math, and
- * the %3 / %5 conversions are phase-sensitive.
+ * Chat indices of assistant messages strictly after the anchor sc_id, or null
+ * when a non-empty anchor is missing from the chat. Identity-based on purpose:
+ * swipes, continues, deletions, and forks all break index math, and every
+ * consumer (turn counting, audit coverage, anchor re-pointing) must walk the
+ * same range so the %3 / %5 conversions stay phase-sensitive.
  * @param {ChatMessage[] | unknown} chat
- * @param {string} anchorScId - '' counts from chat start; returns null when a
- *   non-empty anchor is missing from the chat (the caller re-anchors).
- * @returns {number | null}
+ * @param {string} anchorScId - '' selects the whole chat.
+ * @returns {number[] | null}
  */
-export function deriveTurnCount(chat, anchorScId) {
+export function listAssistantIndicesAfter(chat, anchorScId) {
     const messages = Array.isArray(chat) ? chat : [];
     let startIndex = 0;
     if (anchorScId) {
@@ -309,14 +317,26 @@ export function deriveTurnCount(chat, anchorScId) {
         }
         startIndex = anchorIndex + 1;
     }
-    let count = 0;
+    const indices = [];
     for (let index = startIndex; index < messages.length; index++) {
         const message = messages[index];
         if (message && !message.is_user && !message.is_system) {
-            count += 1;
+            indices.push(index);
         }
     }
-    return count;
+    return indices;
+}
+
+/**
+ * Count assistant messages strictly after the anchor sc_id.
+ * @param {ChatMessage[] | unknown} chat
+ * @param {string} anchorScId - '' counts from chat start; returns null when a
+ *   non-empty anchor is missing from the chat (the caller re-anchors).
+ * @returns {number | null}
+ */
+export function deriveTurnCount(chat, anchorScId) {
+    const indices = listAssistantIndicesAfter(chat, anchorScId);
+    return indices === null ? null : indices.length;
 }
 
 const GATE_LADDER = Object.freeze([

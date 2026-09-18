@@ -81,7 +81,10 @@ function syncSettingsInputs(s, effectiveSettings) {
 }
 
 /**
- *
+ * Toggle the complexity panels, continuity section, and stop/resume controls
+ * from the settings object.
+ * @param {ReturnType<typeof getSettings>} s
+ * @returns {void}
  */
 export function syncEnabledContent(s) {
     // Off shows the banner and keeps the complexity panel (from configMode)

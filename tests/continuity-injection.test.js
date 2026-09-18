@@ -222,6 +222,31 @@ describe('updateContinuityInjection', () => {
         );
     });
 
+    it('uncaps the depth bump while the state is frozen stale', () => {
+        const chat = [
+            makeMessage({ scId: 'anchor', isUser: false }),
+            ...Array.from({ length: 9 }, (_, i) =>
+                makeMessage({ scId: `extra-${i}`, isUser: false }),
+            ),
+        ];
+        const { setExtensionPrompt } = installWithContinuity({
+            settings: { continuityEnabled: true },
+            continuity: makeContinuity({ anchor_sc_id: 'anchor', stale: true }),
+            chat,
+        });
+
+        updateContinuityInjection();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith(
+            'summaryception_continuity',
+            expect.any(String),
+            EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+            1 + 9,
+            false,
+            EXTENSION_PROMPT_ROLES.SYSTEM,
+        );
+    });
+
     it('clears the slot when the rendered block is empty', () => {
         const { setExtensionPrompt } = installWithContinuity({
             settings: { continuityEnabled: true },

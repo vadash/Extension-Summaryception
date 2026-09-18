@@ -7,6 +7,9 @@ import {
     defaultSettings,
 } from '../src/foundation/constants.js';
 import {
+    AUDITOR_DISCOVERY_RULE,
+    AUDITOR_NAME_RULE,
+    AUDITOR_REPAIR_SECTIONS,
     DEFAULT_AUDITOR_SYSTEM_PROMPT,
     DEFAULT_AUDITOR_USER_PROMPT,
 } from '../src/foundation/prompt-constants.js';
@@ -14,7 +17,7 @@ import { getSettings } from '../src/foundation/state.js';
 import { installSummaryContext } from './test-helpers.js';
 
 describe('default auditor prompts', () => {
-    it('tags gm_notes with [R], [T], and [S] and never [D]', () => {
+    it('carries the [R], [T], and [S] note tag vocabulary and never [D]', () => {
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[R]');
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[T]');
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[S]');
@@ -27,29 +30,47 @@ describe('default auditor prompts', () => {
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('"aware"');
     });
 
-    it('pins the canonical-name rule', () => {
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('↔User');
-        expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain('↔User');
+    it('wires the canonical-name and NPC-discovery rules into both prompts', () => {
+        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_NAME_RULE);
+        expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain(AUDITOR_NAME_RULE);
+        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_DISCOVERY_RULE);
+        expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain(AUDITOR_DISCOVERY_RULE);
     });
+});
 
-    it('pins the NPC-discovery rule', () => {
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('first appearance');
-        expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain('first appearance');
+describe('auditor repair sections', () => {
+    it('exposes repair feedback for every continuity section verdict', () => {
+        expect(Object.keys(AUDITOR_REPAIR_SECTIONS).sort()).toEqual([
+            'agendas',
+            'bonds',
+            'gm_notes',
+            'parse',
+            'physics',
+            'turn_count',
+        ]);
     });
 });
 
 describe('auditor prompt profile wiring', () => {
-    it('appends the auditor pairs after the promotion pairs', () => {
-        expect(PROMPT_SETTING_KEYS).toHaveLength(8);
-        expect(PROMPT_SETTING_KEYS[6]).toEqual({
+    it('registers the auditor pairs after the promotion pairs', () => {
+        const bySettingKey = (settingKey) =>
+            PROMPT_SETTING_KEYS.find((key) => key.settingKey === settingKey);
+        expect(bySettingKey('auditorSystemPrompt')).toEqual({
             presetKey: 'auditorSystemPromptPreset',
             settingKey: 'auditorSystemPrompt',
         });
-        expect(PROMPT_SETTING_KEYS[7]).toEqual({
+        expect(bySettingKey('auditorUserPrompt')).toEqual({
             presetKey: 'auditorPromptPreset',
             settingKey: 'auditorUserPrompt',
         });
-        expect(PROMPT_SETTING_KEYS[5].presetKey).toBe('promotionRepairPromptPreset');
+        const indexOfSetting = (settingKey) =>
+            PROMPT_SETTING_KEYS.findIndex((key) => key.settingKey === settingKey);
+        const promotionIndex = indexOfSetting('promotionRepairPrompt');
+        const systemIndex = indexOfSetting('auditorSystemPrompt');
+        const userIndex = indexOfSetting('auditorUserPrompt');
+        expect(promotionIndex).toBeGreaterThanOrEqual(0);
+        expect(systemIndex).toBeGreaterThan(promotionIndex);
+        expect(userIndex).toBeGreaterThan(systemIndex);
     });
 
     it('defaults both auditor presets to continuity', () => {

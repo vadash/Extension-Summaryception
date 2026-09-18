@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { makeMessage } from './test-helpers.js';
+import { makeMessage, installSummaryContext, makeSummaryStore } from './test-helpers.js';
+import { onAppReady } from '../src/entry/events.js';
+import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 
 import {
     applyPairFlags,
@@ -85,6 +87,7 @@ describe('classifyContinuity', () => {
         expect(classifyContinuity('{"turn_count": 42,')).toEqual({
             state: null,
             sectionVerdicts: ['parse'],
+            flags: {},
         });
     });
 
@@ -117,10 +120,12 @@ describe('classifyContinuity', () => {
             gm_notes: ['[T] Deadline Friday'],
             physics: { location: 'Track', clothing_state: null },
         });
-        const { state, sectionVerdicts } = classifyContinuity(raw);
+        const { state, sectionVerdicts, flags } = classifyContinuity(raw);
         expect(sectionVerdicts).toEqual([]);
         expect(state.turn_count).toBe(5);
         expect(state.bonds['Quipsy↔User']).toEqual({ bond: 20, sparks: 0, grudge: 99 });
+        // flags stay pre-normalization; only the state is clamped.
+        expect(flags).toEqual({ 'Quipsy↔User': { bond: 100, sparks: -3, grudge: 999 } });
         expect(state.agendas.Quipsy).toEqual({
             task: 'Train',
             step: { current: 2, max: 2 },
@@ -443,5 +448,31 @@ describe('resolveGate', () => {
         expect(resolveGate(11)).toBe('kiss');
         expect(resolveGate(12)).toBe('intimacy');
         expect(resolveGate(20)).toBe('intimacy');
+    });
+});
+
+describe('anchor reconcile on chat load', () => {
+    afterEach(() => {
+        resetCommitStateForTests();
+        delete globalThis.SillyTavern;
+    });
+
+    it('re-anchors a stale anchor to cold start and bumps the mutation epoch on load', async () => {
+        const chat = [makeMessage({ scId: 'message-0' })];
+        installSummaryContext({
+            chat,
+            metadata: {
+                summaryception: makeSummaryStore({
+                    mutationEpoch: 2,
+                    continuity: { ...coldStart(), anchor_sc_id: 'ghost' },
+                }),
+            },
+        });
+
+        await onAppReady();
+
+        const store = globalThis.SillyTavern.getContext().chatMetadata.summaryception;
+        expect(store.continuity.anchor_sc_id).toBe('');
+        expect(store.mutationEpoch).toBe(3);
     });
 });

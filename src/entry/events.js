@@ -2,12 +2,17 @@ import { getChat, isDryRunEvent } from '../foundation/context.js';
 import { debug, info, isDebugEnabled, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
 import { deriveTurnCount } from '../foundation/continuity.js';
-import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
+import {
+    bumpSummaryStoreMutationEpoch,
+    getChatStore,
+    getEffectiveSettings,
+} from '../foundation/state.js';
 import { refreshFull, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
 import {
     abortActiveAuditorRun,
     isAuditorTriggerMessage,
+    rewindContinuityAnchor,
     runAuditorExtraction,
 } from '../core/continuity-runner.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
@@ -142,7 +147,7 @@ let promptFreezeRecoveryBound = false;
  * @param {number} messageIndex
  * @param {object} [options]
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
- * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; only 'normal' triggers an audit
+ * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, 'swipe' and 'continue' rewind the anchor
  * @returns {void}
  */
 export function onMessageReceived(messageIndex, { notify, type } = {}) {
@@ -159,6 +164,8 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
                 void runAuditorExtraction({ notify }).catch((e) => {
                     warn('Continuity auditor run error:', e);
                 });
+            } else if (type === 'swipe' || type === 'continue') {
+                rewindContinuityAnchor(msg);
             }
         }
     } catch (e) {
@@ -333,6 +340,7 @@ function reconcileContinuityAnchor(chat, store) {
         return false;
     }
     continuity.anchor_sc_id = '';
+    bumpSummaryStoreMutationEpoch(store);
     return true;
 }
 

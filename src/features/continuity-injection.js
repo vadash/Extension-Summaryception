@@ -94,12 +94,15 @@ export function updateContinuityInjection() {
             });
             return;
         }
-        // One combined catch-up covers at most AUDIT_WINDOW_EXCHANGES
-        // exchanges, so the depth bump is bounded by that window.
         const drift = deriveTurnCount(getChat(), state.anchor_sc_id) ?? 0;
+        // A catch-up covers at most AUDIT_WINDOW_EXCHANGES exchanges, so the
+        // success path bounds the depth bump by that window. A frozen state
+        // has no catch-up; the injection must reach past every uncovered
+        // exchange so the main model still sees the stale marker.
+        const depth = state.stale ? 1 + drift : 1 + Math.min(drift, AUDIT_WINDOW_EXCHANGES);
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
-            depth: 1 + Math.min(drift, AUDIT_WINDOW_EXCHANGES),
+            depth,
             scan: false,
             role: EXTENSION_PROMPT_ROLES.SYSTEM,
         });
