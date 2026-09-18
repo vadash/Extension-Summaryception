@@ -29,19 +29,6 @@ const MIN_LAYER0_OUTPUT_TOKENS = 50;
 const MAX_LAYER0_TARGET_TOKENS = 700;
 
 /**
- * Check whether a summarizer call should receive runtime compression controls.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @returns {boolean}
- */
-export function isLayer0CompressionCall(metadata = {}) {
-    return (
-        metadata.kind === 'layer0' ||
-        metadata.kind === 'regenerate' ||
-        metadata.kind === 'promotion'
-    );
-}
-
-/**
  * Normalize the configured Layer 0 summary target.
  * @param {Partial<ExtensionSettings>} [settings]
  * @returns {number}
@@ -76,15 +63,6 @@ export function getLayer0SummaryTokenBounds(settings = {}) {
  */
 export function getLayer0SummaryRepairCeiling(settings = {}) {
     return Math.round(getLayer0SummaryTokenTarget(settings) * LAYER0_REPAIR_RATIO);
-}
-
-/**
- * Check whether a summarizer call should receive Layer 0 size validation.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
- * @returns {boolean}
- */
-export function isLayer0SizeGuardCall(metadata = {}) {
-    return metadata.kind === 'layer0' || metadata.kind === 'regenerate';
 }
 
 /**
@@ -127,11 +105,11 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
  * Validate exact Layer 0 output size after structural validation.
  * @param {string} text - Cleaned summarizer output
  * @param {Partial<ExtensionSettings>} settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }>}
  */
-export async function validateLayer0OutputSize(text, settings, metadata = {}) {
-    if (!isLayer0SizeGuardCall(metadata)) {
+export async function validateLayer0OutputSize(text, settings, profile) {
+    if (!profile?.policy?.sizeGuard) {
         return { valid: true, error: null, repairFeedback: '' };
     }
 
@@ -147,7 +125,7 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
         text,
         bounds,
         narrativeRepairCeiling,
-        metadata,
+        provenance: profile.provenance,
         outputTokens: outputTokens.count,
         narrative,
         narrativeTokenCount: narrativeTokens.count,
@@ -178,7 +156,7 @@ export async function validateLayer0OutputSize(text, settings, metadata = {}) {
  * @param {string} p.text - Cleaned draft, reported as the rejected draft
  * @param {{ target: number, min: number, max: number }} p.bounds - Layer 0 token bounds
  * @param {number} p.narrativeRepairCeiling - Narrative token ceiling eligible for repair
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata
+ * @param {import('./call-profile.js').CallProvenance} p.provenance
  * @param {number} p.outputTokens - Total draft tokens
  * @param {string} p.narrative - Narrative section text
  * @param {number} p.narrativeTokenCount - Narrative section token count
@@ -188,12 +166,12 @@ function buildLayer0SizeDiagnostics({
     text,
     bounds,
     narrativeRepairCeiling,
-    metadata,
+    provenance,
     outputTokens,
     narrative,
     narrativeTokenCount,
 }) {
-    const sourceTokens = getSourceTokenCount(metadata);
+    const sourceTokens = getSourceTokenCount(provenance);
     const narrativeTooLong = narrativeTokenCount > narrativeRepairCeiling;
     return buildRepairDiagnostics({
         scope: 'Layer 0',
@@ -306,21 +284,21 @@ function rejectLayer0Size(diagnostics, sourceBudget = {}) {
  * Add non-persisted compression constraints to the final prompt.
  * @param {string} prompt
  * @param {Partial<ExtensionSettings>} settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {string}
  */
-export function appendLayer0PromptConstraints(prompt, settings, metadata = {}) {
-    if (!isLayer0CompressionCall(metadata)) {
+export function appendLayer0PromptConstraints(prompt, settings, profile) {
+    if (!profile?.policy?.compression) {
         return prompt;
     }
 
-    if (metadata.kind === 'promotion') {
-        return appendPromotionPromptConstraints(prompt, settings, metadata);
+    if (profile.policy.promotionConstraints) {
+        return appendPromotionPromptConstraints(prompt, settings, profile.provenance);
     }
 
     const insert = [
         buildLayer0BudgetHint({ targetTokens: getLayer0SummaryTokenTarget(settings) }),
-        buildLayer0SourceRangeLine(metadata),
+        buildLayer0SourceRangeLine(profile.provenance),
     ]
         .filter(Boolean)
         .join('\n\n');

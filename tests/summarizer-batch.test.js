@@ -7,15 +7,29 @@ import {
     summarizeAtomicLayer0Partitions,
     summarizeBatchFromTurns,
 } from '../src/core/summarizer-batch.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
     installSummaryContext,
     makeMessage,
     makeNotifyRecorder,
+    makeSummarySettings,
     makeSummaryStore,
 } from './test-helpers.js';
 
 /** Minimal valid summary passage returned by the stubbed request layer. */
 const VALID_SUMMARY = '[NARRATIVE]\nA concise summary.\n\ncurrent_date_time: 2024-07-04 16 Thu';
+
+/**
+ * Completed outcome carrying the profile the real request layer resolves from
+ * the dispatch metadata the batch builds.
+ */
+function completedOutcome(metadata) {
+    return {
+        status: 'completed',
+        text: VALID_SUMMARY,
+        profile: resolveCallProfile(makeSummarySettings(), metadata),
+    };
+}
 
 describe('Layer 0 deferred cleanup commit', () => {
     afterEach(() => {
@@ -40,12 +54,9 @@ describe('Layer 0 deferred cleanup commit', () => {
         const chat = buildChat();
         installSummaryContext({ chat, metadata: { summaryception: makeSummaryStore() } });
         let progressOpenAtRequest = false;
-        callSummarizer.mockImplementation(async () => {
+        callSummarizer.mockImplementation(async (_story, _context, metadata) => {
             progressOpenAtRequest = recorder.events.some((event) => event.type === 'progress');
-            return {
-                status: 'completed',
-                text: VALID_SUMMARY,
-            };
+            return completedOutcome(metadata);
         });
 
         await expect(runBatch(recorder)).resolves.toEqual({
@@ -120,10 +131,9 @@ describe('Layer 0 deferred cleanup commit', () => {
         delete chat[1].sc_id;
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        callSummarizer.mockResolvedValue({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        callSummarizer.mockImplementation(
+            async (_story, _context, metadata) => await completedOutcome(metadata),
+        );
 
         await expect(runBatch()).resolves.toEqual({
             status: 'completed',
@@ -143,12 +153,14 @@ describe('Layer 0 deferred cleanup commit', () => {
         const saveChat = vi.fn(async () => {});
         const reloadCurrentChat = vi.fn(async () => {});
         let resolveSummary;
-        callSummarizer.mockImplementation(
-            () =>
-                new Promise((resolve) => {
-                    resolveSummary = resolve;
-                }),
-        );
+        /** @type {object} */
+        let dispatchMetadata;
+        callSummarizer.mockImplementation((_story, _context, metadata) => {
+            dispatchMetadata = metadata;
+            return new Promise((resolve) => {
+                resolveSummary = resolve;
+            });
+        });
         installSummaryContext({
             chat,
             metadata,
@@ -162,10 +174,7 @@ describe('Layer 0 deferred cleanup commit', () => {
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
         expect(saveChat).not.toHaveBeenCalled();
-        resolveSummary({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        resolveSummary(completedOutcome(dispatchMetadata));
         await expect(resultPromise).resolves.toEqual({ status: 'completed', completed: 1 });
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
@@ -186,13 +195,28 @@ describe('Layer 0 deferred cleanup commit', () => {
             }
         });
         installSummaryContext({ chat, metadata, saveMetadata });
-        callSummarizer.mockResolvedValue({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        callSummarizer.mockImplementation(
+            async (_story, _context, metadata) => await completedOutcome(metadata),
+        );
         await expect(runBatch()).rejects.toThrow('metadata write failed');
 
         expect(chat).toEqual(originalChat);
+        expect(metadata.summaryception.layers[0]).toEqual([]);
+        expect(metadata.summaryception.mutationEpoch).toBe(0);
+    });
+
+    it('fails the batch and skips the commit when the profile guard rejects a headerless summary', async () => {
+        const chat = buildChat();
+        const metadata = { summaryception: makeSummaryStore() };
+        installSummaryContext({ chat, metadata });
+        callSummarizer.mockImplementation(async (_story, _context, dispatchMetadata) => ({
+            status: 'completed',
+            text: 'A headerless summary paragraph.',
+            profile: resolveCallProfile(makeSummarySettings(), dispatchMetadata),
+        }));
+
+        await expect(runBatch(makeNotifyRecorder())).resolves.toEqual({ status: 'failed' });
+
         expect(metadata.summaryception.layers[0]).toEqual([]);
         expect(metadata.summaryception.mutationEpoch).toBe(0);
     });
@@ -214,11 +238,10 @@ describe('Layer 0 atomic multi-partition progress', () => {
         ];
         installSummaryContext({ chat, metadata: { summaryception: makeSummaryStore() } });
         callSummarizer
-            .mockResolvedValueOnce({
-                status: 'completed',
-                text: VALID_SUMMARY,
-            })
-            .mockResolvedValueOnce({ status: 'aborted' });
+            .mockImplementationOnce(
+                async (_story, _context, metadata) => await completedOutcome(metadata),
+            )
+            .mockImplementationOnce(async () => ({ status: 'aborted' }));
         const partitions = [
             { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
             { turns: [{ index: 3 }], sourceStartIdx: 3, sourceEndIdx: 3 },
@@ -252,10 +275,9 @@ describe('Layer 0 atomic multi-partition progress', () => {
             makeMessage({ scId: undefined, mes: 'Second assistant scene.' }),
         ];
         installSummaryContext({ chat, metadata: { summaryception: makeSummaryStore() } });
-        callSummarizer.mockResolvedValueOnce({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        callSummarizer.mockImplementation(
+            async (_story, _context, metadata) => await completedOutcome(metadata),
+        );
         const partitions = [
             { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
             { turns: [{ index: 3 }], sourceStartIdx: 3, sourceEndIdx: 3 },
@@ -283,9 +305,9 @@ describe('Layer 0 atomic multi-partition progress', () => {
         ];
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        callSummarizer.mockImplementation(async () => {
+        callSummarizer.mockImplementation(async (_story, _context, dispatchMetadata) => {
             metadata.summaryception.mutationEpoch += 1;
-            return { status: 'completed', text: VALID_SUMMARY };
+            return completedOutcome(dispatchMetadata);
         });
         const partitions = [
             { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
@@ -312,12 +334,12 @@ describe('Layer 0 atomic multi-partition progress', () => {
         ];
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        callSummarizer.mockImplementation(async () => {
+        callSummarizer.mockImplementation(async (_story, _context, metadata) => {
             installSummaryContext({
                 chat: [makeMessage({ scId: 'other-chat', mes: 'Other chat.' })],
                 metadata,
             });
-            return { status: 'completed', text: VALID_SUMMARY };
+            return completedOutcome(metadata);
         });
         const partitions = [
             { turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 },
@@ -349,10 +371,9 @@ describe('Layer 0 atomic multi-partition progress', () => {
             }
         });
         installSummaryContext({ chat, metadata, saveMetadata });
-        callSummarizer.mockResolvedValue({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        callSummarizer.mockImplementation(
+            async (_story, _context, metadata) => await completedOutcome(metadata),
+        );
         const partitions = [{ turns: [{ index: 1 }], sourceStartIdx: 1, sourceEndIdx: 1 }];
 
         await expect(summarizeAtomicLayer0Partitions(partitions, {}, undefined)).rejects.toThrow(

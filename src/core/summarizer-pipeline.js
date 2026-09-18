@@ -1,8 +1,8 @@
-import { defaultSettings } from '../foundation/constants.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
 import { EXECUTION_TRIGGER_AUDITOR, insertBeforeTrigger } from '../foundation/prompt-parts.js';
 import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
+import { resolveCallProfile } from './call-profile.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
@@ -10,13 +10,16 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  * @typedef {object} SummarizerPipelineInputRequest
  * @property {string} storyTxt - The story text to summarize
  * @property {string} contextStr - The accumulated context string
- * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata
+ * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Resolver input: call category plus provenance
  * @property {ExtensionSettings} [settings] - Effective settings override
  */
 
 /**
+ * Resolve the call profile once at dispatch and render its prompts. The
+ * returned profile is frozen policy: the runner consumes it instead of
+ * re-deriving per-attempt decisions from the live settings.
  * @param {SummarizerPipelineInputRequest} request
- * @returns {Promise<{ settings: ExtensionSettings, systemPrompt: string, prompt: string, repairPrompt: string, metadata: import('./summarizer-usage.js').SummarizerCallMetadata }>}
+ * @returns {Promise<{ settings: ExtensionSettings, prompt: string, repairPrompt: string, profile: import('./call-profile.js').CallProfile }>}
  */
 export async function buildSummarizerPipelineInput({
     storyTxt,
@@ -24,38 +27,33 @@ export async function buildSummarizerPipelineInput({
     metadata = {},
     settings = getEffectiveSettings(),
 }) {
-    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
-    const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
+    const call = await buildUsageMetadata(metadata, storyTxt);
+    const profile = resolveCallProfile(settings, call);
     let prompt = buildSummarizerPrompt({
-        template: promptConfig.userPromptTemplate,
+        template: profile.policy.userPromptTemplate,
         storyTxt,
         contextStr,
         settings,
-        metadata: usageMetadata,
+        profile,
     });
-    if (metadata.kind === 'auditor' && metadata.auditorRepair) {
-        prompt = insertBeforeTrigger(prompt, metadata.auditorRepair, EXECUTION_TRIGGER_AUDITOR);
+    if (call.kind === 'auditor' && call.auditorRepair) {
+        prompt = insertBeforeTrigger(prompt, call.auditorRepair, EXECUTION_TRIGGER_AUDITOR);
     }
-    const repairPromptTemplate = resolveLayer0RepairPromptTemplate(settings, usageMetadata);
-    const repairPrompt = repairPromptTemplate
+    const repairPrompt = profile.policy.repairPromptTemplate
         ? buildSummarizerPrompt({
-              template: repairPromptTemplate,
+              template: profile.policy.repairPromptTemplate,
               storyTxt,
               contextStr,
               settings,
-              metadata: {
-                  ...usageMetadata,
-                  layer0Repair: true,
-              },
+              profile,
           })
         : '';
 
     return {
         settings,
-        systemPrompt: promptConfig.systemPrompt,
         prompt,
         repairPrompt,
-        metadata: usageMetadata,
+        profile,
     };
 }
 
@@ -83,13 +81,13 @@ export async function traceSummarizerInputTokens(storyTxt, contextStr) {
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {string} p.summary - Cleaned summarizer response
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @param {import('./call-profile.js').CallProfile} p.profile - Resolved call profile
  * @returns {Promise<import('./summarizer-usage.js').SummarizerTokenUsage>}
  */
-export async function recordSuccessfulSummarizerUsage({ systemPrompt, prompt, summary, metadata }) {
+export async function recordSuccessfulSummarizerUsage({ systemPrompt, prompt, summary, profile }) {
     const usage = await estimateSummarizerUsage(systemPrompt, prompt, summary);
     recordSummarizerUsage({
-        metadata,
+        profile,
         ...usage,
     });
     return usage;
@@ -134,87 +132,19 @@ function hasSourceTokenMetadata(metadata = {}) {
 }
 
 /**
- * @param {ExtensionSettings} settings - Settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
- * @returns {{ systemPrompt: string, userPromptTemplate: string }}
- */
-function resolveSummarizerPromptConfig(settings, metadata = {}) {
-    if (metadata.kind === 'promotion') {
-        return {
-            systemPrompt: getStringSetting(
-                settings.promotionSystemPrompt,
-                defaultSettings.promotionSystemPrompt,
-            ),
-            userPromptTemplate: getStringSetting(
-                metadata.promotionRepair
-                    ? settings.promotionRepairPrompt
-                    : settings.promotionUserPrompt,
-                metadata.promotionRepair
-                    ? defaultSettings.promotionRepairPrompt
-                    : defaultSettings.promotionUserPrompt,
-            ),
-        };
-    }
-
-    if (metadata.kind === 'auditor') {
-        return {
-            systemPrompt: getStringSetting(
-                settings.auditorSystemPrompt,
-                defaultSettings.auditorSystemPrompt,
-            ),
-            userPromptTemplate: getStringSetting(
-                settings.auditorUserPrompt,
-                defaultSettings.auditorUserPrompt,
-            ),
-        };
-    }
-
-    return {
-        systemPrompt: getStringSetting(
-            settings.summarizerSystemPrompt,
-            defaultSettings.summarizerSystemPrompt,
-        ),
-        userPromptTemplate: getStringSetting(
-            settings.summarizerUserPrompt,
-            defaultSettings.summarizerUserPrompt,
-        ),
-    };
-}
-
-function resolveLayer0RepairPromptTemplate(settings, metadata = {}) {
-    if (metadata.kind !== 'layer0' && metadata.kind !== 'regenerate') {
-        return '';
-    }
-    return getStringSetting(
-        settings.summarizerRepairPrompt,
-        defaultSettings.summarizerRepairPrompt,
-    );
-}
-
-/**
- * Return a string setting while preserving intentionally empty strings.
- * @param {unknown} value - Candidate setting value
- * @param {string} fallback - Default value for malformed legacy settings
- * @returns {string}
- */
-function getStringSetting(value, fallback) {
-    return typeof value === 'string' ? value : fallback;
-}
-
-/**
  * @param {object} p
  * @param {string} p.template - User prompt template
  * @param {string} p.storyTxt - Story text
  * @param {string} p.contextStr - Context text
  * @param {ExtensionSettings} p.settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+ * @param {import('./call-profile.js').CallProfile} p.profile - Resolved call profile
  * @returns {string}
  */
-function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, metadata }) {
+function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, profile }) {
     // replaceAll on purpose: every placeholder occurrence is replaced; user templates may repeat one.
     const prompt = template
         .replaceAll('{{player_name}}', getPlayerName())
         .replaceAll('{{context_str}}', contextStr || '(none yet)')
         .replaceAll('{{story_txt}}', storyTxt);
-    return appendLayer0PromptConstraints(prompt, settings, metadata);
+    return appendLayer0PromptConstraints(prompt, settings, profile);
 }

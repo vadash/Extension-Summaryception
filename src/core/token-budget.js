@@ -95,14 +95,14 @@ export function buildLayer0BudgetHint({ targetTokens }) {
 
 /**
  * Resolve the source-side token count for a summarizer call.
- * @param {{ sourceTokensBefore?: number, regexStats?: { finalTokens?: number }, memoryTokensBefore?: number }} [metadata]
+ * @param {import('./call-profile.js').CallProvenance} [provenance]
  * @returns {number}
  */
-export function getSourceTokenCount(metadata = {}) {
+export function getSourceTokenCount(provenance = {}) {
     const candidates = [
-        metadata.sourceTokensBefore,
-        metadata.regexStats?.finalTokens,
-        metadata.memoryTokensBefore,
+        provenance.sourceTokensBefore,
+        provenance.regexStats?.finalTokens,
+        provenance.memoryTokensBefore,
     ];
     for (const value of candidates) {
         const count = Number(value);

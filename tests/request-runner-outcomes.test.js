@@ -10,6 +10,7 @@ const attemptMocks = vi.hoisted(() => ({
 vi.mock('../src/core/request-attempt.js', () => attemptMocks);
 
 import { RequestRunner } from '../src/core/request-runner.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
 
@@ -22,18 +23,19 @@ describe('RequestRunner.run outcomes', () => {
     });
 
     function makeRequest({ signal, notify, settings } = {}) {
+        const resolvedSettings = settings ?? makeSummarySettings();
         return {
-            settings: settings ?? makeSummarySettings(),
+            settings: resolvedSettings,
             systemPrompt: 'system',
             prompt: 'prompt',
             repairPrompt: 'repair',
             signal: signal ?? new AbortController().signal,
-            metadata: { kind: 'layer0' },
+            profile: resolveCallProfile(resolvedSettings, { kind: 'layer0' }),
             notify,
         };
     }
 
-    it('returns completed with the summary text on a first-attempt success', async () => {
+    it('returns completed with the summary text and the resolved profile on a first-attempt success', async () => {
         attemptMocks.runSingleAttempt.mockResolvedValue({
             success: true,
             result: 'THE SUMMARY',
@@ -41,9 +43,12 @@ describe('RequestRunner.run outcomes', () => {
             cleanedResult: 'THE SUMMARY',
         });
 
-        const outcome = await new RequestRunner().run(makeRequest());
+        const request = makeRequest();
+        const outcome = await new RequestRunner().run(request);
 
-        expect(outcome).toEqual({ status: 'completed', text: 'THE SUMMARY' });
+        expect(outcome.status).toBe('completed');
+        expect(outcome.text).toBe('THE SUMMARY');
+        expect(outcome.profile).toBe(request.profile);
         expect(attemptMocks.runSingleAttempt).toHaveBeenCalledOnce();
     });
 

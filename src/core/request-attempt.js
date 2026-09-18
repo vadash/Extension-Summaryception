@@ -12,7 +12,6 @@ import { sleepOrAbort } from '../foundation/retry.js';
 import {
     ConnectionError,
     isCancellableConnection,
-    resolveSummarizerConnectionSettings,
     sendSummarizerRequest,
 } from './connectionutil.js';
 import {
@@ -24,7 +23,6 @@ import { processSummarizerResponse } from './summarizer-output.js';
 import { recordSuccessfulSummarizerUsage } from './summarizer-pipeline.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import { insertBeforeTrigger, EXECUTION_TRIGGER_L0 } from '../foundation/prompt-parts.js';
-import { describePromptLogCall } from './request-attempt-log.js';
 
 /**
  * @param {string} prompt
@@ -47,7 +45,10 @@ export function appendRepairFeedback(prompt, repairFeedback) {
  * @param {string} params.prompt - Fully substituted user prompt.
  * @param {AbortSignal} params.signal - Abort signal for the request.
  * @param {number} params.attempt - Zero-based attempt index.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} params.metadata - Call metadata for usage logs.
+ * @param {import('./call-profile.js').CallProfile} params.profile - Call profile resolved at dispatch.
+ * @param {ExtensionSettings} params.connection - Resolved connection settings for this route.
+ * @param {boolean} [params.layer0Repair] - Whether this attempt re-runs a rejected Layer 0 output.
+ * @param {string} [params.repairFeedback] - Diagnostics appended to the repair prompt.
  * @param {import('./notify.js').NotifyAdapter} params.notify - Notify adapter for mid-run notices.
  * @param {string} params.routeLabel - Route label for structured logs.
  * @param {number} params.maxRetries - Retry budget for this route.
@@ -70,13 +71,13 @@ export async function runSingleAttempt(params) {
     return await processAttemptResult({ ...params, rawResult });
 }
 
-async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, metadata, notify }) {
-    const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, metadata);
+async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, profile, notify }) {
+    const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, profile);
     if (guard.ok) {
         return null;
     }
 
-    const guardError = buildEasyContextGuardError(guard, metadata);
+    const guardError = buildEasyContextGuardError(guard);
     warn(guardError.message);
     notify.transient({
         kind: NOTIFY_EVENTS.EASY_GUARD_BLOCKED,
@@ -88,19 +89,17 @@ async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, meta
     return buildAttemptFailure(guardError, false, 'easy-context-guard');
 }
 
-async function sendAttemptRequest({ settings, systemPrompt, prompt, signal, metadata, timeoutMs }) {
-    const effectiveSettings = resolveSummarizerConnectionSettings(settings, metadata);
-    const timeoutRetryable = isCancellableConnection(effectiveSettings);
+async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, timeoutMs }) {
+    const timeoutRetryable = isCancellableConnection(connection);
     const abortContext = createAttemptAbortContext(signal, timeoutMs, timeoutRetryable);
 
     try {
         return await Promise.race([
             sendSummarizerRequest({
-                settings,
+                settings: connection,
                 systemPrompt,
                 userPrompt: prompt,
                 signal: abortContext.signal,
-                metadata,
             }),
             abortContext.promise,
         ]);
@@ -114,10 +113,10 @@ async function processAttemptResult({
     settings,
     systemPrompt,
     prompt,
-    metadata,
+    profile,
     notify,
 }) {
-    const processed = await processSummarizerResponse(rawResult, settings, metadata, notify);
+    const processed = await processSummarizerResponse(rawResult, settings, profile, notify);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
         return {
@@ -131,7 +130,7 @@ async function processAttemptResult({
         systemPrompt,
         prompt,
         summary: processed.text,
-        metadata,
+        profile,
     });
     trace('<<< EXITING callSummarizer WITH SUCCESS');
     return buildAttemptSuccess(processed.text);
@@ -162,21 +161,19 @@ function buildAttemptSuccess(result) {
 
 /**
  * @param {object} p
- * @param {ExtensionSettings} p.settings
+ * @param {ExtensionSettings} p.connection - Resolved connection settings for this route
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
  * @returns {Promise<void>}
  */
-async function traceSummarizerRequest({ settings, systemPrompt, prompt, metadata }) {
+async function traceSummarizerRequest({ connection, systemPrompt, prompt }) {
     if (!isTraceEnabled()) {
         return;
     }
 
     const promptTokens = await countTextTokens(prompt);
-    const effectiveSettings = resolveSummarizerConnectionSettings(settings, metadata);
     trace('  About to call sendSummarizerRequest with:', {
-        connectionSource: effectiveSettings.connectionSource,
+        connectionSource: connection.connectionSource,
         summarizerSystemPrompt: systemPrompt?.substring(0, 50),
         promptTokens: formatTokenCount(promptTokens),
     });
@@ -370,10 +367,10 @@ export async function notifyRouteCycleFailedAndWait({ healthBucket, signal, noti
  * @param {ExtensionSettings} settings
  * @param {string} systemPrompt
  * @param {string} prompt - Fully substituted user prompt
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {Promise<{ ok: true } | { ok: false, limit: number, tokens: { count: number, estimated: boolean }, label: string }>}
  */
-async function checkEasyContextGuard(settings, systemPrompt, prompt, metadata = {}) {
+async function checkEasyContextGuard(settings, systemPrompt, prompt, profile) {
     if (settings.uiMode !== UI_MODES.EASY) {
         return { ok: true };
     }
@@ -393,12 +390,12 @@ async function checkEasyContextGuard(settings, systemPrompt, prompt, metadata = 
         ok: false,
         limit,
         tokens,
-        label: describePromptLogCall(metadata),
+        label: profile.policy.label,
     };
 }
 
-function buildEasyContextGuardError(guard, metadata = {}) {
-    const label = guard.label || describePromptLogCall(metadata);
+function buildEasyContextGuardError(guard) {
+    const label = guard.label;
     const message =
         `Easy mode blocked ${label}: summarizer request is ` +
         `${formatTokenValue(guard.tokens.count, guard.tokens.estimated)} tokens, above the ` +

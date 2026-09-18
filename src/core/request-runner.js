@@ -1,14 +1,8 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { debug, error as logError, info, trace } from '../foundation/logger.js';
 import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET } from '../foundation/retry.js';
-import { resolveFallbackSummarizerConnectionSettings } from './connectionutil.js';
 import { silentAdapter } from './notify.js';
-import {
-    computeAttemptTimeoutMs,
-    getPrimaryHealthBucket,
-    getRetryStopReason,
-    shouldSwitchToRepairPrompt,
-} from './request-retry-policy.js';
+import { getRetryStopReason, shouldSwitchToRepairPrompt } from './request-retry-policy.js';
 import {
     appendRepairFeedback,
     classifyAttemptError,
@@ -18,22 +12,21 @@ import {
 } from './request-attempt.js';
 import {
     createAttemptLogState,
-    describePromptLogCall,
     logLlmAttemptTransaction,
     updateAttemptLogState,
 } from './request-attempt-log.js';
 
 /**
- * Structured result of one summarizer request (ADR-0004). The deepest shared
- * request entry returns this instead of an empty-string sentinel.
- * @typedef {object} RunOutcome
- * @property {'completed' | 'aborted' | 'blocked' | 'failed'} status - Terminal request status.
- * @property {string} [text] - Summary text; present only when status is 'completed'.
- * @property {number} [attempts] - Attempts actually made; present only when status is 'failed'.
+ * Structured result of one summarizer request: {@link import('./run-outcome.js').RunOutcome}.
+ * Completed outcomes carry the resolved profile for post-hoc validation.
  */
 
-function buildCompletedOutcome(text) {
-    return { status: /** @type {'completed'} */ ('completed'), text };
+function buildCompletedOutcome(text, profile) {
+    return {
+        status: /** @type {'completed'} */ ('completed'),
+        text,
+        profile,
+    };
 }
 
 function buildAbortedOutcome() {
@@ -86,34 +79,22 @@ export class RequestRunner {
      * Run retry attempts until success, abort, non-retryable error, or exhaustion.
      * @param {object} p
      * @param {ExtensionSettings} p.settings
-     * @param {string} p.systemPrompt - System prompt sent to the summarizer
      * @param {string} p.prompt - Fully substituted user prompt
      * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
      * @param {AbortSignal} p.signal - Abort signal
-     * @param {import('./summarizer-usage.js').SummarizerCallMetadata} p.metadata - Call metadata
+     * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
      * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
-     * @returns {Promise<RunOutcome>} Structured outcome; `completed` carries the summary text.
+     * @returns {Promise<import('./run-outcome.js').RunOutcome>} Structured outcome; `completed` carries the summary text and the resolved profile.
      */
-    async run({
-        settings,
-        systemPrompt,
-        prompt,
-        repairPrompt,
-        signal,
-        metadata,
-        notify = silentAdapter,
-    }) {
+    async run({ settings, prompt, repairPrompt, signal, profile, notify = silentAdapter }) {
         // Shared, read-only context for every route cycle and attempt of this request.
         const series = {
             settings,
-            systemPrompt,
             prompt,
             repairPrompt,
             signal,
-            metadata,
+            profile,
             notify,
-            healthBucket: getPrimaryHealthBucket(metadata),
-            fallbackSettings: resolveFallbackSummarizerConnectionSettings(settings, metadata),
             routeCycleFailures: 0,
         };
 
@@ -137,18 +118,15 @@ export class RequestRunner {
     }
 
     async runRouteCycle(series) {
+        const healthBucket = series.profile.policy.healthBucket;
         const primary = await this.runPrimaryAttemptSeries(series);
 
-        const resolvedPrimary = this.resolvePrimaryRouteResult(
-            primary,
-            series.healthBucket,
-            series.notify,
-        );
+        const resolvedPrimary = this.resolvePrimaryRouteResult(primary, healthBucket, series);
         if (resolvedPrimary) {
             return resolvedPrimary;
         }
 
-        if (shouldTryFallbackRoute(primary, series.fallbackSettings)) {
+        if (shouldTryFallbackRoute(primary, series.profile.policy.fallbackConnection)) {
             return await this.runFallbackRouteCycle(series, primary);
         }
 
@@ -165,7 +143,7 @@ export class RequestRunner {
             );
         }
 
-        this.primaryRetryExhaustedBuckets.delete(series.healthBucket);
+        this.primaryRetryExhaustedBuckets.delete(healthBucket);
         return buildRouteCycleResult(
             failSummarization(
                 primary.error,
@@ -176,26 +154,27 @@ export class RequestRunner {
     }
 
     async runPrimaryAttemptSeries(series) {
+        const healthBucket = series.profile.policy.healthBucket;
         const maxRetries =
-            series.fallbackSettings && this.primaryRetryExhaustedBuckets.has(series.healthBucket)
+            series.profile.policy.fallbackConnection &&
+            this.primaryRetryExhaustedBuckets.has(healthBucket)
                 ? 0
                 : RETRY_CONFIG.maxRetries;
 
-        logPrimaryProbe(series.healthBucket, maxRetries);
+        logPrimaryProbe(healthBucket, maxRetries);
         return await this.runAttemptSeries(series, {
             routeLabel: 'primary',
             maxRetries,
-            metadata: series.metadata,
         });
     }
 
-    resolvePrimaryRouteResult(primary, healthBucket, notify) {
+    resolvePrimaryRouteResult(primary, healthBucket, series) {
         if (primary.status === 'success') {
             this.primaryRetryExhaustedBuckets.delete(healthBucket);
-            return buildRouteCycleResult(buildCompletedOutcome(primary.result));
+            return buildRouteCycleResult(buildCompletedOutcome(primary.result, series.profile));
         }
         if (primary.status === 'aborted') {
-            return buildRouteCycleResult(abortRun(notify));
+            return buildRouteCycleResult(abortRun(series.notify));
         }
         if (!primary.retryable && !primary.hardFailover) {
             return buildRouteCycleResult(
@@ -205,7 +184,7 @@ export class RequestRunner {
                         retriesExhausted: false,
                         attempts: primary.attempts,
                     },
-                    notify,
+                    series.notify,
                 ),
             );
         }
@@ -217,26 +196,25 @@ export class RequestRunner {
     }
 
     async runFallbackRouteCycle(series, primary) {
-        logFallbackRoute(primary, series.fallbackSettings);
+        logFallbackRoute(primary, series.profile.policy.fallbackConnection);
         const fallback = await this.runAttemptSeries(series, {
             routeLabel: 'fallback',
             maxRetries: RETRY_CONFIG.maxRetries,
-            metadata: { ...series.metadata, useFallback: true },
         });
 
         if (fallback.status === 'success') {
-            return buildRouteCycleResult(buildCompletedOutcome(fallback.result));
+            return buildRouteCycleResult(buildCompletedOutcome(fallback.result, series.profile));
         }
         if (fallback.status === 'aborted') {
             return buildRouteCycleResult(abortRun(series.notify));
         }
 
         await notifyRouteCycleFailedAndWait({
-            healthBucket: series.healthBucket,
+            healthBucket: series.profile.policy.healthBucket,
             signal: series.signal,
             notify: series.notify,
         });
-        this.primaryRetryExhaustedBuckets.delete(series.healthBucket);
+        this.primaryRetryExhaustedBuckets.delete(series.profile.policy.healthBucket);
         return {
             status: /** @type {'retry'} */ ('retry'),
             result: null,
@@ -254,7 +232,6 @@ export class RequestRunner {
      * @param {object} attemptState - Per-route state for this attempt series
      * @param {string} attemptState.routeLabel - Human-readable route label for trace logs
      * @param {number} attemptState.maxRetries - Maximum retry count for this route
-     * @param {import('./summarizer-usage.js').SummarizerCallMetadata} attemptState.metadata - Route metadata
      * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean, attempts: number } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }>}
      */
     async runAttemptSeries(series, attemptState) {
@@ -332,15 +309,17 @@ export class RequestRunner {
             useRepairPrompt: attemptState.useRepairPrompt,
             repairFeedback: attemptState.repairFeedback,
         });
+        const isFallbackRoute = attemptState.routeLabel === 'fallback';
         return await this.executeAttempt(series, {
             ...attemptState,
             prompt: promptContext.prompt,
-            metadata: promptContext.metadata,
-            timeoutMs: computeAttemptTimeoutMs(
-                attemptState.metadata,
-                attemptState.attempt,
-                series.settings,
-            ),
+            connection: isFallbackRoute
+                ? series.profile.policy.fallbackConnection
+                : series.profile.policy.primaryConnection,
+            layer0Repair: attemptState.useRepairPrompt,
+            timeoutMs: isFallbackRoute
+                ? series.profile.policy.fallbackTimeoutMs
+                : series.profile.policy.primaryTimeoutMs,
         });
     }
 
@@ -351,7 +330,16 @@ export class RequestRunner {
      * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string, repairFeedback?: string }>}
      */
     async executeAttempt(series, attemptState) {
-        const { prompt, attempt, metadata, routeLabel, maxRetries, timeoutMs } = attemptState;
+        const {
+            prompt,
+            attempt,
+            connection,
+            layer0Repair,
+            repairFeedback,
+            routeLabel,
+            maxRetries,
+            timeoutMs,
+        } = attemptState;
         trace(`  ${routeLabel} attempt ${attempt} starting...`);
         const startedAt = Date.now();
         const logState = createAttemptLogState();
@@ -359,11 +347,14 @@ export class RequestRunner {
         try {
             const result = await runSingleAttempt({
                 settings: series.settings,
-                systemPrompt: series.systemPrompt,
+                systemPrompt: series.profile.policy.systemPrompt,
                 prompt,
                 signal: series.signal,
                 attempt,
-                metadata,
+                profile: series.profile,
+                connection,
+                layer0Repair,
+                repairFeedback,
                 notify: series.notify,
                 routeLabel,
                 maxRetries,
@@ -377,12 +368,12 @@ export class RequestRunner {
             return result;
         } finally {
             logLlmAttemptTransaction({
-                label: describePromptLogCall(metadata),
+                label: series.profile.policy.label,
                 routeLabel,
                 attempt,
                 status: logState.status,
                 durationMs: Date.now() - startedAt,
-                systemPrompt: series.systemPrompt,
+                systemPrompt: series.profile.policy.systemPrompt,
                 prompt,
                 cleanedResult: logState.cleanedResult,
                 error: logState.error,
@@ -441,12 +432,10 @@ function getAttemptPromptContext({ series, useRepairPrompt, repairFeedback = '' 
     if (useRepairPrompt && series.repairPrompt) {
         return {
             prompt: appendRepairFeedback(series.repairPrompt, repairFeedback),
-            metadata: { ...series.metadata, layer0Repair: true },
         };
     }
     return {
         prompt: series.prompt,
-        metadata: series.metadata,
     };
 }
 
@@ -475,7 +464,7 @@ function logRetryStopReason(reason, maxRetries) {
  * Stopping a run is not a failure. Entry renders the notice from this
  * structured event (ADR-0004).
  * @param {import('./notify.js').NotifyAdapter} notify - Notify adapter threaded from the request series
- * @returns {RunOutcome} The aborted outcome
+ * @returns {import('./run-outcome.js').RunOutcome} The aborted outcome
  */
 function abortRun(notify) {
     debug('Summarization aborted by user.');
@@ -497,7 +486,7 @@ function abortRun(notify) {
  * @param {SummarizerFailureError} lastError
  * @param {{ retriesExhausted?: boolean, attempts?: number }} [options]
  * @param {import('./notify.js').NotifyAdapter} notify - Notify adapter threaded from the request series
- * @returns {RunOutcome} The blocked or failed outcome
+ * @returns {import('./run-outcome.js').RunOutcome} The blocked or failed outcome
  */
 function failSummarization(
     lastError,

@@ -17,6 +17,7 @@ vi.mock('../src/foundation/logger.js', async (importOriginal) => {
 });
 
 import { classifyAttemptError, runSingleAttempt } from '../src/core/request-attempt.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import { isCancellableConnection } from '../src/core/connectionutil.js';
 import { makeSummarySettings } from './test-helpers.js';
 
@@ -34,12 +35,14 @@ describe('attempt timeout retryability vs cancellation capability', () => {
     });
 
     function makeAttemptParams(overrides = {}) {
+        const settings = overrides.settings ?? makeSummarySettings();
         return {
-            settings: makeSummarySettings(),
+            settings,
             systemPrompt: 'system',
             prompt: 'prompt',
             signal: new AbortController().signal,
-            metadata: { kind: 'layer0' },
+            profile: resolveCallProfile(settings, { kind: 'layer0' }),
+            connection: settings,
             attempt: 0,
             maxRetries: 3,
             routeLabel: 'primary',

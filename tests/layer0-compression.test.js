@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { defaultSettings } from '../src/foundation/constants.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
     appendLayer0PromptConstraints,
     buildLayer0SizeRepairFeedback,
     getLayer0SummaryTokenBounds,
     getLayer0SummaryTokenTarget,
-    isLayer0CompressionCall,
-    isLayer0SizeGuardCall,
     validateLayer0OutputSize,
 } from '../src/core/layer0-compression.js';
 import {
@@ -31,27 +30,6 @@ function makeLayer0Prompt(triggerLine) {
         triggerLine,
     });
 }
-
-describe('isLayer0CompressionCall', () => {
-    it.each([['layer0'], ['regenerate'], ['promotion']])('is true for kind %s', (kind) => {
-        expect(isLayer0CompressionCall({ kind })).toBe(true);
-    });
-
-    it.each([[{ kind: 'other' }], [{}], [undefined]])('is false for %o', (metadata) => {
-        expect(isLayer0CompressionCall(metadata)).toBe(false);
-    });
-});
-
-describe('isLayer0SizeGuardCall', () => {
-    it.each([['layer0'], ['regenerate']])('is true for kind %s', (kind) => {
-        expect(isLayer0SizeGuardCall({ kind })).toBe(true);
-    });
-
-    it('is false for promotion; the load-bearing asymmetry vs isLayer0CompressionCall', () => {
-        expect(isLayer0SizeGuardCall({ kind: 'promotion' })).toBe(false);
-        expect(isLayer0CompressionCall({ kind: 'promotion' })).toBe(true);
-    });
-});
 
 describe('getLayer0SummaryTokenTarget', () => {
     it('clamps a too-large target down and a too-small one up, preserving ordering', () => {
@@ -111,12 +89,22 @@ describe('appendLayer0PromptConstraints', () => {
 
     it('returns the prompt unchanged when the call is not a compression call', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        expect(appendLayer0PromptConstraints(prompt, settings, {})).toBe(prompt);
+        expect(
+            appendLayer0PromptConstraints(
+                prompt,
+                settings,
+                resolveCallProfile(settings, { kind: 'auditor' }),
+            ),
+        ).toBe(prompt);
     });
 
     it('inserts the narrative budget hint before the trigger and preserves L0 trigger finality', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(prompt, settings, { kind: 'layer0' });
+        const result = appendLayer0PromptConstraints(
+            prompt,
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0' }),
+        );
         expect(result).toContain('<summaryception_source_budget>');
         expect(result).toContain('[NARRATIVE]');
         expect(result).not.toContain('[STATE]');
@@ -125,10 +113,11 @@ describe('appendLayer0PromptConstraints', () => {
 
     it('references both source-range numbers when sourceRange is a [start, end] pair', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(prompt, settings, {
-            kind: 'layer0',
-            sourceRange: [12, 34],
-        });
+        const result = appendLayer0PromptConstraints(
+            prompt,
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0', sourceRange: [12, 34] }),
+        );
         expect(result).toContain('12');
         expect(result).toContain('34');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
@@ -136,21 +125,22 @@ describe('appendLayer0PromptConstraints', () => {
 
     it('adds no source-range line for an absent or too-short range but keeps trigger finality', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(prompt, settings, {
-            kind: 'layer0',
-            sourceRange: [5],
-        });
+        const result = appendLayer0PromptConstraints(
+            prompt,
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0', sourceRange: [5] }),
+        );
         expect(result).not.toContain('covers chat messages');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
     });
 
     it('delegates promotion calls to the promotion path, differing from input and keeping the promotion trigger', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_PROMO);
-        const result = appendLayer0PromptConstraints(prompt, settings, {
-            kind: 'promotion',
-            layerIndex: 0,
-            targetTokens: 1000,
-        });
+        const result = appendLayer0PromptConstraints(
+            prompt,
+            settings,
+            resolveCallProfile(settings, { kind: 'promotion', layerIndex: 0 }),
+        );
         expect(result).not.toBe(prompt);
         expect(result).toContain(EXECUTION_TRIGGER_PROMO);
     });
@@ -194,7 +184,11 @@ describe('validateLayer0OutputSize', () => {
             'current_date_time: 2024-07-04 16 Thu',
         ].join('\n');
 
-        const result = await validateLayer0OutputSize(output, defaultSettings, { kind: 'layer0' });
+        const result = await validateLayer0OutputSize(
+            output,
+            defaultSettings,
+            resolveCallProfile(defaultSettings, { kind: 'layer0' }),
+        );
 
         expect(result.valid).toBe(true);
         expect(result.error).toBeNull();
@@ -208,7 +202,11 @@ describe('validateLayer0OutputSize', () => {
             'Kaelen argued with the ferryman about the fare and watched the storm roll in.',
         ].join('\n');
 
-        const result = await validateLayer0OutputSize(output, defaultSettings, { kind: 'layer0' });
+        const result = await validateLayer0OutputSize(
+            output,
+            defaultSettings,
+            resolveCallProfile(defaultSettings, { kind: 'layer0' }),
+        );
 
         expect(result.valid).toBe(false);
         expect(result.error).toBeInstanceOf(Error);
@@ -222,7 +220,7 @@ describe('validateLayer0OutputSize', () => {
         const result = await validateLayer0OutputSize(
             '[NARRATIVE]\nAny narrative-only draft',
             defaultSettings,
-            { kind: 'promotion' },
+            resolveCallProfile(defaultSettings, { kind: 'promotion' }),
         );
 
         expect(result).toEqual({ valid: true, error: null, repairFeedback: '' });

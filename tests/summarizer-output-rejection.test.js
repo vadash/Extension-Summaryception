@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
     processSummarizerResponse,
     validateSummarizerOutputIntegrity,
@@ -13,10 +14,13 @@ import { makeSummarySettings } from './test-helpers.js';
  */
 describe('summarizer output rejection payloads', () => {
     it('keeps the cleaned LLM output on an integrity rejection', async () => {
+        const settings = makeSummarySettings();
         const raw = 'The party rested at the inn before the crossing.';
-        const result = await processSummarizerResponse(raw, makeSummarySettings(), {
-            kind: 'layer0',
-        });
+        const result = await processSummarizerResponse(
+            raw,
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0' }),
+        );
 
         expect(result.status).toBe('integrity-rejected');
         expect(result.error.retryable).toBe(true);
@@ -24,30 +28,34 @@ describe('summarizer output rejection payloads', () => {
     });
 
     it('keeps the cleaned LLM output on a CN-policy rejection', async () => {
-        const raw = '这是一段用于测试的中文摘要文本';
+        const settings = makeSummarySettings({ stripChineseIdeographs: true });
         const result = await processSummarizerResponse(
-            raw,
-            makeSummarySettings({ stripChineseIdeographs: true }),
-            { kind: 'layer0' },
+            '这是一段用于测试的中文摘要文本',
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0' }),
         );
 
         expect(result.status).toBe('cn-rejected');
-        expect(result.text).toBe(raw);
+        expect(result.text).toBe('这是一段用于测试的中文摘要文本');
     });
 
     it('reports an empty response without text', async () => {
-        const result = await processSummarizerResponse('   \n  ', makeSummarySettings(), {
-            kind: 'layer0',
-        });
+        const settings = makeSummarySettings();
+        const result = await processSummarizerResponse(
+            '   \n  ',
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0' }),
+        );
 
         expect(result.status).toBe('empty');
         expect(result.text).toBe('');
     });
 
     it('names the exact missing structural header', () => {
-        const result = validateSummarizerOutputIntegrity('location: dock', {
-            kind: 'layer0',
-        });
+        const result = validateSummarizerOutputIntegrity(
+            'location: dock',
+            resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }),
+        );
 
         expect(result.valid).toBe(false);
         expect(result.error.message).toContain('missing [NARRATIVE] header');

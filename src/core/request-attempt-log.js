@@ -5,7 +5,6 @@ import {
     isPromptOutputLogEnabled,
     serializeError,
 } from '../foundation/logger.js';
-import { formatPromotionLabel, formatRange } from './summarizer-usage.js';
 
 /**
  * @returns {{ status: string, cleanedResult: string, error: Error | null }}
@@ -37,23 +36,6 @@ function getAttemptLogStatus(result) {
         return 'aborted';
     }
     return result.failureStatus || 'failed';
-}
-
-/**
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
- * @returns {string}
- */
-export function describePromptLogCall(metadata = {}) {
-    if (metadata.kind === 'layer0') {
-        return `L0 turns ${formatRange(metadata.sourceRange)}`;
-    }
-    if (metadata.kind === 'promotion') {
-        return `promotion ${formatPromotionLabel(metadata, '->')}`;
-    }
-    if (metadata.kind === 'regenerate') {
-        return `regenerate turns ${formatRange(metadata.sourceRange)}`;
-    }
-    return metadata.kind || 'summarizer';
 }
 
 /**

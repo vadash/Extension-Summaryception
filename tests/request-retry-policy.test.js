@@ -3,39 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import {
     classifyAttemptRetryStatus,
-    computeAttemptTimeoutMs,
-    getPrimaryHealthBucket,
     getRetryStopReason,
     isHardNetworkError,
     shouldSwitchToRepairPrompt,
 } from '../src/core/request-retry-policy.js';
-
-describe('computeAttemptTimeoutMs', () => {
-    it('returns the full configured timeout on every attempt', () => {
-        const settings = { requestTimeoutSeconds: 30 };
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, settings)).toBe(30000);
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, settings)).toBe(30000);
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 3, settings)).toBe(30000);
-    });
-
-    it('reads each route from its own settings field', () => {
-        const settings = {
-            requestTimeoutSeconds: 30,
-            mergeRequestTimeoutSeconds: 40,
-            fallbackRequestTimeoutSeconds: 50,
-        };
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, settings)).toBe(30000);
-        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 0, settings)).toBe(40000);
-        expect(computeAttemptTimeoutMs({ useFallback: true }, 0, settings)).toBe(50000);
-    });
-
-    it('uses fallback timeouts when no setting is finite', () => {
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 0, {})).toBe(120000);
-        expect(computeAttemptTimeoutMs({ kind: 'layer0' }, 1, {})).toBe(120000);
-        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 0, {})).toBe(90000);
-        expect(computeAttemptTimeoutMs({ kind: 'promotion' }, 1, {})).toBe(90000);
-    });
-});
 
 describe('classifyAttemptRetryStatus', () => {
     it('reports an aborted result when the signal is aborted', () => {
@@ -145,17 +116,5 @@ describe('getRetryStopReason', () => {
 
     it('returns "" while retries remain', () => {
         expect(getRetryStopReason({ shouldRetry: true }, 1, 3)).toBe('');
-    });
-});
-
-describe('getPrimaryHealthBucket', () => {
-    it('routes promotion to a different bucket than layer0/regenerate', () => {
-        expect(getPrimaryHealthBucket({ kind: 'promotion' })).not.toBe(
-            getPrimaryHealthBucket({ kind: 'layer0' }),
-        );
-        expect(getPrimaryHealthBucket({ kind: 'regenerate' })).toBe(
-            getPrimaryHealthBucket({ kind: 'layer0' }),
-        );
-        expect(typeof getPrimaryHealthBucket({ kind: 'promotion' })).toBe('string');
     });
 });

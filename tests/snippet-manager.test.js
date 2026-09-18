@@ -15,7 +15,25 @@ import {
     regenerateSnippetAt,
     updateSnippetTextAt,
 } from '../src/features/snippet-manager.js';
-import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
+import {
+    installSummaryContext,
+    makeMessage,
+    makeSummarySettings,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+/**
+ * Completed regeneration outcome carrying the profile the real request layer
+ * resolves from the dispatch metadata snippet-manager builds.
+ */
+function completedRegeneration(text) {
+    return async (_storyTxt, _contextStr, metadata) => ({
+        status: 'completed',
+        text,
+        profile: resolveCallProfile(makeSummarySettings(), metadata),
+    });
+}
 
 /**
  * @returns {{ store: object, snippet: object }}
@@ -88,10 +106,11 @@ describe('snippet regeneration request outcomes', () => {
 
     it('writes the regenerated snippet when the outcome is completed', async () => {
         const { store, snippet } = installReadySnippet();
-        summarizerMocks.callSummarizer.mockResolvedValue({
-            status: 'completed',
-            text: `[NARRATIVE]\nA fresh summary.\n\ncurrent_date_time: 2024-07-04 16 Thu`,
-        });
+        summarizerMocks.callSummarizer.mockImplementation(
+            completedRegeneration(
+                '[NARRATIVE]\nA fresh summary.\n\ncurrent_date_time: 2024-07-04 16 Thu',
+            ),
+        );
 
         await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({
             status: 'regenerated',
@@ -102,6 +121,18 @@ describe('snippet regeneration request outcomes', () => {
         expect(snippet.regenerated).toBe(true);
         // Ghost step acquires snippet ownership (bump) + the Snippet Commit's own bump.
         expect(store.mutationEpoch).toBe(2);
+    });
+
+    it('fails without mutating the store when the profile guard rejects a headerless summary', async () => {
+        const { store, snippet } = installReadySnippet();
+        summarizerMocks.callSummarizer.mockImplementation(
+            completedRegeneration('A headerless regeneration paragraph.'),
+        );
+
+        await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({ status: 'failed' });
+
+        expect(snippet.text).toBe('old summary');
+        expect(store.mutationEpoch).toBe(0);
     });
 
     it('returns aborted without mutating the store when the outcome is aborted', async () => {

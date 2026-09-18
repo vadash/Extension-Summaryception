@@ -4,6 +4,7 @@ const callSummarizer = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
 
 import { generateValidatedPromotion } from '../src/core/promotion-candidate.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
 import {
@@ -40,19 +41,36 @@ function installStore(layers = [overflowLayers()]) {
 function makePrepared(overrides = {}) {
     const toMerge = overflowLayers().slice(0, 3);
     const storyTxt = toMerge.map((snippet) => snippet.text).join('\n\n');
+    const memoryTokensBefore = { count: 400, estimated: false };
     return {
         layerIndex: 0,
         settings,
         mergeCount: 3,
         toMerge,
         sourceNarrativeText: storyTxt,
-        memoryTokensBefore: { count: 400, estimated: false },
+        memoryTokensBefore,
         storyTxt,
         contextStr: 'context',
         promotedMetadata: { sourceMessageIds: ['msg-0', 'msg-2'] },
-        promotionMetadata: { kind: 'promotion', layerIndex: 0 },
+        // The real producer resolves this dispatch metadata with the source
+        // memory size, so the profile's provenance carries it verbatim.
+        promotionMetadata: {
+            kind: 'promotion',
+            layerIndex: 0,
+            memoryTokensBefore: memoryTokensBefore.count,
+            memoryTokensBeforeEstimated: memoryTokensBefore.estimated,
+        },
         ...overrides,
     };
+}
+
+/** Completed callSummarizer outcome whose profile resolves from the dispatch metadata. */
+function outcomeWithProfile(text) {
+    return async (_storyTxt, _contextStr, metadata) => ({
+        status: 'completed',
+        text,
+        profile: resolveCallProfile(settings, metadata),
+    });
 }
 
 describe('generateValidatedPromotion', () => {
@@ -67,7 +85,7 @@ describe('generateValidatedPromotion', () => {
         installStore();
         const recorder = makeNotifyRecorder();
         const prepared = makePrepared();
-        callSummarizer.mockResolvedValue({ status: 'completed', text: GOOD_NARRATIVE });
+        callSummarizer.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
 
         const result = await generateValidatedPromotion(prepared, recorder);
 
@@ -95,8 +113,8 @@ describe('generateValidatedPromotion', () => {
         const recorder = makeNotifyRecorder();
         const prepared = makePrepared();
         callSummarizer
-            .mockResolvedValueOnce({ status: 'completed', text: SHORT_NARRATIVE })
-            .mockResolvedValueOnce({ status: 'completed', text: GOOD_NARRATIVE });
+            .mockImplementationOnce(outcomeWithProfile(SHORT_NARRATIVE))
+            .mockImplementationOnce(outcomeWithProfile(GOOD_NARRATIVE));
 
         const result = await generateValidatedPromotion(prepared, recorder);
 
@@ -128,8 +146,8 @@ describe('generateValidatedPromotion', () => {
         installStore();
         const prepared = makePrepared();
         callSummarizer
-            .mockResolvedValueOnce({ status: 'completed', text: LONG_NARRATIVE })
-            .mockResolvedValueOnce({ status: 'completed', text: SHORT_NARRATIVE });
+            .mockImplementationOnce(outcomeWithProfile(LONG_NARRATIVE))
+            .mockImplementationOnce(outcomeWithProfile(SHORT_NARRATIVE));
 
         const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
 
@@ -146,8 +164,14 @@ describe('generateValidatedPromotion', () => {
         installStore();
         const prepared = makePrepared({
             memoryTokensBefore: { count: 3000, estimated: false },
+            promotionMetadata: {
+                kind: 'promotion',
+                layerIndex: 0,
+                memoryTokensBefore: 3000,
+                memoryTokensBeforeEstimated: false,
+            },
         });
-        callSummarizer.mockResolvedValue({ status: 'completed', text: SHORT_NARRATIVE });
+        callSummarizer.mockImplementation(outcomeWithProfile(SHORT_NARRATIVE));
 
         const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
 
@@ -165,7 +189,7 @@ describe('generateValidatedPromotion', () => {
             ],
         ]);
         const prepared = makePrepared();
-        callSummarizer.mockResolvedValue({ status: 'completed', text: GOOD_NARRATIVE });
+        callSummarizer.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
 
         const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
 

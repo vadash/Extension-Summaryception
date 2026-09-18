@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import { processSummarizerResponse } from '../src/core/summarizer-output.js';
 import {
     installBrowserRuntimeStub,
@@ -17,10 +18,11 @@ describe('summarizer output notify events', () => {
     it('emits a structured language-mix event when the CN policy rejects a response', async () => {
         const { toastr } = installBrowserRuntimeStub();
         const recorder = makeNotifyRecorder();
+        const settings = makeSummarySettings({ stripChineseIdeographs: true });
         const result = await processSummarizerResponse(
             '这是一段用于测试的中文摘要文本',
-            makeSummarySettings({ stripChineseIdeographs: true }),
-            { kind: 'layer0' },
+            settings,
+            resolveCallProfile(settings, { kind: 'layer0' }),
             recorder,
         );
 

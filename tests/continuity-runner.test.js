@@ -464,7 +464,7 @@ describe('auditor prompt routing', () => {
             contextStr: 'PRIOR STATE',
             metadata: { kind: 'auditor' },
         });
-        expect(request.systemPrompt).toBe(defaultSettings.auditorSystemPrompt);
+        expect(request.profile.policy.systemPrompt).toBe(defaultSettings.auditorSystemPrompt);
         expect(request.prompt).toContain('PRIOR STATE');
         expect(request.prompt).toContain('USER TURN');
         expect(request.repairPrompt).toBe('');

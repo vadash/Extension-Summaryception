@@ -147,7 +147,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
     const progress = createBatchProgress(notify);
     let contextText = buildFullContext(0);
     const snapshots = [];
-    const pendingSnippets = [];
+    const pendingEntries = [];
 
     try {
         for (const partition of usablePartitions) {
@@ -179,8 +179,15 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
             }
 
             snapshots.push(result.snapshot);
-            pendingSnippets.push(buildLayer0Snippet(result.snapshot, result.summary));
-            contextText = buildPendingLayer0Context(store.layers, pendingSnippets);
+            pendingEntries.push({
+                snapshot: result.snapshot,
+                snippet: buildLayer0Snippet(result.snapshot, result.summary),
+                profile: result.profile,
+            });
+            contextText = buildPendingLayer0Context(
+                store.layers,
+                pendingEntries.map((entry) => entry.snippet),
+            );
             progress.update(snapshots.length);
         }
 
@@ -188,14 +195,7 @@ async function summarizeAtomicLayer0PartitionsCore(partitions, notify) {
             kind: 'layer0-atomic-cache',
             snapshot: snapshots[0],
             progress,
-            commit: () =>
-                commitLayer0Snippets({
-                    entries: snapshots.map((snapshot, index) => ({
-                        snapshot,
-                        snippet: pendingSnippets[index],
-                    })),
-                    notify,
-                }),
+            commit: () => commitLayer0Snippets({ entries: pendingEntries, notify }),
         });
         return committed
             ? { status: 'completed', completed: snapshots.length }
@@ -298,7 +298,7 @@ async function summarizeSafely(catchExceptions, source, run) {
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @param {BatchProgressOwner} p.progress - Shared batch progress owner for this run
  * @param {number} p.total
- * @returns {Promise<{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, summary: string, status?: undefined} | {status: 'idle' | 'aborted' | 'failed'}>}
+ * @returns {Promise<{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, summary: string, profile: import('./call-profile.js').CallProfile, status?: undefined} | {status: 'idle' | 'aborted' | 'failed'}>}
  */
 async function runLayer0Summarization({
     chat,
@@ -346,12 +346,13 @@ async function runLayer0Summarization({
         progress.settle(BATCH_PROGRESS.ABORTED);
         return { status: 'aborted' };
     }
+    const profile = outcome.status === 'completed' ? outcome.profile : undefined;
     const summary = outcome.status === 'completed' ? outcome.text : '';
-    if (!summary || !isLayer0SummarySafe(summary, snapshot)) {
+    if (!profile || !summary || !isSummarizerOutputSafe(summary, profile)) {
         progress.settle();
         return { status: 'failed' };
     }
-    return { snapshot, summary };
+    return { snapshot, summary, profile };
 }
 
 /**
@@ -419,6 +420,7 @@ async function performBatchSummary({ chat, store, passageStart, endIdx, notify }
                     {
                         snapshot: result.snapshot,
                         snippet: buildLayer0Snippet(result.snapshot, result.summary),
+                        profile: result.profile,
                     },
                 ],
                 notify,
@@ -486,7 +488,7 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contex
  * the chat array when post-mutation persistence fails. Every entry is
  * re-validated here so no caller can skip the checks.
  * @param {object} p
- * @param {{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet}[]} p.entries - Snapshot and prebuilt snippet pairs.
+ * @param {{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet, profile: import('./call-profile.js').CallProfile}[]} p.entries - Snapshot, prebuilt snippet, and dispatch profile triples.
  * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter threaded to ghosting
  * @returns {Promise<boolean>}
  */
@@ -494,8 +496,8 @@ async function commitLayer0Snippets({ entries, notify }) {
     if (
         entries.length === 0 ||
         !entries.every(
-            ({ snapshot, snippet }) =>
-                isLayer0SnapshotValid(snapshot) && isLayer0SummarySafe(snippet.text, snapshot),
+            ({ snapshot, snippet, profile }) =>
+                isLayer0SnapshotValid(snapshot) && isSummarizerOutputSafe(snippet.text, profile),
         )
     ) {
         return false;
@@ -544,20 +546,6 @@ function buildPendingLayer0Context(layers, pendingSnippets) {
     }
     workingLayers[0].push(...pendingSnippets);
     return buildMemoryInjection(workingLayers) || '(none yet)';
-}
-
-/**
- * Validate a Layer 0 summary before mutating summary storage.
- * @param {string} summary
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
- * @returns {boolean}
- */
-function isLayer0SummarySafe(summary, snapshot) {
-    return isSummarizerOutputSafe(summary, {
-        kind: 'layer0',
-        sourceRange: snapshot.sourceRange,
-        regexStats: snapshot.passageStats,
-    });
 }
 
 /**

@@ -1,11 +1,7 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/state.js';
-import {
-    isLayer0SizeGuardCall,
-    validateLayer0OutputSize,
-    validateLayer0Structure,
-} from './layer0-compression.js';
+import { validateLayer0OutputSize, validateLayer0Structure } from './layer0-compression.js';
 import { silentAdapter } from './notify.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token-budget.js';
@@ -92,19 +88,19 @@ function applyChineseOutputPolicy(cleanedResult, settings = {}) {
 /**
  * Validate cleaned summarizer output before it can be committed.
  * @param {string} text - Cleaned summarizer output
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {{ valid: true, error: null } | { valid: false, error: Error & { retryable?: boolean } }}
  */
-export function validateSummarizerOutputIntegrity(text, metadata = {}) {
+export function validateSummarizerOutputIntegrity(text, profile) {
     const output = String(text || '').trim();
-    if (isLayer0SizeGuardCall(metadata)) {
+    if (profile?.policy?.sizeGuard) {
         const structuralError = validateLayer0Structure(output);
         if (structuralError) {
             return rejectIntegrity(structuralError);
         }
     }
 
-    const sourceTokens = getSourceTokenCount(metadata);
+    const sourceTokens = getSourceTokenCount(profile?.provenance);
     if (sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD && isOutputTooShortForSource(output)) {
         const stats = getApproximateOutputStats(output);
         return rejectIntegrity(
@@ -118,12 +114,12 @@ export function validateSummarizerOutputIntegrity(text, metadata = {}) {
 /**
  * Guard summarizer output before committing; warn once when invalid.
  * @param {string} text - Cleaned summarizer output
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata]
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @param {string} [warnPrefix] - Optional prefix for the warning message
  * @returns {boolean}
  */
-export function isSummarizerOutputSafe(text, metadata = {}, warnPrefix = '') {
-    const integrityResult = validateSummarizerOutputIntegrity(text, metadata);
+export function isSummarizerOutputSafe(text, profile, warnPrefix = '') {
+    const integrityResult = validateSummarizerOutputIntegrity(text, profile);
     if (integrityResult.valid) {
         return true;
     }
@@ -198,14 +194,14 @@ function rejectIntegrity(reason) {
  * Clean and validate a raw provider response.
  * @param {string} rawResult - Raw provider output
  * @param {ExtensionSettings} settings - Active settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for the language-mix rejection; defaults to the silent adapter
  * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>} Rejected attempts keep the cleaned LLM output in `text` for the attempt log; only `empty` has none.
  */
 export async function processSummarizerResponse(
     rawResult,
     settings,
-    metadata = {},
+    profile,
     notify = silentAdapter,
 ) {
     const cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
@@ -230,7 +226,7 @@ export async function processSummarizerResponse(
         };
     }
 
-    const integrityResult = validateSummarizerOutputIntegrity(chinesePolicyResult.text, metadata);
+    const integrityResult = validateSummarizerOutputIntegrity(chinesePolicyResult.text, profile);
     if (!integrityResult.valid) {
         warn(integrityResult.error.message);
         return {
@@ -241,7 +237,7 @@ export async function processSummarizerResponse(
         };
     }
 
-    const sizeResult = await validateLayer0OutputSize(chinesePolicyResult.text, settings, metadata);
+    const sizeResult = await validateLayer0OutputSize(chinesePolicyResult.text, settings, profile);
     if (!sizeResult.valid) {
         warn(sizeResult.error.message);
         return {

@@ -1,15 +1,20 @@
 import { debug } from '../foundation/logger.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
-// Call-label and token-range formatting lives here only. Prompt logs (request-attempt-log.js)
-// and usage lines import it; do not duplicate it per caller.
+// Usage recording and token-range formatting live here only. The per-call
+// human label is resolved once into the CallProfile (src/core/call-profile.js);
+// do not re-derive label switches per caller.
 /**
  * @typedef {import('./chatutils.js').PassageRegexStats} PassageRegexStats
  */
 
 /**
+ * Resolver input for one summarizer call: the call category plus the
+ * provenance the dispatch constructors build. Downstream, the request path
+ * consumes the resolved CallProfile (src/core/call-profile.js) and never
+ * reads `kind`.
  * @typedef {object} SummarizerCallMetadata
- * @property {'layer0' | 'promotion' | 'regenerate' | string} [kind] - Call category
+ * @property {'layer0' | 'promotion' | 'regenerate' | 'auditor' | string} [kind] - Call category
  * @property {[number, number]} [sourceRange] - Source chat index range
  * @property {PassageRegexStats} [regexStats] - Passage regex stats
  * @property {number} [sourceTokensBefore] - Source text size before summarization
@@ -23,9 +28,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {number} [overflowMemoryLimit] - Configured memory count limit for the layer
  * @property {number} [overflowTokens] - Token count in the overflowing layer
  * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
- * @property {boolean} [useFallback] - Whether this call is routed through fallback
- * @property {boolean} [layer0Repair] - Whether a Layer 0 validation retry uses the repair prompt
- * @property {{ outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback
+ * @property {{ reason?: string, outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback of this dispatch
  * @property {string} [auditorRepair] - Rendered auditor section-repair feedback; the pipeline places it above the execution trigger
  */
 
@@ -41,7 +44,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
 
 /**
  * @typedef {object} SummarizerUsageInput
- * @property {SummarizerCallMetadata} [metadata] - Call metadata
+ * @property {import('./call-profile.js').CallProfile} profile - Resolved call profile of this call
  * @property {number | null} promptTokens - Estimated prompt tokens
  * @property {number | null} completionTokens - Estimated completion tokens
  * @property {number | null} totalTokens - Estimated total tokens
@@ -167,7 +170,6 @@ export function recordSummarizerUsage(usage) {
 function addUsageToRun(run, usage) {
     const entry = {
         ...usage,
-        metadata: usage.metadata || {},
         callNumber: run.calls.length + 1,
     };
     run.calls.push(entry);
@@ -197,7 +199,7 @@ function logRunMax(run) {
 
     debug(
         `LLM run ${run.label} max call: #${maxCall.callNumber} ` +
-            `${describeCall(maxCall.metadata)} total=${formatTokenValue(
+            `${maxCall.profile.policy.label} total=${formatTokenValue(
                 maxCall.totalTokens,
                 isTotalEstimated(maxCall),
             )} ` +
@@ -234,13 +236,14 @@ function formatCallUsageLine(entry) {
     const callNumber = entry.callNumber > 0 ? `#${entry.callNumber} ` : '';
     const inputTokens = getInputTokenCount(entry);
     const promptTokens = getPromptOverheadTokenCount(entry, inputTokens);
-    const regexStats = formatRegexStats(entry.metadata);
-    const overflowStats = formatPromotionOverflowStats(entry.metadata);
+    const provenance = entry.profile.provenance;
+    const regexStats = formatRegexStats(provenance);
+    const overflowStats = formatPromotionOverflowStats(provenance);
     const memoryStats = formatPromotionMemoryStats(entry);
     const statsParts = [regexStats, overflowStats, memoryStats].filter(Boolean);
     const statsPart = statsParts.length > 0 ? `; ${statsParts.join('; ')}` : '';
     return (
-        `LLM call ${callNumber}${describeCall(entry.metadata)}: ` +
+        `LLM call ${callNumber}${entry.profile.policy.label}: ` +
         `input ${formatTokenValue(inputTokens.count, inputTokens.estimated)}, ` +
         `prompt ${formatTokenValue(promptTokens.count, promptTokens.estimated)}, ` +
         `output ${formatTokenValue(
@@ -251,23 +254,24 @@ function formatCallUsageLine(entry) {
 }
 
 /**
- * Get source text tokens for the LLM call.
+ * Get source text tokens for the LLM call. Provenance decides: promotion
+ * calls carry memory tokens, direct calls carry the passage regex stats.
  * @param {SummarizerUsageEntry} entry - Usage entry
  * @returns {{ count: number | null | undefined, estimated: boolean }}
  */
 function getInputTokenCount(entry) {
-    if (entry.metadata?.kind === 'promotion') {
+    const provenance = entry.profile.provenance;
+    if (typeof provenance.memoryTokensBefore === 'number') {
         return {
-            count: entry.metadata.memoryTokensBefore,
-            estimated: Boolean(entry.metadata.memoryTokensBeforeEstimated),
+            count: provenance.memoryTokensBefore,
+            estimated: Boolean(provenance.memoryTokensBeforeEstimated),
         };
     }
 
-    const regexStats = entry.metadata?.regexStats;
-    if (regexStats) {
+    if (provenance.regexStats) {
         return {
-            count: regexStats.finalTokens,
-            estimated: Boolean(regexStats.finalTokensEstimated),
+            count: provenance.regexStats.finalTokens,
+            estimated: Boolean(provenance.regexStats.finalTokensEstimated),
         };
     }
 
@@ -308,13 +312,11 @@ function getPromptOverheadTokenCount(entry, inputTokens) {
  * @returns {string}
  */
 function formatPromotionMemoryStats(entry) {
-    if (entry.metadata?.kind !== 'promotion') {
+    const memoryTokensBefore = entry.profile.provenance.memoryTokensBefore;
+    if (typeof memoryTokensBefore !== 'number') {
         return '';
     }
-    if (typeof entry.metadata.memoryTokensBefore !== 'number') {
-        return '';
-    }
-    const savedPercent = getSavedPercent(entry.metadata.memoryTokensBefore, entry.completionTokens);
+    const savedPercent = getSavedPercent(memoryTokensBefore, entry.completionTokens);
     if (savedPercent === null) {
         return '';
     }
@@ -322,24 +324,22 @@ function formatPromotionMemoryStats(entry) {
 }
 
 /**
- * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
+ * Overflow stats read only the provenance fields promotion dispatches set.
+ * @param {import('./call-profile.js').CallProvenance} provenance
  * @returns {string}
  */
-function formatPromotionOverflowStats(metadata = {}) {
-    if (metadata.kind !== 'promotion') {
-        return '';
-    }
-    if (typeof metadata.overflowLayerIndex !== 'number') {
+function formatPromotionOverflowStats(provenance = {}) {
+    if (typeof provenance.overflowLayerIndex !== 'number') {
         return '';
     }
 
     return (
-        `overflow L${metadata.overflowLayerIndex} ` +
-        `${formatOverflowValue(metadata.overflowMemoryCount)}/${formatOverflowValue(
-            metadata.overflowMemoryLimit,
+        `overflow L${provenance.overflowLayerIndex} ` +
+        `${formatOverflowValue(provenance.overflowMemoryCount)}/${formatOverflowValue(
+            provenance.overflowMemoryLimit,
         )} memories, ` +
-        `${formatTokenValue(metadata.overflowTokens)}/${formatTokenValue(
-            metadata.overflowTokenQuota,
+        `${formatTokenValue(provenance.overflowTokens)}/${formatTokenValue(
+            provenance.overflowTokenQuota,
         )} tokens`
     );
 }
@@ -374,45 +374,15 @@ function formatOverflowValue(value) {
 }
 
 /**
- * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
+ * Regex stats read only the provenance field direct calls set.
+ * @param {import('./call-profile.js').CallProvenance} provenance
  * @returns {string}
  */
-function describeCall(metadata = {}) {
-    if (metadata.kind === 'layer0') {
-        return `CHAT -> L0 turns ${formatRange(metadata.sourceRange)}`;
-    }
-    if (metadata.kind === 'promotion') {
-        return `promotion ${formatPromotionLabel(metadata)}`;
-    }
-    if (metadata.kind === 'regenerate') {
-        return `CHAT -> L0 regenerate turns ${formatRange(metadata.sourceRange)}`;
-    }
-    return metadata.kind || 'summarizer';
-}
-
-/**
- * Contributes only the source layer, destination layer, and merged snippet
- * count; callers keep their own arrow spacing and prefix text.
- * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
- * @param {string} [arrow] - Separator between source and destination layer
- * @returns {string}
- */
-export function formatPromotionLabel(metadata = {}, arrow = ' -> ') {
-    const sourceLayer = metadata.layerIndex ?? '?';
-    const destLayer = typeof metadata.layerIndex === 'number' ? metadata.layerIndex + 1 : '?';
-    const count = formatCount(metadata.mergedSnippetCount, 'snippet');
-    return `L${sourceLayer}${arrow}L${destLayer} (${count})`;
-}
-
-/**
- * @param {SummarizerCallMetadata | undefined} metadata - Call metadata
- * @returns {string}
- */
-function formatRegexStats(metadata = {}) {
-    if (metadata.kind === 'promotion' || !metadata.regexStats) {
+function formatRegexStats(provenance = {}) {
+    if (!provenance.regexStats) {
         return '';
     }
-    return `regex saved ${formatNumber(metadata.regexStats.savedPercent, 0)}%`;
+    return `regex saved ${formatNumber(provenance.regexStats.savedPercent, 0)}%`;
 }
 
 /**
@@ -437,27 +407,4 @@ function formatNumber(value, digits) {
         return '?';
     }
     return typeof digits === 'number' ? value.toFixed(digits) : String(value);
-}
-
-/**
- * @param {[number, number] | undefined} range - Source range
- * @returns {string}
- */
-export function formatRange(range) {
-    if (!Array.isArray(range) || range.length < 2) {
-        return '?';
-    }
-    return `${range[0]}-${range[1]}`;
-}
-
-/**
- * @param {number | undefined} count - Count value
- * @param {string} singular - Singular label
- * @returns {string}
- */
-export function formatCount(count, singular) {
-    if (typeof count !== 'number' || !Number.isFinite(count)) {
-        return `? ${singular}s`;
-    }
-    return `${count} ${singular}${count === 1 ? '' : 's'}`;
 }

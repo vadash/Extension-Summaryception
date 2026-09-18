@@ -283,7 +283,7 @@ async function dispatchAuditRound(storyTxt, contextStr, deps) {
  * @param {import('./notify.js').NotifyAdapter} deps.notify
  * @param {AbortController} deps.controller
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [deps.metadata] - Defaults to a plain auditor call
- * @returns {Promise<import('./request-runner.js').RunOutcome>}
+ * @returns {Promise<import('./run-outcome.js').RunOutcome>}
  */
 async function dispatchAuditCall(storyTxt, contextStr, { settings, notify, controller, metadata }) {
     return callSummarizer(

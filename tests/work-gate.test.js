@@ -12,10 +12,16 @@ vi.mock('../src/core/request-runner.js', () => ({
 vi.mock('../src/foundation/state.js', () => ({
     getEffectiveSettings: vi.fn(() => ({})),
 }));
-vi.mock('../src/core/summarizer-pipeline.js', () => ({
-    buildSummarizerPipelineInput: vi.fn(async (input) => ({ ...input })),
-    traceSummarizerInputTokens: vi.fn(async () => {}),
-}));
+vi.mock('../src/core/summarizer-pipeline.js', async () => {
+    const { resolveCallProfile } = await import('../src/core/call-profile.js');
+    return {
+        buildSummarizerPipelineInput: vi.fn(async (input) => ({
+            ...input,
+            profile: resolveCallProfile(input.settings ?? {}, input.metadata ?? {}),
+        })),
+        traceSummarizerInputTokens: vi.fn(async () => {}),
+    };
+});
 
 import { abortAllRequests, callSummarizer, isRequestLive } from '../src/core/summarizer-request.js';
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';

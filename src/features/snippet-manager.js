@@ -158,12 +158,12 @@ async function regenerateSnippetWithTarget(target, notify) {
     if (outcome.status !== 'completed') {
         return { status: outcome.status };
     }
+    const profile = outcome.profile;
+    if (!profile) {
+        return { status: 'failed' };
+    }
     const newSummary = /** @type {string} */ (outcome.text);
-    const integrityResult = validateSummarizerOutputIntegrity(newSummary, {
-        kind: 'regenerate',
-        sourceRange: target.range,
-        regexStats: passage.stats,
-    });
+    const integrityResult = validateSummarizerOutputIntegrity(newSummary, profile);
     if (!integrityResult.valid) {
         return { status: 'failed' };
     }

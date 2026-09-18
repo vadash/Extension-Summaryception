@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const connectionMocks = vi.hoisted(() => ({
     sendSummarizerRequest: vi.fn(),
-    resolveSummarizerConnectionSettings: vi.fn((settings) => settings),
 }));
 vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
     const actual = await importOriginal();
@@ -11,6 +10,7 @@ vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
 
 import { NOTIFY_EVENTS, UI_MODES } from '../src/foundation/constants.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
+import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
     notifyRetryAndWait,
     notifyRouteCycleFailedAndWait,
@@ -37,12 +37,13 @@ describe('request attempt notify events', () => {
     });
 
     function makeAttemptParams(overrides = {}) {
+        const settings = makeSummarySettings();
         return {
-            settings: makeSummarySettings(),
+            settings,
             systemPrompt: 'system',
             prompt: 'prompt',
             signal: new AbortController().signal,
-            metadata: { kind: 'layer0' },
+            profile: resolveCallProfile(settings, { kind: 'layer0' }),
             attempt: 0,
             maxRetries: RETRY_CONFIG.maxRetries,
             routeLabel: 'primary',

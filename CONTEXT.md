@@ -78,6 +78,11 @@ How raw chat converts into summaries. Either Balanced or Prefix Cache.
 Code: `MEMORY_MODES` (src/foundation/constants.js)
 _Avoid_: Append Only
 
+**Call Profile**:
+The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category.
+Code: `resolveCallProfile` (src/core/call-profile.js)
+_Avoid_: Call metadata
+
 **Route Plan**:
 The plan for one summarization cycle: the selected route, readiness reason, commit mode, and the batch and partition schedule.
 The new summary / deeper merge / fallback trio is the connection routes, not this.

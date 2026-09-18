@@ -1,62 +1,6 @@
 import { RETRY_CONFIG, isRetryableError, parseRetryAfter } from '../foundation/retry.js';
 
-const PRIMARY_HEALTH_BUCKETS = Object.freeze({
-    layer0: 'layer0',
-    l1plus: 'l1plus',
-});
-
-// Hardcoded fallbacks (ms) used when no per-route timeout setting is supplied.
-const FALLBACK_TIMEOUT_MS = Object.freeze({
-    layer0: 120000,
-    promotion: 90000,
-});
-
 export const ROUTE_CYCLE_RETRY_ATTEMPT = RETRY_CONFIG.maxRetries;
-
-/**
- * Compute the timeout for one attempt from the configured per-route timeout
- * (seconds, read from the base settings). Every attempt of a route series uses
- * the full configured timeout. A backend that needs the whole window fails a
- * shortened retry, so retries never run shorter. L0 (user-facing) defaults
- * higher than L1+ (background promotion) when the route setting is unset.
- * @param {object} [metadata] - Call metadata (kind / useFallback pick the route)
- * @param {number} [_attempt] - Zero-based attempt index (unused; kept for signature stability)
- * @param {object} [settings] - Base extension settings carrying the prefixed timeout fields
- * @returns {number} Timeout in milliseconds
- */
-export function computeAttemptTimeoutMs(metadata = {}, _attempt = 0, settings = {}) {
-    const configuredSeconds = resolveTimeoutSeconds(metadata, settings);
-    if (!Number.isFinite(configuredSeconds) || configuredSeconds <= 0) {
-        return fallbackTimeoutMs(metadata);
-    }
-    return configuredSeconds * 1000;
-}
-
-/**
- * The metadata.kind (promotion vs layer0/regenerate) and metadata.useFallback flag
- * select which route's timeout field applies:
- *   - fallback route        → fallbackRequestTimeoutSeconds
- *   - L1+ promotion route   → mergeRequestTimeoutSeconds
- *   - Layer 0 / regenerate   → requestTimeoutSeconds
- * @param {object} metadata - Call metadata
- * @param {object} settings - Base extension settings
- * @returns {number} Configured timeout in seconds, or NaN if unset
- */
-function resolveTimeoutSeconds(metadata, settings) {
-    if (metadata.useFallback) {
-        return Number(settings?.fallbackRequestTimeoutSeconds);
-    }
-    if (metadata.kind === 'promotion') {
-        return Number(settings?.mergeRequestTimeoutSeconds);
-    }
-    return Number(settings?.requestTimeoutSeconds);
-}
-
-function fallbackTimeoutMs(metadata) {
-    return metadata.kind === 'promotion'
-        ? FALLBACK_TIMEOUT_MS.promotion
-        : FALLBACK_TIMEOUT_MS.layer0;
-}
 
 /**
  * Compute the retry delay for a given attempt, honoring Retry-After headers.
@@ -170,16 +114,4 @@ export function getRetryStopReason(attemptResult, attempt, maxRetries) {
         return maxRetries === 0 ? 'primary-probe-failed' : 'retries-exhausted';
     }
     return '';
-}
-
-/**
- * Split primary health tracking by prompt family so Layer 0 and L1+ failures
- * do not influence each other.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
- * @returns {string}
- */
-export function getPrimaryHealthBucket(metadata = {}) {
-    return metadata.kind === 'promotion'
-        ? PRIMARY_HEALTH_BUCKETS.l1plus
-        : PRIMARY_HEALTH_BUCKETS.layer0;
 }
