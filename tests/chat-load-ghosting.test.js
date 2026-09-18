@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { onAppReady } from '../src/entry/events.js';
 import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
+import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
 import { makeMessage, makeSummaryStore, installSummaryContext } from './test-helpers.js';
 
 /**
@@ -63,5 +64,82 @@ describe('Ghosting ownership sync across chat load', () => {
             'message-0',
             'message-1',
         ]);
+    });
+});
+
+describe('Continuity slot re-render across chat load', () => {
+    afterEach(() => {
+        resetCommitStateForTests();
+    });
+
+    function makeLoadedContinuity(overrides = {}) {
+        return {
+            turn_count: 1,
+            anchor_sc_id: 'message-1',
+            bonds: { 'Quipsy↔User': { bond: 2, sparks: 0, grudge: 0 } },
+            agendas: {},
+            gm_notes: [],
+            physics: {
+                location: 'Salon',
+                environment: '',
+                posture_and_position: '',
+                contact_points: '',
+                clothing_state: '',
+            },
+            stale: false,
+            ...overrides,
+        };
+    }
+
+    it('re-renders the continuity slot from the loaded chat state on app ready', async () => {
+        const chat = [makeMessage({ scId: 'message-0' }), makeMessage({ scId: 'message-1' })];
+        const store = makeSummaryStore({ continuity: makeLoadedContinuity() });
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: store },
+            settings: { continuityEnabled: true },
+            setExtensionPrompt,
+        });
+        resetCommitStateForTests();
+
+        await onAppReady();
+
+        const continuityCall = setExtensionPrompt.mock.calls.find(
+            ([name]) => name === 'summaryception_continuity',
+        );
+        expect(continuityCall).toBeDefined();
+        expect(continuityCall[1]).toContain('<active_continuity>');
+        expect(continuityCall[1]).toContain('BOND +2');
+        expect(continuityCall[2]).toBe(EXTENSION_PROMPT_POSITIONS.IN_CHAT);
+        expect(continuityCall[5]).toBe(EXTENSION_PROMPT_ROLES.SYSTEM);
+
+        const memoryCall = setExtensionPrompt.mock.calls.find(
+            ([name]) => name === 'summaryception',
+        );
+        expect(memoryCall).toBeDefined();
+    });
+
+    it('clears the continuity slot when the loaded chat has no continuity state', async () => {
+        const chat = [makeMessage({ scId: 'message-0' })];
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+            setExtensionPrompt,
+        });
+        resetCommitStateForTests();
+
+        await onAppReady();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith(
+            'summaryception_continuity',
+            '',
+            EXTENSION_PROMPT_POSITIONS.NONE,
+            0,
+            false,
+            EXTENSION_PROMPT_ROLES.SYSTEM,
+        );
     });
 });

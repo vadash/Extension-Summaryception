@@ -27,6 +27,7 @@ import {
     reassertInjectionSnapshot,
     updateInjection,
 } from './src/features/injection.js';
+import { updateContinuityInjection } from './src/features/continuity-injection.js';
 import {
     bindPromptFreezeRecoveryEvents,
     onAppReady,
@@ -58,7 +59,12 @@ import { registerSlashCommands } from './src/entry/commands.js';
     setNotify(notify);
     const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun };
     const pauseLatchDeps = { queue: summarizerQueue };
-    initRefreshPort({ updateInjection, updateUI, updatePreview: syncLLMContextPreview });
+    initRefreshPort({
+        updateInjection,
+        updateContinuityInjection,
+        updateUI,
+        updatePreview: syncLLMContextPreview,
+    });
     initSnippetBrowser(notify);
 
     const html = await renderExtensionTemplateAsync(

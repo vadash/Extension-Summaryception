@@ -3,6 +3,7 @@ import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import { debug, warn } from '../foundation/logger.js';
 import { getMessageIndexByScId } from '../foundation/message-identity.js';
 import { listNonEmptyLayers } from '../foundation/constants.js';
+import { refreshPreview } from '../foundation/refresh.js';
 import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
 import {
     buildRepairDiagnostics,
@@ -15,9 +16,10 @@ import { isCancellableConnection } from './connectionutil.js';
 
 /**
  * Catch-up Window: one combined Auditor call covers at most this many
- * Exchanges (most recent first); it bounds coverage, never turn_count.
+ * Exchanges (most recent first); it bounds coverage, never turn_count. The
+ * injection slot reuses it to bound the depth shift a single catch-up causes.
  */
-const AUDIT_WINDOW_EXCHANGES = 4;
+export const AUDIT_WINDOW_EXCHANGES = 4;
 
 /** In-flight audit controller; the runner owns cancellation when the active connection is uncancellable. @type {AbortController | null} */
 let activeAudit = null;
@@ -263,10 +265,13 @@ async function freezeContinuity(identity) {
 async function persistAudit(identity) {
     const preSave = captureChatIdentity(getChat());
     await saveChatStore();
-    return (
+    const persisted =
         isSameChatIdentity(identity, preSave) &&
-        isSameChatIdentity(preSave, captureChatIdentity(getChat()))
-    );
+        isSameChatIdentity(preSave, captureChatIdentity(getChat()));
+    if (persisted) {
+        refreshPreview();
+    }
+    return persisted;
 }
 
 /**

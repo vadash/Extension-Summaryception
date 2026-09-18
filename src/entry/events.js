@@ -22,6 +22,7 @@ import {
 } from '../core/summarizer-commit.js';
 import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
 import { updateInjection } from '../features/injection.js';
+import { updateContinuityInjection } from '../features/continuity-injection.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
 import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
 
@@ -314,6 +315,7 @@ async function reconcileLoadedChatState() {
         await persistChatState();
     }
     updateInjection();
+    updateContinuityInjection();
     await syncGhosting();
 }
 
