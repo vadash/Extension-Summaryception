@@ -153,3 +153,11 @@ _Avoid_: roleplay state, snapshot, sync state
 **Continuity Block**:
 The compact in-chat prompt injection rendered from the Continuity State.
 _Avoid_: state block, active continuity
+
+**Exchange**:
+One user message plus its completed assistant reply (latest swipe variation). The unit the Auditor and the Catch-up Window count.
+_Avoid_: message pair, turn
+
+**Catch-up Window**:
+The most recent four Exchanges a single combined Auditor call covers after missed turns. Older Exchanges stay unknown to the Continuity State; the window only bounds coverage, never `turn_count`.
+_Avoid_: catch-up cap, recovery span
