@@ -1,4 +1,4 @@
-import { computeSentenceCap, computeStateLineCap } from './token-budget.js';
+import { computeSentenceCap } from './token-budget.js';
 
 const REDUCTION_GUIDANCE = [
     { amount: 0.8, label: 'about four-fifths' },
@@ -97,7 +97,7 @@ export function formatRepairDiagnostics(
 /**
  * Build countable repair feedback for output above a hard maximum.
  * @param {object} diagnostics
- * @param {{ sourceStateKeyCount?: number, targetTokens?: number, layer?: 'l0' | 'l1' | 'l2' }} [sourceBudget]
+ * @param {{ targetTokens?: number, layer?: 'l0' | 'l1' | 'l2' }} [sourceBudget]
  * @returns {string}
  */
 export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {}) {
@@ -109,15 +109,7 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
             continue;
         }
         const text = String(violation.text || '');
-        if (violation.id === 'state') {
-            const actual = countStateLines(text);
-            const cap = computeStateLineCap(sourceBudget.sourceStateKeyCount);
-            if (actual > cap) {
-                lines.push(
-                    `Your [STATE] had ${actual} lines; maximum ${cap}. Remove the ${actual - cap} least-durable keys.`,
-                );
-            }
-        } else if (violation.id === 'narrative') {
+        if (violation.id === 'narrative') {
             const actual = countSentences(text);
             const cap = computeSentenceCap(sourceBudget.layer ?? 'l0', sourceBudget.targetTokens);
             if (actual > cap) {
@@ -138,13 +130,6 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
 export function countSentences(text) {
     const trimmed = String(text || '').trim();
     return trimmed ? trimmed.split(/[.!?]+\s+/).filter(Boolean).length : 0;
-}
-
-function countStateLines(text) {
-    return String(text || '')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line && /.+:.+/.test(line)).length;
 }
 
 function normalizeCount(value) {

@@ -45,7 +45,7 @@ describe('summarizer output rejection payloads', () => {
     });
 
     it('names the exact missing structural header', () => {
-        const result = validateSummarizerOutputIntegrity('[STATE]\nlocation: dock', {
+        const result = validateSummarizerOutputIntegrity('location: dock', {
             kind: 'layer0',
         });
 

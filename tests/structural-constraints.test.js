@@ -1,20 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import {
-    STATE_KEY_CEILING,
-    computeSentenceCap,
-    computeStateLineCap,
-    countLayer0SourceBudget,
-    getSourceTokenCount,
-} from '../src/core/token-budget.js';
 import {
     buildLayer0BudgetHint,
     buildSizeConstraintsBlock,
     buildSizeTargetLine,
+    computeSentenceCap,
+    getSourceTokenCount,
 } from '../src/core/token-budget.js';
-import { getActiveLineCap } from '../src/foundation/state-categories.js';
-import { defaultSettings } from '../src/foundation/constants.js';
-import { installSummaryContext } from './test-helpers.js';
 
 describe('computeSentenceCap', () => {
     const degenerateTargets = [undefined, 0, -5, NaN];
@@ -60,19 +52,6 @@ describe('computeSentenceCap', () => {
     });
 });
 
-describe('computeStateLineCap', () => {
-    it('returns STATE_KEY_CEILING for non-finite or non-positive counts', () => {
-        for (const n of [undefined, 0, -2, NaN]) {
-            expect(computeStateLineCap(n)).toBe(STATE_KEY_CEILING);
-        }
-    });
-
-    it('returns the count itself below the ceiling and clamps at the ceiling otherwise', () => {
-        expect(computeStateLineCap(3)).toBe(3);
-        expect(computeStateLineCap(STATE_KEY_CEILING + 5)).toBe(STATE_KEY_CEILING);
-    });
-});
-
 describe('buildSizeTargetLine', () => {
     it('formats the minimal cap line without a verb or extra clause', () => {
         expect(buildSizeTargetLine({ label: '[NARRATIVE]', cap: 7, unit: 'sentences' })).toBe(
@@ -85,10 +64,10 @@ describe('buildSizeTargetLine', () => {
             label: '[NARRATIVE]',
             cap: 7,
             unit: 'sentences',
-            verb: 'rewrite the full snapshot;',
+            verb: 'compress the passage into;',
         });
-        expect(result).toContain('rewrite the full snapshot');
-        const verbIdx = result.indexOf('rewrite the full snapshot');
+        expect(result).toContain('compress the passage into');
+        const verbIdx = result.indexOf('compress the passage into');
         const atMostIdx = result.indexOf('at most');
         expect(verbIdx).toBeLessThan(atMostIdx);
         expect(result.startsWith('[NARRATIVE]')).toBe(true);
@@ -128,56 +107,20 @@ describe('buildSizeConstraintsBlock', () => {
 });
 
 describe('buildLayer0BudgetHint', () => {
-    it('emits counting caps and never leaks token figures when no prior state exists', () => {
-        const result = buildLayer0BudgetHint({
-            sourceStateTokens: 0,
-            sourceStateKeyCount: 0,
-            targetTokens: 250,
-            settings: defaultSettings,
-        });
+    it('wraps the narrative sentence cap and never leaks token figures', () => {
+        const result = buildLayer0BudgetHint({ targetTokens: 250 });
         expect(result).toContain('<summaryception_source_budget>');
         expect(result).toContain('</summaryception_source_budget>');
-        expect(result).toContain('No existing [STATE] yet');
         expect(result).toContain('[NARRATIVE]');
-        expect(result).toContain('[STATE]');
+        expect(result).toContain('sentences');
+        expect(result).not.toContain('[STATE]');
         // The model cannot count tokens, so none should appear in the hint.
         expect(/\d+\s*tokens?/i.test(result)).toBe(false);
     });
 
-    it('reports the existing state-key count and a matching state line cap when prior state exists', () => {
-        const result = buildLayer0BudgetHint({
-            sourceStateTokens: 100,
-            sourceStateKeyCount: 4,
-            targetTokens: 250,
-            settings: defaultSettings,
-        });
-        expect(result).toContain('Existing [STATE]: 4 keys.');
-        // Cross-checks the cap through the same exported function the builder
-        // uses, never through a literal.
-        expect(result).toContain(`at most ${computeStateLineCap(4)} lines`);
-    });
-
-    it('anchors the state line cap to the enabled modular categories when settings are supplied with no prior state', () => {
-        const settings = {
-            stateCatDateTime: true,
-            stateCatBonds: true,
-            stateCatChekhov: true,
-            stateCatGmNotes: true,
-            stateCatInventory: true,
-            stateCatLocation: true,
-        };
-        const result = buildLayer0BudgetHint({
-            sourceStateTokens: 0,
-            sourceStateKeyCount: 0,
-            targetTokens: 250,
-            settings,
-        });
-        // With all six categories enabled the raw sum is 36. STATE_KEY_CEILING
-        // (12) clamps it. getActiveLineCap must encode the same contract.
-        expect(getActiveLineCap(settings, STATE_KEY_CEILING)).toBe(12);
-        expect(result).toContain('at most 12 lines');
-        // The hint must never leak the unclamped 36 figure.
-        expect(result).not.toContain('at most 36 lines');
+    it('scales the cap with the slider target through computeSentenceCap', () => {
+        const result = buildLayer0BudgetHint({ targetTokens: 2000 });
+        expect(result).toContain(`at most ${computeSentenceCap('l0', 2000)} sentences`);
     });
 });
 
@@ -215,69 +158,5 @@ describe('getSourceTokenCount', () => {
         ['non-numeric', { sourceTokensBefore: 'abc' }],
     ])('returns 0 when no candidate is a positive number (%s)', (_label, metadata) => {
         expect(getSourceTokenCount(metadata)).toBe(0);
-    });
-});
-
-describe('countLayer0SourceBudget', () => {
-    beforeEach(() => {
-        installSummaryContext({ getTokenCountAsync: async (text) => String(text).length });
-    });
-
-    it.each(['', '   '])(
-        'reports zero state for empty state text (%s)',
-        async (sourceStateText) => {
-            expect(
-                await countLayer0SourceBudget({ sourceNarrativeTokens: 42, sourceStateText }),
-            ).toEqual({ narrativeTokens: 42, stateTokens: 0, stateKeyCount: 0 });
-        },
-    );
-
-    it.each([
-        ['non-numeric', 'x'],
-        ['NaN', NaN],
-    ])('coerces a non-finite narrative to 0 (%s)', async (_label, sourceNarrativeTokens) => {
-        const result = await countLayer0SourceBudget({
-            sourceNarrativeTokens,
-            sourceStateText: '',
-        });
-        expect(result.narrativeTokens).toBe(0);
-    });
-
-    it('passes a finite narrative through unchanged, including negatives', async () => {
-        const result = await countLayer0SourceBudget({
-            sourceNarrativeTokens: -3,
-            sourceStateText: '',
-        });
-        expect(result.narrativeTokens).toBe(-3);
-    });
-
-    it('counts a headerless state body and its keys', async () => {
-        const sourceStateText = 'location: tavern\nmood: tense';
-        const result = await countLayer0SourceBudget({
-            sourceNarrativeTokens: 10,
-            sourceStateText,
-        });
-        expect(result.stateTokens).toBe(sourceStateText.length);
-        expect(result.stateKeyCount).toBeGreaterThanOrEqual(1);
-    });
-
-    it('counts a state body with an explicit [STATE] header', async () => {
-        const sourceStateText = '[STATE]\nlocation: tavern';
-        const result = await countLayer0SourceBudget({
-            sourceNarrativeTokens: 10,
-            sourceStateText,
-        });
-        expect(result.stateKeyCount).toBeGreaterThanOrEqual(1);
-        expect(result.stateTokens).toBe(sourceStateText.length);
-    });
-
-    it('yields zero keys but nonzero tokens for a header-only state body', async () => {
-        const sourceStateText = '[STATE]\n';
-        const result = await countLayer0SourceBudget({
-            sourceNarrativeTokens: 10,
-            sourceStateText,
-        });
-        expect(result.stateKeyCount).toBe(0);
-        expect(result.stateTokens).toBe(sourceStateText.trim().length);
     });
 });

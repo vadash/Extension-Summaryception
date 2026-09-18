@@ -60,13 +60,6 @@ interface ExtensionSettings {
     customMemoryPosition: string;
     customMemoryRole: string;
     customMemoryDepth: number;
-    injectCurrentState: boolean;
-    stateCatDateTime: boolean;
-    stateCatBonds: boolean;
-    stateCatChekhov: boolean;
-    stateCatGmNotes: boolean;
-    stateCatInventory: boolean;
-    stateCatLocation: boolean;
     minSummaryTurns: number;
     maxSummaryTurns: number;
     layer0SummaryTokenTarget: number;

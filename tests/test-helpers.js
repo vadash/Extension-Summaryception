@@ -325,7 +325,7 @@ export function installSummaryContext(opts = {}) {
  */
 export function installOverflowingStore() {
     const snippets = Array.from({ length: 24 }, (_, i) => ({
-        text: `[NARRATIVE]\nScene ${i}: ${'memory detail '.repeat(10)}\n[STATE]\nlocation: room${i}`,
+        text: `[NARRATIVE]\nScene ${i}: ${'memory detail '.repeat(10)}`,
         sourceMessageIds: [`msg-${i}`],
     }));
     installSummaryContext({

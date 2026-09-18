@@ -213,20 +213,6 @@ export const defaultSettings = Object.freeze({
     customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
     customMemoryRole: MEMORY_ROLES.SYSTEM,
     customMemoryDepth: 0,
-    injectCurrentState: false, // false = omit the [CURRENT STATE] block from injected memory
-    // ─── Modular STATE categories (stateCat*) ─────────────────────────
-    // Categories are opt-in: FF presets already ship their own trackers for
-    // bonds, GM notes, and inventory, so enabling duplicates those blocks.
-    // stateCatDateTime is informational only; alwaysOn forces true at runtime
-    // regardless of this flag. Location ships on as the cheap scene anchor.
-    // Chekhov ships off: it needs matching FIRE-decision logic in the preset
-    // CoT to be useful.
-    stateCatDateTime: true,
-    stateCatBonds: false,
-    stateCatChekhov: false,
-    stateCatGmNotes: false,
-    stateCatInventory: false,
-    stateCatLocation: true,
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
     layer0SummaryTokenTarget: 280,

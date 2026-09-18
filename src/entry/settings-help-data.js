@@ -319,7 +319,7 @@ const HELP_ENTRIES = [
                 controlFor('sc_layer0_summary_token_target_val'),
             ],
             meaning:
-                'The target size for the [NARRATIVE] section of a single Layer 0 summary. Auto-derived from Model context; override it here. [STATE] keeps its own fixed 200-token soft target and 300-token hard maximum.',
+                'The target size for the [NARRATIVE] section of a single Layer 0 summary. Auto-derived from Model context; override it here.',
             higher: 'preserves more chronological detail in each Layer 0 narrative.',
             lower: 'compresses each narrative harder and leaves more room in the memory budget.',
             defaultText: '200; auto-derived from Model context.',
@@ -484,84 +484,6 @@ const HELP_ENTRIES = [
                 'Sets how far back from the latest turn the custom In Chat memory shows up.',
             when: 'Use it only when Memory Position is set to In Chat.',
             risk: 'A bad depth puts memory too close to or too far from the latest turn.',
-        }),
-    ],
-    [
-        'inject_current_state',
-        basicHelp({
-            selector: selectorFor('sc_inject_current_state'),
-            title: 'Include [STATE]',
-            short: 'Adds a compact [CURRENT STATE] snapshot (time, location, trackers) to the front of the injected memory. Using an FF preset? Leave it off — your preset already tracks this.',
-            controls: [controlFor('sc_inject_current_state')],
-            controlsText:
-                'Controls whether the [CURRENT STATE] block leads the memory Summaryception injects. Turn it off to send only the [CHRONOLOGY] history and shrink the prompt.',
-            when: 'Turn it on if your preset has no state tracker of its own, or if the model keeps forgetting time, location, or counters.',
-            risk: 'With it off, the model must re-derive current facts from the narrative chronology, which can drop time, location, and counters.',
-        }),
-    ],
-    [
-        'state_cat_bonds',
-        basicHelp({
-            selector: selectorFor('sc_state_cat_bonds'),
-            title: 'Bonds (Relationships RPG)',
-            short: 'Tracks a relationship score plus Sparks and a Grudge for each character pair. Using an FF preset? Leave it off — your preset already tracks this.',
-            controls: [controlFor('sc_state_cat_bonds')],
-            controlsText:
-                'Toggles the relationship tracker (BOND, Sparks, Grudge per character pair) inside the [CURRENT STATE] block; the bond numbers, gates, and drift rules move here from your preset.',
-            when: "Turn it on only if you disable FF5's <internal_bondtracker> block, so the two don't double-track the same numbers.",
-            risk: 'Keep the BOND→DnD DC-mod logic in your preset CoT; this category stores the numbers only.',
-        }),
-    ],
-    [
-        'state_cat_chekhov',
-        basicHelp({
-            selector: selectorFor('sc_state_cat_chekhov'),
-            title: 'Chekhov (Narrative Gun)',
-            short: 'Keeps a list of planted setups (the gun on the wall) that can pay off later in the story. Using an FF preset? Leave it off — your preset already tracks this.',
-            controls: [controlFor('sc_state_cat_chekhov')],
-            controlsText:
-                'Toggles the setup register inside the [CURRENT STATE] block: planted items age and may fire as the story continues. Keep the FIRE-decision d20 logic in your preset CoT; only the register lives here.',
-            when: "Turn it on only if you disable FF5's <internal_chekhovguntracker> block, so the two don't double-track.",
-            risk: 'Without matching FIRE-decision logic in your preset CoT, entries just sit in the list and never pay off.',
-        }),
-    ],
-    [
-        'state_cat_gm_notes',
-        basicHelp({
-            selector: selectorFor('sc_state_cat_gm_notes'),
-            title: 'GM Notes',
-            short: 'Keeps a GM scratchpad of short tagged notes next to the story state. Using an FF preset? Leave it off — your preset already tracks this.',
-            controls: [controlFor('sc_state_cat_gm_notes')],
-            controlsText:
-                'Toggles the GM scratchpad inside the [CURRENT STATE] block, holding short entries tagged [R], [T], or [D].',
-            when: "Turn it on only if you disable FF5's <internal_gmnotebook> block, so the two don't double-track.",
-            risk: 'Do not duplicate content that already lives in bonds, chekhov, or inventory.',
-        }),
-    ],
-    [
-        'state_cat_inventory',
-        basicHelp({
-            selector: selectorFor('sc_state_cat_inventory'),
-            title: 'Inventory & Titles',
-            short: 'Tracks your items, titles and skills, and active status conditions. Using an FF preset? Leave it off — your preset already tracks this.',
-            controls: [controlFor('sc_state_cat_inventory')],
-            controlsText:
-                'Toggles user-only item tracking plus titles, skills, and status conditions inside the [CURRENT STATE] block.',
-            when: "Turn it on only if you disable FF5's <internal_inv> block, so the two don't double-track.",
-            risk: 'Track the user only, not NPCs. Consumable items go here; one-shots that matter later go in chekhov.',
-        }),
-    ],
-    [
-        'state_cat_location',
-        basicHelp({
-            selector: selectorFor('sc_state_cat_location'),
-            title: 'Location',
-            short: 'Carries the current scene location in the state block each turn. Using an FF preset that tracks location? You can turn it off.',
-            controls: [controlFor('sc_state_cat_location')],
-            controlsText:
-                'Toggles tracking of the current scene location inside the [CURRENT STATE] block. It ships on because it is cheap; enable or disable to taste.',
-            when: 'Keep it on if your preset keys off proximity-based modifiers (e.g. Chekhov location-match); otherwise it is optional.',
-            risk: 'Low risk; dispensable if your preset does not key off scene location.',
         }),
     ],
     [
@@ -758,7 +680,7 @@ const HELP_ENTRIES = [
             short: 'Template used for failed promotion compression repair.',
             controls: [controlFor('sc_promotion_repair_prompt')],
             controlsText:
-                'Sets the user prompt for Layer 1+ promotion repair; it can use the {{player_name}}, {{context_str}}, {{story_txt}}, and {{source_state}} variables.',
+                'Sets the user prompt for Layer 1+ promotion repair; it can use the {{player_name}}, {{context_str}}, and {{story_txt}} variables.',
             when: 'Turn it on if repaired promotions still keep too much detail.',
             risk: 'Bad repair instructions can erase durable continuity.',
         }),

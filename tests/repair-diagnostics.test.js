@@ -7,7 +7,7 @@ import {
     formatRepairDiagnostics,
     getReductionGuidance,
 } from '../src/core/repair-diagnostics.js';
-import { computeSentenceCap, computeStateLineCap } from '../src/core/token-budget.js';
+import { computeSentenceCap } from '../src/core/token-budget.js';
 
 describe('buildRepairDiagnostics', () => {
     it('coerces non-finite section counts to 0 and rounds positive ones', () => {
@@ -193,7 +193,7 @@ describe('formatRepairDiagnostics', () => {
     it('emits preserve directives and blocks for passing sections with text or a preservation instruction', () => {
         const diagnostics = buildRepairDiagnostics({
             sections: [
-                { id: 'keep', label: '[STATE]', actualTokens: 10, text: 'keep me' },
+                { id: 'keep', label: '[NARRATIVE]', actualTokens: 10, text: 'keep me' },
                 {
                     id: 'note',
                     label: 'Note',
@@ -203,7 +203,7 @@ describe('formatRepairDiagnostics', () => {
             ],
         });
         const output = formatRepairDiagnostics(diagnostics);
-        expect(output).toContain('Preserve [STATE] unchanged');
+        expect(output).toContain('Preserve [NARRATIVE] unchanged');
         expect(output).toContain('<preserve_keep>');
         expect(output).toContain('keep me');
         expect(output).toContain('Preserve Note unchanged: verbatim');
@@ -272,23 +272,11 @@ describe('buildStructuralRepairFeedback', () => {
 
     it('returns "" when the only violation is below-minimum (not above-hard-maximum)', () => {
         const diagnostics = makeViolation({
-            id: 'state',
-            text: 'a: 1\nb: 2\nc: 3',
+            id: 'narrative',
+            text: 'a short beat',
             reason: 'below-minimum',
         });
         expect(buildStructuralRepairFeedback(diagnostics, {})).toBe('');
-    });
-
-    it('emits a state line mentioning actual count and cap when key:value lines exceed the cap', () => {
-        const sourceBudget = { sourceStateKeyCount: 2 };
-        const cap = computeStateLineCap(sourceBudget.sourceStateKeyCount);
-        // Four key:value lines, plus a blank line and a colon-less line that are ignored.
-        const text = 'a: 1\nb: 2\nc: 3\nd: 4\n\nno colon here';
-        const diagnostics = makeViolation({ id: 'state', text });
-        const feedback = buildStructuralRepairFeedback(diagnostics, sourceBudget);
-        expect(feedback).toContain('4');
-        expect(feedback).toContain(String(cap));
-        expect(feedback).toContain('lines');
     });
 
     it('emits a narrative line mentioning sentences and the cap when the count exceeds it', () => {
@@ -302,11 +290,9 @@ describe('buildStructuralRepairFeedback', () => {
         expect(feedback.toLowerCase()).toContain('sentences');
     });
 
-    it('joins multiple actionable violations with newlines', () => {
-        const sourceBudget = { sourceStateKeyCount: 1, layer: 'l0', targetTokens: 100 };
-        const stateCap = computeStateLineCap(sourceBudget.sourceStateKeyCount);
+    it('joins multiple actionable narrative violations with newlines', () => {
+        const sourceBudget = { layer: 'l0', targetTokens: 100 };
         const narrativeCap = computeSentenceCap('l0', 100);
-        const stateText = Array.from({ length: stateCap + 2 }, (_v, i) => `k${i}: v`).join('\n');
         const narrativeText = Array.from(
             { length: narrativeCap + 2 },
             (_v, i) => `Sentence ${i}.`,
@@ -314,20 +300,11 @@ describe('buildStructuralRepairFeedback', () => {
         // Two above-hard-maximum sections in one diagnostics object.
         const diagnostics = buildRepairDiagnostics({
             sections: [
-                { id: 'state', actualTokens: 100, hardMaxTokens: 1, text: stateText },
+                { id: 'narrative', actualTokens: 100, hardMaxTokens: 1, text: narrativeText },
                 { id: 'narrative', actualTokens: 100, hardMaxTokens: 1, text: narrativeText },
             ],
         });
         const feedback = buildStructuralRepairFeedback(diagnostics, sourceBudget);
         expect(feedback.split('\n')).toHaveLength(2);
-    });
-
-    it('does not throw and applies default caps when sourceBudget is omitted', () => {
-        const cap = computeStateLineCap(undefined);
-        const text = Array.from({ length: cap + 1 }, (_v, i) => `k${i}: v`).join('\n');
-        const diagnostics = makeViolation({ id: 'state', text });
-        const feedback = buildStructuralRepairFeedback(diagnostics);
-        expect(feedback).toContain(String(cap));
-        expect(feedback).toContain(String(cap + 1));
     });
 });

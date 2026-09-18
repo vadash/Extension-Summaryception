@@ -6,57 +6,38 @@ import {
     renderInjectionTemplate,
 } from '../src/core/memory-injection.js';
 
-function snippetWithState(narrative, stateLines) {
-    const state = stateLines.map((line) => line).join('\n');
-    return {
-        text: `[NARRATIVE]\n${narrative}\n[STATE]\n${state}`,
-    };
-}
-
-describe('buildMemoryInjectionParts with injectCurrentState', () => {
-    it('prepends the [CURRENT STATE] block by default', () => {
+describe('buildMemoryInjectionParts', () => {
+    it('joins per-layer chronology sections under [CHRONOLOGY]', () => {
         const layers = [
-            [
-                snippetWithState('The party reached the tavern.', [
-                    'location: tavern',
-                    'mood: tense',
-                ]),
-            ],
+            [{ text: 'The party reached the tavern.' }],
+            [{ text: 'The ferry crossed at dawn.' }],
         ];
 
         const parts = buildMemoryInjectionParts(layers);
 
-        expect(parts.stateText).toContain('[CURRENT STATE]');
-        expect(parts.memoryText).toContain('[CURRENT STATE]');
         expect(parts.memoryText).toContain('[CHRONOLOGY]');
+        expect(parts.memoryText).toContain('The party reached the tavern.');
+        expect(parts.memoryText).toContain('The ferry crossed at dawn.');
+        expect(parts.memoryText).toBe(`[CHRONOLOGY]\n${parts.chronologyText}`);
     });
 
-    it('drops the state block and keeps only chronology when injectCurrentState is false', () => {
-        const layers = [
-            [
-                snippetWithState('The party reached the tavern.', [
-                    'location: tavern',
-                    'mood: tense',
-                ]),
-            ],
-        ];
+    it('reports chronology parts tagged by layer index, deepest first', () => {
+        const layers = [[{ text: 'First beat.' }], [{ text: 'Second beat.' }]];
 
-        const parts = buildMemoryInjectionParts(layers, { injectCurrentState: false });
+        const parts = buildMemoryInjectionParts(layers);
 
-        expect(parts.stateText).toBe('');
-        expect(parts.memoryText).not.toContain('[CURRENT STATE]');
-        expect(parts.memoryText).not.toContain('[STATE]');
-        expect(parts.memoryText).toContain('[CHRONOLOGY]');
+        expect(parts.chronologyParts).toHaveLength(2);
+        expect(parts.chronologyParts[0].layerIndex).toBe(1);
+        expect(parts.chronologyParts[0].text).toContain('Second beat.');
+        expect(parts.chronologyParts[1].layerIndex).toBe(0);
     });
 
-    it('still reports the chronology parts when the state is suppressed', () => {
-        const layers = [[snippetWithState('First beat.', ['location: tavern'])]];
-
-        const parts = buildMemoryInjectionParts(layers, { injectCurrentState: false });
-
-        expect(parts.chronologyParts).toHaveLength(1);
-        expect(parts.chronologyParts[0].layerIndex).toBe(0);
-        expect(parts.chronologyParts[0].text).toContain('First beat.');
+    it('returns empty parts for a missing layer list', () => {
+        expect(buildMemoryInjectionParts(undefined)).toEqual({
+            chronologyParts: [],
+            chronologyText: '',
+            memoryText: '',
+        });
     });
 });
 

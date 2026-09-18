@@ -10,9 +10,12 @@ import {
 } from './promotion-planner.js';
 import { isSummarizerOutputSafe } from './summarizer-output.js';
 import { buildRepairDiagnostics } from './repair-diagnostics.js';
-import { parseSnippet } from './summarizer-state.js';
 import { callSummarizer } from './summarizer-request.js';
-import { formatSnippetAnchor, stripLeadingSnippetAnchor } from './snippet-metadata.js';
+import {
+    formatSnippetAnchor,
+    parseSnippet,
+    stripLeadingSnippetAnchor,
+} from './snippet-metadata.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
 /**

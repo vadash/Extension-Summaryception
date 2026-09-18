@@ -12,21 +12,4 @@ describe('settings help data', () => {
         expect(entry.detail).toContain('Ctrl+F5');
         expect(entry.detail).toContain('Force Summarize');
     });
-
-    it('gives every opt-in state setting a plain-language short and detail', () => {
-        const keys = [
-            'inject_current_state',
-            'state_cat_bonds',
-            'state_cat_chekhov',
-            'state_cat_gm_notes',
-            'state_cat_inventory',
-            'state_cat_location',
-        ];
-        for (const key of keys) {
-            const entry = SETTINGS_HELP[key];
-            expect(entry, `help entry for ${key}`).toBeDefined();
-            expect(entry.short.trim(), `${key}.short`).not.toBe('');
-            expect(entry.detail.trim(), `${key}.detail`).not.toBe('');
-        }
-    });
 });

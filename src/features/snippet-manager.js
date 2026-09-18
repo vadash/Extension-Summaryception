@@ -4,8 +4,7 @@ import { getChatStore } from '../foundation/state.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { validateSummarizerOutputIntegrity } from '../core/summarizer-output.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
-import { buildSnippetMetadataFromState } from '../core/snippet-metadata.js';
-import { parseSnippet } from '../core/summarizer-state.js';
+import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
 import { callSummarizer } from '../core/summarizer-request.js';
 import { beginRun, isBusy } from '../core/summarizer-queue.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
@@ -82,7 +81,7 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
     await commitSnippetMutation(store, () => {
         snippet.text = newText;
         if (layerIndex === 0) {
-            Object.assign(snippet, buildSnippetMetadataFromState(parseSnippet(newText).state));
+            Object.assign(snippet, buildSnippetMetadataFromText(newText));
         }
     });
     return { status: 'updated' };
@@ -173,10 +172,7 @@ async function regenerateSnippetWithTarget(target, notify) {
         target.snippet.text = newSummary;
         target.snippet.timestamp = Date.now();
         target.snippet.regenerated = true;
-        Object.assign(
-            target.snippet,
-            buildSnippetMetadataFromState(parseSnippet(newSummary).state),
-        );
+        Object.assign(target.snippet, buildSnippetMetadataFromText(newSummary));
     });
     return { status: 'regenerated', range: target.range };
 }

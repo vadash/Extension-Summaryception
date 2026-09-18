@@ -15,7 +15,6 @@ import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/con
  * @property {string} passageText
  * @property {import('./chatutils.js').PassageRegexStats} passageStats
  * @property {string} contextText
- * @property {string} sourceState - Source-layer state snapshot text at capture time.
  */
 
 /**

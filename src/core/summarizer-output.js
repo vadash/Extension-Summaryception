@@ -7,11 +7,7 @@ import {
     validateLayer0Structure,
 } from './layer0-compression.js';
 import { silentAdapter } from './notify.js';
-import {
-    NARRATIVE_HEADER_LINES_RE,
-    normalizeStructuralHeaderLines,
-    STATE_HEADER_LINES_RE,
-} from './structural-headers.js';
+import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token-budget.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
@@ -26,10 +22,9 @@ const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
  * from the summarizer output. Uses configurable patterns plus
  * regex for common reasoning block formats.
  * @param {string} raw - The raw summarizer response
- * @param {{ stripStructuralMarkers?: boolean }} [options] - Optional cleanup controls
  * @returns {string} Cleaned text
  */
-function cleanSummarizerOutput(raw, options = {}) {
+function cleanSummarizerOutput(raw) {
     let text = raw;
 
     const s = getEffectiveSettings();
@@ -60,11 +55,6 @@ function cleanSummarizerOutput(raw, options = {}) {
     }
 
     text = normalizeStructuralHeaderLines(text);
-
-    if (options.stripStructuralMarkers) {
-        text = text.replace(NARRATIVE_HEADER_LINES_RE, '');
-        text = text.replace(STATE_HEADER_LINES_RE, '');
-    }
 
     text = text.replace(/\n{3,}/g, '\n').trim();
 
@@ -218,9 +208,7 @@ export async function processSummarizerResponse(
     metadata = {},
     notify = silentAdapter,
 ) {
-    const cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), {
-        stripStructuralMarkers: false,
-    });
+    const cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
     const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, settings);
 
     if (chinesePolicyResult.error) {
@@ -266,7 +254,7 @@ export async function processSummarizerResponse(
 
     return {
         status: 'success',
-        text: sizeResult.text || chinesePolicyResult.text,
+        text: chinesePolicyResult.text,
         error: null,
         repairFeedback: '',
     };

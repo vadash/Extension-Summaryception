@@ -112,21 +112,9 @@ function bindToggleHandlers() {
         '#sc_apply_regex_scripts',
         '#sc_hide_non_text_messages',
         '#sc_strip_chinese_ideographs',
-        '#sc_state_cat_bonds',
-        '#sc_state_cat_chekhov',
-        '#sc_state_cat_gm_notes',
-        '#sc_state_cat_inventory',
-        '#sc_state_cat_location',
     ].join(', ');
     bindDataSettingElements(plainToggles, { eventName: 'change' });
 
-    bindDocumentSetting({
-        eventName: 'change',
-        selector: '#sc_inject_current_state',
-        key: 'injectCurrentState',
-        read: readChecked,
-        afterSave: refreshPreview,
-    });
     bindDocumentSetting({
         eventName: 'change',
         selector: '#sc_mask_user_role_as_assistant',

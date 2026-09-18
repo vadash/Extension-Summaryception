@@ -15,7 +15,6 @@ import { getEffectiveSettings } from '../foundation/state.js';
  * @typedef {object} EffectiveMemoryUsage
  * @property {{ count: number, estimated: boolean }} total - Total assembled injection tokens.
  * @property {string} text - Full injection text after template wrapping.
- * @property {EffectiveMemoryTokenPart | null} state - Current-state token part, when present.
  * @property {EffectiveMemoryTokenPart[]} layers - Chronology token parts by layer.
  * @property {EffectiveMemoryTokenPart | null} wrapper - Template/wrapper token part, when present.
  * @property {EffectiveMemoryTokenPart[]} parts - Display-ready token parts aligned to the total.
@@ -27,10 +26,7 @@ import { getEffectiveSettings } from '../foundation/state.js';
  * @returns {string}
  */
 export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings()) {
-    const injectionParts = buildMemoryInjectionParts(layers, {
-        compactAnchors: true,
-        injectCurrentState: Boolean(settings.injectCurrentState),
-    });
+    const injectionParts = buildMemoryInjectionParts(layers, { compactAnchors: true });
     if (!injectionParts.memoryText) {
         return '';
     }
@@ -43,10 +39,7 @@ export function buildEffectiveMemoryText(layers, settings = getEffectiveSettings
  * @returns {Promise<EffectiveMemoryUsage>}
  */
 export async function getEffectiveMemoryUsage(layers, settings = getEffectiveSettings()) {
-    const injectionParts = buildMemoryInjectionParts(layers, {
-        compactAnchors: true,
-        injectCurrentState: Boolean(settings.injectCurrentState),
-    });
+    const injectionParts = buildMemoryInjectionParts(layers, { compactAnchors: true });
     const text = injectionParts.memoryText ? renderInjectionTemplate(injectionParts, settings) : '';
 
     if (!text) {
@@ -54,32 +47,17 @@ export async function getEffectiveMemoryUsage(layers, settings = getEffectiveSet
     }
 
     const total = await countTextTokens(text);
-    const state = await countStatePart(injectionParts.stateText);
     const layerParts = await countLayerParts(injectionParts.chronologyParts);
-    const countedParts = [state, ...layerParts].filter(Boolean);
+    const countedParts = [...layerParts];
     const wrapper = buildWrapperPart(total, countedParts);
-    const parts = [state, ...layerParts, wrapper].filter(Boolean);
+    const parts = [...layerParts, wrapper].filter(Boolean);
 
     return {
         total: { count: total.count, estimated: total.estimated },
         text,
-        state,
         layers: layerParts,
         wrapper,
         parts: alignPartsToTotal(parts, total.count),
-    };
-}
-
-async function countStatePart(stateText) {
-    if (!stateText) {
-        return null;
-    }
-    const tokens = await countTextTokens(stateText);
-    return {
-        label: 'State',
-        kind: 'state',
-        count: tokens.count,
-        estimated: tokens.estimated,
     };
 }
 
@@ -136,7 +114,6 @@ function emptyUsage() {
     return {
         total: { count: 0, estimated: false },
         text: '',
-        state: null,
         layers: [],
         wrapper: null,
         parts: [],

@@ -268,7 +268,6 @@ describe('resetSettingsToDefaults', () => {
         s.injectionTemplate = 'edited';
         s.autoPaused = true;
         s.minSummaryTurns = 9;
-        s.stateCatBonds = true;
         s.debugMode = false;
 
         resetSettingsToDefaults();
@@ -276,7 +275,6 @@ describe('resetSettingsToDefaults', () => {
         expect(s.injectionTemplate).toBe(defaultSettings.injectionTemplate);
         expect(s.autoPaused).toBe(defaultSettings.autoPaused);
         expect(s.minSummaryTurns).toBe(defaultSettings.minSummaryTurns);
-        expect(s.stateCatBonds).toBe(defaultSettings.stateCatBonds);
         expect(s.debugMode).toBe(true);
     });
 

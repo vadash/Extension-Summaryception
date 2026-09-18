@@ -1,4 +1,3 @@
-import { compileGlobalState, parseSnippet, serializeState } from './summarizer-state.js';
 import {
     formatAnchoredSnippetNarrative,
     formatCompactSnippetAnchor,
@@ -7,7 +6,6 @@ import {
 
 /**
  * @typedef {object} MemoryInjectionParts
- * @property {string} stateText - Serialized current-state section.
  * @property {Array<{ layerIndex: number, text: string }>} chronologyParts - Per-layer chronology sections.
  * @property {string} chronologyText - Joined chronology section text.
  * @property {string} memoryText - Final memory body before template wrapping.
@@ -23,23 +21,19 @@ export function buildMemoryInjection(layers) {
 
 /**
  * @param {Array<Array<{ text: string }>>} layers
- * @param {{ compactAnchors?: boolean, injectCurrentState?: boolean }} [options]
+ * @param {{ compactAnchors?: boolean }} [options]
  * @returns {MemoryInjectionParts}
  */
-export function buildMemoryInjectionParts(
-    layers,
-    { compactAnchors = false, injectCurrentState = true } = {},
-) {
+export function buildMemoryInjectionParts(layers, { compactAnchors = false } = {}) {
     if (!Array.isArray(layers)) {
         return emptyParts();
     }
 
-    const stateText = injectCurrentState ? buildCurrentStateText(layers) : '';
     const chronologyParts = collectChronologyParts(layers, compactAnchors);
     const chronologyText = chronologyParts.map((part) => part.text).join('\n');
-    const memoryText = combineMemoryText(stateText, chronologyText);
+    const memoryText = chronologyText ? `[CHRONOLOGY]\n${chronologyText}` : '';
 
-    return { stateText, chronologyParts, chronologyText, memoryText };
+    return { chronologyParts, chronologyText, memoryText };
 }
 
 /**
@@ -57,28 +51,6 @@ export function renderInjectionTemplate(injectionParts, settings, { emptyFallbac
     );
 }
 
-function buildCurrentStateText(layers) {
-    return getCurrentStateSnapshotText(layers).replace(/^\[STATE\]/, '[CURRENT STATE]');
-}
-
-/**
- * Skips the `[CURRENT STATE]` rename so the Layer 0 budget hint counts
- * source-state tokens and keys from the raw serialized `[STATE]` body.
- * Returns `''` when the layers hold no state.
- * @param {Array<Array<{ text: string }>>} layers
- * @returns {string}
- */
-export function getCurrentStateSnapshotText(layers) {
-    if (!Array.isArray(layers)) {
-        return '';
-    }
-    const state = compileGlobalState(layers);
-    if (Object.keys(state).length === 0) {
-        return '';
-    }
-    return serializeState(state);
-}
-
 function collectChronologyParts(layers, compactAnchors) {
     const parts = [];
     for (let i = layers.length - 1; i >= 0; i--) {
@@ -87,7 +59,12 @@ function collectChronologyParts(layers, compactAnchors) {
             continue;
         }
         const text = layer
-            .map((snippet) => buildChronologySnippetText(snippet, i, compactAnchors))
+            .map((snippet) =>
+                formatAnchoredSnippetNarrative(
+                    snippet,
+                    compactAnchors ? formatCompactSnippetAnchor : formatSnippetAnchor,
+                ),
+            )
             .filter(Boolean)
             .join('\n');
         if (text) {
@@ -97,44 +74,8 @@ function collectChronologyParts(layers, compactAnchors) {
     return parts;
 }
 
-function buildChronologySnippetText(snippet, layerIndex, compactAnchors) {
-    const pieces = [
-        formatAnchoredSnippetNarrative(
-            snippet,
-            compactAnchors ? formatCompactSnippetAnchor : formatSnippetAnchor,
-        ),
-    ];
-    if (layerIndex > 0) {
-        pieces.push(formatHistoricalStateNote(parseSnippet(snippet?.text || '').state));
-    }
-    return pieces.filter(Boolean).join(' ');
-}
-
-function formatHistoricalStateNote(state) {
-    const entries = Object.entries(state || {})
-        .map(([key, value]) => [String(key).trim(), String(value ?? '').trim()])
-        .filter(([key, value]) => key && value);
-    if (entries.length === 0) {
-        return '';
-    }
-    const facts = entries.map(([key, value]) => `${key} is ${value}`).join('; ');
-    return `[Historical note: ${facts}]`;
-}
-
-function combineMemoryText(stateText, chronologyText) {
-    const parts = [];
-    if (stateText) {
-        parts.push(stateText, '');
-    }
-    if (chronologyText) {
-        parts.push('[CHRONOLOGY]', chronologyText);
-    }
-    return parts.join('\n');
-}
-
 function emptyParts() {
     return {
-        stateText: '',
         chronologyParts: [],
         chronologyText: '',
         memoryText: '',

@@ -245,7 +245,7 @@ Physical Gate: Oral/manual permitted; penetration strictly locked.
 Summaryception's existing architecture is updated to establish a clean boundary between past narrative and present state:
 
 1. **Retire Old State Engine:** 
-   * Remove `[STATE]` snapshot generation from Summaryception's Layer 0 summarizer (`src/core/summarizer-state.js` extraction during batch summaries is disabled).
+   * The Layer 0 summarizer no longer generates a state snapshot; each memory is pure chronological `[NARRATIVE]` prose plus a `current_date_time` scene-time line.
 2. **Macro Timeline (Past):**
    * Summaryception's Layer 0, Layer 1, and Layer 2 summarizers compress old raw chat messages into **pure chronological `[NARRATIVE]` prose**.
    * Because raw chat messages no longer contain `<internal_states>` HTML blocks, Macro summarization is faster, cleaner, and immune to metadata hallucination.

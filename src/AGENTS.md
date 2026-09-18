@@ -16,16 +16,16 @@
 ## Memory
 
 - Balanced and Prefix Cache are the only memory modes. Stored legacy Append Only normalizes to Prefix Cache on load.
-- Layer 0 converts turns outside the verbatim window into narrative and a rolling state snapshot.
+- Layer 0 converts turns outside the verbatim window into a `[NARRATIVE]` prose section plus a trailing `current_date_time` scene-time line.
 - A promotion overflow drain stops after a fixed number of consecutive promotion failures. The failure counter resets on success.
 - One drain driver owns Promotion overflow clearing; commit applies one merge and never re-drains.
 - The drain asks the Foreground Gate before and after every attempt.
 - Auto cycles tolerate one consecutive promotion failure; manual runs tolerate three.
-- Promotion uses the final state snapshot in the promoted span.
+- Promotion carries the last known scene time from the promoted span.
 - Generated output outside its layer bounds triggers section-aware repair.
 - Repair retries only the failed section.
 - Narrative dates omit years, ISO syntax, and clock lead-ins.
-- Re-derive the state weekday from the ISO date in UTC.
+- Re-derive the current_date_time weekday from the ISO date in UTC.
 - Stable message identifiers own snippet provenance and hiding.
 - Resolve identifiers to current chat indexes only for host commands and planning.
 - Do not infer ownership from old array positions.

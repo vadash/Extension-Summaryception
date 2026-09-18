@@ -47,9 +47,6 @@ export async function updateUI() {
         syncEnabledContent(s);
 
         syncRoleMaskModeControl(s.maskUserRoleAsAssistant);
-        // alwaysOn category: markup disables the input, so show it as
-        // permanently ticked. The persisted flag for this category is ignored.
-        $('#sc_state_cat_date_time').prop('checked', true);
         const work = await describeAutoWork(getChat(), store, effectiveSettings).catch(() => null);
         const ghostedCount = countGhostedMessages();
         const metrics = {

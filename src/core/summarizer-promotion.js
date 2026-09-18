@@ -8,7 +8,6 @@ import {
     buildPromotedSnippetMetadata,
     formatAnchoredSnippetNarrative,
 } from './snippet-metadata.js';
-import { compileGlobalState, serializeState } from './summarizer-state.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { commitWhenSafe, promptWorkGate } from './summarizer-commit.js';
 import { buildSnapshotBasis, isSnapshotStoreCurrent } from './summarizer-snapshot.js';
@@ -98,9 +97,6 @@ async function prepareLayerPromotion({
         .filter(Boolean)
         .join('\n\n');
     const sourceNarrativeText = storyTxt;
-    const mergedState = compileGlobalState([toMerge]);
-    const serializedState = serializeState(mergedState);
-    const sourceState = serializedState || '(none)';
     const memoryTokensBefore = await countTextTokens(storyTxt);
     const contextStr = buildFullContext(layerIndex + 1);
     const promotedMetadata = buildPromotedSnippetMetadata(toMerge);
@@ -122,7 +118,6 @@ async function prepareLayerPromotion({
         overflowMemoryLimit: settings.snippetsPerLayer,
         overflowTokens: layerTokens,
         overflowTokenQuota: quota,
-        sourceState,
     };
 
     return {

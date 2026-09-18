@@ -15,7 +15,7 @@ import {
 } from './test-helpers.js';
 
 /** Minimal valid summary passage returned by the stubbed request layer. */
-const VALID_SUMMARY = `[NARRATIVE]\nA concise summary.\n[STATE]\nlocation: room`;
+const VALID_SUMMARY = '[NARRATIVE]\nA concise summary.\n\ncurrent_date_time: 2024-07-04 16 Thu';
 
 describe('Layer 0 deferred cleanup commit', () => {
     afterEach(() => {

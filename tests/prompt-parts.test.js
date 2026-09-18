@@ -28,7 +28,7 @@ describe('buildSystemPrompt', () => {
 
 describe('buildUserPrompt', () => {
     const inputBlocks = '<input>\nrecent turns here\n</input>';
-    const schemaBlock = 'emit [NARRATIVE] then [STATE]';
+    const schemaBlock = 'emit [NARRATIVE] only';
     const taskRules = 'be durable';
 
     it('preserves block ordering and keeps the trigger as the final line', () => {
@@ -36,7 +36,7 @@ describe('buildUserPrompt', () => {
             inputBlocks,
             schemaBlock,
             taskRules,
-            criticalRules: 'never omit STATE',
+            criticalRules: 'never omit details',
             triggerLine: EXECUTION_TRIGGER_L0,
         });
 
@@ -76,7 +76,7 @@ describe('buildUserPrompt', () => {
             inputBlocks,
             schemaBlock,
             taskRules,
-            criticalRules: 'never omit STATE',
+            criticalRules: 'never omit details',
             triggerLine: EXECUTION_TRIGGER_L0,
         });
         const withoutCritical = buildUserPrompt({

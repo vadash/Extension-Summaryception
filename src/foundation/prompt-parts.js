@@ -48,7 +48,7 @@ export function buildUserPrompt({
 }
 
 export const EXECUTION_TRIGGER_L0 =
-    'Now output the two sections ([NARRATIVE] then [STATE]) with no preamble, code fences, or commentary.';
+    'Now output the [NARRATIVE] section and the current_date_time key line with no preamble, code fences, or commentary.';
 
 export const EXECUTION_TRIGGER_PROMO =
     'Now output exactly one [NARRATIVE] paragraph with no preamble, code fences, or commentary.';

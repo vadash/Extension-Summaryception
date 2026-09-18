@@ -1,19 +1,9 @@
 import { defaultSettings } from '../foundation/constants.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
 import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
-import {
-    appendLayer0PromptConstraints,
-    getLayer0SummaryTokenTarget,
-    isLayer0SizeGuardCall,
-} from './layer0-compression.js';
+import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
-import {
-    buildLayer0BudgetHint,
-    countLayer0SourceBudget,
-    getSourceTokenCount,
-} from './token-budget.js';
-import { buildStateSchemaText } from '../foundation/state-categories.js';
 
 /**
  * @typedef {object} SummarizerPipelineInputRequest
@@ -33,10 +23,7 @@ export async function buildSummarizerPipelineInput({
     metadata = {},
     settings = getEffectiveSettings(),
 }) {
-    const usageMetadata = await attachBudgetHint(
-        await buildUsageMetadata(metadata, storyTxt),
-        settings,
-    );
+    const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
     const prompt = buildSummarizerPrompt({
         template: promptConfig.userPromptTemplate,
@@ -143,34 +130,6 @@ function hasSourceTokenMetadata(metadata = {}) {
 }
 
 /**
- * Pre-compute the source-relative Layer 0 budget hint so that downstream
- * synchronous prompt assembly can inject it without awaiting a tokenizer.
- * No-op for non-L0/regen calls. Assigns `budgetHint` onto the metadata
- * clone so the original metadata object is not mutated across calls.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
- * @param {ExtensionSettings} settings
- * @returns {Promise<import('./summarizer-usage.js').SummarizerCallMetadata>}
- */
-async function attachBudgetHint(metadata, settings) {
-    if (!isLayer0SizeGuardCall(metadata)) {
-        return metadata;
-    }
-    const sourceNarrativeTokens = getSourceTokenCount(metadata);
-    const sourceStateText = String(metadata.sourceState || '');
-    const { stateTokens, stateKeyCount } = await countLayer0SourceBudget({
-        sourceNarrativeTokens,
-        sourceStateText,
-    });
-    const budgetHint = buildLayer0BudgetHint({
-        sourceStateTokens: stateTokens,
-        sourceStateKeyCount: stateKeyCount,
-        targetTokens: getLayer0SummaryTokenTarget(settings),
-        settings,
-    });
-    return { ...metadata, budgetHint };
-}
-
-/**
  * @param {ExtensionSettings} settings - Settings
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
  * @returns {{ systemPrompt: string, userPromptTemplate: string }}
@@ -235,13 +194,10 @@ function getStringSetting(value, fallback) {
  * @returns {string}
  */
 function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, metadata }) {
-    const sourceState = metadata.sourceState || '(none)';
     // replaceAll on purpose: every placeholder occurrence is replaced; user templates may repeat one.
     const prompt = template
         .replaceAll('{{player_name}}', getPlayerName())
         .replaceAll('{{context_str}}', contextStr || '(none yet)')
-        .replaceAll('{{source_state}}', sourceState)
-        .replaceAll('{{story_txt}}', storyTxt)
-        .replaceAll('{{state_schema}}', buildStateSchemaText(settings));
+        .replaceAll('{{story_txt}}', storyTxt);
     return appendLayer0PromptConstraints(prompt, settings, metadata);
 }

@@ -88,9 +88,6 @@ function getTokenCountsByLayer(usage) {
     for (const part of usage.layers) {
         tokens.set(part.layerIndex, part.count);
     }
-    if (usage.state) {
-        tokens.set(0, (tokens.get(0) || 0) + usage.state.count);
-    }
     return tokens;
 }
 

@@ -1,9 +1,5 @@
 import { defaultSettings } from '../foundation/constants.js';
-import { getActiveLineCap } from '../foundation/state-categories.js';
-import { countTextTokens } from './token-count.js';
-import { parseStateBlock } from './summarizer-state.js';
 
-export const STATE_KEY_CEILING = 12;
 export const TOKENS_PER_SENTENCE = 35;
 export const LAYER_MIN_RATIO = { l0: 0.4, l1: 0.4, l2: 0.3 };
 export const LAYER_HARD_MAX_RATIO = { l0: 1.5, l1: 1.75, l2: 1.5 };
@@ -15,19 +11,6 @@ export const LAYER_SAFETY_MULTIPLIER = { l0: 0.85, l1: 0.5, l2: 0.5 };
  * narrative size (integrity check and Layer 0 narrative minimum gating).
  */
 export const SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD = 500;
-
-/**
- * Maximum number of `[STATE]` key:value lines the model should emit.
- * @param {number | undefined} sourceStateKeyCount
- * @returns {number}
- */
-export function computeStateLineCap(sourceStateKeyCount) {
-    const count = Number(sourceStateKeyCount);
-    if (!Number.isFinite(count) || count <= 0) {
-        return STATE_KEY_CEILING;
-    }
-    return Math.min(count, STATE_KEY_CEILING);
-}
 
 /**
  * Integer sentence cap for a layer, anchored to slider target T.
@@ -92,27 +75,11 @@ export function buildSizeConstraintsBlock({ wrapperTag, targetLine, repairLine =
 /**
  * Build the Layer 0 model-countable source budget block.
  * @param {object} p
- * @param {number} p.sourceStateTokens
- * @param {number} p.sourceStateKeyCount
  * @param {number} p.targetTokens
- * @param {ExtensionSettings} p.settings
  * @returns {string}
  */
-export function buildLayer0BudgetHint({
-    sourceStateTokens,
-    sourceStateKeyCount,
-    targetTokens,
-    settings,
-}) {
+export function buildLayer0BudgetHint({ targetTokens }) {
     const sentenceCap = computeSentenceCap('l0', targetTokens);
-    const hasState = Number(sourceStateTokens) > 0;
-    const stateLineCap = hasState
-        ? computeStateLineCap(sourceStateKeyCount)
-        : getActiveLineCap(settings, STATE_KEY_CEILING);
-    const existingStateLine = hasState
-        ? `Existing [STATE]: ${sourceStateKeyCount} keys.`
-        : 'No existing [STATE] yet; build the first snapshot.';
-
     return [
         '<summaryception_source_budget>',
         'Compress the source passage hard.',
@@ -121,13 +88,6 @@ export function buildLayer0BudgetHint({
             verb: 'write',
             cap: sentenceCap,
             unit: 'sentences',
-        }),
-        existingStateLine,
-        buildSizeTargetLine({
-            label: '[STATE]',
-            verb: 'rewrite the full snapshot;',
-            cap: stateLineCap,
-            unit: 'lines',
         }),
         '</summaryception_source_budget>',
     ].join('\n');
@@ -151,29 +111,6 @@ export function getSourceTokenCount(metadata = {}) {
         }
     }
     return 0;
-}
-
-/**
- * Compute narrative and prior-state token counts for a Layer 0 call.
- * @param {object} p
- * @param {number} p.sourceNarrativeTokens
- * @param {string} p.sourceStateText
- * @returns {Promise<{ narrativeTokens: number, stateTokens: number, stateKeyCount: number }>}
- */
-export async function countLayer0SourceBudget({ sourceNarrativeTokens, sourceStateText }) {
-    const narrativeValue = Number(sourceNarrativeTokens);
-    const narrativeTokens = Number.isFinite(narrativeValue) ? narrativeValue : 0;
-    const stateText = String(sourceStateText || '').trim();
-    if (!stateText) {
-        return { narrativeTokens, stateTokens: 0, stateKeyCount: 0 };
-    }
-
-    const stateTokens = (await countTextTokens(stateText)).count;
-    return {
-        narrativeTokens,
-        stateTokens,
-        stateKeyCount: Object.keys(parseStateBlock(stateText).state).length,
-    };
 }
 
 /** Overhead of the surrounding SillyTavern prompt in the main-request preview. */

@@ -7,12 +7,11 @@ import { repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
-import { buildSnippetMetadataFromState } from './snippet-metadata.js';
+import { buildSnippetMetadataFromText } from './snippet-metadata.js';
 import { commitWhenSafe } from './summarizer-commit.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { isSummarizerOutputSafe } from './summarizer-output.js';
-import { parseSnippet } from './summarizer-state.js';
-import { buildMemoryInjection, getCurrentStateSnapshotText } from './memory-injection.js';
+import { buildMemoryInjection } from './memory-injection.js';
 import { formatTokenValue } from './token-count.js';
 import {
     buildSnapshotBasis,
@@ -336,7 +335,6 @@ async function runLayer0Summarization({
                 kind: 'layer0',
                 sourceRange: snapshot.sourceRange,
                 regexStats: snapshot.passageStats,
-                sourceState: snapshot.sourceState,
             },
             notify,
         );
@@ -480,7 +478,6 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contex
         passageText: passage.text,
         passageStats: passage.stats,
         contextText: resolvedContextText,
-        sourceState: getCurrentStateSnapshotText(store.layers),
     };
 }
 
@@ -530,11 +527,10 @@ async function commitLayer0Snippets({ entries, notify }) {
 }
 
 function buildLayer0Snippet(snapshot, summary) {
-    const parsed = parseSnippet(summary);
     return {
         text: summary,
         sourceMessageIds: [...snapshot.sourceMessageIds],
-        ...buildSnippetMetadataFromState(parsed.state),
+        ...buildSnippetMetadataFromText(summary),
         timestamp: Date.now(),
     };
 }

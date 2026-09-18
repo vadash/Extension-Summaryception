@@ -1,22 +1,87 @@
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { collectSnippetSourceIds } from '../foundation/state.js';
-import { parseSnippet } from './summarizer-state.js';
-import { LEADING_NARRATIVE_HEADER_RE } from './structural-headers.js';
+import {
+    LEADING_NARRATIVE_HEADER_RE,
+    normalizeStructuralHeaderLines,
+} from './structural-headers.js';
 
 const UNKNOWN_TIME = 'unknown';
 const COMPACT_CURRENT_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{2})(?:\s+[a-z]{3})?$/i;
 const LEADING_SNIPPET_ANCHORS_RE =
     /^\s*(?:(?:[-*]\s*)?\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*)+/i;
+const WEEKDAY_NAMES = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+const CURRENT_DATE_TIME_RE =
+    /^\s*(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2})(?::\d{2})?)?(?:\s+([A-Za-z]{3}))?\s*$/;
+const SCENE_TIME_LINE_RE = /^[^\S\r\n]*current_date_time[^\S\r\n]*[:=][^\S\r\n]*(.+)$/i;
 
 /**
- * Build optional snippet metadata from a parsed [STATE] object.
- * @param {Record<string, string>} state
+ * Parse a generated Layer 0 snippet into its narrative prose and scene time.
+ * Narrative-only: a trailing `current_date_time:` key line is lifted out of
+ * the prose and normalized; everything else stays narrative text.
+ * @param {string} text
+ * @returns {{ narrative: string, currentDateTime?: string }}
+ */
+export function parseSnippet(text) {
+    const source = normalizeStructuralHeaderLines(text).trim();
+    if (!source) {
+        return { narrative: '', currentDateTime: undefined };
+    }
+    const body = source.replace(LEADING_NARRATIVE_HEADER_RE, '').trim();
+    const lines = body.split(/\r?\n/);
+    const sceneTimeMatch = SCENE_TIME_LINE_RE.exec(lines[lines.length - 1] || '');
+    if (!sceneTimeMatch) {
+        return { narrative: body, currentDateTime: undefined };
+    }
+    return {
+        narrative: lines.slice(0, -1).join('\n').trimEnd(),
+        currentDateTime: normalizeCurrentDateTime(sceneTimeMatch[1].trim()),
+    };
+}
+
+/**
+ * Derives the ISO weekday from the date and rewrites the value's
+ * weekday token when it is missing or wrong. Preserves the hour and drops
+ * stray minutes (per the HH-resolution contract). Returns the input verbatim
+ * when no valid ISO date is present, so malformed values stay untouched.
+ * @param {string} value - raw current_date_time value from the model
+ * @returns {string}
+ */
+export function normalizeCurrentDateTime(value) {
+    const text = String(value || '').trim();
+    const match = text.match(CURRENT_DATE_TIME_RE);
+    if (!match) {
+        return text;
+    }
+    const [, yStr, mStr, dStr] = match;
+    const year = Number(yStr);
+    const month = Number(mStr);
+    const day = Number(dStr);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+        return text;
+    }
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+        Number.isNaN(date.getTime()) ||
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day
+    ) {
+        return text;
+    }
+    const correctWeekday = WEEKDAY_NAMES[date.getUTCDay()];
+    const normalizedHour = match[4] || '00';
+    return `${yStr}-${mStr}-${dStr} ${normalizedHour} ${correctWeekday}`;
+}
+
+/**
+ * Build optional snippet metadata from generated snippet text.
+ * @param {string} text
  * @returns {{ currentDateTime?: string }}
  */
-export function buildSnippetMetadataFromState(state = {}) {
+export function buildSnippetMetadataFromText(text) {
     return compactMetadata({
-        currentDateTime: knownStateValue(state.current_date_time),
+        currentDateTime: knownStateValue(parseSnippet(text).currentDateTime),
     });
 }
 

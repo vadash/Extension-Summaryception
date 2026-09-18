@@ -744,7 +744,7 @@
                                     <div class="sc-row">
                                         <label for="sc_layer0_summary_token_target">
                                             <span>Narrative Target Size</span>
-                                            <small class="sc-hint">Target length for each new <code>[NARRATIVE]</code>. Rolling <code>[STATE]</code> has its own fixed 200-token target and 300-token ceiling.</small>
+                                            <small class="sc-hint">Target length for each new <code>[NARRATIVE]</code>.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_layer0_summary_token_target" min="80" max="700" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
@@ -863,64 +863,6 @@
                                 <input id="sc_custom_memory_depth" type="number" class="text_pole" min="0" max="10000" step="1" data-sc-setting="customMemoryDepth" data-sc-type="number" />
                             </div>
                         </div>
-                        <div class="sc-toggle-list">
-                            <label class="checkbox_label sc-toggle-row" for="sc_inject_current_state">
-                                <span class="sc-toggle-icon fa-solid fa-list-check"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Include [STATE]</span>
-                                    <small class="sc-hint">Prepend the active-facts snapshot block (<code>[CURRENT STATE]</code>) in what's injected into the prompt. Turn off to send only the <code>[CHRONOLOGY]</code> history and shrink the prompt.</small>
-                                </span>
-                                <input type="checkbox" id="sc_inject_current_state" data-sc-setting="injectCurrentState" />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_date_time">
-                                <span class="sc-toggle-icon fa-solid fa-clock"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Date & Time</span>
-                                    <small class="sc-hint">Time anchor carried across every snapshot. Always carried; cannot be toggled off.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_date_time" disabled />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_bonds">
-                                <span class="sc-toggle-icon fa-solid fa-people-group"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Bonds (Relationships RPG)</span>
-                                    <small class="sc-hint">Persistent relationship engine: BOND/Sparks/Grudge per character pair.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_bonds" data-sc-setting="stateCatBonds" />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_chekhov">
-                                <span class="sc-toggle-icon fa-solid fa-gun"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Chekhov (Narrative Gun)</span>
-                                    <small class="sc-hint">Aging narrative-debt bullets that fire probabilistically.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_chekhov" data-sc-setting="stateCatChekhov" />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_gm_notes">
-                                <span class="sc-toggle-icon fa-solid fa-feather-pointed"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">GM Notes</span>
-                                    <small class="sc-hint">Persistent GM scratchpad with [R]/[T]/[D] prefixed entries.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_gm_notes" data-sc-setting="stateCatGmNotes" />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_inventory">
-                                <span class="sc-toggle-icon fa-solid fa-briefcase"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Inventory & Titles</span>
-                                    <small class="sc-hint">User-only items, titles/skills, and status conditions.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_inventory" data-sc-setting="stateCatInventory" />
-                            </label>
-                            <label class="checkbox_label sc-toggle-row" for="sc_state_cat_location">
-                                <span class="sc-toggle-icon fa-solid fa-location-dot"></span>
-                                <span class="sc-toggle-copy">
-                                    <span class="sc-toggle-title">Location</span>
-                                    <small class="sc-hint">Current scene location.</small>
-                                </span>
-                                <input type="checkbox" id="sc_state_cat_location" data-sc-setting="stateCatLocation" />
-                            </label>
-                        </div>
                         <div id="sc_macro_memory_note" class="sc-note" style="display: none;">
                             <span class="fa-solid fa-circle-info"></span>
                             <small>Macro Only exposes <code>{{summaryception_memory}}</code> and skips direct prompt injection.</small>
@@ -997,7 +939,7 @@
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                             <small class="sc-hint">
-                                Custom Layer 0 prompts must output a <code>[NARRATIVE]</code> and a full, compact <code>[STATE]</code> snapshot using only the supported state keys. Anything you leave out is gone, and newer verbatim chat overrides the compressed state.
+                                Custom Layer 0 prompts must output a <code>[NARRATIVE]</code> section followed by a <code>current_date_time</code> line. Anything you leave out is gone, and newer verbatim chat overrides the compressed history.
                             </small>
                         </label>
                         <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10" data-sc-setting="summarizerUserPrompt"></textarea>
@@ -1075,7 +1017,7 @@
                         <label for="sc_promotion_repair_prompt">
                             <span>Layer 1+ Repair Prompt</span>
                             <small class="sc-hint">
-                                Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code> <code>{{source_state}}</code>
+                                Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                         </label>
                         <textarea id="sc_promotion_repair_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="promotionRepairPrompt"></textarea>

@@ -22,23 +22,4 @@ describe('normalizeStructuralHeaderLines', () => {
         expect(result).toContain('[NARRATIVE]\nfoo');
         expect(result).not.toContain('[NARRATIVE]\n\nfoo');
     });
-
-    it('uppercases a line-start [state] and breaks before its key:value content', () => {
-        const result = normalizeStructuralHeaderLines('[state] key: v');
-        expect(result).toContain('[STATE]');
-        expect(result).toContain('[STATE]\nkey: v');
-    });
-
-    it('isolates an inline [STATE] followed by a key:value line onto its own line', () => {
-        const result = normalizeStructuralHeaderLines('some text [STATE] key: value');
-        expect(result).toContain('\n[STATE]\n');
-    });
-
-    it('normalizes every inline [STATE] occurrence globally', () => {
-        const result = normalizeStructuralHeaderLines(
-            'intro [STATE] alpha: 1 middle [STATE] beta: 2',
-        );
-        const matches = result.match(/\n\[STATE\]\n/g) || [];
-        expect(matches.length).toBe(2);
-    });
 });

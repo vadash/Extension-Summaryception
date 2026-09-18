@@ -4,7 +4,6 @@ import { defaultSettings } from '../src/foundation/constants.js';
 import {
     appendLayer0PromptConstraints,
     buildLayer0SizeRepairFeedback,
-    buildStateSnapshotSizeRepairFeedback,
     getLayer0SummaryTokenBounds,
     getLayer0SummaryTokenTarget,
     isLayer0CompressionCall,
@@ -115,13 +114,12 @@ describe('appendLayer0PromptConstraints', () => {
         expect(appendLayer0PromptConstraints(prompt, settings, {})).toBe(prompt);
     });
 
-    it('inserts the budget hint before the trigger and preserves L0 trigger finality', () => {
+    it('inserts the narrative budget hint before the trigger and preserves L0 trigger finality', () => {
         const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(prompt, settings, {
-            kind: 'layer0',
-            budgetHint: 'BUDGET_HINT_MARKER',
-        });
-        expect(result).toContain('BUDGET_HINT_MARKER');
+        const result = appendLayer0PromptConstraints(prompt, settings, { kind: 'layer0' });
+        expect(result).toContain('<summaryception_source_budget>');
+        expect(result).toContain('[NARRATIVE]');
+        expect(result).not.toContain('[STATE]');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
     });
 
@@ -170,7 +168,8 @@ describe('buildLayer0SizeRepairFeedback', () => {
         expect(output).toContain('<summaryception_l0_repair_feedback>');
         expect(output).toContain('</summaryception_l0_repair_feedback>');
         expect(output).toContain('[NARRATIVE]');
-        expect(output).toContain('[STATE]');
+        // The repair ask is narrative-only now; no state section is mentioned.
+        expect(output).not.toContain('[STATE]');
     });
 
     it('flags the narrative below-minimum when reason is too-short', () => {
@@ -185,27 +184,14 @@ describe('buildLayer0SizeRepairFeedback', () => {
     });
 });
 
-describe('buildStateSnapshotSizeRepairFeedback', () => {
-    it('routes through the L0 repair wrapper and includes the rejected state text', () => {
-        const output = buildStateSnapshotSizeRepairFeedback({
-            stateTokens: 100000,
-            stateText: 'STATE_SNAPSHOT_MARKER: value',
-        });
-        expect(output).toContain('<summaryception_l0_repair_feedback>');
-        expect(output).toContain('STATE_SNAPSHOT_MARKER: value');
-    });
-});
-
 describe('validateLayer0OutputSize', () => {
-    it('accepts a Layer 0 draft whose sections sit inside the configured size band', async () => {
+    it('accepts a narrative-only Layer 0 draft inside the configured size band', async () => {
         installSummaryContext({ getTokenCountAsync: async () => 100 });
         const output = [
             '[NARRATIVE]',
             'Kaelen traded the map for safe passage and left before dawn.',
             '',
-            '[STATE]',
-            'location: the river dock',
-            'bonds: owes Harl a favor',
+            'current_date_time: 2024-07-04 16 Thu',
         ].join('\n');
 
         const result = await validateLayer0OutputSize(output, defaultSettings, { kind: 'layer0' });
@@ -220,9 +206,6 @@ describe('validateLayer0OutputSize', () => {
         const output = [
             '[NARRATIVE]',
             'Kaelen argued with the ferryman about the fare and watched the storm roll in.',
-            '',
-            '[STATE]',
-            'location: the river dock',
         ].join('\n');
 
         const result = await validateLayer0OutputSize(output, defaultSettings, { kind: 'layer0' });
@@ -237,7 +220,7 @@ describe('validateLayer0OutputSize', () => {
         installSummaryContext({ getTokenCountAsync: async () => 500 });
 
         const result = await validateLayer0OutputSize(
-            '[NARRATIVE]\nAny draft\n\n[STATE]\nlocation: the river dock',
+            '[NARRATIVE]\nAny narrative-only draft',
             defaultSettings,
             { kind: 'promotion' },
         );

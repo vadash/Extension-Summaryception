@@ -90,7 +90,7 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({
             status: 'completed',
-            text: `[NARRATIVE]\nA fresh summary.\n[STATE]\nlocation: room`,
+            text: `[NARRATIVE]\nA fresh summary.\n\ncurrent_date_time: 2024-07-04 16 Thu`,
         });
 
         await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({

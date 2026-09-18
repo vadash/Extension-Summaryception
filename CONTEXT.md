@@ -5,7 +5,7 @@ Browser-only SillyTavern extension for recursive layered summarization. Summariz
 ## Language
 
 **Layer**:
-A container of summary snippets at one summarization depth. Layer 0 holds narratives and the state snapshot; deeper layers hold merged older snippets.
+A container of summary snippets at one summarization depth. Layer 0 holds direct narrative summaries; deeper layers hold merged older snippets.
 Code: `store.layers` (src/foundation/state.js)
 _Avoid_: Tier, level
 
@@ -59,10 +59,6 @@ Code: `AssistantTurn.index` (src/core/chatutils.js), `sc_id` (src/foundation/mes
 **Verbatim Window**:
 The recent chat range kept in model context without summarization.
 Code: `verbatimBudget` / `verbatimStartIdx` (src/core/chat-window-planner.js)
-
-**State Snapshot**:
-A bounded rolling snapshot of roleplay state. Only the newest snapshot reaches the prompt.
-Code: `compactStateSnapshotText` (src/core/summarizer-state.js)
 
 **Output Hygiene**:
 The chain that turns a raw summarizer response into safe snippet text: cleanup, CN ideograph policy, integrity guard, Layer 0 size guard.
