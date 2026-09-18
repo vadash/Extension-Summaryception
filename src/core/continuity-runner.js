@@ -13,7 +13,11 @@ import {
     warn,
 } from '../foundation/logger.js';
 import { getMessageIndexByScId } from '../foundation/message-identity.js';
-import { listNonEmptyLayers, LOG_PREFIX } from '../foundation/constants.js';
+import {
+    CATCHUP_WINDOW_EXCHANGES,
+    listNonEmptyLayers,
+    LOG_PREFIX,
+} from '../foundation/constants.js';
 import { AUDITOR_REPAIR_SECTIONS } from '../foundation/prompt-constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
 import {
@@ -30,13 +34,6 @@ import {
 import { silentAdapter } from './notify.js';
 import { callSummarizer } from './summarizer-request.js';
 import { isCancellableConnection } from './connectionutil.js';
-
-/**
- * Catch-up Window: one combined Auditor call covers at most this many
- * Exchanges (most recent first); it bounds coverage, never turn_count. The
- * injection slot reuses it to bound the depth shift a single catch-up causes.
- */
-export const AUDIT_WINDOW_EXCHANGES = 4;
 
 /** In-flight audit controller; the runner owns cancellation when the active connection is uncancellable. @type {AbortController | null} */
 let activeAudit = null;
@@ -211,10 +208,10 @@ function clearActiveAuditSlot(controller) {
 }
 
 /**
- * Resolve the audit anchor, its derived turn count, and the accumulated
- * turn_count: fresh runs derive from the chat start, continuations add the
- * derived turns past the prior anchor. An anchor pointing at a deleted or
- * forked message cold re-derives from the chat start.
+ * Resolve the audit anchor and its derived turn count. turn_count always
+ * re-derives from the chat start so a rewind never double-counts a settled
+ * swipe; the anchor bounds only the coverage window. An anchor pointing at
+ * a deleted or forked message cold re-derives from the chat start.
  * @param {SummaryceptionContinuityState} prior
  * @param {ChatMessage[]} chat
  * @returns {{ anchor: string, derived: number, turnCount: number }}
@@ -222,11 +219,11 @@ function clearActiveAuditSlot(controller) {
 function resolveAnchorTurns(prior, chat) {
     const anchor = prior.anchor_sc_id;
     const derived = deriveTurnCount(chat, anchor);
+    const turnCount = deriveTurnCount(chat, '') ?? 0;
     if (derived === null) {
-        const coldDerived = deriveTurnCount(chat, '') ?? 0;
-        return { anchor: '', derived: coldDerived, turnCount: coldDerived };
+        return { anchor: '', derived: turnCount, turnCount };
     }
-    return { anchor, derived, turnCount: anchor ? prior.turn_count + derived : derived };
+    return { anchor, derived, turnCount };
 }
 
 /**
@@ -414,7 +411,7 @@ function lastAssistantScIdAfter(chat, anchorScId) {
 }
 
 /**
- * Render the Catch-up Window: the last AUDIT_WINDOW_EXCHANGES Exchanges past
+ * Render the Catch-up Window: the last CATCHUP_WINDOW_EXCHANGES Exchanges past
  * the anchor, each Exchange being its user line plus the assistant reply.
  * @param {ChatMessage[]} chat
  * @param {string} anchorScId
@@ -422,7 +419,7 @@ function lastAssistantScIdAfter(chat, anchorScId) {
  */
 function buildAuditStory(chat, anchorScId) {
     const assistantIndices = listAssistantIndicesAfter(chat, anchorScId) ?? [];
-    const windowIndices = assistantIndices.slice(-AUDIT_WINDOW_EXCHANGES);
+    const windowIndices = assistantIndices.slice(-CATCHUP_WINDOW_EXCHANGES);
     const included = new Set(windowIndices);
     for (const index of windowIndices) {
         // Walk back over non-user (assistant, system, hidden) messages to the

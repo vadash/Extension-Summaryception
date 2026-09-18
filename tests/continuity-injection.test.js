@@ -6,7 +6,11 @@ import {
     initCommitCallbacks,
 } from '../src/core/summarizer-commit.js';
 import { createDefaultContinuity } from '../src/foundation/continuity.js';
-import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
+import {
+    EXTENSION_PROMPT_POSITIONS,
+    EXTENSION_PROMPT_ROLES,
+    UI_MODES,
+} from '../src/foundation/constants.js';
 import {
     formatContinuityBlock,
     updateContinuityInjection,
@@ -76,12 +80,12 @@ describe('formatContinuityBlock', () => {
         expect(block).toContain('[T] Friday Sept 20: Vegan Restaurant commitment.');
     });
 
-    it('renders spec-style [D] notes as secrets too', () => {
+    it('renders [S] notes as the secrets section', () => {
         const block = formatContinuityBlock(
             makeContinuity({
                 bonds: {},
                 agendas: {},
-                gm_notes: ['[D] Off-screen event known by one party.'],
+                gm_notes: ['[S] Off-screen event known by one party.'],
                 physics: {
                     location: '',
                     environment: '',
@@ -93,7 +97,7 @@ describe('formatContinuityBlock', () => {
         );
 
         expect(block).toContain(
-            '[SECRETS & ASYMMETRIC KNOWLEDGE]\n- [D] Off-screen event known by one party.',
+            '[SECRETS & ASYMMETRIC KNOWLEDGE]\n- [S] Off-screen event known by one party.',
         );
         expect(block).not.toContain('[ACTIVE AGENDAS & THREADS]');
     });
@@ -157,6 +161,23 @@ describe('updateContinuityInjection', () => {
     it('clears the slot when continuity is disabled', () => {
         const { setExtensionPrompt } = installWithContinuity({
             settings: { continuityEnabled: false },
+        });
+
+        updateContinuityInjection();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith(
+            'summaryception_continuity',
+            '',
+            EXTENSION_PROMPT_POSITIONS.NONE,
+            0,
+            false,
+            EXTENSION_PROMPT_ROLES.SYSTEM,
+        );
+    });
+
+    it('clears the slot when the extension ui mode is off', () => {
+        const { setExtensionPrompt } = installWithContinuity({
+            settings: { continuityEnabled: true, uiMode: UI_MODES.OFF },
         });
 
         updateContinuityInjection();

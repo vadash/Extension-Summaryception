@@ -175,6 +175,21 @@ describe('runAuditorExtraction', () => {
         expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a6');
     });
 
+    it('re-derives turn_count from the chat start after a swipe rewind', async () => {
+        const chat = soloChat().slice(0, 4);
+        const ctx = installSoloChat({ chat, continuity: priorContinuity() });
+
+        rewindContinuityAnchor(chat[3]);
+
+        callSummarizer.mockResolvedValue({ status: 'completed', text: auditorJson() });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a2');
+        expect(ctx.chatMetadata.summaryception.continuity.turn_count).toBe(2);
+    });
+
     it('keeps the user line when a system message sits between the turns', async () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'u1' }),

@@ -202,6 +202,13 @@ export function listNonEmptyLayers(store) {
 
 // ─── Default Settings ────────────────────────────────────────────────
 
+/**
+ * Catch-up Window: one combined Auditor call covers at most this many
+ * Exchanges (most recent first); it bounds coverage, never turn_count. The
+ * injection slot reuses it to bound the depth shift a single catch-up causes.
+ */
+export const CATCHUP_WINDOW_EXCHANGES = 4;
+
 export const defaultSettings = Object.freeze({
     enabled: true,
     // Latched by Stop; blocks only automatic cycles. Manual runs ignore it.
@@ -268,8 +275,8 @@ export const defaultSettings = Object.freeze({
     traceMode: false,
     promptInputLogMode: false,
     promptOutputLogMode: false,
-    continuityStateLogMode: true,
-    continuityStateLogFullMode: true,
+    continuityStateLogMode: false,
+    continuityStateLogFullMode: false,
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile'

@@ -158,6 +158,11 @@ _Avoid_: message pair, turn
 The most recent four Exchanges a single combined Auditor call covers after missed turns. Older Exchanges stay unknown to the Continuity State; the window only bounds coverage, never `turn_count`.
 _Avoid_: catch-up cap, recovery span
 
+**Turn Count**:
+The total number of Exchanges in the chat, re-derived by code from the chat at every audit. Coverage never feeds it: the Catch-up Window and the Auditor Anchor bound what gets audited, never the count.
+Code: `turn_count` (src/foundation/continuity.js), `deriveTurnCount` (src/foundation/continuity.js)
+_Avoid_: audited turns, covered turns
+
 **Auditor Anchor**:
 The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping the anchored reply rewinds coverage one Exchange so the settled variation audits next.
 Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` (src/core/continuity-runner.js)
@@ -167,6 +172,11 @@ _Avoid_: cursor, checkpoint
 The five per-pair booleans one Auditor reply carries (positive_interaction, slight, insult, betrayal, apology). All bond, sparks, grudge, and gate numbers are derived from them by code.
 Code: `applyPairFlags` (src/foundation/continuity.js)
 _Avoid_: sentiment scores, bond math
+
+**Conversion**:
+The modulo bookkeeping code applies to bond pairs: at every Turn Count multiple of 5 accumulated Sparks convert into Bond (Grudge dulls the gain to zero); at every multiple of 3 Grudge decays. A Conversion evaluates only on an audit whose Turn Count lands on the multiple; multiples skipped inside one Catch-up Window span do not replay.
+Code: `applyPairFlags` (src/foundation/continuity.js)
+_Avoid_: spark spend, bond payout
 
 **Canonical-name Registry**:
 The naming rule for Continuity State keys: copy each character's name exactly as the character card spells it (Latin spelling, never inflected prose forms); the player is always `User`, pair keys are `Name↔User`.

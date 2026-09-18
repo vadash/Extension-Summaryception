@@ -17,12 +17,19 @@ import { getSettings } from '../src/foundation/state.js';
 import { installSummaryContext } from './test-helpers.js';
 
 describe('default auditor prompts', () => {
-    it('carries the [R], [T], and [S] note tag vocabulary and never [D]', () => {
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[R]');
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[T]');
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('[S]');
-        expect(DEFAULT_AUDITOR_USER_PROMPT).not.toContain('[D]');
-        expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).not.toContain('[D]');
+    /** Extract one XML section body from a composed prompt template. */
+    function sectionBody(prompt, tag) {
+        const match = prompt.match(new RegExp(`<${tag}>\\n([\\s\\S]*?)\\n</${tag}>`));
+        return match === null ? '' : match[1];
+    }
+
+    it('enumerates the [R], [T], and [S] note tags in the output schema listing', () => {
+        const schema = sectionBody(DEFAULT_AUDITOR_USER_PROMPT, 'output_schema');
+        const gmNotesListing = schema.match(/"gm_notes": \[(.*)\]/);
+
+        expect(gmNotesListing).not.toBeNull();
+        const tags = Array.from(gmNotesListing[1].matchAll(/\[([A-Z])\]/g), (m) => m[1]);
+        expect(tags).toEqual(['R', 'T', 'S']);
     });
 
     it('asks the agendas schema for fibs and aware', () => {

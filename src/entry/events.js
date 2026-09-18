@@ -312,13 +312,11 @@ function recoverPromptFreeze(reason) {
 /** Normalize message IDs, refresh injection, then restore missing ghost flags. */
 async function reconcileLoadedChatState() {
     const chat = getChat();
-    let persisted = false;
     if (ensureChatScIds(chat)) {
         await persistChatState();
-        persisted = true;
     }
     const store = getChatStore();
-    if (reconcileContinuityAnchor(chat, store) && !persisted) {
+    if (reconcileContinuityAnchor(chat, store)) {
         await persistChatState();
     }
     updateInjection();

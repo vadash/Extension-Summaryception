@@ -1,9 +1,12 @@
 import { deriveTurnCount, resolveGate } from '../foundation/continuity.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
-import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
+import {
+    CATCHUP_WINDOW_EXCHANGES,
+    EXTENSION_PROMPT_POSITIONS,
+    EXTENSION_PROMPT_ROLES,
+} from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
-import { AUDIT_WINDOW_EXCHANGES } from '../core/continuity-runner.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 
 const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
@@ -29,14 +32,14 @@ function formatSection(header, lines) {
 /**
  * Dense spec §6 rendering of the Continuity State for the main model: only
  * non-empty sections render, secret notes form the secrets section, and the
- * remaining notes join the agendas as active threads. The stored schema tags
- * secrets [S] (continuity.js NOTE_TAG_PATTERN) while the spec prose says [D];
- * both render as secrets so a future schema rename needs no change here.
+ * remaining notes join the agendas as active threads. [S] is the schema's
+ * only secrets tag (continuity.js NOTE_TAG_PATTERN), so the renderer never
+ * inspects note text beyond that prefix.
  * @param {SummaryceptionContinuityState} state
  * @returns {string} Empty when no section has content.
  */
 export function formatContinuityBlock(state) {
-    const isSecretNote = (note) => note.startsWith('[D] ') || note.startsWith('[S] ');
+    const isSecretNote = (note) => note.startsWith('[S] ');
     const physics = state.physics;
     const notes = state.gm_notes;
     const sections = [
@@ -74,7 +77,8 @@ export function formatContinuityBlock(state) {
 
 /**
  * Render the chat store's Continuity State into the dedicated injection slot.
- * The slot clears when the Auditor is disabled or the state renders nothing.
+ * The slot clears when the extension or the Auditor is disabled or the state
+ * renders nothing.
  * @returns {void}
  */
 export function updateContinuityInjection() {
@@ -84,7 +88,10 @@ export function updateContinuityInjection() {
         }
         const settings = getEffectiveSettings();
         const state = getChatStore().continuity;
-        const text = settings.continuityEnabled === true ? formatContinuityBlock(state) : '';
+        const text =
+            settings.enabled && settings.continuityEnabled === true
+                ? formatContinuityBlock(state)
+                : '';
         if (text === '') {
             setExtensionPrompt(CONTINUITY_INJECTION_SLOT, '', {
                 position: EXTENSION_PROMPT_POSITIONS.NONE,
@@ -95,11 +102,11 @@ export function updateContinuityInjection() {
             return;
         }
         const drift = deriveTurnCount(getChat(), state.anchor_sc_id) ?? 0;
-        // A catch-up covers at most AUDIT_WINDOW_EXCHANGES exchanges, so the
+        // A catch-up covers at most CATCHUP_WINDOW_EXCHANGES exchanges, so the
         // success path bounds the depth bump by that window. A frozen state
         // has no catch-up; the injection must reach past every uncovered
         // exchange so the main model still sees the stale marker.
-        const depth = state.stale ? 1 + drift : 1 + Math.min(drift, AUDIT_WINDOW_EXCHANGES);
+        const depth = state.stale ? 1 + drift : 1 + Math.min(drift, CATCHUP_WINDOW_EXCHANGES);
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
             depth,

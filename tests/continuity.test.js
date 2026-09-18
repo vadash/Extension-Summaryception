@@ -480,9 +480,9 @@ describe('anchor reconcile on chat load', () => {
 });
 
 describe('continuity state log defaults', () => {
-    it('defaults both continuity state log flags to true', () => {
-        expect(defaultSettings.continuityStateLogMode).toBe(true);
-        expect(defaultSettings.continuityStateLogFullMode).toBe(true);
+    it('defaults both continuity state log flags to false', () => {
+        expect(defaultSettings.continuityStateLogMode).toBe(false);
+        expect(defaultSettings.continuityStateLogFullMode).toBe(false);
     });
 });
 

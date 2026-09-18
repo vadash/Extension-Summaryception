@@ -68,7 +68,6 @@ export default [
                 { type: 'context', pattern: 'src/foundation/context.js' },
                 { type: 'logger', pattern: 'src/foundation/logger.js' },
                 { type: 'retry', pattern: 'src/foundation/retry.js' },
-                { type: 'continuity', pattern: 'src/foundation/continuity.js' },
                 { type: 'state', pattern: 'src/foundation/state.js' },
                 { type: 'core', pattern: 'src/core/*.js' },
                 { type: 'feature', pattern: 'src/features/*.js' },
@@ -170,7 +169,7 @@ export default [
                         { from: 'retry', allow: ['constants', 'context', 'retry'] },
                         {
                             from: 'state',
-                            allow: ['constants', 'context', 'continuity', 'logger', 'state'],
+                            allow: ['constants', 'context', 'logger', 'state'],
                         },
                         {
                             from: 'core',
