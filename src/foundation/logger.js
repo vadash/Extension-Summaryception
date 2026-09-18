@@ -42,6 +42,20 @@ export function isPromptOutputLogEnabled() {
 /**
  * @returns {boolean}
  */
+export function isContinuityStateLogEnabled() {
+    return Boolean(getDebugSettings().continuityStateLogMode);
+}
+
+/**
+ * @returns {boolean}
+ */
+export function isContinuityStateLogFullEnabled() {
+    return Boolean(getDebugSettings().continuityStateLogFullMode);
+}
+
+/**
+ * @returns {boolean}
+ */
 export function isPromptLogEnabled() {
     return isPromptInputLogEnabled() || isPromptOutputLogEnabled();
 }

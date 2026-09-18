@@ -268,6 +268,8 @@ export const defaultSettings = Object.freeze({
     traceMode: false,
     promptInputLogMode: false,
     promptOutputLogMode: false,
+    continuityStateLogMode: true,
+    continuityStateLogFullMode: true,
 
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile'

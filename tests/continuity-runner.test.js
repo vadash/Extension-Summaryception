@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const callSummarizer = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/summarizer-request.js', () => ({
@@ -502,5 +502,110 @@ describe('ui gating', () => {
         expect(toggles['#sc_continuity_section']).toBe(true);
         syncEnabledContent({ enabled: false, uiMode: 'off', autoPaused: false });
         expect(toggles['#sc_continuity_section']).toBe(false);
+    });
+});
+
+describe('continuity state audit log', () => {
+    const { logger } = globalThis.summaryceptionFoundationMocks;
+
+    beforeEach(() => {
+        vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {});
+        vi.spyOn(console, 'groupEnd').mockImplementation(() => {});
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it('logs one audit group with the state diff after a successful commit', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
+        expect(console.groupCollapsed.mock.calls[0][0]).toContain('[Summaryception]');
+        expect(console.groupEnd).toHaveBeenCalledTimes(1);
+        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(payload.type).toBe('summaryception.continuity.audit.v1');
+        expect(payload.kind).toBe('success');
+        expect(payload.changes.turn_count).toEqual([2, 3]);
+        expect(payload.changes.anchor_sc_id).toEqual(['a2', 'a3']);
+        expect(payload.changes.bonds['Quipsy↔User']).toEqual({ sparks: [6, 7], grudge: [1, 0] });
+        expect(payload.changes.gm_notes).toEqual({ added: ['[T] Keep this thread'] });
+        expect(payload.changes.physics.location).toEqual(['', 'Salon']);
+    });
+
+    it('logs the full committed state in full mode instead of the diff', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        logger.isContinuityStateLogFullEnabled.mockReturnValue(true);
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+
+        await runAuditorExtraction();
+
+        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(payload.kind).toBe('success');
+        expect(payload.state.turn_count).toBe(3);
+        expect(payload.state.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
+        expect(payload.changes).toBeUndefined();
+    });
+
+    it('logs a freeze group with the failure status and stale marker', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        callSummarizer.mockResolvedValue({ status: 'completed', text: 'not json' });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('failed');
+        expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
+        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(payload).toEqual({
+            type: 'summaryception.continuity.audit.v1',
+            kind: 'freeze',
+            status: 'failed',
+            stale: true,
+            turn_count: 2,
+            anchor_sc_id: 'a2',
+        });
+    });
+
+    it('logs a rewind group when a swipe rewinds the anchor', () => {
+        const ctx = installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+
+        rewindContinuityAnchor(ctx.chat[3]);
+
+        expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
+        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(payload).toEqual({
+            type: 'summaryception.continuity.audit.v1',
+            kind: 'rewind',
+            from: 'a2',
+            to: 'a1',
+        });
+    });
+
+    it('logs nothing when the continuity state log flag is off', async () => {
+        const ctx = installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(false);
+        callSummarizer.mockResolvedValue({ status: 'completed', text: 'not json' });
+
+        await runAuditorExtraction();
+        rewindContinuityAnchor(ctx.chat[3]);
+
+        expect(console.groupCollapsed).not.toHaveBeenCalled();
+        expect(console.log).not.toHaveBeenCalled();
     });
 });

@@ -747,6 +747,31 @@ const HELP_ENTRIES = [
             risk: 'The browser console may hold private chat text.',
         }),
     ],
+    [
+        'continuity_state_log_mode',
+        basicHelp({
+            selector: selectorFor('sc_continuity_state_log_mode'),
+            title: 'Log Continuity State',
+            short: 'Print Continuity State audits in the F12 console.',
+            controls: [controlFor('sc_continuity_state_log_mode')],
+            controlsText: 'Prints every Continuity State audit in the F12 console.',
+            when: 'Turn it on while checking how the Continuity State evolves.',
+            risk: 'The console groups hold chat-derived state and stay on by default.',
+        }),
+    ],
+    [
+        'continuity_state_log_full_mode',
+        basicHelp({
+            selector: selectorFor('sc_continuity_state_log_full_mode'),
+            title: 'Log Full Continuity State',
+            short: 'Print the complete Continuity State JSON instead of the change summary.',
+            controls: [controlFor('sc_continuity_state_log_full_mode')],
+            controlsText:
+                'Needs Log Continuity State on. Replaces the change summary with the full Continuity State JSON after each audit.',
+            when: 'Use it when the change summary is not enough to debug the audit.',
+            risk: 'The browser console may hold private chat text.',
+        }),
+    ],
 ];
 
 /**

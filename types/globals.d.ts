@@ -148,6 +148,8 @@ interface ExtensionSettings {
     traceMode: boolean;
     promptInputLogMode: boolean;
     promptOutputLogMode: boolean;
+    continuityStateLogMode: boolean;
+    continuityStateLogFullMode: boolean;
     connectionSource: string;
     summarizerResponseLength: number;
     connectionProfileId: string;

@@ -2,12 +2,18 @@ import {
     classifyContinuity,
     applyPairFlags,
     deriveTurnCount,
+    diffContinuityStates,
     listAssistantIndicesAfter,
 } from '../foundation/continuity.js';
 import { getChat, getGroupId, getName1 } from '../foundation/context.js';
-import { debug, warn } from '../foundation/logger.js';
+import {
+    debug,
+    isContinuityStateLogEnabled,
+    isContinuityStateLogFullEnabled,
+    warn,
+} from '../foundation/logger.js';
 import { getMessageIndexByScId } from '../foundation/message-identity.js';
-import { listNonEmptyLayers } from '../foundation/constants.js';
+import { listNonEmptyLayers, LOG_PREFIX } from '../foundation/constants.js';
 import { AUDITOR_REPAIR_SECTIONS } from '../foundation/prompt-constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
 import {
@@ -99,6 +105,12 @@ export function rewindContinuityAnchor(message) {
     store.continuity.anchor_sc_id = previousScId;
     bumpSummaryStoreMutationEpoch(store);
     void saveChatStore();
+    if (isContinuityStateLogEnabled()) {
+        logContinuityAudit(
+            `${LOG_PREFIX} [Continuity] audit - REWIND (anchor ${previousScId || 'start'})`,
+            { kind: 'rewind', from: anchorScId, to: previousScId },
+        );
+    }
 }
 
 /**
@@ -153,9 +165,31 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             // Unusable draft: fail-safe freeze, never apply flags on a null state.
             return await freezeContinuity(identity);
         }
-        applyAuditResult(prior, { state, flags }, turnCount, lastAssistantScIdAfter(chat, anchor));
+        const newAnchor = lastAssistantScIdAfter(chat, anchor);
+        // Snapshot before the in-place rulebook application so the diff can
+        // show what the commit changed; only allocated when the log is on.
+        const priorSnapshot = isContinuityStateLogEnabled() ? structuredClone(prior) : null;
+        applyAuditResult(prior, { state, flags }, turnCount, newAnchor);
         if (!(await persistAudit(identity))) {
             return { status: 'aborted' };
+        }
+        if (priorSnapshot) {
+            const title =
+                `${LOG_PREFIX} [Continuity] audit - COMPLETED ` +
+                `(turn ${turnCount}, anchor ${newAnchor})`;
+            if (isContinuityStateLogFullEnabled()) {
+                logContinuityAudit(title, {
+                    kind: 'success',
+                    turn_count: turnCount,
+                    anchor_sc_id: newAnchor,
+                    state: store.continuity,
+                });
+            } else {
+                logContinuityAudit(title, {
+                    kind: 'success',
+                    changes: diffContinuityStates(priorSnapshot, store.continuity),
+                });
+            }
         }
         return { status: 'completed' };
     } catch (e) {
@@ -296,6 +330,15 @@ async function freezeContinuity(identity) {
     if (!(await persistAudit(identity))) {
         return { status: 'aborted' };
     }
+    if (isContinuityStateLogEnabled()) {
+        logContinuityAudit(`${LOG_PREFIX} [Continuity] audit - FAILED (stale)`, {
+            kind: 'freeze',
+            status: 'failed',
+            stale: true,
+            turn_count: store.continuity.turn_count,
+            anchor_sc_id: store.continuity.anchor_sc_id,
+        });
+    }
     return { status: 'failed' };
 }
 
@@ -317,6 +360,24 @@ async function persistAudit(identity) {
         refreshPreview();
     }
     return persisted;
+}
+
+const CONTINUITY_AUDIT_LOG_TYPE = 'summaryception.continuity.audit.v1';
+
+/**
+ * One collapsed console group per Continuity State audit event; the JSON
+ * payload is the single line inside. Mirrors the request-attempt-log style.
+ * @param {string} title
+ * @param {Record<string, unknown>} payload
+ * @returns {void}
+ */
+function logContinuityAudit(title, payload) {
+    console.groupCollapsed(title);
+    try {
+        console.log(JSON.stringify({ type: CONTINUITY_AUDIT_LOG_TYPE, ...payload }, null, 2));
+    } finally {
+        console.groupEnd();
+    }
 }
 
 /**

@@ -109,6 +109,8 @@ function bindToggleHandlers() {
         '#sc_trace_mode',
         '#sc_prompt_input_log_mode',
         '#sc_prompt_output_log_mode',
+        '#sc_continuity_state_log_mode',
+        '#sc_continuity_state_log_full_mode',
         '#sc_apply_regex_scripts',
         '#sc_hide_non_text_messages',
         '#sc_strip_chinese_ideographs',
