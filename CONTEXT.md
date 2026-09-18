@@ -137,3 +137,19 @@ _Avoid_: prompt field, preset pair
 A DOM-free plain-data model for one UI region (Context Budget bar, Trigger Gauge). Entry renders View Models; it never computes them.
 Code: `buildContextBudgetViewModel` / `buildTriggerGaugeModel` (src/entry/ui-view-models.js)
 _Avoid_: presenter, view helper
+
+**Continuity Engine**:
+The opt-in subsystem that tracks live roleplay state outside the main generation stream: an Auditor extracts, deterministic code applies, the result injects in-chat.
+_Avoid_: sync mode, state engine
+
+**Auditor**:
+The background extraction call that reads a finished turn and emits semantic event flags for the Continuity State. It never does arithmetic and never writes counters.
+_Avoid_: secondary model, extractor, auditor LLM
+
+**Continuity State**:
+The bond, agenda, GM-note, and physics JSON the Engine stores in chat metadata.
+_Avoid_: roleplay state, snapshot, sync state
+
+**Continuity Block**:
+The compact in-chat prompt injection rendered from the Continuity State.
+_Avoid_: state block, active continuity
