@@ -923,6 +923,10 @@
                             <i class="fa-solid fa-code-merge"></i>
                             <span>Layer 1+</span>
                         </button>
+                        <button class="sc-prompt-segment-button" type="button" role="tab" aria-selected="false" data-sc-prompt-tab="auditor">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                            <span>Auditor</span>
+                        </button>
                     </div>
                     <div class="sc-prompt-pane active" role="tabpanel" data-sc-prompt-panel="layer0">
                     <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
@@ -1039,6 +1043,42 @@
                             </small>
                         </label>
                         <textarea id="sc_promotion_repair_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="promotionRepairPrompt"></textarea>
+                    </div>
+                    </div>
+                    <div class="sc-prompt-pane" role="tabpanel" data-sc-prompt-panel="auditor" hidden>
+                    <small class="sc-help-text">Used when rewriting the continuity state after each audited exchange.</small>
+                    <div class="sc-setting-row">
+                        <label for="sc_auditor_system_prompt_preset">
+                            <span>Auditor System Preset</span>
+                        </label>
+                        <select id="sc_auditor_system_prompt_preset" class="text_pole" data-sc-setting="auditorSystemPromptPreset">
+                            <option value="continuity">Continuity</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="sc-row sc-prompt-secondary">
+                        <label for="sc_auditor_system_prompt">
+                            <span>Auditor System Prompt</span>
+                        </label>
+                        <textarea id="sc_auditor_system_prompt" class="text_pole sc-textarea" rows="3" data-sc-setting="auditorSystemPrompt"></textarea>
+                    </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_auditor_prompt_preset">
+                            <span>Auditor User Preset</span>
+                        </label>
+                        <select id="sc_auditor_prompt_preset" class="text_pole" data-sc-setting="auditorPromptPreset">
+                            <option value="continuity">Continuity</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="sc-row sc-prompt-primary">
+                        <label for="sc_auditor_user_prompt">
+                            <span>Auditor User Prompt</span>
+                            <small class="sc-hint">
+                                Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
+                            </small>
+                        </label>
+                        <textarea id="sc_auditor_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10" data-sc-setting="auditorUserPrompt"></textarea>
                     </div>
                     </div>
                 </section>

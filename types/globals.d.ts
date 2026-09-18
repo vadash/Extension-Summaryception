@@ -132,7 +132,9 @@ interface ExtensionSettings {
     promotionUserPrompt: string;
     promotionRepairPromptPreset: string;
     promotionRepairPrompt: string;
+    auditorSystemPromptPreset: string;
     auditorSystemPrompt: string;
+    auditorPromptPreset: string;
     auditorUserPrompt: string;
     promptPreset: string;
     applyRegexScripts: boolean;

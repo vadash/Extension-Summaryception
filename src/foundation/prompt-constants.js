@@ -7,14 +7,20 @@ import {
 } from './prompt-parts.js';
 
 /**
- * Full State Rewrite preservation contract, verbatim from the sync-mode spec
- * (§5, Extraction Contract & Preservation Rules).
+ * Full State Rewrite preservation contract, verbatim from the Continuity
+ * Engine spec (§5, Extraction Contract & Preservation Rules).
  */
 const AUDITOR_PRESERVATION_RULES = `[PRESERVATION & PRUNING CONTRACT]
-1. VERBATIM CONTINUITY: You MUST carry forward all existing [R], [T], and [D] notes from the previous state unless explicitly resolved or contradicted. Never omit an untouched note.
+1. VERBATIM CONTINUITY: You MUST carry forward all existing [R], [T], and [S] notes from the previous state unless explicitly resolved or contradicted. Never omit an untouched note.
 2. PURGE ON COMPLETION: If a thread or task was completely resolved or finished in this turn, delete it immediately (e.g., when an appointment is over, purge the arrival note).
 3. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
-4. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [D] and explicitly note who knows and who is ignorant.`;
+4. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [S] and explicitly note who knows and who is ignorant.`;
+
+const AUDITOR_NAME_RULE =
+    'JSON keys copy each character\'s name exactly as the character card spells it (Latin spelling); never inflected prose forms; the player is always "User"; bond pair keys are "<Name>↔User".';
+
+const AUDITOR_DISCOVERY_RULE =
+    'first appearance in the exchanges initializes the agenda (task from context, step 1/N); a pair absent from prior state is judged from context.';
 
 export const ENGLISH_FIRST_LANGUAGE_RULE =
     'Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.';
@@ -234,10 +240,12 @@ const AUDITOR_SCHEMA_BLOCK = `Output exactly one JSON object with these sections
       "task": "<current goal>",
       "step": { "current": <int>, "max": <int> },
       "status": "<on-screen state or off-screen location>",
-      "body_state": "<condition>"
+      "body_state": "<condition>",
+      "fibs": "<lies this character has told, or ''>",
+      "aware": "<secrets this character knows, or ''>"
     }
   },
-  "gm_notes": ["[R] ...", "[T] ...", "[D] ..."],
+  "gm_notes": ["[R] ...", "[T] ...", "[S] ..."],
   "physics": {
     "location": "",
     "environment": "",
@@ -247,7 +255,9 @@ const AUDITOR_SCHEMA_BLOCK = `Output exactly one JSON object with these sections
   }
 }
 
-Every user pair seen in the exchanges MUST appear in bonds. Never output bond scores, sparks, grudge values, gate names, deltas, or any arithmetic; emit the five booleans per pair only.`;
+Every user pair seen in the exchanges MUST appear in bonds. Never output bond scores, sparks, grudge values, gate names, deltas, or any arithmetic; emit the five booleans per pair only.
+Name rule: ${AUDITOR_NAME_RULE}
+Discovery rule: ${AUDITOR_DISCOVERY_RULE}`;
 
 const AUDITOR_CRITICAL_RULES = `${AUDITOR_PRESERVATION_RULES}
 You never do arithmetic: bond scores, sparks, grudges, gates, and turn counting are computed by JavaScript from your booleans.
@@ -257,9 +267,11 @@ export const DEFAULT_AUDITOR_SYSTEM_PROMPT = buildSystemPrompt(
     'Role: continuity auditor and database manager. You evaluate the latest exchanges and emit one full-state JSON rewrite. You never write narrative prose.',
     `Bond engine: judge each exchange per pair and flag it with the five booleans only (positive_interaction, slight, insult, betrayal, apology).
 Agenda engine: on-screen NPCs update task progress in place; off-screen NPCs keep or advance their step counter.
-GM notebook contract: [R] reminders are dynamic rules and persistent constraints; [T] threads are commitments, deadlines, and pending arcs; [D] secrets are facts known to only one party.
+Canonical names: ${AUDITOR_NAME_RULE}
+NPC discovery: ${AUDITOR_DISCOVERY_RULE}
+GM notebook contract: [R] reminders are dynamic rules and persistent constraints; [T] threads are commitments, deadlines, and pending arcs; [S] secrets are asymmetric knowledge: who knows and who is ignorant.
 Physics extractor: record room/environment, relative positioning and distance, posture, contact points, and clothing alterations.
-Anti-omniscient verification: if a character was not present when an event happened, that event is a [D] secret noting who knows and who is ignorant.`,
+Anti-omniscient verification: if a character was not present when an event happened, that event is an [S] secret noting who knows and who is ignorant.`,
 );
 
 export const DEFAULT_AUDITOR_USER_PROMPT = buildUserPrompt({

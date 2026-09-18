@@ -244,6 +244,8 @@ export const defaultSettings = Object.freeze({
     promotionSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
     promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
     promotionRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
+    auditorSystemPromptPreset: 'continuity', // 'continuity' | 'custom'
+    auditorPromptPreset: 'continuity', // 'continuity' | 'custom'
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
     // true = also hide text-less messages (images, tool calls) inside the summarized
     // range. They carry no text to summarize, so without this they stay visible to the
@@ -318,11 +320,21 @@ export const PROMOTION_REPAIR_PROMPT_PRESETS = {
     custom: null,
 };
 
+export const AUDITOR_PROMPT_PRESETS = {
+    continuity: defaultSettings.auditorUserPrompt,
+    custom: null, // Uses whatever is in the textarea
+};
+
+export const AUDITOR_SYSTEM_PROMPT_PRESETS = {
+    continuity: defaultSettings.auditorSystemPrompt,
+    custom: null,
+};
+
 export const DEFAULT_PROMPT_PRESET = 'narrative';
 export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
 
 /**
- * The six (presetKey, settingKey) prompt pairs shared by persistence
+ * The eight (presetKey, settingKey) prompt pairs shared by persistence
  * normalization and the prompt UI bindings. Order defines UI field order.
  * @type {ReadonlyArray<{ presetKey: string, settingKey: string }>}
  */
@@ -345,6 +357,11 @@ export const PROMPT_SETTING_KEYS = Object.freeze([
         presetKey: 'promotionRepairPromptPreset',
         settingKey: 'promotionRepairPrompt',
     }),
+    Object.freeze({
+        presetKey: 'auditorSystemPromptPreset',
+        settingKey: 'auditorSystemPrompt',
+    }),
+    Object.freeze({ presetKey: 'auditorPromptPreset', settingKey: 'auditorUserPrompt' }),
 ]);
 
 // ─── Retry Configuration ─────────────────────────────────────────────

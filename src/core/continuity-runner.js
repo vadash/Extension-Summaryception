@@ -463,7 +463,7 @@ const AUDITOR_REPAIR_SECTIONS = Object.freeze({
         id: 'gm_notes',
         label: 'gm_notes',
         repairInstruction:
-            'The "gm_notes" section was missing, malformed, or used an unknown tag. Emit the note array using only [R], [T], and [D] tags.',
+            'The "gm_notes" section was missing, malformed, or used an unknown tag. Emit the note array using only [R], [T], and [S] tags.',
     },
     physics: {
         id: 'physics',

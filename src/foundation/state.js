@@ -1,4 +1,6 @@
 import {
+    AUDITOR_PROMPT_PRESETS,
+    AUDITOR_SYSTEM_PROMPT_PRESETS,
     MASK_USER_ROLE_MODES,
     MEMORY_MODE_PRESETS,
     MEMORY_MODES,
@@ -27,7 +29,7 @@ import { resolveScIdsToIndices } from './message-identity.js';
 import { createDefaultContinuity, normalizeContinuity } from './continuity.js';
 import { clampInteger, clampToStep } from './numeric.js';
 
-const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'custom']);
+const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
 
 /**
  * @returns {ExtensionSettings}
@@ -115,6 +117,8 @@ const PROMPT_PRESET_TABLES = Object.freeze({
     promotionSystemPromptPreset: PROMOTION_SYSTEM_PROMPT_PRESETS,
     promotionPromptPreset: PROMOTION_PROMPT_PRESETS,
     promotionRepairPromptPreset: PROMOTION_REPAIR_PROMPT_PRESETS,
+    auditorSystemPromptPreset: AUDITOR_SYSTEM_PROMPT_PRESETS,
+    auditorPromptPreset: AUDITOR_PROMPT_PRESETS,
 });
 
 /**
