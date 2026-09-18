@@ -1,4 +1,6 @@
 import {
+    DEFAULT_AUDITOR_SYSTEM_PROMPT,
+    DEFAULT_AUDITOR_USER_PROMPT,
     DEFAULT_INJECTION_TEMPLATE,
     DEFAULT_PROMOTION_REPAIR_PROMPT,
     DEFAULT_PROMOTION_SYSTEM_PROMPT,
@@ -204,6 +206,8 @@ export const defaultSettings = Object.freeze({
     enabled: true,
     // Latched by Stop; blocks only automatic cycles. Manual runs ignore it.
     autoPaused: false,
+    // Opt-in Continuity Auditor (issue #28); off until the user enables it.
+    continuityEnabled: false,
     memoryMode: MEMORY_MODES.BALANCED,
     cacheTtlMinutes: 30, // provider cache lifetime, Prefix Cache only
     // Decoupled from uiMode: which complexity panel (Easy/Advanced) to render,
@@ -231,6 +235,8 @@ export const defaultSettings = Object.freeze({
     promotionSystemPrompt: DEFAULT_PROMOTION_SYSTEM_PROMPT,
     promotionUserPrompt: DEFAULT_PROMOTION_USER_PROMPT,
     promotionRepairPrompt: DEFAULT_PROMOTION_REPAIR_PROMPT,
+    auditorSystemPrompt: DEFAULT_AUDITOR_SYSTEM_PROMPT,
+    auditorUserPrompt: DEFAULT_AUDITOR_USER_PROMPT,
 
     summarizerSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
     promptPreset: 'narrative', // 'narrative' | 'custom'

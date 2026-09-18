@@ -30,6 +30,14 @@ export function getChatMetadata() {
 }
 
 /**
+ * Active group chat id; empty in solo chats. Presence alone marks a group.
+ * @returns {string | undefined}
+ */
+export function getGroupId() {
+    return getContext().groupId ?? undefined;
+}
+
+/**
  * Cross-chat settings root.
  * @returns {Record<string, ExtensionSettings>}
  */

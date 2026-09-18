@@ -57,6 +57,26 @@ describe('buildRepairDiagnostics', () => {
         expect(diagnostics.violations.map((s) => s.id)).toEqual(['short', 'long']);
     });
 
+    it('honors an explicit violation flag for sections with no token bounds', () => {
+        const diagnostics = buildRepairDiagnostics({
+            scope: 'auditor',
+            sections: [
+                {
+                    id: 'parse',
+                    label: 'JSON object',
+                    violation: true,
+                    repairInstruction: 'emit JSON only.',
+                },
+                { id: 'clean', label: 'clean' },
+            ],
+        });
+        expect(diagnostics.violations.map((s) => s.id)).toEqual(['parse']);
+        const output = formatRepairDiagnostics(diagnostics);
+        expect(output).toContain('JSON object: rejected.');
+        expect(output).toContain('JSON object repair: emit JSON only.');
+        expect(output).not.toContain('<rejected_parse>');
+    });
+
     it('defaults id from id -> name -> "section" and label from label -> id -> name -> "Section"', () => {
         const { sections } = buildRepairDiagnostics({
             sections: [

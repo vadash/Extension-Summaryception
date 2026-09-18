@@ -23,6 +23,7 @@ const jsdocDefinedTypes = [
     'SlashCommandParser',
     'SummaryceptionAgenda',
     'SummaryceptionContinuityBond',
+    'SummaryceptionContinuityFlags',
     'SummaryceptionContinuityPhysics',
     'SummaryceptionContinuityState',
     'SummaryceptionContinuityStep',

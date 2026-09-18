@@ -15,7 +15,7 @@ const REDUCTION_GUIDANCE = [
 /**
  * @param {object} p
  * @param {string} [p.scope] - Prompt family or output contract name
- * @param {number} p.totalTokens - Total draft tokens, for diagnostics only
+ * @param {number} [p.totalTokens] - Total draft tokens, for diagnostics only
  * @param {Array<object>} p.sections - Section size specifications
  * @param {string} [p.rejectedDraft] - Full rejected draft text
  * @returns {object}
@@ -144,7 +144,10 @@ function normalizeRepairSection(section) {
     const minimumTokens = normalizeCount(section.minimumTokens);
     const tooShort = minimumTokens > 0 && actualTokens < minimumTokens;
     const tooLong = hardMaxTokens > 0 && actualTokens > hardMaxTokens;
-    const violation = tooShort || tooLong;
+    // Callers with no token contract (e.g. section-level verdicts) reject a
+    // section explicitly instead of through bounds.
+    const explicitlyRejected = section.violation === true;
+    const violation = tooShort || tooLong || explicitlyRejected;
     return {
         ...resolveSectionIdentity(section),
         actualTokens,
@@ -152,7 +155,13 @@ function normalizeRepairSection(section) {
         hardMaxTokens,
         minimumTokens,
         violation,
-        reason: tooShort ? 'below-minimum' : tooLong ? 'above-hard-maximum' : '',
+        reason: tooShort
+            ? 'below-minimum'
+            : tooLong
+              ? 'above-hard-maximum'
+              : explicitlyRejected
+                ? 'section-rejected'
+                : '',
         reductionGuidance:
             tooLong && targetTokens > 0 ? getReductionGuidance(actualTokens, targetTokens) : '',
         text: String(section.text || ''),

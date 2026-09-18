@@ -34,9 +34,16 @@ export function abortAllRequests() {
  * @param {string} contextStr
  * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Call metadata for debug usage logs
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for mid-run notices; defaults to the silent adapter
+ * @param {AbortSignal} [signal] - Optional external abort signal; aborting it aborts this request
  * @returns {Promise<import('./request-runner.js').RunOutcome>} `completed` carries the summary text
  */
-export async function callSummarizer(storyTxt, contextStr, metadata = {}, notify = silentAdapter) {
+export async function callSummarizer(
+    storyTxt,
+    contextStr,
+    metadata = {},
+    notify = silentAdapter,
+    signal = undefined,
+) {
     trace('>>> ENTERING callSummarizer');
     await traceSummarizerInputTokens(storyTxt, contextStr);
 
@@ -55,6 +62,8 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}, notify
 
     const controller = new AbortController();
     liveRequests.add(controller);
+    const onExternalAbort = () => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
 
     try {
         return await requestRunner.run({
@@ -63,6 +72,7 @@ export async function callSummarizer(storyTxt, contextStr, metadata = {}, notify
             notify,
         });
     } finally {
+        signal?.removeEventListener('abort', onExternalAbort);
         liveRequests.delete(controller);
     }
 }

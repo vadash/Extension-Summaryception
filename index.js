@@ -75,7 +75,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
     initConnectionUI();
     await registerSummaryceptionMemoryMacro();
 
-    eventSource.on(eventTypes.MESSAGE_RECEIVED, onMessageReceived);
+    eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageIndex, type) =>
+        onMessageReceived(/** @type {number} */ (messageIndex), { notify, type }),
+    );
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
     eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
     if (eventTypes.GENERATE_AFTER_DATA) {

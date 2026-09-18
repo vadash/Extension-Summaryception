@@ -54,11 +54,13 @@ export function getSettings() {
     const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
     normalizeVerbatimWindowSettings(settings);
     normalizeRequestTimeouts(settings);
+    const continuitySettingsNormalized = normalizeContinuitySettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
     if (
         modeSettingsNormalized ||
         memorySettingsNormalized ||
         roleMaskSettingsNormalized ||
+        continuitySettingsNormalized ||
         promptSettingsNormalized
     ) {
         saveSettingsDebounced();
@@ -322,6 +324,21 @@ function normalizeRoleMaskSettings(settings, hadMode) {
  */
 function isSettingValue(values, value) {
     return values.includes(String(value));
+}
+
+/**
+ * Coerce the Continuity Auditor toggle to a strict boolean; stored garbage
+ * reads as off instead of tripping the runner gate.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean} Whether settings were changed.
+ */
+function normalizeContinuitySettings(settings) {
+    const value = settings.continuityEnabled === true;
+    if (settings.continuityEnabled === value) {
+        return false;
+    }
+    settings.continuityEnabled = value;
+    return true;
 }
 
 /**

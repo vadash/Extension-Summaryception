@@ -565,6 +565,24 @@
                         <small>Prefix Cache lets live chat grow to 32k. Most providers can reuse the longest unchanged prefix, so a changed tail still reuses the shared start. Normal lorebooks work as usual. Context is larger, and a summary flush starts a new cache prefix.</small>
                     </div>
                 </section>
+                <section id="sc_continuity_section" class="sc-section" style="display: none;">
+                    <div class="sc-section-header">
+                        <h4 class="sc-section-title">
+                            <span class="fa-solid fa-user-shield"></span>
+                            Continuity Auditor
+                        </h4>
+                    </div>
+                    <div class="sc-toggle-list">
+                        <label class="checkbox_label sc-toggle-row" for="sc_continuity_enabled">
+                            <span class="sc-toggle-icon fa-solid fa-user-shield"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Enable Continuity Auditor</span>
+                                <small class="sc-hint">Audits each finished solo-chat reply in the background and maintains the active continuity state (bonds, agendas, notes, physics). Off by default.</small>
+                            </span>
+                            <input type="checkbox" id="sc_continuity_enabled" data-sc-setting="continuityEnabled" />
+                        </label>
+                    </div>
+                </section>
                 <section class="sc-section">
                     <div class="sc-section-header">
                         <h4 class="sc-section-title">

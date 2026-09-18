@@ -112,6 +112,7 @@ function bindToggleHandlers() {
         '#sc_apply_regex_scripts',
         '#sc_hide_non_text_messages',
         '#sc_strip_chinese_ideographs',
+        '#sc_continuity_enabled',
     ].join(', ');
     bindDataSettingElements(plainToggles, { eventName: 'change' });
 

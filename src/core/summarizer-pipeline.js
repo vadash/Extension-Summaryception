@@ -1,5 +1,6 @@
 import { defaultSettings } from '../foundation/constants.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
+import { EXECUTION_TRIGGER_AUDITOR, insertBeforeTrigger } from '../foundation/prompt-parts.js';
 import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
@@ -25,13 +26,16 @@ export async function buildSummarizerPipelineInput({
 }) {
     const usageMetadata = await buildUsageMetadata(metadata, storyTxt);
     const promptConfig = resolveSummarizerPromptConfig(settings, usageMetadata);
-    const prompt = buildSummarizerPrompt({
+    let prompt = buildSummarizerPrompt({
         template: promptConfig.userPromptTemplate,
         storyTxt,
         contextStr,
         settings,
         metadata: usageMetadata,
     });
+    if (metadata.kind === 'auditor' && metadata.auditorRepair) {
+        prompt = insertBeforeTrigger(prompt, metadata.auditorRepair, EXECUTION_TRIGGER_AUDITOR);
+    }
     const repairPromptTemplate = resolveLayer0RepairPromptTemplate(settings, usageMetadata);
     const repairPrompt = repairPromptTemplate
         ? buildSummarizerPrompt({
@@ -148,6 +152,19 @@ function resolveSummarizerPromptConfig(settings, metadata = {}) {
                 metadata.promotionRepair
                     ? defaultSettings.promotionRepairPrompt
                     : defaultSettings.promotionUserPrompt,
+            ),
+        };
+    }
+
+    if (metadata.kind === 'auditor') {
+        return {
+            systemPrompt: getStringSetting(
+                settings.auditorSystemPrompt,
+                defaultSettings.auditorSystemPrompt,
+            ),
+            userPromptTemplate: getStringSetting(
+                settings.auditorUserPrompt,
+                defaultSettings.auditorUserPrompt,
             ),
         };
     }

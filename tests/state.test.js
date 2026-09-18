@@ -133,6 +133,8 @@ describe('getChatStore', () => {
                 contact_points: '',
                 clothing_state: '',
             },
+            anchor_sc_id: '',
+            stale: false,
         });
     });
 
@@ -155,6 +157,8 @@ describe('getChatStore', () => {
                 contact_points: '',
                 clothing_state: '',
             },
+            anchor_sc_id: '',
+            stale: false,
         });
     });
 

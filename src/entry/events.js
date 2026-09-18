@@ -1,9 +1,15 @@
 import { getChat, isDryRunEvent } from '../foundation/context.js';
 import { debug, info, isDebugEnabled, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
+import { deriveTurnCount } from '../foundation/continuity.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { refreshFull, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
+import {
+    abortActiveAuditorRun,
+    isAuditorTriggerMessage,
+    runAuditorExtraction,
+} from '../core/continuity-runner.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -130,9 +136,15 @@ let promptFreezeRecoveryBound = false;
 
 /**
  * Debounces the automatic cycle so fast message streams queue one request.
+ * A fresh or regenerated assistant reply also kicks off one Continuity
+ * Auditor run; the runner owns every further gate.
+ * @param {number} messageIndex
+ * @param {object} [options]
+ * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
+ * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; only 'normal' triggers an audit
  * @returns {void}
  */
-export function onMessageReceived(messageIndex) {
+export function onMessageReceived(messageIndex, { notify, type } = {}) {
     try {
         const chat = getChat();
         const msg = chat[messageIndex];
@@ -142,6 +154,11 @@ export function onMessageReceived(messageIndex) {
                 await requestSummarization();
                 refreshUi();
             }, 500);
+            if (isAuditorTriggerMessage(msg, type)) {
+                void runAuditorExtraction({ notify }).catch((e) => {
+                    warn('Continuity auditor run error:', e);
+                });
+            }
         }
     } catch (e) {
         warn('onMessageReceived error:', e);
@@ -150,10 +167,12 @@ export function onMessageReceived(messageIndex) {
 
 /**
  * Reconciles the loaded chat before any automatic cycle can read it.
+ * A chat switch also drops any in-flight audit attempt.
  * @returns {void}
  */
 export function onChatChanged() {
     debug('Chat changed.');
+    abortActiveAuditorRun('chat_changed');
     recoverPromptFreeze('chat change');
     scheduleLoadedChatReconciliation();
 }
@@ -201,6 +220,9 @@ export function onGenerationStarted(...args) {
         debug('Ignoring generation start from active Summaryception request.');
         return;
     }
+    // Foreground generation invalidates the in-flight audit (spec §7.2);
+    // quiet generations are ignored inside the abort.
+    abortActiveAuditorRun(String(args[0] || ''));
     info('Foreground generation start detected; freezing Summaryception prompt mutations.');
     beginForegroundGeneration();
     pauseMemoryToastForGeneration();
@@ -282,12 +304,34 @@ function recoverPromptFreeze(reason) {
 /** Normalize message IDs, refresh injection, then restore missing ghost flags. */
 async function reconcileLoadedChatState() {
     const chat = getChat();
+    let persisted = false;
     if (ensureChatScIds(chat)) {
         await persistChatState();
+        persisted = true;
     }
-    getChatStore();
+    const store = getChatStore();
+    if (reconcileContinuityAnchor(chat, store) && !persisted) {
+        await persistChatState();
+    }
     updateInjection();
     await syncGhosting();
+}
+
+/**
+ * Re-derive the continuity anchor against the loaded chat: a stored anchor
+ * that no longer resolves (deletion, fork, branch without copied metadata)
+ * resets to cold-start so the next audit re-derives turn_count from scratch.
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
+ * @returns {boolean} Whether the store changed and needs persisting.
+ */
+function reconcileContinuityAnchor(chat, store) {
+    const continuity = store.continuity;
+    if (!continuity.anchor_sc_id || deriveTurnCount(chat, continuity.anchor_sc_id) !== null) {
+        return false;
+    }
+    continuity.anchor_sc_id = '';
+    return true;
 }
 
 /**

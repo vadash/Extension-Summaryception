@@ -72,12 +72,24 @@ interface SummaryceptionContinuityPhysics {
     clothing_state: string;
 }
 
+interface SummaryceptionContinuityFlags {
+    positive_interaction: boolean;
+    slight: boolean;
+    insult: boolean;
+    betrayal: boolean;
+    apology: boolean;
+}
+
 interface SummaryceptionContinuityState {
     turn_count: number;
     bonds: Record<string, SummaryceptionContinuityBond>;
     agendas: Record<string, SummaryceptionAgenda>;
     gm_notes: string[];
     physics: SummaryceptionContinuityPhysics;
+    /** sc_id of the last assistant message covered by a successful audit */
+    anchor_sc_id: string;
+    /** True while the stored Continuity State is pegged after a failed or invalid audit */
+    stale: boolean;
 }
 
 interface SummaryceptionStore {
@@ -90,6 +102,7 @@ interface SummaryceptionStore {
 interface ExtensionSettings {
     enabled: boolean;
     autoPaused: boolean;
+    continuityEnabled: boolean;
     configMode: string;
     uiMode: string;
     memoryMode: string;
@@ -119,6 +132,8 @@ interface ExtensionSettings {
     promotionUserPrompt: string;
     promotionRepairPromptPreset: string;
     promotionRepairPrompt: string;
+    auditorSystemPrompt: string;
+    auditorUserPrompt: string;
     promptPreset: string;
     applyRegexScripts: boolean;
     promotionPromptPreset: string;
@@ -223,6 +238,8 @@ interface SillyTavernStreamingProcessor {
 
 interface SillyTavernContext {
     chat: ChatMessage[];
+    /** Active group chat id; absent or null in solo chats. */
+    groupId?: string | null;
     extensionSettings: Record<string, ExtensionSettings>;
     addOneMessage?: (message: ChatMessage, options?: Record<string, unknown>) => unknown;
     updateViewMessageIds?: (startIndex?: number | null) => void;

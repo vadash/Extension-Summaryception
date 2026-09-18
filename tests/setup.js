@@ -30,6 +30,7 @@ const foundationMocks = vi.hoisted(() => {
         getChat: vi.fn(),
         getChatMetadata: vi.fn(),
         getExtensionSettings: vi.fn(),
+        getGroupId: vi.fn(),
         getName1: vi.fn(),
         saveSettingsDebounced: vi.fn(),
         saveMetadata: vi.fn(),
@@ -70,6 +71,7 @@ const foundationMocks = vi.hoisted(() => {
         context.getChat.mockImplementation(() => getContext().chat);
         context.getChatMetadata.mockImplementation(() => getContext().chatMetadata);
         context.getExtensionSettings.mockImplementation(() => getContext().extensionSettings);
+        context.getGroupId.mockImplementation(() => getContext().groupId);
         context.getName1.mockImplementation(() => getContext().name1 || 'User');
         context.saveSettingsDebounced.mockImplementation(() =>
             getContext().saveSettingsDebounced(),

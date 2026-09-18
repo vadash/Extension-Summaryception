@@ -80,7 +80,10 @@ function syncSettingsInputs(s, effectiveSettings) {
     syncConnectionPanels(s);
 }
 
-function syncEnabledContent(s) {
+/**
+ *
+ */
+export function syncEnabledContent(s) {
     // Off shows the banner and keeps the complexity panel (from configMode)
     // visible, so configuration stays editable while the extension is off.
     const off = s.uiMode === UI_MODES.OFF;
@@ -88,6 +91,9 @@ function syncEnabledContent(s) {
     $('#sc_off_content').toggle(off);
     $('#sc_easy_content').toggle(complexity === UI_MODES.EASY);
     $('#sc_enabled_content').toggle(complexity === UI_MODES.ADVANCED);
+    // Continuity Auditor is a runtime feature: visible only while the
+    // extension is enabled and the advanced panel is shown.
+    $('#sc_continuity_section').toggle(Boolean(s.enabled) && complexity === UI_MODES.ADVANCED);
     // Stop sets the autoPaused latch. Show Resume while paused so users can
     // continue without re-triggering automatic work.
     const paused = Boolean(s.autoPaused);

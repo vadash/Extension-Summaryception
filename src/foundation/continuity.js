@@ -1,4 +1,5 @@
 import { clampInteger } from './numeric.js';
+import { getMessageIndexByScId } from './message-identity.js';
 
 const BOND_BOUNDS = Object.freeze({ bond: [-5, 20], sparks: [0, 99], grudge: [0, 99] });
 const STEP_CEILING = 99;
@@ -34,15 +35,20 @@ function normalizeTextField(value) {
 }
 
 /**
+ * A pair absent from prior state (first appearance in an audit) seeds at
+ * neutral zero, not the bond clamp floor; existing records still clamp each
+ * field into the schema ranges.
  * @param {unknown} value
  * @returns {SummaryceptionContinuityBond}
  */
 function normalizeBondPair(value) {
-    const source = isRecord(value) ? value : {};
+    if (!isRecord(value)) {
+        return { bond: 0, sparks: 0, grudge: 0 };
+    }
     return {
-        bond: clampInteger(source.bond, BOND_BOUNDS.bond[0], BOND_BOUNDS.bond[1]),
-        sparks: clampInteger(source.sparks, BOND_BOUNDS.sparks[0], BOND_BOUNDS.sparks[1]),
-        grudge: clampInteger(source.grudge, BOND_BOUNDS.grudge[0], BOND_BOUNDS.grudge[1]),
+        bond: clampInteger(value.bond, BOND_BOUNDS.bond[0], BOND_BOUNDS.bond[1]),
+        sparks: clampInteger(value.sparks, BOND_BOUNDS.sparks[0], BOND_BOUNDS.sparks[1]),
+        grudge: clampInteger(value.grudge, BOND_BOUNDS.grudge[0], BOND_BOUNDS.grudge[1]),
     };
 }
 
@@ -123,6 +129,8 @@ export function createDefaultContinuity() {
             contact_points: '',
             clothing_state: '',
         },
+        anchor_sc_id: '',
+        stale: false,
     };
 }
 
@@ -154,6 +162,8 @@ export function normalizeContinuity(continuity) {
     state.agendas = agendas;
     state.gm_notes = filterGmNotes(Array.isArray(state.gm_notes) ? state.gm_notes : []).kept;
     state.physics = normalizePhysics(state.physics);
+    state.anchor_sc_id = typeof state.anchor_sc_id === 'string' ? state.anchor_sc_id : '';
+    state.stale = state.stale === true;
     return state;
 }
 
@@ -162,13 +172,13 @@ export function normalizeContinuity(continuity) {
  * or merging: the caller owns the freeze decision from sectionVerdicts.
  * Field damage is clamped into the returned state; missing sections, an
  * unknown pair key, or an unknown note tag produce a section verdict.
- * @param {unknown} raw
+ * @param {string | unknown} raw - Raw JSON text or an already-parsed value.
  * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[] }}
  */
 export function classifyContinuity(raw) {
     let parsed;
     try {
-        parsed = JSON.parse(/** @type {string} */ (raw));
+        parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     } catch {
         return { state: null, sectionVerdicts: ['parse'] };
     }
@@ -222,4 +232,111 @@ export function classifyContinuity(raw) {
     }
 
     return { state, sectionVerdicts };
+}
+
+/**
+ * The Auditor orders per-pair booleans only; this module is the sole writer
+ * of bond/sparks/grudge (issue #28 flags rulebook). Decay runs before the
+ * sparks conversion so a decayed counter must re-reach 7 before converting.
+ * @param {SummaryceptionContinuityBond} pair - Prior counters; never mutated.
+ * @param {Partial<SummaryceptionContinuityFlags>} flags - Per-pair Auditor booleans; absent means false.
+ * @param {number} turnCount - Derived turn number driving the %3 / %5 conversions.
+ * @returns {SummaryceptionContinuityBond} New pair object clamped into schema ranges.
+ */
+export function applyPairFlags(pair, flags, turnCount) {
+    const next = normalizeBondPair(pair);
+    const source = isRecord(flags) ? flags : {};
+
+    if (source.positive_interaction === true) {
+        next.sparks += 1;
+    }
+    if (source.slight === true) {
+        next.grudge += 1;
+    }
+    if (source.insult === true) {
+        next.bond -= 1;
+    }
+    if (source.betrayal === true) {
+        next.bond -= 2;
+    }
+    if (source.apology === true) {
+        next.grudge = 0;
+    }
+
+    if (turnCount % 5 === 0) {
+        if (source.positive_interaction !== true) {
+            next.sparks = Math.max(0, next.sparks - 1);
+        }
+        if (next.sparks >= 7) {
+            // Grudge 3+ dulls positive gains: floor(1 / 2) drops the +1 to 0,
+            // but the sparks are still spent.
+            next.bond += next.grudge >= 3 ? Math.floor(1 / 2) : 1;
+            next.sparks = 0;
+        }
+    }
+
+    if (turnCount % 3 === 0) {
+        if (next.grudge >= 5) {
+            next.bond -= 1;
+            next.grudge = 0;
+        } else {
+            next.grudge = Math.max(0, next.grudge - 1);
+        }
+    }
+
+    next.bond = clampInteger(next.bond, BOND_BOUNDS.bond[0], BOND_BOUNDS.bond[1]);
+    next.sparks = clampInteger(next.sparks, BOND_BOUNDS.sparks[0], BOND_BOUNDS.sparks[1]);
+    next.grudge = clampInteger(next.grudge, BOND_BOUNDS.grudge[0], BOND_BOUNDS.grudge[1]);
+    return next;
+}
+
+/**
+ * Count assistant messages strictly after the anchor sc_id. Identity-based on
+ * purpose: swipes, continues, deletions, and forks all break index math, and
+ * the %3 / %5 conversions are phase-sensitive.
+ * @param {ChatMessage[] | unknown} chat
+ * @param {string} anchorScId - '' counts from chat start; returns null when a
+ *   non-empty anchor is missing from the chat (the caller re-anchors).
+ * @returns {number | null}
+ */
+export function deriveTurnCount(chat, anchorScId) {
+    const messages = Array.isArray(chat) ? chat : [];
+    let startIndex = 0;
+    if (anchorScId) {
+        const anchorIndex = getMessageIndexByScId(messages).get(anchorScId);
+        if (anchorIndex === undefined) {
+            return null;
+        }
+        startIndex = anchorIndex + 1;
+    }
+    let count = 0;
+    for (let index = startIndex; index < messages.length; index++) {
+        const message = messages[index];
+        if (message && !message.is_user && !message.is_system) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+const GATE_LADDER = Object.freeze([
+    { minBond: 12, gate: 'intimacy' },
+    { minBond: 8, gate: 'kiss' },
+    { minBond: 5, gate: 'handhold' },
+    { minBond: 2, gate: 'hug' },
+]);
+
+/**
+ * Bond-to-gate ladder computed at injection time; the Auditor never emits gate
+ * text.
+ * @param {number} bond
+ * @returns {string | null} Gate name, or null below the first rung.
+ */
+export function resolveGate(bond) {
+    for (const rung of GATE_LADDER) {
+        if (bond >= rung.minBond) {
+            return rung.gate;
+        }
+    }
+    return null;
 }

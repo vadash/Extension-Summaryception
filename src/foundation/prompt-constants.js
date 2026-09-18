@@ -1,9 +1,20 @@
 import {
     buildSystemPrompt,
     buildUserPrompt,
+    EXECUTION_TRIGGER_AUDITOR,
     EXECUTION_TRIGGER_L0,
     EXECUTION_TRIGGER_PROMO,
 } from './prompt-parts.js';
+
+/**
+ * Full State Rewrite preservation contract, verbatim from the sync-mode spec
+ * (§5, Extraction Contract & Preservation Rules).
+ */
+const AUDITOR_PRESERVATION_RULES = `[PRESERVATION & PRUNING CONTRACT]
+1. VERBATIM CONTINUITY: You MUST carry forward all existing [R], [T], and [D] notes from the previous state unless explicitly resolved or contradicted. Never omit an untouched note.
+2. PURGE ON COMPLETION: If a thread or task was completely resolved or finished in this turn, delete it immediately (e.g., when an appointment is over, purge the arrival note).
+3. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
+4. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [D] and explicitly note who knows and who is ignorant.`;
 
 export const ENGLISH_FIRST_LANGUAGE_RULE =
     'Write the output mainly in English. Short non-English names, titles, quoted terms, or source-language phrases are allowed when useful, but do not write Chinese prose or Han ideographs.';
@@ -187,4 +198,76 @@ Keep only durable macro-level chronology, current position, relationship changes
 Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.`,
     criticalRules: PROMOTION_CRITICAL_RULES,
     triggerLine: EXECUTION_TRIGGER_PROMO,
+});
+
+const AUDITOR_INPUT_BLOCKS = `<player_name>
+{{player_name}}
+</player_name>
+
+<prior_continuity_state>
+{{context_str}}
+</prior_continuity_state>
+
+<latest_exchanges>
+{{story_txt}}
+</latest_exchanges>`;
+
+/**
+ * Per-pair flag vocabulary only; this module (JavaScript) is the sole writer
+ * of bond/sparks/grudge numbers, so the schema forbids numeric counters.
+ */
+const AUDITOR_SCHEMA_BLOCK = `Output exactly one JSON object with these sections:
+
+{
+  "turn_count": <integer placeholder; JavaScript derives the real value, always emit it>,
+  "bonds": {
+    "<Character Name>↔User": {
+      "positive_interaction": true | false,
+      "slight": true | false,
+      "insult": true | false,
+      "betrayal": true | false,
+      "apology": true | false
+    }
+  },
+  "agendas": {
+    "<Character Name>": {
+      "task": "<current goal>",
+      "step": { "current": <int>, "max": <int> },
+      "status": "<on-screen state or off-screen location>",
+      "body_state": "<condition>"
+    }
+  },
+  "gm_notes": ["[R] ...", "[T] ...", "[D] ..."],
+  "physics": {
+    "location": "",
+    "environment": "",
+    "posture_and_position": "",
+    "contact_points": "",
+    "clothing_state": ""
+  }
+}
+
+Every user pair seen in the exchanges MUST appear in bonds. Never output bond scores, sparks, grudge values, gate names, deltas, or any arithmetic; emit the five booleans per pair only.`;
+
+const AUDITOR_CRITICAL_RULES = `${AUDITOR_PRESERVATION_RULES}
+You never do arithmetic: bond scores, sparks, grudges, gates, and turn counting are computed by JavaScript from your booleans.
+Write the output mainly in English; short non-English names, titles, and source-language phrases are allowed.`;
+
+export const DEFAULT_AUDITOR_SYSTEM_PROMPT = buildSystemPrompt(
+    'Role: continuity auditor and database manager. You evaluate the latest exchanges and emit one full-state JSON rewrite. You never write narrative prose.',
+    `Bond engine: judge each exchange per pair and flag it with the five booleans only (positive_interaction, slight, insult, betrayal, apology).
+Agenda engine: on-screen NPCs update task progress in place; off-screen NPCs keep or advance their step counter.
+GM notebook contract: [R] reminders are dynamic rules and persistent constraints; [T] threads are commitments, deadlines, and pending arcs; [D] secrets are facts known to only one party.
+Physics extractor: record room/environment, relative positioning and distance, posture, contact points, and clothing alterations.
+Anti-omniscient verification: if a character was not present when an event happened, that event is a [D] secret noting who knows and who is ignorant.`,
+);
+
+export const DEFAULT_AUDITOR_USER_PROMPT = buildUserPrompt({
+    inputBlocks: AUDITOR_INPUT_BLOCKS,
+    schemaBlock: AUDITOR_SCHEMA_BLOCK,
+    taskRules: `Rewrite the ENTIRE state object from <prior_continuity_state> plus what <latest_exchanges> changed. Output is a full state rewrite, not a delta.
+Keep the exchanges' consequences only: permanent lore, resolved threads, and static card facts stay out of the dynamic state.
+Physical gates and intimacy tiers are read-only context; never emit them.`,
+    criticalRules: AUDITOR_CRITICAL_RULES,
+    triggerLine: EXECUTION_TRIGGER_AUDITOR,
 });
