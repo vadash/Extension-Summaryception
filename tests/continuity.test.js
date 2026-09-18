@@ -7,6 +7,7 @@ import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { defaultSettings } from '../src/foundation/constants.js';
 import {
     applyPairFlags,
+    canonicalizePairKey,
     classifyContinuity,
     createDefaultContinuity,
     deriveTurnCount,
@@ -54,6 +55,26 @@ const validAuditorJson = () =>
             clothing_state: 'Robe',
         },
     });
+
+describe('canonicalizePairKey', () => {
+    it.each([
+        ['Quipsy↔User', 'Quipsy↔User'],
+        ['Quipsy ↔ User', 'Quipsy↔User'],
+        ['Quipsy↔ User', 'Quipsy↔User'],
+        [' Quipsy↔User ', 'Quipsy↔User'],
+        ['User↔Quipsy', 'Quipsy↔User'],
+        ['User ↔  Quipsy', 'Quipsy↔User'],
+    ])('canonicalizes %j to %j', (key, expected) => {
+        expect(canonicalizePairKey(key)).toBe(expected);
+    });
+
+    it.each([['Alice↔Bob'], ['Quipsy↔user'], ['broken'], ['↔'], [''], [42], [undefined]])(
+        'rejects %j',
+        (key) => {
+            expect(canonicalizePairKey(key)).toBeNull();
+        },
+    );
+});
 
 describe('classifyContinuity', () => {
     it('parses valid Auditor JSON into a clean state with no verdicts', () => {
@@ -175,6 +196,64 @@ describe('classifyContinuity', () => {
         expect(sectionVerdicts).toEqual(['bonds']);
     });
 
+    it.each(['Quipsy ↔ User', 'Quipsy↔ User', 'User↔Quipsy'])(
+        'classifies drifted key %j as the known canonical pair',
+        (key) => {
+            const raw = JSON.stringify({
+                turn_count: 1,
+                bonds: { [key]: { bond: 2, sparks: 1, grudge: 0 } },
+                agendas: {},
+                gm_notes: [],
+                physics: {},
+            });
+            const { state, sectionVerdicts, flags } = classifyContinuity(raw);
+            expect(sectionVerdicts).toEqual([]);
+            expect(state.bonds).toEqual({ 'Quipsy↔User': { bond: 2, sparks: 1, grudge: 0 } });
+            expect(flags).toEqual({ 'Quipsy↔User': { bond: 2, sparks: 1, grudge: 0 } });
+        },
+    );
+
+    it('merges a drifted duplicate into the single canonical pair record', () => {
+        const raw = JSON.stringify({
+            turn_count: 1,
+            bonds: {
+                'Quipsy↔User': { bond: 3, sparks: 0, grudge: 0 },
+                ' Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 },
+            },
+            agendas: {},
+            gm_notes: [],
+            physics: {},
+        });
+        const { state, sectionVerdicts, flags } = classifyContinuity(raw);
+        expect(sectionVerdicts).toEqual([]);
+        expect(Object.keys(state.bonds)).toEqual(['Quipsy↔User']);
+        expect(state.bonds).toEqual({ 'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 } });
+        expect(flags).toEqual({ 'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 } });
+    });
+
+    it('verdicts and keeps uncanonicalizable keys as-is in state and flags', () => {
+        const raw = JSON.stringify({
+            turn_count: 1,
+            bonds: {
+                'Alice↔Bob': { bond: 4, sparks: 0, grudge: 0 },
+                broken: { bond: 2, sparks: 0, grudge: 0 },
+            },
+            agendas: {},
+            gm_notes: [],
+            physics: {},
+        });
+        const { state, sectionVerdicts, flags } = classifyContinuity(raw);
+        expect(sectionVerdicts).toEqual(['bonds']);
+        expect(state.bonds).toEqual({
+            'Alice↔Bob': { bond: 4, sparks: 0, grudge: 0 },
+            broken: { bond: 2, sparks: 0, grudge: 0 },
+        });
+        expect(flags).toEqual({
+            'Alice↔Bob': { bond: 4, sparks: 0, grudge: 0 },
+            broken: { bond: 2, sparks: 0, grudge: 0 },
+        });
+    });
+
     it('verdicts gm_notes on an unknown note tag', () => {
         const raw = JSON.stringify({
             turn_count: 1,
@@ -278,6 +357,44 @@ describe('normalizeContinuity', () => {
             physics: { ...coldStart().physics, location: 'Salon' },
             anchor_sc_id: '',
             stale: false,
+        });
+    });
+
+    it('rewrites drifted pair keys to the canonical record', () => {
+        const stored = {
+            turn_count: 3,
+            bonds: {
+                'Quipsy ↔ User': { bond: 999, sparks: -1, grudge: 0 },
+                'User↔Quipsy': { bond: 2, sparks: 0, grudge: 0 },
+            },
+            agendas: {},
+            gm_notes: [],
+            physics: {},
+        };
+        expect(normalizeContinuity(stored)).toEqual({
+            turn_count: 3,
+            bonds: { 'Quipsy↔User': { bond: 20, sparks: 0, grudge: 0 } },
+            agendas: {},
+            gm_notes: [],
+            physics: coldStart().physics,
+            anchor_sc_id: '',
+            stale: false,
+        });
+    });
+
+    it('collapses duplicate spellings to one canonical entry, first stored wins', () => {
+        const firstWins = {
+            turn_count: 1,
+            bonds: {
+                'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 },
+                'User↔Quipsy': { bond: 5, sparks: 0, grudge: 0 },
+            },
+            agendas: {},
+            gm_notes: [],
+            physics: {},
+        };
+        expect(normalizeContinuity(firstWins).bonds).toEqual({
+            'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 },
         });
     });
 });

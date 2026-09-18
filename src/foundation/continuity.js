@@ -53,6 +53,28 @@ function normalizeBondPair(value) {
 }
 
 /**
+ * Canonical bond pair key is `Name↔User`; stored state and Auditor output can
+ * drift in surrounding whitespace or operand order, and both drift forms must
+ * fold onto one record instead of splitting or dropping the pair.
+ * @param {unknown} key
+ * @returns {string | null} `Name↔User`, or null when there is no `↔`
+ *   separator or neither operand is exactly `User`.
+ */
+export function canonicalizePairKey(key) {
+    if (typeof key !== 'string') {
+        return null;
+    }
+    const [left, right] = key.trim().split(/\s*↔\s*/u);
+    if (right === 'User') {
+        return `${left}↔User`;
+    }
+    if (left === 'User') {
+        return `${right}↔User`;
+    }
+    return null;
+}
+
+/**
  * Step invariant 1 ≤ current ≤ max ≤ 99: clamp max first, then clamp current
  * against the clamped max.
  * @param {unknown} value
@@ -150,9 +172,11 @@ export function normalizeContinuity(continuity) {
     state.turn_count = clampInteger(state.turn_count, 0, Number.MAX_SAFE_INTEGER);
     const bonds = /** @type {Record<string, SummaryceptionContinuityBond>} */ ({});
     for (const [key, value] of Object.entries(isRecord(state.bonds) ? state.bonds : {})) {
-        if (USER_PAIR_PATTERN.test(key)) {
-            bonds[key] = normalizeBondPair(value);
+        const canonical = canonicalizePairKey(key);
+        if (canonical === null || !USER_PAIR_PATTERN.test(canonical) || canonical in bonds) {
+            continue;
         }
+        bonds[canonical] = normalizeBondPair(value);
     }
     state.bonds = bonds;
     const agendas = /** @type {Record<string, SummaryceptionAgenda>} */ ({});
@@ -200,12 +224,13 @@ export function classifyContinuity(raw) {
     if (isRecord(source.bonds)) {
         let unknownPair = false;
         for (const [key, value] of Object.entries(source.bonds)) {
-            if (!USER_PAIR_PATTERN.test(key)) {
-                unknownPair = true;
-            }
-            state.bonds[key] = normalizeBondPair(value);
+            const canonical = canonicalizePairKey(key);
+            const known = canonical !== null && USER_PAIR_PATTERN.test(canonical);
+            const pairKey = known ? /** @type {string} */ (canonical) : key;
+            unknownPair = unknownPair || !known;
+            state.bonds[pairKey] = normalizeBondPair(value);
             if (isRecord(value)) {
-                flags[key] = value;
+                flags[pairKey] = value;
             }
         }
         if (unknownPair) {
