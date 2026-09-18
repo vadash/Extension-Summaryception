@@ -141,22 +141,11 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
     const controller = (activeAudit = new AbortController());
     try {
         const deps = { settings, notify, controller, identity };
-        let round = await dispatchAuditRound(storyTxt, contextStr, deps);
+        const round = await runAuditRounds(storyTxt, contextStr, deps);
         if (round.status !== 'ok') {
             return await settleRound(round, identity);
         }
-        let audit = round.audit;
-        if (audit.sectionVerdicts.length > 0) {
-            const repairFeedback = buildAuditorRepairFeedback(round.text, audit.sectionVerdicts);
-            round = await dispatchAuditRound(storyTxt, contextStr, {
-                ...deps,
-                metadata: { kind: 'auditor', auditorRepair: repairFeedback },
-            });
-            if (round.status !== 'ok') {
-                return await settleRound(round, identity);
-            }
-            audit = round.audit;
-        }
+        const audit = round.audit;
         const { state, flags } = audit;
         if (audit.sectionVerdicts.length > 0 || !state) {
             // Unusable draft: fail-safe freeze, never apply flags on a null state.
@@ -170,24 +159,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         if (!(await persistAudit(identity))) {
             return { status: 'aborted' };
         }
-        if (priorSnapshot) {
-            const title =
-                `${LOG_PREFIX} [Continuity] audit - COMPLETED ` +
-                `(turn ${turnCount}, anchor ${newAnchor})`;
-            if (isContinuityStateLogFullEnabled()) {
-                logContinuityAudit(title, {
-                    kind: 'success',
-                    turn_count: turnCount,
-                    anchor_sc_id: newAnchor,
-                    state: store.continuity,
-                });
-            } else {
-                logContinuityAudit(title, {
-                    kind: 'success',
-                    changes: diffContinuityStates(priorSnapshot, store.continuity),
-                });
-            }
-        }
+        logAuditCompletion(priorSnapshot, store, turnCount, newAnchor);
         return { status: 'completed' };
     } catch (e) {
         if (controller.signal.aborted) {
@@ -197,6 +169,37 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         return await freezeContinuity(identity);
     } finally {
         clearActiveAuditSlot(controller);
+    }
+}
+
+/**
+ * Log the completed audit against the pre-commit snapshot. Only allocated
+ * when the state log is on; the full variant dumps the whole store.
+ * @param {SummaryceptionContinuityState | null} priorSnapshot - Cloned prior state, or null when logging is off.
+ * @param {{ continuity: SummaryceptionContinuityState }} store - Chat store holding the committed state.
+ * @param {number} turnCount - Derived turn number of the audit.
+ * @param {string} newAnchor - Anchor message ID after the audit.
+ * @returns {void}
+ */
+function logAuditCompletion(priorSnapshot, store, turnCount, newAnchor) {
+    if (!priorSnapshot) {
+        return;
+    }
+    const title =
+        `${LOG_PREFIX} [Continuity] audit - COMPLETED ` +
+        `(turn ${turnCount}, anchor ${newAnchor})`;
+    if (isContinuityStateLogFullEnabled()) {
+        logContinuityAudit(title, {
+            kind: 'success',
+            turn_count: turnCount,
+            anchor_sc_id: newAnchor,
+            state: store.continuity,
+        });
+    } else {
+        logContinuityAudit(title, {
+            kind: 'success',
+            changes: diffContinuityStates(priorSnapshot, store.continuity),
+        });
     }
 }
 
@@ -271,6 +274,31 @@ async function dispatchAuditRound(storyTxt, contextStr, deps) {
 }
 
 /**
+ * Dispatch the extraction round, then one section-aware repair round when the
+ * draft carries section verdicts.
+ * @param {string} storyTxt
+ * @param {string} contextStr
+ * @param {object} deps
+ * @param {ExtensionSettings} deps.settings
+ * @param {import('./notify.js').NotifyAdapter} deps.notify
+ * @param {AbortController} deps.controller
+ * @param {{ length: number, lastScId: string }} deps.identity
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [deps.metadata]
+ * @returns {Promise<{ status: 'aborted' | 'frozen' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }, text: string }>}
+ */
+async function runAuditRounds(storyTxt, contextStr, deps) {
+    const round = await dispatchAuditRound(storyTxt, contextStr, deps);
+    if (round.status !== 'ok' || round.audit.sectionVerdicts.length === 0) {
+        return round;
+    }
+    const repairFeedback = buildAuditorRepairFeedback(round.text, round.audit.sectionVerdicts);
+    return await dispatchAuditRound(storyTxt, contextStr, {
+        ...deps,
+        metadata: { kind: 'auditor', auditorRepair: repairFeedback },
+    });
+}
+
+/**
  * Dispatch one auditor request through the summarizer router. The external
  * signal is threaded only over cancellable connections; otherwise the
  * runner's abort state owns cancellation between awaits. The repair retry
@@ -286,13 +314,13 @@ async function dispatchAuditRound(storyTxt, contextStr, deps) {
  * @returns {Promise<import('./run-outcome.js').RunOutcome>}
  */
 async function dispatchAuditCall(storyTxt, contextStr, { settings, notify, controller, metadata }) {
-    return callSummarizer(
+    return callSummarizer({
         storyTxt,
         contextStr,
-        metadata ?? { kind: 'auditor' },
+        metadata: metadata ?? { kind: 'auditor' },
         notify,
-        isCancellableConnection(settings) ? controller.signal : undefined,
-    );
+        signal: isCancellableConnection(settings) ? controller.signal : undefined,
+    });
 }
 
 /**

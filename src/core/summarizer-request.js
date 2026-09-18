@@ -30,20 +30,21 @@ export function abortAllRequests() {
 }
 
 /**
- * @param {string} storyTxt
- * @param {string} contextStr
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Resolver input: call category plus provenance
- * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for mid-run notices; defaults to the silent adapter
- * @param {AbortSignal} [signal] - Optional external abort signal; aborting it aborts this request
+ * @param {object} request
+ * @param {string} request.storyTxt - Story text to summarize
+ * @param {string} request.contextStr - Continuity context text
+ * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [request.metadata] - Resolver input: call category plus provenance
+ * @param {import('./notify.js').NotifyAdapter} [request.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
+ * @param {AbortSignal} [request.signal] - Optional external abort signal; aborting it aborts this request
  * @returns {Promise<import('./run-outcome.js').RunOutcome>} `completed` carries the summary text and the resolved profile
  */
-export async function callSummarizer(
+export async function callSummarizer({
     storyTxt,
     contextStr,
     metadata = {},
     notify = silentAdapter,
     signal = undefined,
-) {
+}) {
     trace('>>> ENTERING callSummarizer');
     await traceSummarizerInputTokens(storyTxt, contextStr);
 

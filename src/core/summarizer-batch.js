@@ -328,16 +328,16 @@ async function runLayer0Summarization({
     // exactly once, whether this run owns it or shares it across partitions.
     let outcome;
     try {
-        outcome = await callSummarizer(
-            snapshot.passageText,
-            snapshot.contextText,
-            {
+        outcome = await callSummarizer({
+            storyTxt: snapshot.passageText,
+            contextStr: snapshot.contextText,
+            metadata: {
                 kind: 'layer0',
                 sourceRange: snapshot.sourceRange,
                 regexStats: snapshot.passageStats,
             },
             notify,
-        );
+        });
     } catch (err) {
         progress.settle();
         throw err;

@@ -28,7 +28,7 @@ import {
  * resolves from the dispatch metadata snippet-manager builds.
  */
 function completedRegeneration(text) {
-    return async (_storyTxt, _contextStr, metadata) => ({
+    return async ({ metadata }) => ({
         status: 'completed',
         text,
         profile: resolveCallProfile(makeSummarySettings(), metadata),

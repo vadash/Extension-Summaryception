@@ -166,7 +166,7 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('completed');
         expect(callSummarizer).toHaveBeenCalledTimes(1);
-        const storyTxt = callSummarizer.mock.calls[0][0];
+        const storyTxt = callSummarizer.mock.calls[0][0].storyTxt;
         expect(storyTxt).toContain('a6');
         expect(storyTxt).toContain('u3');
         expect(storyTxt).not.toContain('u2');
@@ -204,7 +204,7 @@ describe('runAuditorExtraction', () => {
         const outcome = await runAuditorExtraction();
 
         expect(outcome.status).toBe('completed');
-        const storyTxt = callSummarizer.mock.calls[0][0];
+        const storyTxt = callSummarizer.mock.calls[0][0].storyTxt;
         expect(storyTxt).toContain('[u2]');
         expect(storyTxt).toContain('[a2]');
         expect(storyTxt).not.toContain('[s1]');
@@ -216,7 +216,7 @@ describe('runAuditorExtraction', () => {
 
         await runAuditorExtraction();
 
-        const contextStr = callSummarizer.mock.calls[0][1];
+        const contextStr = callSummarizer.mock.calls[0][0].contextStr;
         expect(contextStr).toContain('"Quipsy↔User"');
         expect(contextStr).toContain('10');
     });
@@ -236,13 +236,13 @@ describe('runAuditorExtraction', () => {
         expect(callSummarizer).toHaveBeenCalledTimes(2);
         // The section-aware repair text rides the metadata channel, not the
         // prior-state context block, and names the failing section.
-        const repairMetadata = callSummarizer.mock.calls[1][2];
+        const repairMetadata = callSummarizer.mock.calls[1][0].metadata;
         expect(repairMetadata.auditorRepair).toContain('summaryception_auditor_repair_feedback');
         expect(repairMetadata.auditorRepair).toContain('JSON object: rejected.');
         expect(repairMetadata.auditorRepair).toContain(
             'The previous reply was not valid JSON. Reply with the complete JSON state object only.',
         );
-        expect(callSummarizer.mock.calls[1][1]).not.toContain(
+        expect(callSummarizer.mock.calls[1][0].contextStr).not.toContain(
             'summaryception_auditor_repair_feedback',
         );
         const continuity = ctx.chatMetadata.summaryception.continuity;

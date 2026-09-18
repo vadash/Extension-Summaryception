@@ -313,6 +313,7 @@ function hasStopButtonMarker(element) {
 /**
  * SillyTavern versions expose eventTypes or event_types; read both.
  * @param {SillyTavernContext} ctx
+ * @returns {object | null} Event types registry, or null when neither is present.
  */
 function getContextEventTypes(ctx) {
     return ctx.eventTypes || ctx.event_types || null;

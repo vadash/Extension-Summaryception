@@ -192,6 +192,37 @@ export function normalizeContinuity(continuity) {
 }
 
 /**
+ * Merge raw bond pairs into the state and mirror the raw payloads into flags.
+ * @param {Record<string, unknown>} source - Raw parsed Auditor object.
+ * @param {SummaryceptionContinuityState} state - State under construction.
+ * @param {string[]} sectionVerdicts - Section verdict sink.
+ * @returns {Record<string, Record<string, unknown>>} Raw per-pair bond payloads (record values only).
+ */
+function classifyBonds(source, state, sectionVerdicts) {
+    /** @type {Record<string, Record<string, unknown>>} */
+    const flags = {};
+    if (!isRecord(source.bonds)) {
+        sectionVerdicts.push('bonds');
+        return flags;
+    }
+    let unknownPair = false;
+    for (const [key, value] of Object.entries(source.bonds)) {
+        const canonical = canonicalizePairKey(key);
+        const known = canonical !== null && USER_PAIR_PATTERN.test(canonical);
+        const pairKey = known ? /** @type {string} */ (canonical) : key;
+        unknownPair = unknownPair || !known;
+        state.bonds[pairKey] = normalizeBondPair(value);
+        if (isRecord(value)) {
+            flags[pairKey] = value;
+        }
+    }
+    if (unknownPair) {
+        sectionVerdicts.push('bonds');
+    }
+    return flags;
+}
+
+/**
  * Classify raw Auditor JSON against the v1 continuity schema without freezing
  * or merging: the caller owns the freeze decision from sectionVerdicts.
  * Field damage is clamped into the returned state; missing sections, an
@@ -212,32 +243,12 @@ export function classifyContinuity(raw) {
     const source = isRecord(parsed) ? parsed : {};
     const state = createDefaultContinuity();
     const sectionVerdicts = [];
-    /** @type {Record<string, Record<string, unknown>>} */
-    const flags = {};
+    const flags = classifyBonds(source, state, sectionVerdicts);
 
     if (source.turn_count === undefined) {
         sectionVerdicts.push('turn_count');
     } else {
         state.turn_count = clampInteger(source.turn_count, 0, Number.MAX_SAFE_INTEGER);
-    }
-
-    if (isRecord(source.bonds)) {
-        let unknownPair = false;
-        for (const [key, value] of Object.entries(source.bonds)) {
-            const canonical = canonicalizePairKey(key);
-            const known = canonical !== null && USER_PAIR_PATTERN.test(canonical);
-            const pairKey = known ? /** @type {string} */ (canonical) : key;
-            unknownPair = unknownPair || !known;
-            state.bonds[pairKey] = normalizeBondPair(value);
-            if (isRecord(value)) {
-                flags[pairKey] = value;
-            }
-        }
-        if (unknownPair) {
-            sectionVerdicts.push('bonds');
-        }
-    } else {
-        sectionVerdicts.push('bonds');
     }
 
     if (isRecord(source.agendas)) {
@@ -484,6 +495,56 @@ function diffGmNotes(before, after) {
 }
 
 /**
+ * Build the gm_notes section report, or undefined when no notes changed.
+ * @param {string[]} before
+ * @param {string[]} after
+ * @returns {Record<string, unknown> | undefined}
+ */
+function diffGmNotesReport(before, after) {
+    const { added, removed } = diffGmNotes(before, after);
+    /** @type {Record<string, unknown>} */
+    const noteReport = {};
+    if (added.length > 0) {
+        noteReport.added = added;
+    }
+    if (removed.length > 0) {
+        noteReport.removed = removed;
+    }
+    return Object.keys(noteReport).length > 0 ? noteReport : undefined;
+}
+
+/**
+ * Build one section's diff report.
+ * @param {string} section
+ * @param {unknown} before
+ * @param {unknown} after
+ * @returns {unknown} The section report, or undefined when it produced no entries.
+ */
+function diffSectionReport(section, before, after) {
+    if (section === 'bonds' || section === 'agendas') {
+        const record = diffStateRecordSection(
+            /** @type {Record<string, unknown>} */ (before ?? {}),
+            /** @type {Record<string, unknown>} */ (after ?? {}),
+        );
+        return Object.keys(record).length > 0 ? record : undefined;
+    }
+    if (section === 'gm_notes') {
+        return diffGmNotesReport(
+            /** @type {string[]} */ (before ?? []),
+            /** @type {string[]} */ (after ?? []),
+        );
+    }
+    if (section === 'physics') {
+        const fields = diffStateFields(
+            /** @type {Record<string, unknown>} */ (before ?? {}),
+            /** @type {Record<string, unknown>} */ (after ?? {}),
+        );
+        return Object.keys(fields).length > 0 ? fields : undefined;
+    }
+    return [before, after];
+}
+
+/**
  * Compact per-section change report between two Continuity States for the
  * 'summaryception.continuity.audit.v1' console groups. Unchanged sections
  * are omitted; identical states yield an empty object. Scalar sections
@@ -502,30 +563,9 @@ export function diffContinuityStates(prior, next) {
         if (isSameStateValue(before, after)) {
             continue;
         }
-        if (section === 'bonds' || section === 'agendas') {
-            const record = diffStateRecordSection(before ?? {}, after ?? {});
-            if (Object.keys(record).length > 0) {
-                report[section] = record;
-            }
-        } else if (section === 'gm_notes') {
-            const { added, removed } = diffGmNotes(before ?? [], after ?? []);
-            const noteReport = {};
-            if (added.length > 0) {
-                noteReport.added = added;
-            }
-            if (removed.length > 0) {
-                noteReport.removed = removed;
-            }
-            if (Object.keys(noteReport).length > 0) {
-                report[section] = noteReport;
-            }
-        } else if (section === 'physics') {
-            const fields = diffStateFields(before ?? {}, after ?? {});
-            if (Object.keys(fields).length > 0) {
-                report[section] = fields;
-            }
-        } else {
-            report[section] = [before, after];
+        const sectionReport = diffSectionReport(section, before, after);
+        if (sectionReport !== undefined) {
+            report[section] = sectionReport;
         }
     }
     return report;

@@ -29,7 +29,7 @@ export function initSnippetBrowser(notify) {
  * @property {string} key - Stable row key for this render pass
  * @property {number} layerIndex - Source layer index
  * @property {number} snippetIndex - Source snippet index within the layer
- * @property {string} text
+ * @property {string} text - Snippet body text shown in the browser row
  * @property {string} meta - Compact source metadata label
  * @property {boolean} canRedo - Whether the row can be regenerated
  */

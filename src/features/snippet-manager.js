@@ -144,16 +144,16 @@ async function regenerateSnippetWithTarget(target, notify) {
         return { status: 'empty-source' };
     }
 
-    const outcome = await callSummarizer(
-        passage.text,
-        /** @type {string} */ (target.context),
-        {
+    const outcome = await callSummarizer({
+        storyTxt: passage.text,
+        contextStr: /** @type {string} */ (target.context),
+        metadata: {
             kind: 'regenerate',
             sourceRange: target.range,
             regexStats: passage.stats,
         },
         notify,
-    );
+    });
 
     if (outcome.status !== 'completed') {
         return { status: outcome.status };

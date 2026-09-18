@@ -48,12 +48,12 @@ export async function generateValidatedPromotion(prepared, notify) {
         return null;
     }
 
-    const metaOutcome = await callSummarizer(
-        prepared.storyTxt,
-        prepared.contextStr,
-        prepared.promotionMetadata,
+    const metaOutcome = await callSummarizer({
+        storyTxt: prepared.storyTxt,
+        contextStr: prepared.contextStr,
+        metadata: prepared.promotionMetadata,
         notify,
-    );
+    });
     if (metaOutcome.status !== 'completed') {
         return null;
     }
@@ -105,10 +105,10 @@ async function buildValidatedPromotionSnippet({ prepared, narrative, profile, no
         return null;
     }
 
-    const repairOutcome = await callSummarizer(
+    const repairOutcome = await callSummarizer({
         storyTxt,
         contextStr,
-        {
+        metadata: {
             ...metadata,
             promotionRepair: {
                 reason: firstValidation.reason,
@@ -122,7 +122,7 @@ async function buildValidatedPromotionSnippet({ prepared, narrative, profile, no
             },
         },
         notify,
-    );
+    });
     if (repairOutcome.status !== 'completed') {
         return null;
     }

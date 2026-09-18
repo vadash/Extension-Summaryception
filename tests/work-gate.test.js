@@ -64,8 +64,8 @@ describe('summarizer request registry', () => {
             )
             .mockImplementationOnce(abortableRun);
 
-        const first = callSummarizer('story', 'context');
-        const second = callSummarizer('story', 'context');
+        const first = callSummarizer({ storyTxt: 'story', contextStr: 'context' });
+        const second = callSummarizer({ storyTxt: 'story', contextStr: 'context' });
         await vi.waitFor(() => expect(runnerMocks.run).toHaveBeenCalledTimes(2));
 
         const [firstSignal, secondSignal] = runnerMocks.run.mock.calls.map(([req]) => req.signal);
@@ -88,8 +88,8 @@ describe('summarizer request registry', () => {
     it('aborts every live request signal at once', async () => {
         runnerMocks.run.mockImplementation(abortableRun);
 
-        const first = callSummarizer('story', 'context');
-        const second = callSummarizer('story', 'context');
+        const first = callSummarizer({ storyTxt: 'story', contextStr: 'context' });
+        const second = callSummarizer({ storyTxt: 'story', contextStr: 'context' });
         await vi.waitFor(() => expect(runnerMocks.run).toHaveBeenCalledTimes(2));
 
         const signals = runnerMocks.run.mock.calls.map(([req]) => req.signal);
@@ -106,7 +106,10 @@ describe('summarizer request registry', () => {
     it('reports no live request once both requests settle', async () => {
         runnerMocks.run.mockResolvedValue({ status: 'completed', text: 'done' });
 
-        await Promise.all([callSummarizer('story', 'context'), callSummarizer('story', 'context')]);
+        await Promise.all([
+            callSummarizer({ storyTxt: 'story', contextStr: 'context' }),
+            callSummarizer({ storyTxt: 'story', contextStr: 'context' }),
+        ]);
 
         expect(isRequestLive()).toBe(false);
     });

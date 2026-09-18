@@ -10,11 +10,11 @@ import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/con
  * @property {ChatMessage[]} chatRef - Chat array reference captured before the request.
  * @property {[number, number]} sourceRange - Transient source chat index range.
  * @property {string[]} sourceMessageIds - Stable IDs for the captured source messages.
- * @property {string} sourceFingerprint
+ * @property {string} sourceFingerprint - Hash of the source range, rechecked before commit.
  * @property {number} summaryStoreEpoch - Summary-layer mutation epoch.
- * @property {string} passageText
- * @property {import('./chatutils.js').PassageRegexStats} passageStats
- * @property {string} contextText
+ * @property {string} passageText - Raw passage text captured for the job.
+ * @property {import('./chatutils.js').PassageRegexStats} passageStats - Regex stats of the captured passage.
+ * @property {string} contextText - Continuity context text captured for the job.
  */
 
 /**
@@ -32,7 +32,7 @@ import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/con
 /**
  * @typedef {object} PendingPromptEffect
  * @property {string} kind - Human-readable effect type.
- * @property {(ctx: PromptEffectContext) => Promise<boolean> | boolean} apply
+ * @property {(ctx: PromptEffectContext) => Promise<boolean> | boolean} apply - Runs the effect; false requeues it against the captured epoch.
  */
 /** Silent default so pre-init gate calls stay no-ops. */
 const noOpCallback = () => {};

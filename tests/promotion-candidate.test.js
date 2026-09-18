@@ -66,7 +66,7 @@ function makePrepared(overrides = {}) {
 
 /** Completed callSummarizer outcome whose profile resolves from the dispatch metadata. */
 function outcomeWithProfile(text) {
-    return async (_storyTxt, _contextStr, metadata) => ({
+    return async ({ metadata }) => ({
         status: 'completed',
         text,
         profile: resolveCallProfile(settings, metadata),
@@ -92,10 +92,12 @@ describe('generateValidatedPromotion', () => {
         expect(result).toEqual({ text: GOOD_NARRATIVE, sourceMessageIds: ['msg-0', 'msg-2'] });
         expect(callSummarizer).toHaveBeenCalledTimes(1);
         expect(callSummarizer.mock.calls[0]).toEqual([
-            prepared.storyTxt,
-            prepared.contextStr,
-            prepared.promotionMetadata,
-            recorder,
+            {
+                storyTxt: prepared.storyTxt,
+                contextStr: prepared.contextStr,
+                metadata: prepared.promotionMetadata,
+                notify: recorder,
+            },
         ]);
         expect(recorder.events).toEqual([
             {
@@ -120,7 +122,7 @@ describe('generateValidatedPromotion', () => {
 
         expect(result).toEqual({ text: GOOD_NARRATIVE, sourceMessageIds: ['msg-0', 'msg-2'] });
         expect(callSummarizer).toHaveBeenCalledTimes(2);
-        const [storyTxt, contextStr, metadata, notify] = callSummarizer.mock.calls[1];
+        const { storyTxt, contextStr, metadata, notify } = callSummarizer.mock.calls[1][0];
         expect(storyTxt).toBe(prepared.storyTxt);
         expect(contextStr).toBe(prepared.contextStr);
         expect(notify).toBe(recorder);
@@ -153,7 +155,7 @@ describe('generateValidatedPromotion', () => {
 
         expect(result).toBeNull();
         expect(callSummarizer).toHaveBeenCalledTimes(2);
-        expect(callSummarizer.mock.calls[1][2].promotionRepair).toMatchObject({
+        expect(callSummarizer.mock.calls[1][0].metadata.promotionRepair).toMatchObject({
             reason: 'compression-ratio',
             outputTokens: LONG_NARRATIVE.length,
             hardMaxTokens: 175,
@@ -177,7 +179,7 @@ describe('generateValidatedPromotion', () => {
 
         expect(result).toBeNull();
         expect(callSummarizer).toHaveBeenCalledTimes(1);
-        expect(callSummarizer.mock.calls[0][2]).toEqual(prepared.promotionMetadata);
+        expect(callSummarizer.mock.calls[0][0].metadata).toEqual(prepared.promotionMetadata);
     });
 
     it('rejects a valid-sized promotion that does not compress memory', async () => {

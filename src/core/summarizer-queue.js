@@ -13,7 +13,7 @@ import { withUsageRun } from './summarizer-usage.js';
 /**
  * @typedef {object} SummarizerQueueContext
  * @property {(phase: SummarizerQueuePhase) => void} setPhase - Update the visible queue phase.
- * @property {() => SummarizerQueuePhase} getPhase
+ * @property {() => SummarizerQueuePhase} getPhase - Reads the currently visible queue phase.
  */
 
 /**
