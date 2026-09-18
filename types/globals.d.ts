@@ -44,10 +44,47 @@ interface SummaryceptionSnippet {
     regenerated?: boolean;
 }
 
+interface SummaryceptionContinuityStep {
+    current: number;
+    max: number;
+}
+
+interface SummaryceptionContinuityBond {
+    bond: number;
+    sparks: number;
+    grudge: number;
+}
+
+interface SummaryceptionAgenda {
+    task: string;
+    step: SummaryceptionContinuityStep;
+    status: string;
+    body_state: string;
+    fibs: string;
+    aware: string;
+}
+
+interface SummaryceptionContinuityPhysics {
+    location: string;
+    environment: string;
+    posture_and_position: string;
+    contact_points: string;
+    clothing_state: string;
+}
+
+interface SummaryceptionContinuityState {
+    turn_count: number;
+    bonds: Record<string, SummaryceptionContinuityBond>;
+    agendas: Record<string, SummaryceptionAgenda>;
+    gm_notes: string[];
+    physics: SummaryceptionContinuityPhysics;
+}
+
 interface SummaryceptionStore {
     layers: SummaryceptionSnippet[][];
     ghostedMessageIds: string[];
     mutationEpoch: number;
+    continuity: SummaryceptionContinuityState;
 }
 
 interface ExtensionSettings {

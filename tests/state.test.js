@@ -120,6 +120,60 @@ describe('getChatStore', () => {
         expect(store).toMatchObject({ layers: [], ghostedMessageIds: [], mutationEpoch: 0 });
     });
 
+    it('creates cold-start continuity on a fresh context', () => {
+        expect(getChatStore().continuity).toEqual({
+            turn_count: 0,
+            bonds: {},
+            agendas: {},
+            gm_notes: [],
+            physics: {
+                location: '',
+                environment: '',
+                posture_and_position: '',
+                contact_points: '',
+                clothing_state: '',
+            },
+        });
+    });
+
+    it('normalizes garbage stored continuity to cold start without detection', () => {
+        installSummaryContext({
+            metadata: {
+                summaryception: makeSummaryStore({ continuity: '{legacy blob}' }),
+            },
+        });
+        const { continuity } = getChatStore();
+        expect(continuity).toEqual({
+            turn_count: 0,
+            bonds: {},
+            agendas: {},
+            gm_notes: [],
+            physics: {
+                location: '',
+                environment: '',
+                posture_and_position: '',
+                contact_points: '',
+                clothing_state: '',
+            },
+        });
+    });
+
+    it('clamps damaged stored continuity fields', () => {
+        installSummaryContext({
+            metadata: {
+                summaryception: makeSummaryStore({
+                    continuity: {
+                        turn_count: 'nope',
+                        bonds: { 'Quipsy↔User': { bond: 999, sparks: -5, grudge: 3 } },
+                    },
+                }),
+            },
+        });
+        const { continuity } = getChatStore();
+        expect(continuity.turn_count).toBe(0);
+        expect(continuity.bonds['Quipsy↔User']).toEqual({ bond: 20, sparks: 0, grudge: 3 });
+    });
+
     it('normalizes UUID arrays and rejects source-less snippets', () => {
         installSummaryContext({
             metadata: {

@@ -21,6 +21,11 @@ const jsdocDefinedTypes = [
     'SillyTavernStreamingProcessor',
     'SlashCommand',
     'SlashCommandParser',
+    'SummaryceptionAgenda',
+    'SummaryceptionContinuityBond',
+    'SummaryceptionContinuityPhysics',
+    'SummaryceptionContinuityState',
+    'SummaryceptionContinuityStep',
     'SummaryceptionSnippet',
     'SummaryceptionStore',
 ];
@@ -62,6 +67,7 @@ export default [
                 { type: 'context', pattern: 'src/foundation/context.js' },
                 { type: 'logger', pattern: 'src/foundation/logger.js' },
                 { type: 'retry', pattern: 'src/foundation/retry.js' },
+                { type: 'continuity', pattern: 'src/foundation/continuity.js' },
                 { type: 'state', pattern: 'src/foundation/state.js' },
                 { type: 'core', pattern: 'src/core/*.js' },
                 { type: 'feature', pattern: 'src/features/*.js' },
@@ -161,7 +167,10 @@ export default [
                         { from: 'context', allow: ['constants', 'context'] },
                         { from: 'logger', allow: ['constants', 'context', 'logger'] },
                         { from: 'retry', allow: ['constants', 'context', 'retry'] },
-                        { from: 'state', allow: ['constants', 'context', 'logger', 'state'] },
+                        {
+                            from: 'state',
+                            allow: ['constants', 'context', 'continuity', 'logger', 'state'],
+                        },
                         {
                             from: 'core',
                             allow: ['constants', 'context', 'logger', 'retry', 'state', 'core'],
