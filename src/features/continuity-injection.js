@@ -75,7 +75,7 @@ export function formatContinuityBlock(state) {
 }
 
 /**
- * Render the live Continuity Checkpoint (ADR-0012) into the dedicated
+ * Render the live Continuity Checkpoint (ADR-0014) into the dedicated
  * injection slot. Staleness is derived, not stored: the block carries the
  * spec §7 marker and an uncapped depth while newer un-audited Exchanges
  * trail the checkpoint. The slot clears when the extension or the Auditor is

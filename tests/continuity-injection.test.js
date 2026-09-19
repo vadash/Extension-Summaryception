@@ -138,7 +138,7 @@ describe('updateContinuityInjection', () => {
 
     /**
      * Attach a Continuity State payload to the named chat message: the
-     * payload is the state itself (ADR-0012).
+     * payload is the state itself (ADR-0014).
      */
     function attachCheckpoint(chat, scId, state) {
         const message = chat.find((m) => m.sc_id === scId);

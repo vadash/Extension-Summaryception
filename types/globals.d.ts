@@ -88,15 +88,6 @@ interface SummaryceptionContinuityState {
     physics: SummaryceptionContinuityPhysics;
 }
 
-/** Per-message Continuity Checkpoint carried in message extra (ADR-0010). */
-interface SummaryceptionContinuityCheckpoint {
-    state: SummaryceptionContinuityState;
-    /** sc_id of the audited assistant reply carrying this checkpoint */
-    audited_sc_id: string;
-    /** FNV-1a hash of the reply text; a mismatch breaks the checkpoint chain */
-    text_hash: string;
-}
-
 interface SummaryceptionStore {
     layers: SummaryceptionSnippet[][];
     ghostedMessageIds: string[];

@@ -299,7 +299,7 @@ export function applyPairFlags(pair, flags, turnCount) {
  * Chat indices of assistant messages strictly after the anchor chat index,
  * or the whole chat for -1. Index-based on purpose: every consumer (turn
  * counting, audit coverage, injection drift) reads the current chat array,
- * so ranges derive from positions at read time (ADR-0012).
+ * so ranges derive from positions at read time (ADR-0014).
  * @param {ChatMessage[] | unknown} chat
  * @param {number} anchorIndex - -1 selects the whole chat.
  * @returns {number[]}
@@ -329,7 +329,7 @@ export function deriveTurnCount(chat) {
 /**
  * Walk the chat descending and return the newest Continuity Checkpoint: the
  * first assistant message whose extra carries a summaryception_continuity
- * state payload (ADR-0012). No hash, no identity check, no anchor rule —
+ * state payload (ADR-0014). No hash, no identity check, no anchor rule —
  * a newer audit simply overwrites the payload on its reply.
  * @param {ChatMessage[] | unknown} chat
  * @returns {{ state: SummaryceptionContinuityState, index: number } | null}

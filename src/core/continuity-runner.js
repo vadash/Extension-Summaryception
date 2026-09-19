@@ -85,9 +85,9 @@ export function discardRegeneratedCheckpoint(generationType) {
 
 /**
  * Run one Continuity Auditor lifecycle (issue #28): gate, dispatch one
- * combined extraction call over the summarizer router, validate with at most
- * one section-aware repair retry, apply the JS flags rulebook, and overwrite
- * the Continuity State payload on the audited reply's extra (ADR-0012),
+ * combined extraction call over the summarizer router, validate once with
+ * classifyContinuity, apply the JS flags rulebook, and overwrite
+ * the Continuity State payload on the audited reply's extra (ADR-0014),
  * guarding only the chat-switch window around the host's saveMetadata wait.
  * @param {object} [options]
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter; defaults to the silent adapter
@@ -138,7 +138,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             return { status: 'failed' };
         }
         // Attach to the audited reply's message object; a mid-flight chat
-        // growth leaves it in place, a deletion drops the write (ADR-0012).
+        // growth leaves it in place, a deletion drops the write (ADR-0014).
         const currentChat = getChat();
         if (!currentChat.includes(target)) {
             if (isContinuityStateLogEnabled()) {
@@ -212,7 +212,7 @@ function logAuditCompletion(priorSnapshot, state, turnCount, auditedScId) {
  * or an abort yields no audit; a completed response without text is a
  * contract violation and counts as a failed draft. Validation failure means
  * no checkpoint write; the next audit re-covers the Exchanges through the
- * Catch-up Window (ADR-0011, single-call audit).
+ * Catch-up Window (ADR-0014, single-call audit).
  * @param {string} storyTxt
  * @param {string} contextStr
  * @param {object} deps
