@@ -89,4 +89,33 @@ describe('stale freeze heal flush', () => {
             await heal.catch(() => {});
         }
     });
+
+    // Reproduces the user report: every normal generation end (success or
+    // stop) logged "Stale foreground freeze detected". ST emits
+    // GENERATION_ENDED from hideStopButton, after hiding #mes_stop but before
+    // activateSendButtons clears body[data-generating]; the heal's liveness
+    // probe saw only the finished stream and hidden stop button, concluded no
+    // generation was running, and healed a freeze the end handler was about
+    // to release itself.
+    it('keeps the freeze during the GENERATION_ENDED teardown window', async () => {
+        installSummaryContext({ chat: [] });
+        initCommitCallbacks({
+            updateInjection: vi.fn(),
+            reassertInjection: vi.fn(),
+            requeue: vi.fn(),
+        });
+
+        beginForegroundGeneration();
+
+        // End-teardown state at emit time: stream finished, stop button
+        // hidden (no stubbed DOM elements), body[data-generating] still set.
+        const previousDocument = globalThis.document;
+        globalThis.document = { body: { dataset: { generating: 'true' } } };
+        try {
+            await sleep(1100);
+            await expect(recoverStalePromptFreeze('prompt mutation check')).resolves.toBe(false);
+        } finally {
+            globalThis.document = previousDocument;
+        }
+    });
 });

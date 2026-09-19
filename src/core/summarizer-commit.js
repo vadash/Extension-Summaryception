@@ -281,6 +281,13 @@ function isForegroundGenerationActive() {
         if (streamingProcessor?.isFinished === false) {
             return true;
         }
+        // ST keeps body[data-generating] set until activateSendButtons clears
+        // it — after hideStopButton has already emitted GENERATION_ENDED. The
+        // stop-button probe alone reads "idle" during that teardown window
+        // and false-heals the freeze the end handler is releasing.
+        if (globalThis.document?.body?.dataset?.generating === 'true') {
+            return true;
+        }
         return isSendButtonInStopMode();
     } catch (_e) {
         return false;
