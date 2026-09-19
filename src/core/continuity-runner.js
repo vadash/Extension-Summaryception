@@ -21,15 +21,9 @@ import {
     listNonEmptyLayers,
     LOG_PREFIX,
 } from '../foundation/constants.js';
-import { AUDITOR_REPAIR_SECTIONS } from '../foundation/prompt-constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
 import { persistChatState } from './persist-state.js';
 import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
-import {
-    buildRepairDiagnostics,
-    buildStructuralRepairFeedback,
-    formatRepairDiagnostics,
-} from './repair-diagnostics.js';
 import { silentAdapter } from './notify.js';
 import { callSummarizer } from './summarizer-request.js';
 
@@ -95,7 +89,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         );
     }
     try {
-        const round = await runAuditRounds(storyTxt, contextStr, { notify });
+        const round = await dispatchAuditRound(storyTxt, contextStr, { notify });
         if (round.status !== 'ok') {
             return { status: round.status };
         }
@@ -170,18 +164,24 @@ function logAuditCompletion(priorSnapshot, state, turnCount, auditedScId) {
 }
 
 /**
- * Dispatch one audit round and classify the reply. A non-completed response
+ * Dispatch one audit call and classify the reply. A non-completed response
  * or an abort yields no audit; a completed response without text is a
- * contract violation and counts as a failed draft.
+ * contract violation and counts as a failed draft. Validation failure means
+ * no checkpoint write; the next audit re-covers the Exchanges through the
+ * Catch-up Window (ADR-0011, single-call audit).
  * @param {string} storyTxt
  * @param {string} contextStr
  * @param {object} deps
  * @param {import('./notify.js').NotifyAdapter} deps.notify
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [deps.metadata]
- * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }, text: string }>}
+ * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }}>}
  */
-async function dispatchAuditRound(storyTxt, contextStr, deps) {
-    const response = await dispatchAuditCall(storyTxt, contextStr, deps);
+async function dispatchAuditRound(storyTxt, contextStr, { notify }) {
+    const response = await callSummarizer({
+        storyTxt,
+        contextStr,
+        metadata: { kind: 'auditor' },
+        notify,
+    });
     if (response.status !== 'completed') {
         return { status: response.status === 'aborted' ? 'aborted' : 'failed' };
     }
@@ -189,50 +189,7 @@ async function dispatchAuditRound(storyTxt, contextStr, deps) {
     if (typeof text !== 'string') {
         return { status: 'failed' };
     }
-    return { status: 'ok', audit: classifyContinuity(text), text };
-}
-
-/**
- * Dispatch the extraction round, then one section-aware repair round when the
- * draft carries section verdicts.
- * @param {string} storyTxt
- * @param {string} contextStr
- * @param {object} deps
- * @param {import('./notify.js').NotifyAdapter} deps.notify
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [deps.metadata] - Defaults to a plain auditor call
- * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }, text: string }>}
- */
-async function runAuditRounds(storyTxt, contextStr, deps) {
-    const round = await dispatchAuditRound(storyTxt, contextStr, deps);
-    if (round.status !== 'ok' || round.audit.sectionVerdicts.length === 0) {
-        return round;
-    }
-    const repairFeedback = buildAuditorRepairFeedback(round.text, round.audit.sectionVerdicts);
-    return await dispatchAuditRound(storyTxt, contextStr, {
-        ...deps,
-        metadata: { kind: 'auditor', auditorRepair: repairFeedback },
-    });
-}
-
-/**
- * Dispatch one auditor request through the summarizer router. The repair
- * retry carries its feedback via the metadata channel so the pipeline places
- * it above the execution trigger, not inside the prior-state context block.
- * @param {string} storyTxt
- * @param {string} contextStr
- * @param {object} deps
- * @param {import('./notify.js').NotifyAdapter} deps.notify
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [deps.metadata] - Defaults to a plain auditor call
- * @returns {Promise<import('./run-outcome.js').RunOutcome>}
- */
-async function dispatchAuditCall(storyTxt, contextStr, { notify, metadata }) {
-    const call = metadata ?? { kind: 'auditor' };
-    return callSummarizer({
-        storyTxt,
-        contextStr,
-        metadata: call,
-        notify,
-    });
+    return { status: 'ok', audit: classifyContinuity(text) };
 }
 
 /**
@@ -361,33 +318,4 @@ function applyAuditResult(prior, audit, turnCount) {
     prior.gm_notes = audit.state.gm_notes;
     prior.physics = audit.state.physics;
     prior.turn_count = turnCount;
-}
-
-/**
- * Section-aware repair feedback for one rejected auditor reply.
- * @param {string} rejectedDraft
- * @param {string[]} sectionVerdicts
- * @returns {string}
- */
-function buildAuditorRepairFeedback(rejectedDraft, sectionVerdicts) {
-    // Verdicts carry no token contract, so each failing section is rejected
-    // explicitly; buildRepairDiagnostics only derives violations from bounds.
-    const sections = sectionVerdicts.map((verdict) => ({
-        ...(AUDITOR_REPAIR_SECTIONS[verdict] || {
-            id: verdict,
-            label: verdict,
-            repairInstruction: `Emit the complete "${verdict}" section.`,
-        }),
-        violation: true,
-    }));
-    const diagnostics = buildRepairDiagnostics({
-        scope: 'auditor',
-        sections,
-        rejectedDraft,
-    });
-    const structural = buildStructuralRepairFeedback(diagnostics);
-    const formatted = formatRepairDiagnostics(diagnostics, {
-        wrapperTag: 'summaryception_auditor_repair_feedback',
-    });
-    return structural ? `${formatted}\n${structural}` : formatted;
 }

@@ -12,7 +12,6 @@ import { buildSummarizerPipelineInput } from '../src/core/summarizer-pipeline.js
 import { isAuditorTriggerMessage, runAuditorExtraction } from '../src/core/continuity-runner.js';
 import { defaultSettings } from '../src/foundation/constants.js';
 import { hashMessageText } from '../src/foundation/continuity.js';
-import { EXECUTION_TRIGGER_AUDITOR } from '../src/foundation/prompt-parts.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 import { ensureChatScIds } from '../src/foundation/message-identity.js';
 
@@ -130,7 +129,7 @@ describe('runAuditorExtraction', () => {
     });
 
     it('stays idle when no assistant message follows the live checkpoint', async () => {
-        installSoloChat({ chat: soloChat().slice(0, 4) });
+        installSoloChat({ chat: soloChat().slice(0, 3), checkpointAt: 'a1' });
         const outcome = await runAuditorExtraction();
         expect(outcome.status).toBe('idle');
         expect(callSummarizer).not.toHaveBeenCalled();
@@ -314,43 +313,14 @@ describe('runAuditorExtraction', () => {
         expect(contextStr).toContain('10');
     });
 
-    it('runs at most one section-aware repair retry and accepts the repair', async () => {
+    it('writes nothing when the draft fails validation', async () => {
         const ctx = installSoloChat();
-        callSummarizer
-            .mockResolvedValueOnce({ status: 'completed', text: '{"turn_count": 3,' })
-            .mockResolvedValueOnce({
-                status: 'completed',
-                text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-            });
-
-        const outcome = await runAuditorExtraction();
-
-        expect(outcome.status).toBe('completed');
-        expect(callSummarizer).toHaveBeenCalledTimes(2);
-        // The section-aware repair text rides the metadata channel, not the
-        // prior-state context block, and names the failing section.
-        const repairMetadata = callSummarizer.mock.calls[1][0].metadata;
-        expect(repairMetadata.auditorRepair).toContain('summaryception_auditor_repair_feedback');
-        expect(repairMetadata.auditorRepair).toContain('JSON object: rejected.');
-        expect(repairMetadata.auditorRepair).toContain(
-            'The previous reply was not valid JSON. Reply with the complete JSON state object only.',
-        );
-        expect(callSummarizer.mock.calls[1][0].contextStr).not.toContain(
-            'summaryception_auditor_repair_feedback',
-        );
-        expect(checkpointOf(ctx, 'a3').state.turn_count).toBe(3);
-    });
-
-    it('writes nothing when the repair also fails', async () => {
-        const ctx = installSoloChat();
-        callSummarizer
-            .mockResolvedValueOnce({ status: 'completed', text: 'not json' })
-            .mockResolvedValueOnce({ status: 'completed', text: 'still not json' });
+        callSummarizer.mockResolvedValue({ status: 'completed', text: 'not json' });
 
         const outcome = await runAuditorExtraction();
 
         expect(outcome.status).toBe('failed');
-        expect(callSummarizer).toHaveBeenCalledTimes(2);
+        expect(callSummarizer).toHaveBeenCalledTimes(1);
         expect(checkpointOf(ctx, 'a3')).toBeUndefined();
         expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
         expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(0);
@@ -392,25 +362,6 @@ describe('auditor prompt routing', () => {
         expect(request.prompt).toContain('PRIOR STATE');
         expect(request.prompt).toContain('USER TURN');
         expect(request.repairPrompt).toBe('');
-    });
-
-    it('places auditor repair feedback above the execution trigger, outside the context block', async () => {
-        installSoloChat();
-        const feedback =
-            '<summaryception_auditor_repair_feedback>parse repair: emit JSON.</summaryception_auditor_repair_feedback>';
-        const request = await buildSummarizerPipelineInput({
-            storyTxt: 'USER TURN',
-            contextStr: 'PRIOR STATE',
-            metadata: { kind: 'auditor', auditorRepair: feedback },
-        });
-        const feedbackAt = request.prompt.indexOf(feedback);
-        const triggerAt = request.prompt.indexOf(EXECUTION_TRIGGER_AUDITOR);
-        expect(feedbackAt).toBeGreaterThanOrEqual(0);
-        expect(triggerAt).toBeGreaterThanOrEqual(0);
-        expect(feedbackAt).toBeLessThan(triggerAt);
-        expect(request.prompt.trimEnd().endsWith(EXECUTION_TRIGGER_AUDITOR)).toBe(true);
-        // The repair block must not land inside <prior_continuity_state>.
-        expect(request.prompt.indexOf('PRIOR STATE')).toBeLessThan(feedbackAt);
     });
 });
 

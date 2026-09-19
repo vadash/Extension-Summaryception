@@ -161,7 +161,7 @@ The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for 
 _Avoid_: roleplay state, sync state
 
 **Continuity Checkpoint**:
-The per-message copy of the Continuity State an audit commits into the audited reply's message extra, carrying the Exchange's `sc_id` and a hash of the reply text; the newest checkpoint whose chain stays intact is the live Continuity State.
+The per-message copy of the Continuity State an audit commits into the audited reply's message extra, carrying the Exchange's `sc_id` and a hash of the reply text; the newest checkpoint whose chain stays intact and whose index sits before the most recent user message is the live Continuity State.
 _Avoid_: snapshot, state backup
 
 **Continuity Block**:
@@ -169,7 +169,7 @@ The compact in-chat prompt injection rendered from the Continuity State.
 _Avoid_: state block, active continuity
 
 **Exchange**:
-One user message plus its completed assistant reply (latest swipe variation). The unit the Auditor and the Catch-up Window count.
+One user message plus its completed assistant reply. The unit the Auditor and the Catch-up Window count.
 _Avoid_: message pair, turn
 
 **Catch-up Window**:

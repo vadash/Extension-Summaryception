@@ -9,7 +9,6 @@ import {
 import {
     AUDITOR_DISCOVERY_RULE,
     AUDITOR_NAME_RULE,
-    AUDITOR_REPAIR_SECTIONS,
     DEFAULT_AUDITOR_SYSTEM_PROMPT,
     DEFAULT_AUDITOR_USER_PROMPT,
 } from '../src/foundation/prompt-constants.js';
@@ -42,19 +41,6 @@ describe('default auditor prompts', () => {
         expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain(AUDITOR_NAME_RULE);
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_DISCOVERY_RULE);
         expect(DEFAULT_AUDITOR_SYSTEM_PROMPT).toContain(AUDITOR_DISCOVERY_RULE);
-    });
-});
-
-describe('auditor repair sections', () => {
-    it('exposes repair feedback for every continuity section verdict', () => {
-        expect(Object.keys(AUDITOR_REPAIR_SECTIONS).sort()).toEqual([
-            'agendas',
-            'bonds',
-            'gm_notes',
-            'parse',
-            'physics',
-            'turn_count',
-        ]);
     });
 });
 

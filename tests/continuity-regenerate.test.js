@@ -99,4 +99,52 @@ describe('continuity coverage across regenerate', () => {
         expect(block).not.toContain('Kitchen');
         expect(block).toContain('BOND +1');
     });
+
+    it('audits a regenerated reply that still carries its own checkpoint, anchored at the pre-user checkpoint', async () => {
+        const chat = regenChat();
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            setExtensionPrompt,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+        });
+        chat[1].extra.summaryception_continuity = {
+            state: auditedExchangeOne(),
+            audited_sc_id: 'a1',
+            text_hash: hashMessageText(chat[1].mes),
+        };
+        // The regenerated reply kept its old audit's checkpoint: post-user,
+        // so it is no longer the live anchor.
+        chat[3].extra.summaryception_continuity = {
+            state: auditedExchangeOne({
+                turn_count: 2,
+                physics: { ...auditedExchangeOne().physics, location: 'Kitchen' },
+            }),
+            audited_sc_id: 'a2',
+            text_hash: hashMessageText(chat[3].mes),
+        };
+
+        callSummarizer.mockResolvedValue({ status: 'completed', text: draftTwoAudit() });
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        // The prior state comes from the pre-user checkpoint on a1, never
+        // from the discarded reply's own checkpoint.
+        const { contextStr } = callSummarizer.mock.calls[0][0];
+        expect(contextStr).not.toContain('Kitchen');
+
+        // The fresh audit lands on the regenerated reply.
+        const payload = chat[3].extra.summaryception_continuity;
+        expect(payload.audited_sc_id).toBe('a2');
+        expect(payload.state.gm_notes).toEqual(['[T] draft-two thread']);
+
+        // Injection reads the pre-user checkpoint until the next user turn.
+        updateContinuityInjection();
+        const block = setExtensionPrompt.mock.calls.at(-1)?.[1] ?? '';
+        expect(block).not.toContain('draft-two thread');
+        expect(block).not.toContain('Kitchen');
+        expect(block).toContain('BOND +1');
+    });
 });

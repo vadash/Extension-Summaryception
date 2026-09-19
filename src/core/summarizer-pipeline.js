@@ -1,5 +1,4 @@
 import { isTraceEnabled, trace } from '../foundation/logger.js';
-import { EXECUTION_TRIGGER_AUDITOR, insertBeforeTrigger } from '../foundation/prompt-parts.js';
 import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { resolveCallProfile } from './call-profile.js';
@@ -29,16 +28,13 @@ export async function buildSummarizerPipelineInput({
 }) {
     const call = await buildUsageMetadata(metadata, storyTxt);
     const profile = resolveCallProfile(settings, call);
-    let prompt = buildSummarizerPrompt({
+    const prompt = buildSummarizerPrompt({
         template: profile.policy.userPromptTemplate,
         storyTxt,
         contextStr,
         settings,
         profile,
     });
-    if (call.kind === 'auditor' && call.auditorRepair) {
-        prompt = insertBeforeTrigger(prompt, call.auditorRepair, EXECUTION_TRIGGER_AUDITOR);
-    }
     const repairPrompt = profile.policy.repairPromptTemplate
         ? buildSummarizerPrompt({
               template: profile.policy.repairPromptTemplate,

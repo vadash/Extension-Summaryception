@@ -201,9 +201,8 @@ describe('updateContinuityInjection', () => {
             makeMessage({ isUser: true, scId: 'u1' }),
             makeMessage({ scId: 'a1' }),
             makeMessage({ isUser: true, scId: 'u2' }),
-            makeMessage({ scId: 'a2' }),
         ];
-        attachCheckpoint(chat, 'a2', makeContinuity());
+        attachCheckpoint(chat, 'a1', makeContinuity());
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
             chat,
@@ -223,10 +222,41 @@ describe('updateContinuityInjection', () => {
         expect(role).toBe(EXTENSION_PROMPT_ROLES.SYSTEM);
     });
 
+    it('renders the pre-user checkpoint when the newest checkpoint sits at or after the last user message', () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ scId: 'a2' }),
+        ];
+        const preUser = makeContinuity({
+            turn_count: 1,
+            physics: { ...makeContinuity().physics, location: 'Old Salon' },
+        });
+        const postUser = makeContinuity({
+            turn_count: 2,
+            physics: { ...makeContinuity().physics, location: 'New Kitchen' },
+        });
+        attachCheckpoint(chat, 'a1', preUser);
+        attachCheckpoint(chat, 'a2', postUser);
+        const setExtensionPrompt = installContext({
+            settings: { continuityEnabled: true },
+            chat,
+        });
+
+        updateContinuityInjection();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        expect(text).toContain('Location: Old Salon');
+        expect(text).not.toContain('New Kitchen');
+    });
+
     it('derives the stale marker and an uncapped depth while newer exchanges trail the checkpoint', () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'u1' }),
             makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ scId: 'a2' }),
             ...Array.from({ length: 9 }, (_, i) => makeMessage({ scId: `extra-${i}` })),
         ];
         attachCheckpoint(chat, 'a1', makeContinuity());
@@ -241,7 +271,7 @@ describe('updateContinuityInjection', () => {
             'summaryception_continuity',
             expect.stringContaining('<!-- active_continuity: cached from turn N-1 -->'),
             EXTENSION_PROMPT_POSITIONS.IN_CHAT,
-            1 + 9,
+            1 + 10,
             false,
             EXTENSION_PROMPT_ROLES.SYSTEM,
         );
@@ -267,7 +297,11 @@ describe('updateContinuityInjection', () => {
     });
 
     it('renders no block when a hash mismatch breaks the only chain link', () => {
-        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+        ];
         attachCheckpoint(chat, 'a1', makeContinuity(), { text_hash: 'deadbeef' });
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
@@ -287,7 +321,11 @@ describe('updateContinuityInjection', () => {
     });
 
     it('clears the slot when the rendered block is empty', () => {
-        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+        ];
         attachCheckpoint(chat, 'a1', createDefaultContinuity());
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },

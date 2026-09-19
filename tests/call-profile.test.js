@@ -410,14 +410,12 @@ describe('resolveCallProfile provenance', () => {
         expect(provenance.promotionRepair).toBe(promotionRepair);
     });
 
-    it('carries the auditor repair payload and never leaks route or repair flags', () => {
+    it('carries provenance keys and never leaks route or repair flags', () => {
         const { provenance } = resolveCallProfile(makeSummarySettings(), {
             kind: 'auditor',
-            auditorRepair: 'feedback',
             useFallback: true,
             layer0Repair: true,
         });
-        expect(provenance.auditorRepair).toBe('feedback');
         expect('useFallback' in provenance).toBe(false);
         expect('layer0Repair' in provenance).toBe(false);
         expect('kind' in provenance).toBe(false);

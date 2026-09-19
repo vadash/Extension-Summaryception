@@ -63,7 +63,6 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @property {number} [overflowTokens] - Token count in the overflowing layer
  * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
  * @property {{ reason?: string, outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback of this dispatch
- * @property {string} [auditorRepair] - Rendered auditor section-repair feedback of this dispatch
  */
 
 /**
@@ -215,7 +214,6 @@ function buildProvenance(call) {
         'overflowTokens',
         'overflowTokenQuota',
         'promotionRepair',
-        'auditorRepair',
     ]) {
         if (call[key] !== undefined) {
             provenance[key] = call[key];

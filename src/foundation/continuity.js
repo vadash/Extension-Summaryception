@@ -375,17 +375,32 @@ function isValidCheckpoint(message, payload) {
 
 /**
  * Walk the chat ascending and return the newest Continuity Checkpoint whose
- * chain is intact: every earlier checkpoint must count too, so the first
+ * chain is intact and whose index sits strictly before the most recent user
+ * message (ADR-0011): every earlier checkpoint must count too, so the first
  * malformed, re-targeted, or text-changed checkpoint drops the read model
- * back to the previous one (ADR-0010). Messages without a payload are not
- * links and never break the chain.
+ * back to the previous one (ADR-0010). A post-user checkpoint is out of the
+ * read model, never a broken link. Messages without a payload are not links
+ * and never break the chain. No user message in the chat means no bound and
+ * the newest valid checkpoint wins.
  * @param {ChatMessage[] | unknown} chat
  * @returns {{ state: SummaryceptionContinuityState, message: ChatMessage, index: number } | null}
  */
 export function findLiveCheckpoint(chat) {
     const messages = Array.isArray(chat) ? chat : [];
+    let lastUserIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (messages[index]?.is_user) {
+            lastUserIndex = index;
+            break;
+        }
+    }
     let live = null;
     for (let index = 0; index < messages.length; index++) {
+        // Checkpoints at or after the last user message are discarded-draft
+        // state; stop before validating them so they cannot break the chain.
+        if (index === lastUserIndex) {
+            break;
+        }
         const message = messages[index];
         const payload = message?.extra?.summaryception_continuity;
         if (payload === undefined) {
