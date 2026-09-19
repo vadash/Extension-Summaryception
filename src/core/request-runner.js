@@ -45,8 +45,8 @@ function buildRouteCycleResult(result) {
     return { status: /** @type {'done'} */ ('done'), result };
 }
 
-function shouldTryFallbackRoute(primary, fallbackSettings) {
-    return fallbackSettings && (primary.retryable || primary.hardFailover);
+function shouldTryNextRoute(result) {
+    return result.retryable || result.hardFailover;
 }
 
 function logPrimaryProbe(healthBucket, maxRetries) {
@@ -60,10 +60,10 @@ function logPrimaryProbe(healthBucket, maxRetries) {
     );
 }
 
-function logFallbackRoute(primary, fallbackSettings) {
+function logFallbackRoute(lastResult, connection) {
     info(
-        `Primary summarizer failed${primary.hardFailover ? ' (hard network failure)' : ' after retryable errors'}; trying fallback ` +
-            `(${fallbackSettings.connectionSource}).`,
+        `Primary summarizer failed${lastResult.hardFailover ? ' (hard network failure)' : ' after retryable errors'}; trying fallback ` +
+            `(${connection.connectionSource}).`,
     );
 }
 
@@ -118,112 +118,99 @@ export class RequestRunner {
     }
 
     async runRouteCycle(series) {
-        const healthBucket = series.profile.policy.healthBucket;
-        const primary = await this.runPrimaryAttemptSeries(series);
+        const { healthBucket, routes } = series.profile.policy;
+        let last = null;
+        let attempts = 0;
 
-        const resolvedPrimary = this.resolvePrimaryRouteResult(primary, healthBucket, series);
-        if (resolvedPrimary) {
-            return resolvedPrimary;
+        for (let index = 0; index < routes.length; index++) {
+            const route = routes[index];
+            let attemptState;
+            if (index === 0) {
+                const probe =
+                    routes.length > 1 && this.primaryRetryExhaustedBuckets.has(healthBucket);
+                attemptState = {
+                    routeLabel: 'primary',
+                    maxRetries: probe ? 0 : RETRY_CONFIG.maxRetries,
+                };
+                logPrimaryProbe(healthBucket, attemptState.maxRetries);
+            } else {
+                logFallbackRoute(last, route.connection);
+                attemptState = { routeLabel: 'fallback', maxRetries: RETRY_CONFIG.maxRetries };
+            }
+
+            last = await this.runAttemptSeries(series, { ...attemptState, route });
+            attempts += last.status === 'failed' ? last.attempts : 0;
+
+            const terminal = this.resolveTerminalHopResult(last, {
+                index,
+                attempts,
+                healthBucket,
+                series,
+            });
+            if (terminal) {
+                return terminal;
+            }
+            if (index < routes.length - 1 && shouldTryNextRoute(last)) {
+                continue;
+            }
+            break;
         }
 
-        if (shouldTryFallbackRoute(primary, series.profile.policy.fallbackConnection)) {
-            return await this.runFallbackRouteCycle(series, primary);
-        }
+        // resolveCallProfile always yields at least a primary hop, so the loop set last.
+        const settled = /** @type {NonNullable<typeof last>} */ (last);
 
-        if (!primary.retryable) {
-            return buildRouteCycleResult(
-                failSummarization(
-                    primary.error,
-                    {
-                        retriesExhausted: false,
-                        attempts: primary.status === 'failed' ? primary.attempts : 0,
-                    },
-                    series.notify,
-                ),
-            );
-        }
-
-        this.primaryRetryExhaustedBuckets.delete(healthBucket);
-        return buildRouteCycleResult(
-            failSummarization(
-                primary.error,
-                { attempts: primary.status === 'failed' ? primary.attempts : 0 },
-                series.notify,
-            ),
-        );
-    }
-
-    async runPrimaryAttemptSeries(series) {
-        const healthBucket = series.profile.policy.healthBucket;
-        const maxRetries =
-            series.profile.policy.fallbackConnection &&
-            this.primaryRetryExhaustedBuckets.has(healthBucket)
-                ? 0
-                : RETRY_CONFIG.maxRetries;
-
-        logPrimaryProbe(healthBucket, maxRetries);
-        return await this.runAttemptSeries(series, {
-            routeLabel: 'primary',
-            maxRetries,
-        });
-    }
-
-    resolvePrimaryRouteResult(primary, healthBucket, series) {
-        if (primary.status === 'success') {
+        if (routes.length === 1) {
             this.primaryRetryExhaustedBuckets.delete(healthBucket);
-            return buildRouteCycleResult(buildCompletedOutcome(primary.result, series.profile));
-        }
-        if (primary.status === 'aborted') {
-            return buildRouteCycleResult(abortRun(series.notify));
-        }
-        if (!primary.retryable && !primary.hardFailover) {
             return buildRouteCycleResult(
                 failSummarization(
-                    primary.error,
-                    {
-                        retriesExhausted: false,
-                        attempts: primary.attempts,
-                    },
+                    settled.error,
+                    { retriesExhausted: settled.retryable, attempts },
                     series.notify,
                 ),
             );
-        }
-
-        if (primary.retriesExhausted) {
-            this.primaryRetryExhaustedBuckets.add(healthBucket);
-        }
-        return null;
-    }
-
-    async runFallbackRouteCycle(series, primary) {
-        logFallbackRoute(primary, series.profile.policy.fallbackConnection);
-        const fallback = await this.runAttemptSeries(series, {
-            routeLabel: 'fallback',
-            maxRetries: RETRY_CONFIG.maxRetries,
-        });
-
-        if (fallback.status === 'success') {
-            return buildRouteCycleResult(buildCompletedOutcome(fallback.result, series.profile));
-        }
-        if (fallback.status === 'aborted') {
-            return buildRouteCycleResult(abortRun(series.notify));
         }
 
         await notifyRouteCycleFailedAndWait({
-            healthBucket: series.profile.policy.healthBucket,
+            healthBucket,
             signal: series.signal,
             notify: series.notify,
         });
-        this.primaryRetryExhaustedBuckets.delete(series.profile.policy.healthBucket);
+        this.primaryRetryExhaustedBuckets.delete(healthBucket);
         return {
             status: /** @type {'retry'} */ ('retry'),
             result: null,
-            outcome: failSummarization(
-                fallback.error,
-                { attempts: primary.attempts + fallback.attempts },
-                series.notify,
-            ),
+            outcome: failSummarization(settled.error, { attempts }, series.notify),
         };
+    }
+
+    /**
+     * Classify one hop's attempt series into a terminal route-cycle result, or
+     * return null when the walk may consider the next hop. Only a primary-hop
+     * success clears the retry-exhausted bucket; only a primary-hop exhaustion
+     * sets it, so the next request probes the primary route once.
+     * @param {{ status: string, result: string, error: Error, retryable: boolean, hardFailover: boolean, retriesExhausted: boolean, attempts: number }} last
+     * @param {{ index: number, attempts: number, healthBucket: string, series: object }} hop
+     * @returns {object | null}
+     */
+    resolveTerminalHopResult(last, { index, attempts, healthBucket, series }) {
+        if (last.status === 'success') {
+            if (index === 0) {
+                this.primaryRetryExhaustedBuckets.delete(healthBucket);
+            }
+            return buildRouteCycleResult(buildCompletedOutcome(last.result, series.profile));
+        }
+        if (last.status === 'aborted') {
+            return buildRouteCycleResult(abortRun(series.notify));
+        }
+        if (!last.retryable && !last.hardFailover) {
+            return buildRouteCycleResult(
+                failSummarization(last.error, { retriesExhausted: false, attempts }, series.notify),
+            );
+        }
+        if (index === 0 && last.retriesExhausted) {
+            this.primaryRetryExhaustedBuckets.add(healthBucket);
+        }
+        return null;
     }
 
     /**
@@ -232,7 +219,8 @@ export class RequestRunner {
      * @param {object} attemptState - Per-route state for this attempt series
      * @param {string} attemptState.routeLabel - Human-readable route label for trace logs
      * @param {number} attemptState.maxRetries - Maximum retry count for this route
-     * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean, attempts: number } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }>}
+     * @param {import('./call-profile.js').CallProfileRoute} attemptState.route - Resolved connection and timeout for this hop
+     * @returns {Promise<{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false, attempts: number } | { status: 'failed', result: string, error: Error, retryable: boolean, retriesExhausted: boolean, hardFailover: boolean, attempts: number } | { status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false, attempts: number }>}
      */
     async runAttemptSeries(series, attemptState) {
         const { maxRetries } = attemptState;
@@ -309,17 +297,12 @@ export class RequestRunner {
             useRepairPrompt: attemptState.useRepairPrompt,
             repairFeedback: attemptState.repairFeedback,
         });
-        const isFallbackRoute = attemptState.routeLabel === 'fallback';
         return await this.executeAttempt(series, {
             ...attemptState,
             prompt: promptContext.prompt,
-            connection: isFallbackRoute
-                ? series.profile.policy.fallbackConnection
-                : series.profile.policy.primaryConnection,
+            connection: attemptState.route.connection,
             layer0Repair: attemptState.useRepairPrompt,
-            timeoutMs: isFallbackRoute
-                ? series.profile.policy.fallbackTimeoutMs
-                : series.profile.policy.primaryTimeoutMs,
+            timeoutMs: attemptState.route.timeoutMs,
         });
     }
 
@@ -384,7 +367,7 @@ export class RequestRunner {
 
 /**
  * @param {Error} error
- * @returns {{ status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }}
+ * @returns {{ status: 'aborted', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false, attempts: number }}
  */
 function buildSeriesAbortResult(error) {
     return {
@@ -394,12 +377,13 @@ function buildSeriesAbortResult(error) {
         retryable: /** @type {false} */ (false),
         retriesExhausted: /** @type {false} */ (false),
         hardFailover: /** @type {false} */ (false),
+        attempts: 0,
     };
 }
 
 /**
  * @param {{ result: string, error: Error }} attemptResult
- * @returns {{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false }}
+ * @returns {{ status: 'success', result: string, error: Error, retryable: false, retriesExhausted: false, hardFailover: false, attempts: number }}
  */
 function buildSeriesSuccessResult(attemptResult) {
     return {
@@ -409,6 +393,7 @@ function buildSeriesSuccessResult(attemptResult) {
         retryable: /** @type {false} */ (false),
         retriesExhausted: /** @type {false} */ (false),
         hardFailover: /** @type {false} */ (false),
+        attempts: 0,
     };
 }
 

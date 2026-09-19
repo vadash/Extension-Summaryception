@@ -462,12 +462,16 @@
     min-width: 0;
     gap: 7px;
 }
-.sc-tuning-group {
+.sc-tuning-group,
+.sc-connection-card {
     min-width: 0;
     padding: 7px;
     border: 1px solid var(--sc-border);
     border-radius: 7px;
     background: rgba(0, 0, 0, 0.08);
+}
+.sc-connection-card {
+    margin-bottom: 7px;
 }
 .sc-tuning-title {
     display: inline-flex;
@@ -482,12 +486,14 @@
 .sc-tuning-title .fa-solid {
     color: var(--sc-accent);
 }
-.sc-expert-tuning {
+.sc-expert-tuning,
+.sc-connection-group {
     margin-top: 7px;
     border-top: 1px solid var(--sc-border);
     padding-top: 7px;
 }
-.sc-expert-tuning summary {
+.sc-expert-tuning summary,
+.sc-connection-group summary {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -496,7 +502,8 @@
     font-size: 0.86em;
     font-weight: 700;
 }
-.sc-expert-tuning summary .fa-solid {
+.sc-expert-tuning summary .fa-solid,
+.sc-connection-group summary .fa-solid {
     color: var(--sc-accent);
 }
 .sc-expert-tuning .sc-tuning-grid {
@@ -763,11 +770,6 @@
     color: var(--sc-warning);
 }
 .sc-note small { line-height: 1.35; }
-.sc-tier-divider {
-    margin: 10px 0 8px;
-    border-top: 1px solid var(--sc-border);
-    opacity: 0.7;
-}
 .sc-connection-status {
     display: flex;
     align-items: center;

@@ -86,15 +86,16 @@ describe('resolveCallProfile route timeouts', () => {
         const settings = makeSummarySettings({
             requestTimeoutSeconds: 30,
             mergeRequestTimeoutSeconds: 40,
+            fallbackConnectionSource: 'profile',
             fallbackRequestTimeoutSeconds: 50,
         });
-        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy;
-        expect(layer0.primaryTimeoutMs).toBe(30000);
-        expect(layer0.fallbackTimeoutMs).toBe(50000);
+        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes;
+        expect(layer0[0].timeoutMs).toBe(30000);
+        expect(layer0[1].timeoutMs).toBe(50000);
 
-        const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy;
-        expect(promotion.primaryTimeoutMs).toBe(40000);
-        expect(promotion.fallbackTimeoutMs).toBe(50000);
+        const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy.routes;
+        expect(promotion[0].timeoutMs).toBe(40000);
+        expect(promotion[1].timeoutMs).toBe(50000);
     });
 
     it('applies the per-family hard fallback when the setting is not a positive number', () => {
@@ -104,14 +105,17 @@ describe('resolveCallProfile route timeouts', () => {
             { mergeRequestTimeoutSeconds: -5 },
             { fallbackRequestTimeoutSeconds: Number.NaN },
         ]) {
-            const settings = makeSummarySettings(overrides);
-            const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy;
-            expect(layer0.primaryTimeoutMs).toBe(120000);
-            expect(layer0.fallbackTimeoutMs).toBe(120000);
+            const settings = makeSummarySettings({
+                fallbackConnectionSource: 'profile',
+                ...overrides,
+            });
+            const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes;
+            expect(layer0[0].timeoutMs).toBe(120000);
+            expect(layer0[1].timeoutMs).toBe(120000);
 
-            const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy;
-            expect(promotion.primaryTimeoutMs).toBe(90000);
-            expect(promotion.fallbackTimeoutMs).toBe(90000);
+            const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy.routes;
+            expect(promotion[0].timeoutMs).toBe(90000);
+            expect(promotion[1].timeoutMs).toBe(90000);
         }
     });
 });
@@ -135,7 +139,7 @@ describe('resolveCallProfile health bucket', () => {
 describe('resolveCallProfile connections', () => {
     it('keeps the settings object as the primary connection for plain calls', () => {
         const settings = makeSummarySettings();
-        expect(resolveCallProfile(settings, { kind: 'layer0' }).policy.primaryConnection).toBe(
+        expect(resolveCallProfile(settings, { kind: 'layer0' }).policy.routes[0].connection).toBe(
             settings,
         );
     });
@@ -145,13 +149,13 @@ describe('resolveCallProfile connections', () => {
             mergeConnectionSource: 'profile',
             mergeConnectionProfileId: 'deep-merge',
         });
-        const primary = resolveCallProfile(settings, { kind: 'promotion' }).policy
-            .primaryConnection;
+        const primary = resolveCallProfile(settings, { kind: 'promotion' }).policy.routes[0]
+            .connection;
         expect(primary).not.toBe(settings);
         expect(primary.connectionSource).toBe('profile');
         expect(primary.connectionProfileId).toBe('deep-merge');
 
-        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.primaryConnection;
+        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes[0].connection;
         expect(layer0).toBe(settings);
     });
 
@@ -160,19 +164,19 @@ describe('resolveCallProfile connections', () => {
             fallbackConnectionSource: 'profile',
             fallbackConnectionProfileId: 'backup',
         });
-        const fallback = resolveCallProfile(configured, { kind: 'layer0' }).policy
-            .fallbackConnection;
+        const fallback = resolveCallProfile(configured, { kind: 'layer0' }).policy.routes[1]
+            .connection;
         expect(fallback?.connectionSource).toBe('profile');
         expect(fallback?.connectionProfileId).toBe('backup');
 
         expect(
-            resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }).policy.fallbackConnection,
-        ).toBeNull();
+            resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }).policy.routes,
+        ).toHaveLength(1);
         expect(
             resolveCallProfile(makeSummarySettings({ fallbackConnectionSource: 'disabled' }), {
                 kind: 'layer0',
-            }).policy.fallbackConnection,
-        ).toBeNull();
+            }).policy.routes,
+        ).toHaveLength(1);
     });
 
     it('folds the fallback away when it matches the already-merged promotion route', () => {
@@ -182,12 +186,130 @@ describe('resolveCallProfile connections', () => {
             fallbackConnectionSource: 'profile',
             fallbackConnectionProfileId: 'same-1',
         });
-        const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy;
-        expect(promotion.primaryConnection.connectionProfileId).toBe('same-1');
-        expect(promotion.fallbackConnection).toBeNull();
+        const promotion = resolveCallProfile(settings, { kind: 'promotion' }).policy.routes;
+        expect(promotion[0].connection.connectionProfileId).toBe('same-1');
+        expect(promotion).toHaveLength(1);
 
-        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy;
-        expect(layer0.fallbackConnection?.connectionProfileId).toBe('same-1');
+        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes;
+        expect(layer0[1].connection.connectionProfileId).toBe('same-1');
+    });
+});
+
+describe('resolveCallProfile auditor route series', () => {
+    const narrativeFallbackSettings = {
+        requestTimeoutSeconds: 30,
+        fallbackConnectionSource: 'profile',
+        fallbackConnectionProfileId: 'backup',
+        fallbackRequestTimeoutSeconds: 50,
+    };
+
+    it('keeps the narrative route series on inherit so the chains stay identical', () => {
+        const settings = makeSummarySettings(narrativeFallbackSettings);
+        const auditor = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes;
+        expect(auditor).toEqual(layer0);
+        expect(auditor).toHaveLength(2);
+        expect(auditor[0].connection).toBe(settings);
+    });
+
+    it('ignores the narrative failover checkbox while inheriting', () => {
+        const settings = makeSummarySettings({
+            ...narrativeFallbackSettings,
+            auditorNarrativeFallback: true,
+        });
+        expect(resolveCallProfile(settings, { kind: 'auditor' }).policy.routes).toHaveLength(2);
+    });
+
+    it('builds a dedicated primary hop for the default source', () => {
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'default',
+            auditorSummarizerResponseLength: 400,
+            auditorRequestTimeoutSeconds: 45,
+        });
+        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        expect(routes).toHaveLength(1);
+        expect(routes[0].connection).not.toBe(settings);
+        expect(routes[0].connection.connectionSource).toBe('default');
+        expect(routes[0].connection.summarizerResponseLength).toBe(400);
+        expect(routes[0].timeoutMs).toBe(45000);
+    });
+
+    it('carries the profile id on the profile source', () => {
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+        });
+        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        expect(routes[0].connection.connectionSource).toBe('profile');
+        expect(routes[0].connection.connectionProfileId).toBe('aud-1');
+    });
+
+    it('joins a configured distinct auditor fallback hop only', () => {
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-2',
+            auditorFallbackRequestTimeoutSeconds: 65,
+        });
+        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        expect(routes).toHaveLength(2);
+        expect(routes[1].connection.connectionProfileId).toBe('aud-2');
+        expect(routes[1].timeoutMs).toBe(65000);
+    });
+
+    it('drops the auditor fallback when disabled or the same route', () => {
+        const base = {
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-1',
+        };
+        expect(
+            resolveCallProfile(makeSummarySettings(base), { kind: 'auditor' }).policy.routes,
+        ).toHaveLength(1);
+        expect(
+            resolveCallProfile(
+                makeSummarySettings({ ...base, auditorFallbackConnectionSource: 'disabled' }),
+                { kind: 'auditor' },
+            ).policy.routes,
+        ).toHaveLength(1);
+    });
+
+    it('appends the full narrative chain when the failover checkbox is on', () => {
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorRequestTimeoutSeconds: 31,
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-2',
+            auditorFallbackRequestTimeoutSeconds: 32,
+            auditorNarrativeFallback: true,
+            ...narrativeFallbackSettings,
+        });
+        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        expect(routes).toHaveLength(4);
+        expect(routes[0].timeoutMs).toBe(31000);
+        expect(routes[1].connection.connectionProfileId).toBe('aud-2');
+        expect(routes[1].timeoutMs).toBe(32000);
+        expect(routes[2].connection).toBe(settings);
+        expect(routes[2].timeoutMs).toBe(30000);
+        expect(routes[3].connection.connectionProfileId).toBe('backup');
+        expect(routes[3].timeoutMs).toBe(50000);
+    });
+
+    it('applies the layer0 hard fallback to malformed auditor timeouts', () => {
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorRequestTimeoutSeconds: 0,
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-2',
+            auditorFallbackRequestTimeoutSeconds: Number.NaN,
+        });
+        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
+        expect(routes[0].timeoutMs).toBe(120000);
+        expect(routes[1].timeoutMs).toBe(120000);
     });
 });
 

@@ -378,155 +378,279 @@
                 </section>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="models">
-                <section id="summaryception_connection_settings" class="sc-section sc-connection-section">
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-plug"></span>
-                            Layer 0 Summarizer Connection
-                        </h4>
-                    </div>
-                    <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
-                    <div class="sc-settings-grid sc-connection-grid">
-                    <div class="sc-setting-row">
-                        <label for="summaryception_connection_source">
-                            <span>Layer 0 Source</span>
-                        </label>
-                        <select id="summaryception_connection_source" class="text_pole" data-sc-setting="connectionSource">
-                            <option value="default">Default (Main API)</option>
-                            <option value="profile">Connection Profile</option>
-                        </select>
-                    </div>
-                    <div class="sc-setting-row">
-                        <label for="sc_summarizer_response_length">
-                            <span>Layer 0 Response Length</span>
-                            <small>0 uses the selected provider default. Use a positive value only when you need an explicit cap.</small>
-                        </label>
-                        <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = provider default" data-sc-setting="summarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
-                    </div>
-                    <div class="sc-setting-row">
-                        <label for="sc_request_timeout">
-                            <span>Request Timeout</span>
-                            <small>Per-attempt timeout for Layer 0 summary and regeneration calls. Raise this for slow local models.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout_val" />
-                            <input id="sc_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout" />
+                <details id="summaryception_connection_settings" class="sc-connection-group">
+                    <summary>
+                        <span class="fa-solid fa-plug"></span>
+                        <span>Narrative Connections</span>
+                    </summary>
+                    <div class="sc-connection-card">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-plug"></span>
+                                Layer 0 Summarizer Connection
+                            </h4>
+                        </div>
+                        <small class="sc-help-text">Used for raw chat to Layer 0 summaries and Layer 0 regeneration.</small>
+                        <div class="sc-settings-grid sc-connection-grid">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_connection_source">
+                                    <span>Layer 0 Source</span>
+                                </label>
+                                <select id="summaryception_connection_source" class="text_pole" data-sc-setting="connectionSource">
+                                    <option value="default">Default (Main API)</option>
+                                    <option value="profile">Connection Profile</option>
+                                </select>
+                            </div>
+                            <div class="sc-setting-row">
+                                <label for="sc_summarizer_response_length">
+                                    <span>Layer 0 Response Length</span>
+                                    <small>0 uses the selected provider default. Use a positive value only when you need an explicit cap.</small>
+                                </label>
+                                <input id="sc_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = provider default" data-sc-setting="summarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                            </div>
+                            <div class="sc-setting-row">
+                                <label for="sc_request_timeout">
+                                    <span>Request Timeout</span>
+                                    <small>Per-attempt timeout for Layer 0 summary and regeneration calls. Raise this for slow local models.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout_val" />
+                                    <input id="sc_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="requestTimeoutSeconds" data-sc-partner-input="#sc_request_timeout" />
+                                </div>
+                            </div>
+                        </div>
+                        <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_connection_profile">
+                                    <span>Connection Profile</span>
+                                </label>
+                                <select id="summaryception_connection_profile" class="text_pole" data-sc-setting="connectionProfileId">
+                                    <option value="">-- Select a Profile --</option>
+                                </select>
+                            </div>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Uses a saved SillyTavern Connection Profile. Profile formatting can affect summary quality.</small>
+                            </div>
                         </div>
                     </div>
-                    </div>
-                    <div id="summaryception_profile_settings" class="sc-sub-panel" style="display: none;">
-                        <div class="sc-setting-row">
-                            <label for="summaryception_connection_profile">
-                                <span>Connection Profile</span>
-                            </label>
-                            <select id="summaryception_connection_profile" class="text_pole" data-sc-setting="connectionProfileId">
-                                <option value="">-- Select a Profile --</option>
-                            </select>
+                    <div class="sc-connection-card">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-code-merge"></span>
+                                Layer 1+ Merge Connection
+                            </h4>
                         </div>
-                        <div class="sc-note">
-                            <span class="fa-solid fa-circle-info"></span>
-                            <small>Uses a saved SillyTavern Connection Profile. Profile formatting can affect summary quality.</small>
+                        <small class="sc-help-text">Optional smarter connection for promotion merges. Inherit keeps existing behavior.</small>
+                        <div class="sc-settings-grid sc-connection-grid">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_merge_connection_source">
+                                    <span>Merge Source</span>
+                                </label>
+                                <select id="summaryception_merge_connection_source" class="text_pole" data-sc-setting="mergeConnectionSource">
+                                    <option value="inherit">Inherit Layer 0</option>
+                                    <option value="default">Default (Main API)</option>
+                                    <option value="profile">Connection Profile</option>
+                                </select>
+                            </div>
+                            <div id="summaryception_merge_response_length_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_merge_summarizer_response_length">
+                                    <span>Merge Response Length</span>
+                                    <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
+                                </label>
+                                <input id="sc_merge_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="mergeSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                            </div>
+                            <div class="sc-setting-row">
+                                <label for="sc_merge_request_timeout">
+                                    <span>Merge Request Timeout</span>
+                                    <small>Per-attempt timeout for Layer 1+ promotion merge calls. Lower than Layer 0 by default.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_merge_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout_val" />
+                                    <input id="sc_merge_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="90" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout" />
+                                </div>
+                            </div>
+                        </div>
+                        <div id="summaryception_merge_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_merge_connection_profile">
+                                    <span>Merge Connection Profile</span>
+                                </label>
+                                <select id="summaryception_merge_connection_profile" class="text_pole" data-sc-setting="mergeConnectionProfileId">
+                                    <option value="">-- Select a Profile --</option>
+                                </select>
+                            </div>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Uses a saved SillyTavern Connection Profile only for Layer 1+ merge calls.</small>
+                            </div>
                         </div>
                     </div>
-                    <div class="sc-tier-divider"></div>
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-code-merge"></span>
-                            Layer 1+ Merge Connection
-                        </h4>
+                    <div class="sc-connection-card">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-shield-halved"></span>
+                                Fallback Connection
+                            </h4>
+                        </div>
+                        <small class="sc-help-text">Optional failover after the primary route exhausts retryable errors.</small>
+                        <div class="sc-settings-grid sc-connection-grid">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_fallback_connection_source">
+                                    <span>Fallback Source</span>
+                                </label>
+                                <select id="summaryception_fallback_connection_source" class="text_pole" data-sc-setting="fallbackConnectionSource">
+                                    <option value="disabled">Disabled</option>
+                                    <option value="default">Default (Main API)</option>
+                                    <option value="profile">Connection Profile</option>
+                                </select>
+                            </div>
+                            <div id="summaryception_fallback_response_length_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_fallback_summarizer_response_length">
+                                    <span>Fallback Response Length</span>
+                                    <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
+                                </label>
+                                <input id="sc_fallback_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="fallbackSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                            </div>
+                            <div class="sc-setting-row">
+                                <label for="sc_fallback_request_timeout">
+                                    <span>Fallback Request Timeout</span>
+                                    <small>Per-attempt timeout for the fallback route after the primary route fails.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_fallback_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout_val" />
+                                    <input id="sc_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout" />
+                                </div>
+                            </div>
+                        </div>
+                        <div id="summaryception_fallback_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_fallback_connection_profile">
+                                    <span>Fallback Connection Profile</span>
+                                </label>
+                                <select id="summaryception_fallback_connection_profile" class="text_pole" data-sc-setting="fallbackConnectionProfileId">
+                                    <option value="">-- Select a Profile --</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <small class="sc-help-text">Optional smarter connection for promotion merges. Inherit keeps existing behavior.</small>
-                    <div class="sc-settings-grid sc-connection-grid">
-                    <div class="sc-setting-row">
-                        <label for="summaryception_merge_connection_source">
-                            <span>Merge Source</span>
+                </details>
+                <details class="sc-connection-group">
+                    <summary>
+                        <span class="fa-solid fa-user-shield"></span>
+                        <span>Continuity Connections</span>
+                    </summary>
+                    <div id="sc_auditor_narrative_fallback_row" class="sc-setting-row" style="display: none;">
+                        <label class="checkbox_label sc-toggle-row" for="sc_auditor_narrative_fallback">
+                            <span class="sc-toggle-icon fa-solid fa-timeline"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Fall back to the Narrative Chain</span>
+                                <small class="sc-hint">If both Auditor routes fail, run the Narrative Chain instead.</small>
+                            </span>
+                            <input type="checkbox" id="sc_auditor_narrative_fallback" data-sc-setting="auditorNarrativeFallback" />
                         </label>
-                        <select id="summaryception_merge_connection_source" class="text_pole" data-sc-setting="mergeConnectionSource">
-                            <option value="inherit">Inherit Layer 0</option>
-                            <option value="default">Default (Main API)</option>
-                            <option value="profile">Connection Profile</option>
-                        </select>
                     </div>
-                    <div id="summaryception_merge_response_length_row" class="sc-setting-row" style="display: none;">
-                        <label for="sc_merge_summarizer_response_length">
-                            <span>Merge Response Length</span>
-                            <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
-                        </label>
-                        <input id="sc_merge_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="mergeSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
-                    </div>
-                    <div class="sc-setting-row">
-                        <label for="sc_merge_request_timeout">
-                            <span>Merge Request Timeout</span>
-                            <small>Per-attempt timeout for Layer 1+ promotion merge calls. Lower than Layer 0 by default.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_merge_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout_val" />
-                            <input id="sc_merge_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="90" data-sc-slider-setting="mergeRequestTimeoutSeconds" data-sc-partner-input="#sc_merge_request_timeout" />
+                    <div class="sc-connection-card">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-user-shield"></span>
+                                Continuity Auditor Connection
+                            </h4>
+                        </div>
+                        <small class="sc-help-text">Optional dedicated route for Continuity Auditor audit calls. Inherit keeps existing behavior.</small>
+                        <div class="sc-settings-grid sc-connection-grid">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_auditor_connection_source">
+                                    <span>Auditor Source</span>
+                                </label>
+                                <select id="summaryception_auditor_connection_source" class="text_pole" data-sc-setting="auditorConnectionSource">
+                                    <option value="inherit">Inherit Layer 0</option>
+                                    <option value="default">Default (Main API)</option>
+                                    <option value="profile">Connection Profile</option>
+                                </select>
+                            </div>
+                            <div id="summaryception_auditor_response_length_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_auditor_summarizer_response_length">
+                                    <span>Auditor Response Length</span>
+                                    <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
+                                </label>
+                                <input id="sc_auditor_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="auditorSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                            </div>
+                            <div id="summaryception_auditor_timeout_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_auditor_request_timeout">
+                                    <span>Auditor Request Timeout</span>
+                                    <small>Per-attempt timeout for Continuity Auditor audit calls.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_auditor_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="auditorRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_request_timeout_val" />
+                                    <input id="sc_auditor_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="auditorRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_request_timeout" />
+                                </div>
+                            </div>
+                        </div>
+                        <div id="summaryception_auditor_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_auditor_connection_profile">
+                                    <span>Auditor Connection Profile</span>
+                                </label>
+                                <select id="summaryception_auditor_connection_profile" class="text_pole" data-sc-setting="auditorConnectionProfileId">
+                                    <option value="">-- Select a Profile --</option>
+                                </select>
+                            </div>
+                            <div class="sc-note">
+                                <span class="fa-solid fa-circle-info"></span>
+                                <small>Uses a saved SillyTavern Connection Profile only for Continuity Auditor calls.</small>
+                            </div>
                         </div>
                     </div>
-                    </div>
-                    <div id="summaryception_merge_profile_settings" class="sc-sub-panel" style="display: none;">
-                        <div class="sc-setting-row">
-                            <label for="summaryception_merge_connection_profile">
-                                <span>Merge Connection Profile</span>
-                            </label>
-                            <select id="summaryception_merge_connection_profile" class="text_pole" data-sc-setting="mergeConnectionProfileId">
-                                <option value="">-- Select a Profile --</option>
-                            </select>
+                    <div id="summaryception_auditor_fallback_section" class="sc-connection-card" style="display: none;">
+                        <div class="sc-section-header">
+                            <h4 class="sc-section-title">
+                                <span class="fa-solid fa-shield-halved"></span>
+                                Continuity Auditor Fallback
+                            </h4>
                         </div>
-                        <div class="sc-note">
-                            <span class="fa-solid fa-circle-info"></span>
-                            <small>Uses a saved SillyTavern Connection Profile only for Layer 1+ merge calls.</small>
+                        <small class="sc-help-text">Optional failover after the Auditor primary route exhausts retryable errors.</small>
+                        <div class="sc-settings-grid sc-connection-grid">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_auditor_fallback_connection_source">
+                                    <span>Auditor Fallback Source</span>
+                                </label>
+                                <select id="summaryception_auditor_fallback_connection_source" class="text_pole" data-sc-setting="auditorFallbackConnectionSource">
+                                    <option value="disabled">Disabled</option>
+                                    <option value="default">Default (Main API)</option>
+                                    <option value="profile">Connection Profile</option>
+                                </select>
+                            </div>
+                            <div id="summaryception_auditor_fallback_response_length_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_auditor_fallback_summarizer_response_length">
+                                    <span>Auditor Fallback Response Length</span>
+                                    <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
+                                </label>
+                                <input id="sc_auditor_fallback_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="auditorFallbackSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
+                            </div>
+                            <div id="summaryception_auditor_fallback_timeout_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_auditor_fallback_request_timeout">
+                                    <span>Auditor Fallback Request Timeout</span>
+                                    <small>Per-attempt timeout for the Auditor fallback route after the Auditor primary route fails.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_auditor_fallback_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="auditorFallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_fallback_request_timeout_val" />
+                                    <input id="sc_auditor_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="auditorFallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_fallback_request_timeout" />
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="sc-tier-divider"></div>
-                    <div class="sc-section-header">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-shield-halved"></span>
-                            Fallback Connection
-                        </h4>
-                    </div>
-                    <small class="sc-help-text">Optional failover after the primary route exhausts retryable errors.</small>
-                    <div class="sc-settings-grid sc-connection-grid">
-                    <div class="sc-setting-row">
-                        <label for="summaryception_fallback_connection_source">
-                            <span>Fallback Source</span>
-                        </label>
-                        <select id="summaryception_fallback_connection_source" class="text_pole" data-sc-setting="fallbackConnectionSource">
-                            <option value="disabled">Disabled</option>
-                            <option value="default">Default (Main API)</option>
-                            <option value="profile">Connection Profile</option>
-                        </select>
-                    </div>
-                    <div id="summaryception_fallback_response_length_row" class="sc-setting-row" style="display: none;">
-                        <label for="sc_fallback_summarizer_response_length">
-                            <span>Fallback Response Length</span>
-                            <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
-                        </label>
-                        <input id="sc_fallback_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="fallbackSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
-                    </div>
-                    <div class="sc-setting-row">
-                        <label for="sc_fallback_request_timeout">
-                            <span>Fallback Request Timeout</span>
-                            <small>Per-attempt timeout for the fallback route after the primary route fails.</small>
-                        </label>
-                        <div class="sc-slider-row">
-                            <input type="range" id="sc_fallback_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout_val" />
-                            <input id="sc_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="fallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_fallback_request_timeout" />
+                        <div id="summaryception_auditor_fallback_profile_settings" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="summaryception_auditor_fallback_connection_profile">
+                                    <span>Auditor Fallback Connection Profile</span>
+                                </label>
+                                <select id="summaryception_auditor_fallback_connection_profile" class="text_pole" data-sc-setting="auditorFallbackConnectionProfileId">
+                                    <option value="">-- Select a Profile --</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    </div>
-                    <div id="summaryception_fallback_profile_settings" class="sc-sub-panel" style="display: none;">
-                        <div class="sc-setting-row">
-                            <label for="summaryception_fallback_connection_profile">
-                                <span>Fallback Connection Profile</span>
-                            </label>
-                            <select id="summaryception_fallback_connection_profile" class="text_pole" data-sc-setting="fallbackConnectionProfileId">
-                                <option value="">-- Select a Profile --</option>
-                            </select>
-                        </div>
-                    </div>
-                </section>
+                </details>
             </div>
             <div class="sc-tab-panel" role="tabpanel" data-sc-panel="settings">
                 <section class="sc-section">
@@ -572,6 +696,7 @@
                             Continuity Auditor
                         </h4>
                     </div>
+                    <small class="sc-help-text">Connection settings: Models → Continuity Connections.</small>
                     <div class="sc-toggle-list">
                         <label class="checkbox_label sc-toggle-row" for="sc_continuity_enabled">
                             <span class="sc-toggle-icon fa-solid fa-user-shield"></span>

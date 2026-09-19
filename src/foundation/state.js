@@ -88,8 +88,8 @@ export function saveSettings() {
 
 /**
  * Keys a defaults reset never touches: the selected memory/UI/config modes,
- * every connection/merge/fallback route setting including per-route timeouts,
- * and debugMode (re-enabled explicitly after the reset loop).
+ * every connection/merge/fallback/auditor route setting including per-route
+ * timeouts, and debugMode (re-enabled explicitly after the reset loop).
  * @type {Set<string>}
  */
 const RESET_PRESERVED_KEYS = new Set([
@@ -107,6 +107,14 @@ const RESET_PRESERVED_KEYS = new Set([
     'fallbackConnectionProfileId',
     'fallbackSummarizerResponseLength',
     'fallbackRequestTimeoutSeconds',
+    'auditorConnectionSource',
+    'auditorConnectionProfileId',
+    'auditorSummarizerResponseLength',
+    'auditorRequestTimeoutSeconds',
+    'auditorFallbackConnectionSource',
+    'auditorFallbackConnectionProfileId',
+    'auditorFallbackSummarizerResponseLength',
+    'auditorFallbackRequestTimeoutSeconds',
     'debugMode',
 ]);
 
@@ -284,6 +292,19 @@ function normalizeMemorySettings(settings) {
         settings.mergeConnectionSource = defaultSettings.mergeConnectionSource;
         changed = true;
     }
+    if (!isSettingValue(['inherit', 'default', 'profile'], settings.auditorConnectionSource)) {
+        settings.auditorConnectionSource = defaultSettings.auditorConnectionSource;
+        changed = true;
+    }
+    if (
+        !isSettingValue(
+            ['disabled', 'default', 'profile'],
+            settings.auditorFallbackConnectionSource,
+        )
+    ) {
+        settings.auditorFallbackConnectionSource = defaultSettings.auditorFallbackConnectionSource;
+        changed = true;
+    }
     if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
         changed = true;
@@ -331,18 +352,21 @@ function isSettingValue(values, value) {
 }
 
 /**
- * Coerce the Continuity Auditor toggle to a strict boolean; stored garbage
- * reads as off instead of tripping the runner gate.
+ * Coerce the Continuity toggles to strict booleans; stored garbage reads as
+ * off instead of tripping the runner gates.
  * @param {ExtensionSettings} settings
  * @returns {boolean} Whether settings were changed.
  */
 function normalizeContinuitySettings(settings) {
-    const value = settings.continuityEnabled === true;
-    if (settings.continuityEnabled === value) {
-        return false;
+    let changed = false;
+    for (const key of ['continuityEnabled', 'auditorNarrativeFallback']) {
+        const value = settings[key] === true;
+        if (settings[key] !== value) {
+            settings[key] = value;
+            changed = true;
+        }
     }
-    settings.continuityEnabled = value;
-    return true;
+    return changed;
 }
 
 /**
@@ -439,8 +463,8 @@ export function enforceRetentionInvariants(settings) {
 }
 
 /**
- * Clamp the three per-route request timeouts (in seconds) to the slider
- * bounds: Layer 0, L1+ merge, and the fallback route.
+ * Clamp the five per-route request timeouts (in seconds) to the slider
+ * bounds: Layer 0, L1+ merge, fallback, and the two Auditor routes.
  * @param {ExtensionSettings} settings
  * @returns {void}
  */
@@ -462,6 +486,18 @@ function normalizeRequestTimeouts(settings) {
         SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MIN,
         SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MAX,
         SLIDER_LIMITS.fallbackRequestTimeoutSeconds.STEP,
+    );
+    settings.auditorRequestTimeoutSeconds = clampToStep(
+        settings.auditorRequestTimeoutSeconds,
+        SLIDER_LIMITS.auditorRequestTimeoutSeconds.MIN,
+        SLIDER_LIMITS.auditorRequestTimeoutSeconds.MAX,
+        SLIDER_LIMITS.auditorRequestTimeoutSeconds.STEP,
+    );
+    settings.auditorFallbackRequestTimeoutSeconds = clampToStep(
+        settings.auditorFallbackRequestTimeoutSeconds,
+        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MIN,
+        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MAX,
+        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.STEP,
     );
 }
 

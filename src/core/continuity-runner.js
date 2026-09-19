@@ -32,6 +32,7 @@ import {
     formatRepairDiagnostics,
 } from './repair-diagnostics.js';
 import { silentAdapter } from './notify.js';
+import { resolveCallProfile } from './call-profile.js';
 import { callSummarizer } from './summarizer-request.js';
 import { isCancellableConnection } from './connectionutil.js';
 
@@ -314,12 +315,16 @@ async function runAuditRounds(storyTxt, contextStr, deps) {
  * @returns {Promise<import('./run-outcome.js').RunOutcome>}
  */
 async function dispatchAuditCall(storyTxt, contextStr, { settings, notify, controller, metadata }) {
+    const call = metadata ?? { kind: 'auditor' };
+    // The signal rides the RESOLVED primary hop: a separated auditor profile is
+    // cancellable even when the Layer 0 connection underneath is not.
+    const primaryConnection = resolveCallProfile(settings, call).policy.routes[0].connection;
     return callSummarizer({
         storyTxt,
         contextStr,
-        metadata: metadata ?? { kind: 'auditor' },
+        metadata: call,
         notify,
-        signal: isCancellableConnection(settings) ? controller.signal : undefined,
+        signal: isCancellableConnection(primaryConnection) ? controller.signal : undefined,
     });
 }
 

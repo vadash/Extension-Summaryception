@@ -88,6 +88,10 @@ The plan for one summarization cycle: the selected route, readiness reason, comm
 The new summary / deeper merge / fallback trio is the connection routes, not this.
 Code: `SummaryRoutePlan` (src/core/summarization-routes.js)
 
+**Narrative Chain**:
+The Layer 0 route plus its configured fallback route, used as one failover unit. The Auditor's optional last-resort failover runs the Narrative Chain when both Auditor routes fail.
+_Avoid_: narrative models, narrative summarizer chain
+
 **Run Outcome**:
 The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle: `completed`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). Outcomes and notify events carry data only; entry renders all user-facing notices.
 Code: `SummarizationRunOutcome` (src/core/run-outcome.js)

@@ -414,6 +414,32 @@ describe('runAuditorExtraction', () => {
     });
 });
 
+describe('auditor cancellability', () => {
+    it('threads the abort signal over the resolved auditor profile connection', async () => {
+        installSoloChat({
+            settings: {
+                auditorConnectionSource: 'profile',
+                auditorConnectionProfileId: 'aud-1',
+            },
+        });
+        callSummarizer.mockResolvedValue({ status: 'completed', text: auditorJson() });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        expect(callSummarizer.mock.calls[0][0].signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('keeps the signal off the inherit and default routes', async () => {
+        installSoloChat({ settings: { auditorConnectionSource: 'default' } });
+        callSummarizer.mockResolvedValue({ status: 'completed', text: auditorJson() });
+
+        await runAuditorExtraction();
+
+        expect(callSummarizer.mock.calls[0][0].signal).toBeUndefined();
+    });
+});
+
 describe('rewindContinuityAnchor', () => {
     it('rewinds the anchor to the closest preceding assistant message on a swipe', () => {
         const ctx = installSoloChat();

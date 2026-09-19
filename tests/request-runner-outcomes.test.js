@@ -22,7 +22,7 @@ describe('RequestRunner.run outcomes', () => {
         }
     });
 
-    function makeRequest({ signal, notify, settings } = {}) {
+    function makeRequest({ signal, notify, settings, profile } = {}) {
         const resolvedSettings = settings ?? makeSummarySettings();
         return {
             settings: resolvedSettings,
@@ -30,7 +30,7 @@ describe('RequestRunner.run outcomes', () => {
             prompt: 'prompt',
             repairPrompt: 'repair',
             signal: signal ?? new AbortController().signal,
-            profile: resolveCallProfile(resolvedSettings, { kind: 'layer0' }),
+            profile: profile ?? resolveCallProfile(resolvedSettings, { kind: 'layer0' }),
             notify,
         };
     }
@@ -159,5 +159,79 @@ describe('RequestRunner.run outcomes', () => {
                 status: null,
             },
         ]);
+    });
+
+    it('stops at the failing hop when the error is neither retryable nor a hard failover', async () => {
+        const recorder = makeNotifyRecorder();
+        attemptMocks.runSingleAttempt.mockResolvedValue({
+            success: false,
+            error: new Error('bad request'),
+            aborted: false,
+            shouldRetry: false,
+            hardFailover: false,
+        });
+        const settings = makeSummarySettings({ fallbackConnectionSource: 'profile' });
+
+        const outcome = await new RequestRunner().run(makeRequest({ settings, notify: recorder }));
+
+        expect(outcome.status).toBe('failed');
+        expect(attemptMocks.runSingleAttempt).toHaveBeenCalledTimes(1);
+        expect(recorder.events).toEqual([
+            {
+                type: 'transient',
+                kind: 'run-failed',
+                retriesExhausted: false,
+                attempts: 1,
+                status: null,
+            },
+        ]);
+    });
+
+    it('walks the resolved route series in order on hard failover', async () => {
+        const hardFailure = () => ({
+            success: false,
+            error: new Error('network down'),
+            aborted: false,
+            shouldRetry: false,
+            hardFailover: true,
+        });
+        attemptMocks.runSingleAttempt
+            .mockResolvedValueOnce(hardFailure())
+            .mockResolvedValueOnce(hardFailure())
+            .mockResolvedValueOnce(hardFailure())
+            .mockResolvedValueOnce({
+                success: true,
+                result: 'OK',
+                error: undefined,
+                cleanedResult: 'OK',
+            });
+
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorRequestTimeoutSeconds: 31,
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-2',
+            auditorFallbackRequestTimeoutSeconds: 32,
+            auditorNarrativeFallback: true,
+            requestTimeoutSeconds: 33,
+            fallbackConnectionSource: 'profile',
+            fallbackConnectionProfileId: 'backup',
+            fallbackRequestTimeoutSeconds: 34,
+        });
+        const profile = resolveCallProfile(settings, { kind: 'auditor' });
+
+        const outcome = await new RequestRunner().run(
+            makeRequest({ settings, profile, notify: makeNotifyRecorder() }),
+        );
+
+        expect(outcome.status).toBe('completed');
+        expect(attemptMocks.runSingleAttempt).toHaveBeenCalledTimes(4);
+        const calls = attemptMocks.runSingleAttempt.mock.calls;
+        expect(calls[0][0].connection.connectionProfileId).toBe('aud-1');
+        expect(calls[1][0].connection.connectionProfileId).toBe('aud-2');
+        expect(calls[2][0].connection).toBe(settings);
+        expect(calls[3][0].connection.connectionProfileId).toBe('backup');
+        expect(calls.map((call) => call[0].timeoutMs)).toEqual([31000, 32000, 33000, 34000]);
     });
 });

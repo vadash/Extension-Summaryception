@@ -97,6 +97,46 @@ describe('memory mode budgets', () => {
     });
 });
 
+describe('auditor connection settings', () => {
+    it('resets invalid auditor connection sources to their defaults', () => {
+        installSummaryContext({
+            settings: {
+                auditorConnectionSource: 'bogus',
+                auditorFallbackConnectionSource: 'bogus',
+            },
+        });
+        expect(getSettings()).toMatchObject({
+            auditorConnectionSource: defaultSettings.auditorConnectionSource,
+            auditorFallbackConnectionSource: defaultSettings.auditorFallbackConnectionSource,
+        });
+
+        installSummaryContext({ settings: { auditorConnectionSource: 'default' } });
+        expect(getSettings().auditorConnectionSource).toBe('default');
+    });
+
+    it('clamps auditor route timeouts to the slider bounds', () => {
+        installSummaryContext({
+            settings: {
+                auditorRequestTimeoutSeconds: 8000,
+                auditorFallbackRequestTimeoutSeconds: 5,
+            },
+        });
+        expect(getSettings()).toMatchObject({
+            auditorRequestTimeoutSeconds: SLIDER_LIMITS.auditorRequestTimeoutSeconds.MAX,
+            auditorFallbackRequestTimeoutSeconds:
+                SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MIN,
+        });
+    });
+
+    it('coerces the narrative fallback toggle to a strict boolean', () => {
+        installSummaryContext({ settings: { auditorNarrativeFallback: 'yes' } });
+        expect(getSettings().auditorNarrativeFallback).toBe(false);
+
+        installSummaryContext({ settings: { auditorNarrativeFallback: true } });
+        expect(getSettings().auditorNarrativeFallback).toBe(true);
+    });
+});
+
 describe('getEffectiveSettings', () => {
     it('forces enabled:false in OFF mode (the OFF branch disables the effective settings)', () => {
         // normalizeModeSettings overwrites enabled to match uiMode. A raw
@@ -300,6 +340,15 @@ describe('resetSettingsToDefaults', () => {
             fallbackConnectionProfileId: 'fallback-1',
             fallbackSummarizerResponseLength: 555,
             fallbackRequestTimeoutSeconds: 70,
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'auditor-1',
+            auditorSummarizerResponseLength: 333,
+            auditorRequestTimeoutSeconds: 130,
+            auditorFallbackConnectionSource: 'default',
+            auditorFallbackConnectionProfileId: 'auditor-2',
+            auditorFallbackSummarizerResponseLength: 444,
+            auditorFallbackRequestTimeoutSeconds: 150,
+            auditorNarrativeFallback: true,
         });
 
         resetSettingsToDefaults();
@@ -319,6 +368,15 @@ describe('resetSettingsToDefaults', () => {
             fallbackConnectionProfileId: 'fallback-1',
             fallbackSummarizerResponseLength: 555,
             fallbackRequestTimeoutSeconds: 70,
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'auditor-1',
+            auditorSummarizerResponseLength: 333,
+            auditorRequestTimeoutSeconds: 130,
+            auditorFallbackConnectionSource: 'default',
+            auditorFallbackConnectionProfileId: 'auditor-2',
+            auditorFallbackSummarizerResponseLength: 444,
+            auditorFallbackRequestTimeoutSeconds: 150,
+            auditorNarrativeFallback: defaultSettings.auditorNarrativeFallback,
         });
     });
     it('resets plain keys to defaults and re-enables debug mode', () => {

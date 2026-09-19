@@ -7,6 +7,9 @@ const CONNECTION_DATA_SETTING_SELECTOR = [
     '#sc_summarizer_response_length',
     '#sc_merge_summarizer_response_length',
     '#sc_fallback_summarizer_response_length',
+    '#sc_auditor_summarizer_response_length',
+    '#sc_auditor_fallback_summarizer_response_length',
+    '#sc_auditor_narrative_fallback',
 ].join(', ');
 
 const CONNECTION_ROUTE_BINDINGS = Object.freeze([
@@ -44,6 +47,20 @@ const CONNECTION_ROUTE_BINDINGS = Object.freeze([
         sourceFallback: 'disabled',
         profileId: 'summaryception_fallback_connection_profile',
         profileKey: 'fallbackConnectionProfileId',
+    },
+    {
+        sourceId: 'summaryception_auditor_connection_source',
+        sourceKey: 'auditorConnectionSource',
+        sourceFallback: 'inherit',
+        profileId: 'summaryception_auditor_connection_profile',
+        profileKey: 'auditorConnectionProfileId',
+    },
+    {
+        sourceId: 'summaryception_auditor_fallback_connection_source',
+        sourceKey: 'auditorFallbackConnectionSource',
+        sourceFallback: 'disabled',
+        profileId: 'summaryception_auditor_fallback_connection_profile',
+        profileKey: 'auditorFallbackConnectionProfileId',
     },
 ]);
 
@@ -137,23 +154,45 @@ export function updateFallbackConnectionSubPanels(source) {
 }
 
 /**
- * @param {'' | '_merge' | '_fallback'} prefix
+ * The Auditor primary route only exists when separated from Layer 0, so
+ * 'inherit' also hides the Auditor fallback card and the narrative failover
+ * checkbox.
+ * @param {string} source
+ * @returns {void}
+ */
+export function updateAuditorConnectionSubPanels(source) {
+    const separated = toggleRouteSubPanels('_auditor', source, { toggleResponseLength: true });
+    $('#summaryception_auditor_fallback_section').toggle(separated);
+    $('#sc_auditor_narrative_fallback_row').toggle(separated);
+}
+
+/**
+ * @param {string} source
+ * @returns {void}
+ */
+export function updateAuditorFallbackConnectionSubPanels(source) {
+    toggleRouteSubPanels('_auditor_fallback', source, { toggleResponseLength: true });
+}
+
+/**
+ * @param {'' | '_merge' | '_fallback' | '_auditor' | '_auditor_fallback'} prefix
  * @param {string} source
  * @param {{ toggleResponseLength?: boolean }} [options]
- * @returns {void}
+ * @returns {boolean} True when the source names a separated route (default/profile).
  */
 function toggleRouteSubPanels(prefix, source, { toggleResponseLength = false } = {}) {
     const $profile = $(`#summaryception${prefix}_profile_settings`);
     $profile.hide();
+    const routeActive = source === 'default' || source === 'profile';
     if (toggleResponseLength) {
-        $(`#summaryception${prefix}_response_length_row`).toggle(
-            source === 'default' || source === 'profile',
-        );
+        $(`#summaryception${prefix}_response_length_row`).toggle(routeActive);
+        $(`#summaryception${prefix}_timeout_row`).toggle(routeActive);
     }
 
     if (source === 'profile') {
         $profile.show();
     }
+    return routeActive;
 }
 
 /**
@@ -166,4 +205,6 @@ export function syncConnectionPanels(s) {
     updateConnectionSubPanels(s.connectionSource || 'default');
     updateMergeConnectionSubPanels(s.mergeConnectionSource || 'inherit');
     updateFallbackConnectionSubPanels(s.fallbackConnectionSource || 'disabled');
+    updateAuditorConnectionSubPanels(s.auditorConnectionSource || 'inherit');
+    updateAuditorFallbackConnectionSubPanels(s.auditorFallbackConnectionSource || 'disabled');
 }
