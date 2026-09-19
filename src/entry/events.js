@@ -4,7 +4,11 @@ import { ensureChatScIds } from '../foundation/message-identity.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { refreshFull, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
-import { isAuditorTriggerMessage, runAuditorExtraction } from '../core/continuity-runner.js';
+import {
+    isAuditorTriggerMessage,
+    runAuditorExtraction,
+    discardRegeneratedCheckpoint,
+} from '../core/continuity-runner.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -213,6 +217,11 @@ export function onGenerationStarted(...args) {
     if (isRequestLive()) {
         trace('Ignoring generation start from active Summaryception request.');
         return;
+    }
+    // A reroll replaces the last reply; its own checkpoint must leave the
+    // read model before the freeze locks the slot content in.
+    if (discardRegeneratedCheckpoint(args[0])) {
+        updateContinuityInjection();
     }
     beginForegroundGeneration();
     pauseMemoryToastForGeneration();

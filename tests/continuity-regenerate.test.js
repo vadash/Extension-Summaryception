@@ -7,9 +7,11 @@ vi.mock('../src/core/summarizer-request.js', () => ({
     isRequestLive: vi.fn(() => false),
 }));
 
+import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
 import { findLiveCheckpoint } from '../src/foundation/continuity.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
+import { onGenerationStarted } from '../src/entry/events.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
 // Continuity State as of exchange 1's settled audit: checkpoint on a1, one
@@ -54,6 +56,7 @@ const draftTwoAudit = () =>
 afterEach(() => {
     vi.resetModules();
     callSummarizer.mockReset();
+    resetCommitStateForTests();
     delete globalThis.SillyTavern;
 });
 
@@ -114,5 +117,73 @@ describe('continuity coverage across regenerate', () => {
         expect(outcome.status).toBe('idle');
         expect(callSummarizer).not.toHaveBeenCalled();
         expect(chat[3].extra.summaryception_continuity.physics.location).toBe('Old Draft');
+    });
+});
+
+describe('continuity injection across reroll', () => {
+    const rerollChat = () => {
+        const chat = regenChat();
+        chat[1].extra.summaryception_continuity = auditedExchangeOne();
+        // The live checkpoint on the reply about to be rerolled: it describes
+        // the exact draft the host generation will replace.
+        chat[3].extra.summaryception_continuity = auditedExchangeOne({
+            turn_count: 2,
+            gm_notes: ['[T] draft-two thread'],
+            physics: { ...auditedExchangeOne().physics, location: 'Kitchen' },
+        });
+        return chat;
+    };
+
+    it('drops the rerolled reply checkpoint before the freeze so the prompt ships the prior state', () => {
+        const chat = rerollChat();
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            setExtensionPrompt,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+        });
+
+        onGenerationStarted('regenerate', {}, false);
+
+        expect(chat[3].extra.summaryception_continuity).toBeUndefined();
+        expect(findLiveCheckpoint(chat).index).toBe(1);
+
+        const slotCall = setExtensionPrompt.mock.calls.find(
+            ([name]) => name === 'summaryception_continuity',
+        );
+        expect(slotCall).toBeDefined();
+        const block = slotCall[1];
+        expect(block).not.toContain('draft-two thread');
+        expect(block).not.toContain('Kitchen');
+        expect(block).toContain('BOND +1');
+    });
+
+    it('drops the checkpoint on swipe generations the same way', () => {
+        const chat = rerollChat();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+        });
+
+        onGenerationStarted('swipe', {}, false);
+
+        expect(chat[3].extra.summaryception_continuity).toBeUndefined();
+        expect(findLiveCheckpoint(chat).index).toBe(1);
+    });
+
+    it('keeps the checkpoint on generations that do not replace the last reply', () => {
+        const chat = rerollChat();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+        });
+
+        onGenerationStarted('normal', {}, false);
+
+        expect(chat[3].extra.summaryception_continuity).toBeDefined();
+        expect(findLiveCheckpoint(chat).index).toBe(3);
     });
 });

@@ -1,5 +1,8 @@
 # Latest checkpoint wins, no validation
 
+> Amended by ADR-0013: swipe and regenerate drop the last reply's checkpoint
+> at generation start; the rest of this ADR stands.
+
 > Supersedes ADR-0010 and ADR-0011; replaces their hash, chain, and pre-user anchor mechanics.
 
 The Continuity Checkpoint shrinks to the payload itself: a successful audit writes the merged Continuity State JSON directly into the audited reply's `extra.summaryception_continuity` — no `audited_sc_id`, no reply-text hash, no wrapper. The live read model is one descending walk: the newest assistant message carrying a payload wins, no chain walk, no hash comparison, no "strictly before the most recent user message" bound. A newer audit overwrites the payload in place, so swipe, continue, regenerate, and edit need no invalidation logic at any layer.

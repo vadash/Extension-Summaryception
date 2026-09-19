@@ -12,6 +12,7 @@ import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import {
     isContinuityStateLogEnabled,
     isContinuityStateLogFullEnabled,
+    trace,
     warn,
 } from '../foundation/logger.js';
 import {
@@ -38,6 +39,48 @@ export function isAuditorTriggerMessage(message, type) {
         return false;
     }
     return type === 'normal';
+}
+
+/**
+ * Host generation types that replace the last assistant message instead of
+ * appending after it.
+ */
+const REGENERATION_TYPES = new Set(['swipe', 'regenerate']);
+
+/**
+ * Drop the live Continuity Checkpoint when the host starts regenerating its
+ * message: the payload describes the exact draft being replaced, and ST keeps
+ * the message with its extra in the chat during the regeneration, so
+ * newest-payload-wins would otherwise ship the discarded draft's state into
+ * the regenerated prompt. After the drop the read model falls back to the
+ * prior checkpoint and the regenerated reply is unaudited, so the next
+ * settled audit re-covers it. In-memory only: ST persists the chat when the
+ * regenerated reply settles.
+ * @param {unknown} generationType - ST GENERATION_STARTED type argument.
+ * @returns {boolean} True when a checkpoint was dropped.
+ */
+export function discardRegeneratedCheckpoint(generationType) {
+    if (typeof generationType !== 'string' || !REGENERATION_TYPES.has(generationType)) {
+        return false;
+    }
+    const chat = getChat();
+    const live = findLiveCheckpoint(chat);
+    if (!live) {
+        return false;
+    }
+    const lastAssistantIndex = listAssistantIndicesAfter(chat, -1).at(-1);
+    if (lastAssistantIndex === undefined || live.index !== lastAssistantIndex) {
+        return false;
+    }
+    const message = chat[live.index];
+    if (!message?.extra) {
+        return false;
+    }
+    delete message.extra.summaryception_continuity;
+    trace(
+        `Continuity checkpoint dropped: host ${generationType} replaces the audited reply (@${live.index})`,
+    );
+    return true;
 }
 
 /**
