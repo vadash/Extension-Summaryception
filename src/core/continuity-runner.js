@@ -12,7 +12,7 @@ import {
     isContinuityStateLogFullEnabled,
     warn,
 } from '../foundation/logger.js';
-import { getMessageIndexByScId } from '../foundation/message-identity.js';
+import { ensureChatScIds, getMessageIndexByScId } from '../foundation/message-identity.js';
 import {
     CATCHUP_WINDOW_EXCHANGES,
     listNonEmptyLayers,
@@ -20,6 +20,7 @@ import {
 } from '../foundation/constants.js';
 import { AUDITOR_REPAIR_SECTIONS } from '../foundation/prompt-constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
+import { persistChatState } from './persist-state.js';
 import {
     bumpSummaryStoreMutationEpoch,
     getChatStore,
@@ -129,6 +130,13 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         return { status: 'idle' };
     }
     const chat = getChat();
+    // Backfill identity before capturing it: a fresh reply has no sc_id yet,
+    // and the concurrent summarizer preflight assigns ids mid-audit. Capturing
+    // pre-backfill makes settledAborted discard every successful audit as a
+    // chat switch, so no Continuity State ever lands.
+    if (ensureChatScIds(chat)) {
+        await persistChatState({ chatSave: 'deferred' });
+    }
     const store = getChatStore();
     const prior = store.continuity;
     const { anchor, derived, turnCount } = resolveAnchorTurns(prior, chat);

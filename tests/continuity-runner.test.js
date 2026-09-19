@@ -18,6 +18,7 @@ import {
 import { defaultSettings } from '../src/foundation/constants.js';
 import { EXECUTION_TRIGGER_AUDITOR } from '../src/foundation/prompt-parts.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
+import { ensureChatScIds } from '../src/foundation/message-identity.js';
 
 const auditorJson = (bonds = {}) =>
     JSON.stringify({
@@ -139,6 +140,39 @@ describe('runAuditorExtraction', () => {
         expect(continuity.stale).toBe(false);
         expect(continuity.gm_notes).toEqual(['[T] Keep this thread']);
         expect(continuity.physics.location).toBe('Salon');
+    });
+
+    it('commits the audit when identity backfills sc_ids mid-flight', async () => {
+        // Live race: the runner starts before the fresh assistant reply has an
+        // sc_id; the concurrent summarizer preflight assigns ids while the
+        // audit request is in flight. Same messages, same length — the audit
+        // must commit, not be discarded as a chat switch.
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ scId: 'a2' }),
+            makeMessage({ isUser: true, scId: 'u3' }),
+            makeMessage({ scId: null }),
+        ];
+        const ctx = installSoloChat({ chat, continuity: priorContinuity() });
+        callSummarizer.mockImplementation(async () => {
+            // The concurrent summarizer preflight runs the same idempotent
+            // ensureChatScIds while the audit request is in flight.
+            ensureChatScIds(chat);
+            return {
+                status: 'completed',
+                text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+            };
+        });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        const continuity = ctx.chatMetadata.summaryception.continuity;
+        expect(continuity.turn_count).toBe(3);
+        expect(continuity.anchor_sc_id).toBe(chat[5].sc_id);
+        expect(continuity.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
     });
 
     it('sends one combined call capped at four exchanges on catch-up', async () => {
