@@ -96,6 +96,11 @@ _Avoid_: narrative models, narrative summarizer chain
 The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle: `completed`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). Outcomes and notify events carry data only; entry renders all user-facing notices.
 Code: `SummarizationRunOutcome` (src/core/run-outcome.js)
 
+**Log Tier**:
+The fixed channel policy for console output: Info logs one line per lifecycle milestone, Debug logs state decisions, Trace logs high-frequency internals, and Warn and Error always print. Trace needs trace mode on top of debug mode.
+Code: `info` / `debug` / `trace` (src/foundation/logger.js), `debugMode` / `traceMode` (src/foundation/constants.js)
+_Avoid_: verbose log, console spam
+
 **Notify Adapter**:
 The display-side receiver of core notify events. Entry owns the instance and all notice text; core receives it only by argument.
 Code: `NotifyAdapter` (src/core/notify.js)

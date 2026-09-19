@@ -488,7 +488,7 @@ function isCancelled(signal) {
 
 function logRoutePlan(routePlan, s) {
     const stats = routePlan.tokenStats;
-    debug(
+    trace(
         `Mode: ${s.memoryMode}, recent: ${formatTokenValue(stats.verbatimTokens)}/` +
             `${formatTokenValue(stats.verbatimBudget)}, queued: ${formatTokenValue(stats.queuedTokens)}/` +
             `${formatTokenValue(stats.queuedBudget)}, partitions: ${stats.partitionCount}`,

@@ -146,6 +146,12 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
     const identity = captureChatIdentity(chat);
     const storyTxt = buildAuditStory(chat, anchor);
     const contextStr = buildAuditorContext(prior, store);
+    if (isContinuityStateLogEnabled()) {
+        logContinuityAudit(
+            `${LOG_PREFIX} [Continuity] audit - START (turn ${turnCount}, anchor ${anchor || 'start'})`,
+            { kind: 'start', turn_count: turnCount, anchor_sc_id: anchor || '' },
+        );
+    }
     // Assigning through the slot keeps the controller visible to aborts.
     const controller = (activeAudit = new AbortController());
     try {
@@ -527,7 +533,6 @@ function applyAuditResult(prior, audit, turnCount, anchorScId) {
     prior.anchor_sc_id = anchorScId;
     prior.stale = false;
     bumpSummaryStoreMutationEpoch(getChatStore());
-    debug('Continuity audit applied:', { turnCount, anchorScId });
 }
 
 /**

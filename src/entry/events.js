@@ -1,5 +1,5 @@
 import { getChat, isDryRunEvent } from '../foundation/context.js';
-import { debug, info, isDebugEnabled, warn } from '../foundation/logger.js';
+import { isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
 import { deriveTurnCount } from '../foundation/continuity.js';
 import {
@@ -55,9 +55,9 @@ export function onChatCompletionPromptReady(...args) {
     const prefixBroken = previousLength > 0 && stablePrefixLength < previousLength;
 
     if (previousLength === 0) {
-        debug(`Prompt prefix baseline: ${nextHashes.length} blocks`);
+        trace(`Prompt prefix baseline: ${nextHashes.length} blocks`);
     } else if (prefixBroken) {
-        if (isDebugEnabled()) {
+        if (isTraceEnabled()) {
             logBrokenPromptPrefix({
                 stablePrefixLength,
                 previousLength,
@@ -71,7 +71,7 @@ export function onChatCompletionPromptReady(...args) {
             .map((section) => String(section?.role || 'unknown'))
             .join(', ');
         const added = nextHashes.length - previousLength;
-        debug(
+        trace(
             `Prompt prefix OK: ${stablePrefixLength} stable blocks, ${added} added${addedRoles ? ` (${addedRoles})` : ''}`,
         );
     }
@@ -81,7 +81,7 @@ export function onChatCompletionPromptReady(...args) {
 
 function logBrokenPromptPrefix({ stablePrefixLength, previousLength, currentLength, block }) {
     const title = `Prompt prefix BROKEN at block ${stablePrefixLength}: previous ${previousLength}, current ${currentLength}`;
-    console.groupCollapsed(`[Summaryception] [DEBUG] ${title}`);
+    console.groupCollapsed(`[Summaryception] [TRACE] ${title}`);
     try {
         console.log(
             JSON.stringify(
@@ -155,7 +155,7 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
         const chat = getChat();
         const msg = chat[messageIndex];
         if (msg && !msg.is_user && !msg.is_system) {
-            debug('New assistant message at index', messageIndex);
+            trace('New assistant message at index', messageIndex);
             setTimeout(async () => {
                 await requestSummarization();
                 refreshUi();
@@ -179,7 +179,7 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
  * @returns {void}
  */
 export function onChatChanged() {
-    debug('Chat changed.');
+    trace('Chat changed.');
     abortActiveAuditorRun('chat_changed');
     recoverPromptFreeze('chat change');
     scheduleLoadedChatReconciliation();
@@ -221,17 +221,16 @@ export function bindPromptFreezeRecoveryEvents() {
  */
 export function onGenerationStarted(...args) {
     if (isDryRunEvent(args[1], args[2])) {
-        debug('Ignoring generation start from SillyTavern dry run.');
+        trace('Ignoring generation start from SillyTavern dry run.');
         return;
     }
     if (isRequestLive()) {
-        debug('Ignoring generation start from active Summaryception request.');
+        trace('Ignoring generation start from active Summaryception request.');
         return;
     }
     // Foreground generation invalidates the in-flight audit (spec §7.2);
     // quiet generations are ignored inside the abort.
     abortActiveAuditorRun(String(args[0] || ''));
-    info('Foreground generation start detected; freezing Summaryception prompt mutations.');
     beginForegroundGeneration();
     pauseMemoryToastForGeneration();
     refreshUi();
@@ -246,15 +245,10 @@ export function onGenerationEnded() {
     const hasFrozenMutations = isPromptMutationFrozen();
 
     if (hasActiveSummaryRequest && !hasFrozenMutations) {
-        debug('Ignoring generation end from active Summaryception request.');
+        trace('Ignoring generation end from active Summaryception request.');
         return;
     }
 
-    info(
-        'Generation end detected; flushing Summaryception prompt mutations.',
-        `activeSummaryRequest=${hasActiveSummaryRequest}`,
-        `frozen=${hasFrozenMutations}`,
-    );
     void (async () => {
         try {
             await endForegroundGeneration();

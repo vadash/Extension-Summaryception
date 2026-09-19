@@ -9,6 +9,8 @@ import {
 } from '../src/core/summarizer-commit.js';
 import { installSummaryContext } from './test-helpers.js';
 
+const { logger } = globalThis.summaryceptionFoundationMocks;
+
 /** promptWorkGate is the single foreground ask for prompt-affecting work. */
 describe('promptWorkGate', () => {
     afterEach(() => {
@@ -59,5 +61,38 @@ describe('promptWorkGate', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe('endForegroundGeneration logging', () => {
+    afterEach(() => {
+        resetCommitStateForTests();
+        vi.restoreAllMocks();
+    });
+
+    it('logs one freeze-off line with the pending counts before flushing', async () => {
+        installSummaryContext({ chat: [] });
+        beginForegroundGeneration();
+        await commitWhenSafe({ kind: 'gate log commit', apply: async () => true });
+        queuePromptEffect({ kind: 'gate log effect', apply: () => true });
+        logger.info.mockClear();
+
+        await endForegroundGeneration();
+
+        expect(logger.info).toHaveBeenCalledTimes(1);
+        expect(logger.info).toHaveBeenCalledWith(
+            'Foreground freeze off; commits=1, effects=1 flushed.',
+        );
+    });
+
+    it('logs no second line when a repeat end has nothing pending', async () => {
+        installSummaryContext({ chat: [] });
+        beginForegroundGeneration();
+        logger.info.mockClear();
+
+        await endForegroundGeneration();
+        await endForegroundGeneration();
+
+        expect(logger.info).toHaveBeenCalledTimes(1);
     });
 });

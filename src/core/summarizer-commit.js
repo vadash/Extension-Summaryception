@@ -105,7 +105,7 @@ export function beginForegroundGeneration() {
     foregroundFrozen = true;
     foregroundFreezeStartedAt = Date.now();
     generationEpoch++;
-    info('Foreground generation started; prompt-affecting mutations frozen.');
+    info('Foreground freeze on.');
 }
 
 /**
@@ -118,11 +118,9 @@ export async function endForegroundGeneration() {
 
     foregroundFrozen = false;
     foregroundFreezeStartedAt = 0;
-    info(
-        'Foreground generation ended; flushing pending Summaryception commits.',
-        `commits=${pendingCommits.length}`,
-        `effects=${pendingPromptEffects.length}`,
-    );
+    const commits = pendingCommits.length;
+    const effects = pendingPromptEffects.length;
+    info(`Foreground freeze off; commits=${commits}, effects=${effects} flushed.`);
     await flushPendingCommits();
     await flushPendingPromptEffects();
 }

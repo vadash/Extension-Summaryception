@@ -605,10 +605,10 @@ describe('continuity state audit log', () => {
         const outcome = await runAuditorExtraction();
 
         expect(outcome.status).toBe('completed');
-        expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
+        expect(console.groupCollapsed).toHaveBeenCalledTimes(2);
         expect(console.groupCollapsed.mock.calls[0][0]).toContain('[Summaryception]');
-        expect(console.groupEnd).toHaveBeenCalledTimes(1);
-        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(console.groupEnd).toHaveBeenCalledTimes(2);
+        const payload = JSON.parse(console.log.mock.calls[1][0]);
         expect(payload.type).toBe('summaryception.continuity.audit.v1');
         expect(payload.kind).toBe('success');
         expect(payload.changes.turn_count).toEqual([2, 3]);
@@ -629,7 +629,7 @@ describe('continuity state audit log', () => {
 
         await runAuditorExtraction();
 
-        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        const payload = JSON.parse(console.log.mock.calls[1][0]);
         expect(payload.kind).toBe('success');
         expect(payload.state.turn_count).toBe(3);
         expect(payload.state.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
@@ -644,8 +644,8 @@ describe('continuity state audit log', () => {
         const outcome = await runAuditorExtraction();
 
         expect(outcome.status).toBe('failed');
-        expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
-        const payload = JSON.parse(console.log.mock.calls[0][0]);
+        expect(console.groupCollapsed).toHaveBeenCalledTimes(2);
+        const payload = JSON.parse(console.log.mock.calls[1][0]);
         expect(payload).toEqual({
             type: 'summaryception.continuity.audit.v1',
             kind: 'freeze',
@@ -669,6 +669,30 @@ describe('continuity state audit log', () => {
             kind: 'rewind',
             from: 'a2',
             to: 'a1',
+        });
+    });
+
+    it('logs a start milestone before the completed audit group', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        const titles = console.groupCollapsed.mock.calls.map((call) => call[0]);
+        const startTitle = titles.find((title) => title.includes('audit - START'));
+        expect(startTitle).toContain('(turn 3, anchor a2)');
+        expect(titles.some((title) => title.includes('audit - COMPLETED'))).toBe(true);
+        expect(JSON.parse(console.log.mock.calls[0][0])).toEqual({
+            type: 'summaryception.continuity.audit.v1',
+            kind: 'start',
+            turn_count: 3,
+            anchor_sc_id: 'a2',
         });
     });
 

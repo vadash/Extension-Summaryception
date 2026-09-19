@@ -6,8 +6,8 @@ const { logger } = globalThis.summaryceptionFoundationMocks;
 
 describe('onChatCompletionPromptReady', () => {
     beforeEach(() => {
-        logger.debug.mockClear();
-        logger.isDebugEnabled.mockReturnValue(true);
+        logger.trace.mockClear();
+        logger.isTraceEnabled.mockReturnValue(true);
         vi.spyOn(console, 'groupCollapsed').mockImplementation(() => {});
         vi.spyOn(console, 'groupEnd').mockImplementation(() => {});
         vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -20,7 +20,8 @@ describe('onChatCompletionPromptReady', () => {
                 { role: 'user', content: 'first' },
             ],
         });
-        logger.debug.mockClear();
+        expect(logger.trace).toHaveBeenCalledWith('Prompt prefix baseline: 2 blocks');
+        logger.trace.mockClear();
 
         onChatCompletionPromptReady({
             chat: [
@@ -30,7 +31,10 @@ describe('onChatCompletionPromptReady', () => {
             ],
         });
 
+        expect(logger.trace).not.toHaveBeenCalled();
         expect(console.groupCollapsed).toHaveBeenCalledTimes(1);
+        expect(console.groupCollapsed.mock.calls[0][0]).toContain('[TRACE]');
+        expect(console.groupCollapsed.mock.calls[0][0]).not.toContain('[DEBUG]');
         expect(JSON.parse(console.log.mock.calls[0][0])).toEqual({
             type: 'summaryception.prompt.prefix-broken.v1',
             block: 1,
@@ -41,11 +45,35 @@ describe('onChatCompletionPromptReady', () => {
         expect(console.groupEnd).toHaveBeenCalledTimes(1);
     });
 
+    it('logs the OK verdict on trace when the prefix grows cleanly', () => {
+        onChatCompletionPromptReady({
+            chat: [
+                { role: 'system', content: 'fixed' },
+                { role: 'user', content: 'first' },
+            ],
+        });
+        logger.trace.mockClear();
+        vi.mocked(console.groupCollapsed).mockClear();
+
+        onChatCompletionPromptReady({
+            chat: [
+                { role: 'system', content: 'fixed' },
+                { role: 'user', content: 'first' },
+                { role: 'assistant', content: 'reply' },
+            ],
+        });
+
+        expect(logger.trace).toHaveBeenCalledWith(
+            'Prompt prefix OK: 2 stable blocks, 1 added (assistant)',
+        );
+        expect(console.groupCollapsed).not.toHaveBeenCalled();
+    });
+
     it('ignores dry-run prompt events in either event signature', () => {
-        logger.debug.mockClear();
+        logger.trace.mockClear();
         onChatCompletionPromptReady({ chat: [{ role: 'system', content: 'dry' }] }, true);
         onChatCompletionPromptReady({ chat: [{ role: 'system', content: 'dry' }], dryRun: true });
-        expect(logger.debug).not.toHaveBeenCalled();
+        expect(logger.trace).not.toHaveBeenCalled();
     });
 
     it('does not mutate generation data during a dry run', () => {

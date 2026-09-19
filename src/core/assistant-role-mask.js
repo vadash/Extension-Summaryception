@@ -3,6 +3,7 @@
  */
 
 import { isPlainObject } from '../foundation/state.js';
+import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 
 /**
@@ -34,7 +35,7 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
         }
     }
     if (userMessages.length === 0) {
-        logRoleMaskDebug(settings, {
+        logRoleMaskDebug({
             mode: normalizeMaskMode(settings.maskUserRoleMode),
             userMessages: [],
             preservedMessage: null,
@@ -72,7 +73,7 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
         });
     }
 
-    logRoleMaskDebug(settings, { mode, userMessages, preservedMessage, rewritten });
+    logRoleMaskDebug({ mode, userMessages, preservedMessage, rewritten });
 
     return rewritten;
 }
@@ -83,14 +84,14 @@ function normalizeMaskMode(value) {
     return validModes.includes(mode) ? mode : MASK_USER_ROLE_MODES.MARKER_FIRST;
 }
 
-function logRoleMaskDebug(settings, { mode, userMessages, preservedMessage, rewritten }) {
-    if (!settings.debugMode) {
+function logRoleMaskDebug({ mode, userMessages, preservedMessage, rewritten }) {
+    if (!isTraceEnabled()) {
         return;
     }
 
     const kept = userMessages.length - rewritten;
     console.groupCollapsed(
-        `${LOG_PREFIX} [DEBUG] User role mask: changed=${rewritten}, kept=${kept}, mode=${mode}`,
+        `${LOG_PREFIX} [TRACE] User role mask: changed=${rewritten}, kept=${kept}, mode=${mode}`,
     );
     try {
         console.log(
