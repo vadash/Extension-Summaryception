@@ -178,8 +178,8 @@ Code: `turn_count` (src/foundation/continuity.js), `deriveTurnCount` (src/founda
 _Avoid_: audited turns, covered turns
 
 **Auditor Anchor**:
-The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping the anchored reply rewinds coverage one Exchange so the settled variation audits next.
-Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` (src/core/continuity-runner.js)
+The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping, continuing, or regenerating the anchored reply rewinds coverage one Exchange and restores the pre-audit state snapshot, so the settled variation audits next from clean counters; deleting the anchored reply restores through reconciliation the same way.
+Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` and `rewindContinuityOverDeletedAnchor` (src/core/continuity-runner.js)
 _Avoid_: cursor, checkpoint
 
 **Auditor Flags**:

@@ -97,6 +97,8 @@ interface SummaryceptionStore {
     ghostedMessageIds: string[];
     mutationEpoch: number;
     continuity: SummaryceptionContinuityState;
+    /** Pre-audit Continuity State snapshot consumed when the anchored Exchange is invalidated */
+    continuityRevert: SummaryceptionContinuityState | null;
 }
 
 interface ExtensionSettings {

@@ -74,11 +74,13 @@ export function isAuditorTriggerMessage(message, type) {
 }
 
 /**
- * Rewind the audit anchor over a swiped or continued assistant reply: the
- * swipe replaced the anchored draft, so the next audit must re-cover that
- * exchange. Only the anchored message rewinds, which makes repeat swipe
- * events for the same draft idempotent. Store mutation mirrors the
- * snippet-commit order: mutate, bump, persist.
+ * Rewind the audit anchor over a swiped, continued, or regenerated assistant
+ * reply: the settled draft replaces the anchored one, so the next audit must
+ * re-cover that exchange. The pre-audit revert snapshot restores the state,
+ * dropping the invalidated draft's applied contribution; without a snapshot
+ * only the anchor rewinds. Only the anchored message rewinds, which makes
+ * repeat swipe events for the same draft idempotent. Store mutation mirrors
+ * the snippet-commit order: mutate, bump, persist.
  * @param {ChatMessage | null | undefined} message - The swiped or continued assistant message.
  * @returns {void}
  */
@@ -92,16 +94,22 @@ export function rewindContinuityAnchor(message) {
     if (anchorIndex === undefined) {
         return;
     }
-    const chat = getChat();
     let previousScId = '';
-    for (let index = anchorIndex - 1; index >= 0; index--) {
-        const candidate = chat[index];
-        if (candidate && !candidate.is_user && !candidate.is_system) {
-            previousScId = String(candidate.sc_id ?? '');
-            break;
+    if (store.continuityRevert) {
+        store.continuity = store.continuityRevert;
+        store.continuityRevert = null;
+        previousScId = String(store.continuity.anchor_sc_id ?? '');
+    } else {
+        const chat = getChat();
+        for (let index = anchorIndex - 1; index >= 0; index--) {
+            const candidate = chat[index];
+            if (candidate && !candidate.is_user && !candidate.is_system) {
+                previousScId = String(candidate.sc_id ?? '');
+                break;
+            }
         }
+        store.continuity.anchor_sc_id = previousScId;
     }
-    store.continuity.anchor_sc_id = previousScId;
     bumpSummaryStoreMutationEpoch(store);
     void saveChatStore();
     if (isContinuityStateLogEnabled()) {
@@ -110,6 +118,37 @@ export function rewindContinuityAnchor(message) {
             { kind: 'rewind', from: anchorScId, to: previousScId },
         );
     }
+}
+
+/**
+ * Reconcile a continuity anchor that no longer resolves in the chat: the
+ * anchored reply was deleted (regenerate, resend) or the chat forked without
+ * copied metadata. A revert snapshot restores the pre-audit state so the
+ * invalidated draft's contribution leaves the state; without one the anchor
+ * cold-resets so the next audit re-derives turn_count from scratch.
+ * @param {ChatMessage[]} chat - Current chat array.
+ * @returns {boolean} Whether the store changed and needs persisting.
+ */
+export function rewindContinuityOverDeletedAnchor(chat) {
+    const store = getChatStore();
+    const anchorScId = store.continuity.anchor_sc_id;
+    if (!anchorScId || getMessageIndexByScId(chat).get(anchorScId) !== undefined) {
+        return false;
+    }
+    if (store.continuityRevert) {
+        store.continuity = store.continuityRevert;
+        store.continuityRevert = null;
+    } else {
+        store.continuity.anchor_sc_id = '';
+    }
+    bumpSummaryStoreMutationEpoch(store);
+    if (isContinuityStateLogEnabled()) {
+        logContinuityAudit(
+            `${LOG_PREFIX} [Continuity] audit - REWIND (anchor ${store.continuity.anchor_sc_id || 'start'})`,
+            { kind: 'rewind', from: anchorScId, to: store.continuity.anchor_sc_id },
+        );
+    }
+    return true;
 }
 
 /**
@@ -170,6 +209,11 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         // Snapshot before the in-place rulebook application so the diff can
         // show what the commit changed; only allocated when the log is on.
         const priorSnapshot = isContinuityStateLogEnabled() ? structuredClone(prior) : null;
+        // Revert point for a later rewind of this audited Exchange (swipe,
+        // continue, regenerate, deletion): restoring it drops the invalidated
+        // draft's applied contribution so the settled reply re-audits without
+        // double-counting (ADR-0007).
+        store.continuityRevert = structuredClone(prior);
         applyAuditResult(prior, { state, flags }, turnCount, newAnchor);
         if (!(await persistAudit(identity))) {
             return { status: 'aborted' };

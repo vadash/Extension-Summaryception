@@ -265,6 +265,9 @@ function normalizeChatStore(store) {
     store.ghostedMessageIds = normalizeStringArray(store.ghostedMessageIds);
     store.mutationEpoch = normalizeMutationEpoch(store.mutationEpoch);
     store.continuity = normalizeContinuity(store.continuity);
+    if (!isPlainObject(store.continuityRevert)) {
+        store.continuityRevert = null;
+    }
     return /** @type {SummaryceptionStore} */ (store);
 }
 
@@ -611,6 +614,7 @@ function createDefaultChatStore() {
         ghostedMessageIds: [],
         mutationEpoch: 0,
         continuity: createDefaultContinuity(),
+        continuityRevert: null,
     };
 }
 

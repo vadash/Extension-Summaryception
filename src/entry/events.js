@@ -1,18 +1,14 @@
 import { getChat, isDryRunEvent } from '../foundation/context.js';
 import { isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
-import { deriveTurnCount } from '../foundation/continuity.js';
-import {
-    bumpSummaryStoreMutationEpoch,
-    getChatStore,
-    getEffectiveSettings,
-} from '../foundation/state.js';
+import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { refreshFull, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
 import {
     abortActiveAuditorRun,
     isAuditorTriggerMessage,
     rewindContinuityAnchor,
+    rewindContinuityOverDeletedAnchor,
     runAuditorExtraction,
 } from '../core/continuity-runner.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
@@ -147,7 +143,7 @@ let promptFreezeRecoveryBound = false;
  * @param {number} messageIndex
  * @param {object} [options]
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
- * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, 'swipe' and 'continue' rewind the anchor
+ * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, 'swipe', 'continue', and 'regenerate' rewind the anchor
  * @returns {void}
  */
 export function onMessageReceived(messageIndex, { notify, type } = {}) {
@@ -164,7 +160,7 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
                 void runAuditorExtraction({ notify }).catch((e) => {
                     warn('Continuity auditor run error:', e);
                 });
-            } else if (type === 'swipe' || type === 'continue') {
+            } else if (type === 'swipe' || type === 'continue' || type === 'regenerate') {
                 rewindContinuityAnchor(msg);
             }
         }
@@ -309,8 +305,7 @@ async function reconcileLoadedChatState() {
     if (ensureChatScIds(chat)) {
         await persistChatState();
     }
-    const store = getChatStore();
-    if (reconcileContinuityAnchor(chat, store)) {
+    if (reconcileContinuityAnchor(chat)) {
         await persistChatState();
     }
     updateInjection();
@@ -320,20 +315,14 @@ async function reconcileLoadedChatState() {
 
 /**
  * Re-derive the continuity anchor against the loaded chat: a stored anchor
- * that no longer resolves (deletion, fork, branch without copied metadata)
- * resets to cold-start so the next audit re-derives turn_count from scratch.
+ * that no longer resolves (regenerate deletion, fork, branch without copied
+ * metadata) restores the pre-audit revert snapshot, or cold-starts without
+ * one, so the next audit re-covers cleanly. The runner owns the rule.
  * @param {ChatMessage[]} chat
- * @param {SummaryceptionStore} store
  * @returns {boolean} Whether the store changed and needs persisting.
  */
-function reconcileContinuityAnchor(chat, store) {
-    const continuity = store.continuity;
-    if (!continuity.anchor_sc_id || deriveTurnCount(chat, continuity.anchor_sc_id) !== null) {
-        return false;
-    }
-    continuity.anchor_sc_id = '';
-    bumpSummaryStoreMutationEpoch(store);
-    return true;
+function reconcileContinuityAnchor(chat) {
+    return rewindContinuityOverDeletedAnchor(chat);
 }
 
 /**

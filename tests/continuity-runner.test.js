@@ -13,6 +13,7 @@ import {
     abortActiveAuditorRun,
     isAuditorTriggerMessage,
     rewindContinuityAnchor,
+    rewindContinuityOverDeletedAnchor,
     runAuditorExtraction,
 } from '../src/core/continuity-runner.js';
 import { defaultSettings } from '../src/foundation/constants.js';
@@ -513,6 +514,80 @@ describe('rewindContinuityAnchor', () => {
 
         expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(1);
         expect(saves).toEqual(['metadata']);
+    });
+
+    it('restores the pre-audit state when a completed audit is swiped', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+        await runAuditorExtraction();
+        expect(ctx.chatMetadata.summaryception.continuity.bonds['Quipsy↔User']).toEqual({
+            bond: 10,
+            sparks: 7,
+            grudge: 0,
+        });
+
+        rewindContinuityAnchor(ctx.chat[5]);
+
+        const store = ctx.chatMetadata.summaryception;
+        expect(store.continuity.anchor_sc_id).toBe('a2');
+        expect(store.continuity.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 6, grudge: 1 });
+        expect(store.continuity.gm_notes).toEqual([]);
+        expect(store.continuityRevert).toBeNull();
+        expect(store.mutationEpoch).toBe(2);
+    });
+
+    it('stores the pre-audit state as the revert point on a completed audit', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        });
+
+        await runAuditorExtraction();
+
+        const revert = ctx.chatMetadata.summaryception.continuityRevert;
+        expect(revert).not.toBeNull();
+        expect(revert.anchor_sc_id).toBe('a2');
+        expect(revert.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 6, grudge: 1 });
+    });
+});
+
+describe('rewindContinuityOverDeletedAnchor', () => {
+    it('restores the pre-audit state when the audited reply is deleted', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        await runAuditorExtraction();
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('a3');
+
+        const chat = ctx.chat;
+        chat.splice(5, 1);
+
+        expect(rewindContinuityOverDeletedAnchor(chat)).toBe(true);
+
+        const store = ctx.chatMetadata.summaryception;
+        expect(store.continuity.anchor_sc_id).toBe('a2');
+        expect(store.continuity.gm_notes).toEqual([]);
+        expect(store.continuityRevert).toBeNull();
+        expect(store.mutationEpoch).toBe(2);
+    });
+
+    it('cold-resets the anchor when the deleted anchor has no revert snapshot', () => {
+        const ctx = installSoloChat();
+        const chat = ctx.chat;
+        chat.splice(3, 1);
+
+        expect(rewindContinuityOverDeletedAnchor(chat)).toBe(true);
+        expect(ctx.chatMetadata.summaryception.continuity.anchor_sc_id).toBe('');
+    });
+
+    it('leaves the store alone while the anchor still resolves', () => {
+        const ctx = installSoloChat();
+
+        expect(rewindContinuityOverDeletedAnchor(ctx.chat)).toBe(false);
+        expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(0);
     });
 });
 
