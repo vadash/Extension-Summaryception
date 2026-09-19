@@ -11,9 +11,7 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 import { buildSummarizerPipelineInput } from '../src/core/summarizer-pipeline.js';
 import { isAuditorTriggerMessage, runAuditorExtraction } from '../src/core/continuity-runner.js';
 import { defaultSettings } from '../src/foundation/constants.js';
-import { hashMessageText } from '../src/foundation/continuity.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
-import { ensureChatScIds } from '../src/foundation/message-identity.js';
 
 const auditorJson = (bonds = {}) =>
     JSON.stringify({
@@ -57,11 +55,7 @@ const soloChat = () => [
 ];
 
 const attachCheckpoint = (message, state) => {
-    message.extra.summaryception_continuity = {
-        state,
-        audited_sc_id: message.sc_id,
-        text_hash: hashMessageText(message.mes),
-    };
+    message.extra.summaryception_continuity = state;
     return message;
 };
 
@@ -143,10 +137,8 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('completed');
         const payload = checkpointOf(ctx, 'a3');
-        expect(payload.audited_sc_id).toBe('a3');
-        expect(payload.state.turn_count).toBe(3);
-        expect(payload.state.bonds).toEqual({});
-        expect(payload.text_hash).toBe(hashMessageText(ctx.chat[5].mes));
+        expect(payload.turn_count).toBe(3);
+        expect(payload.bonds).toEqual({});
     });
 
     it('audits the latest exchange, applies flags, and leaves prior checkpoints intact', async () => {
@@ -161,51 +153,19 @@ describe('runAuditorExtraction', () => {
         expect(outcome.status).toBe('completed');
         expect(callSummarizer).toHaveBeenCalledTimes(1);
         const payload = checkpointOf(ctx, 'a3');
-        expect(payload.state.turn_count).toBe(3);
+        expect(payload.turn_count).toBe(3);
         // sparks +1 from the flag; grudge decays on turnCount % 3; bond untouched.
-        expect(payload.state.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
-        expect(payload.state.gm_notes).toEqual(['[T] Keep this thread']);
-        expect(payload.state.physics.location).toBe('Salon');
-        expect(payload.audited_sc_id).toBe('a3');
-        expect(payload.text_hash).toBe(hashMessageText(ctx.chat[5].mes));
-        expect(payload.state).not.toHaveProperty('anchor_sc_id');
-        expect(payload.state).not.toHaveProperty('stale');
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
-    });
-
-    it('commits the audit when identity backfills sc_ids mid-flight', async () => {
-        // The runner backfills ids before dispatch, but the concurrent
-        // summarizer preflight may run the same idempotent ensureChatScIds
-        // while the audit request is in flight. Same messages: the audit must
-        // commit, not be discarded.
-        const chat = [
-            makeMessage({ isUser: true, scId: 'u1' }),
-            makeMessage({ scId: 'a1' }),
-            makeMessage({ isUser: true, scId: 'u2' }),
-            makeMessage({ scId: 'a2' }),
-            makeMessage({ isUser: true, scId: 'u3' }),
-            makeMessage({ scId: null }),
-        ];
-        const ctx = installSoloChat({ chat });
-        callSummarizer.mockImplementation(async () => {
-            ensureChatScIds(chat);
-            return {
-                status: 'completed',
-                text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-            };
-        });
-
-        const outcome = await runAuditorExtraction();
-
-        expect(outcome.status).toBe('completed');
-        const payload = checkpointOf(ctx, chat[5].sc_id);
-        expect(payload.state.turn_count).toBe(3);
-        expect(payload.state.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
+        expect(payload.bonds['Quipsy↔User']).toEqual({ bond: 10, sparks: 7, grudge: 0 });
+        expect(payload.gm_notes).toEqual(['[T] Keep this thread']);
+        expect(payload.physics.location).toBe('Salon');
+        expect(payload).not.toHaveProperty('anchor_sc_id');
+        expect(payload).not.toHaveProperty('stale');
+        expect(checkpointOf(ctx, 'a2')).toEqual(priorState());
     });
 
     it('lands the audit when the chat merely grows mid-flight', async () => {
-        // ADR-0010 attach-at-settle: new exchanges after dispatch no longer
-        // discard the audit; the checkpoint lands on the audited reply.
+        // ADR-0012 attach-by-reference: new exchanges after dispatch no
+        // longer discard the audit; the checkpoint lands on the audited reply.
         const ctx = installSoloChat();
         callSummarizer.mockImplementation(async () => {
             ctx.chat.push(makeMessage({ isUser: true, scId: 'u4' }), makeMessage({ scId: 'a4' }));
@@ -216,7 +176,7 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('completed');
         const payload = checkpointOf(ctx, 'a3');
-        expect(payload.state.turn_count).toBe(3);
+        expect(payload.turn_count).toBe(3);
         expect(checkpointOf(ctx, 'a4')).toBeUndefined();
     });
 
@@ -231,11 +191,11 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('aborted');
         expect(checkpointOf(ctx, 'a3')).toBeUndefined();
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
+        expect(checkpointOf(ctx, 'a2')).toEqual(priorState());
         expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(0);
     });
 
-    it('drops the write when the audited variation text changes mid-flight', async () => {
+    it('overwrites the checkpoint when the audited reply is swiped mid-flight', async () => {
         const ctx = installSoloChat();
         callSummarizer.mockImplementation(async () => {
             ctx.chat[5].mes = 'Swiped to draft two.';
@@ -244,9 +204,11 @@ describe('runAuditorExtraction', () => {
 
         const outcome = await runAuditorExtraction();
 
-        expect(outcome.status).toBe('aborted');
-        expect(checkpointOf(ctx, 'a3')).toBeUndefined();
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
+        expect(outcome.status).toBe('completed');
+        const payload = checkpointOf(ctx, 'a3');
+        expect(payload.turn_count).toBe(3);
+        expect(payload.gm_notes).toEqual(['[T] Keep this thread']);
+        expect(payload.physics.location).toBe('Salon');
     });
 
     it('sends one combined call capped at four exchanges on catch-up', async () => {
@@ -275,11 +237,11 @@ describe('runAuditorExtraction', () => {
         expect(outcome.status).toBe('completed');
         expect(callSummarizer).toHaveBeenCalledTimes(1);
         const storyTxt = callSummarizer.mock.calls[0][0].storyTxt;
-        expect(storyTxt).toContain('a6');
-        expect(storyTxt).toContain('u3');
-        expect(storyTxt).not.toContain('u2');
+        expect(storyTxt).toContain('[11] Assistant:'); // a6
+        expect(storyTxt).toContain('[4]'); // u3
+        expect(storyTxt).not.toContain('[2]'); // u2
         // turn_count is derived from the chat, not the window.
-        expect(checkpointOf(ctx, 'a6').state.turn_count).toBe(6);
+        expect(checkpointOf(ctx, 'a6').turn_count).toBe(6);
     });
 
     it('keeps the user line when a system message sits between the turns', async () => {
@@ -297,9 +259,9 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('completed');
         const storyTxt = callSummarizer.mock.calls[0][0].storyTxt;
-        expect(storyTxt).toContain('[u2]');
-        expect(storyTxt).toContain('[a2]');
-        expect(storyTxt).not.toContain('[s1]');
+        expect(storyTxt).toContain('[2]'); // u2 user line survives the system message at [3]
+        expect(storyTxt).toContain('[4]'); // a2
+        expect(storyTxt).not.toContain('[3]'); // s1
     });
 
     it('feeds the prior state JSON and macro memory as context', async () => {
@@ -322,7 +284,7 @@ describe('runAuditorExtraction', () => {
         expect(outcome.status).toBe('failed');
         expect(callSummarizer).toHaveBeenCalledTimes(1);
         expect(checkpointOf(ctx, 'a3')).toBeUndefined();
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
+        expect(checkpointOf(ctx, 'a2')).toEqual(priorState());
         expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(0);
     });
 
@@ -335,7 +297,7 @@ describe('runAuditorExtraction', () => {
         expect(outcome.status).toBe('failed');
         expect(callSummarizer).toHaveBeenCalledTimes(1);
         expect(checkpointOf(ctx, 'a3')).toBeUndefined();
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
+        expect(checkpointOf(ctx, 'a2')).toEqual(priorState());
     });
 
     it('swallows a request throw and leaves the state untouched', async () => {
@@ -346,7 +308,7 @@ describe('runAuditorExtraction', () => {
 
         expect(outcome.status).toBe('failed');
         expect(checkpointOf(ctx, 'a3')).toBeUndefined();
-        expect(checkpointOf(ctx, 'a2').state).toEqual(priorState());
+        expect(checkpointOf(ctx, 'a2')).toEqual(priorState());
     });
 });
 
@@ -465,13 +427,13 @@ describe('continuity state audit log', () => {
         expect(outcome.status).toBe('completed');
         const titles = console.groupCollapsed.mock.calls.map((call) => call[0]);
         const startTitle = titles.find((title) => title.includes('audit - START'));
-        expect(startTitle).toContain('(turn 3, coverage a2)');
+        expect(startTitle).toContain('(turn 3, coverage 3)');
         expect(titles.some((title) => title.includes('audit - COMPLETED'))).toBe(true);
         expect(JSON.parse(console.log.mock.calls[0][0])).toEqual({
             type: 'summaryception.continuity.audit.v1',
             kind: 'start',
             turn_count: 3,
-            coverage_sc_id: 'a2',
+            coverage_index: 3,
         });
     });
 

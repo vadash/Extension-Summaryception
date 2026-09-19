@@ -5,7 +5,6 @@ import {
     deriveTurnCount,
     diffContinuityStates,
     findLiveCheckpoint,
-    hashMessageText,
     isRecord,
     listAssistantIndicesAfter,
 } from '../foundation/continuity.js';
@@ -15,14 +14,12 @@ import {
     isContinuityStateLogFullEnabled,
     warn,
 } from '../foundation/logger.js';
-import { ensureChatScIds, getMessageIndexByScId } from '../foundation/message-identity.js';
 import {
     CATCHUP_WINDOW_EXCHANGES,
     listNonEmptyLayers,
     LOG_PREFIX,
 } from '../foundation/constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
-import { persistChatState } from './persist-state.js';
 import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
 import { silentAdapter } from './notify.js';
 import { callSummarizer } from './summarizer-request.js';
@@ -46,9 +43,9 @@ export function isAuditorTriggerMessage(message, type) {
 /**
  * Run one Continuity Auditor lifecycle (issue #28): gate, dispatch one
  * combined extraction call over the summarizer router, validate with at most
- * one section-aware repair retry, apply the JS flags rulebook, and attach the
- * Continuity Checkpoint to the audited reply's extra (ADR-0010) with a
- * chat-switch revalidation around the host's saveMetadata wait.
+ * one section-aware repair retry, apply the JS flags rulebook, and overwrite
+ * the Continuity State payload on the audited reply's extra (ADR-0012),
+ * guarding only the chat-switch window around the host's saveMetadata wait.
  * @param {object} [options]
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter; defaults to the silent adapter
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>} Run Outcome per ADR-0004
@@ -62,30 +59,23 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         return { status: 'idle' };
     }
     const chat = getChat();
-    // Backfill identity before reading it: the audit's coverage anchor and
-    // audited reply both resolve through sc_id, and a fresh reply may not
-    // carry one yet.
-    if (ensureChatScIds(chat)) {
-        await persistChatState({ chatSave: 'deferred' });
-    }
     const live = findLiveCheckpoint(chat);
-    const anchorScId = live ? String(live.message.sc_id ?? '') : '';
-    const assistantIndices = listAssistantIndicesAfter(chat, anchorScId) ?? [];
+    const anchorIndex = live ? live.index : -1;
+    const assistantIndices = listAssistantIndicesAfter(chat, anchorIndex);
     if (assistantIndices.length === 0) {
         return { status: 'idle' };
     }
     const turnCount = deriveTurnCount(chat);
-    const target = chat[assistantIndices[assistantIndices.length - 1]];
-    const targetScId = String(target.sc_id ?? '');
-    const targetHash = hashMessageText(target.mes);
+    const targetIndex = assistantIndices[assistantIndices.length - 1];
+    const target = chat[targetIndex];
     const priorState = live ? structuredClone(live.state) : createDefaultContinuity();
     const store = getChatStore();
-    const storyTxt = buildAuditStory(chat, anchorScId);
+    const storyTxt = buildAuditStory(chat, anchorIndex);
     const contextStr = buildAuditorContext(priorState, store);
     if (isContinuityStateLogEnabled()) {
         logContinuityAudit(
-            `${LOG_PREFIX} [Continuity] audit - START (turn ${turnCount}, coverage ${anchorScId || 'start'})`,
-            { kind: 'start', turn_count: turnCount, coverage_sc_id: anchorScId || '' },
+            `${LOG_PREFIX} [Continuity] audit - START (turn ${turnCount}, coverage ${anchorIndex < 0 ? 'start' : anchorIndex})`,
+            { kind: 'start', turn_count: turnCount, coverage_index: anchorIndex },
         );
     }
     try {
@@ -104,27 +94,38 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             }
             return { status: 'failed' };
         }
-        // Attach-at-settle: the chat may have grown since dispatch, but the
-        // audit lands only when the audited reply still resolves here with
-        // unchanged text.
+        // Attach to the audited reply's message object; a mid-flight chat
+        // growth leaves it in place, a deletion drops the write (ADR-0012).
         const currentChat = getChat();
-        const targetIndex = getMessageIndexByScId(currentChat).get(targetScId);
-        const targetMessage = targetIndex === undefined ? null : currentChat[targetIndex];
-        if (!targetMessage || hashMessageText(targetMessage.mes) !== targetHash) {
+        if (!currentChat.includes(target)) {
+            if (isContinuityStateLogEnabled()) {
+                logContinuityAudit(
+                    `${LOG_PREFIX} [Continuity] audit - ABORTED (audited reply removed mid-flight)`,
+                    {
+                        kind: 'aborted',
+                        reason: 'reply-removed',
+                    },
+                );
+            }
             return { status: 'aborted' };
         }
         const priorSnapshot = isContinuityStateLogEnabled() ? structuredClone(priorState) : null;
         applyAuditResult(priorState, { state: audit.state, flags: audit.flags }, turnCount);
-        targetMessage.extra = isRecord(targetMessage.extra) ? targetMessage.extra : {};
-        targetMessage.extra.summaryception_continuity = {
-            state: priorState,
-            audited_sc_id: targetScId,
-            text_hash: targetHash,
-        };
+        target.extra = isRecord(target.extra) ? target.extra : {};
+        target.extra.summaryception_continuity = priorState;
         if (!(await persistAudit())) {
+            if (isContinuityStateLogEnabled()) {
+                logContinuityAudit(
+                    `${LOG_PREFIX} [Continuity] audit - ABORTED (chat switched during save)`,
+                    {
+                        kind: 'aborted',
+                        reason: 'chat-switch',
+                    },
+                );
+            }
             return { status: 'aborted' };
         }
-        logAuditCompletion(priorSnapshot, priorState, turnCount, targetScId);
+        logAuditCompletion(priorSnapshot, priorState, turnCount, String(target.sc_id ?? ''));
         return { status: 'completed' };
     } catch (e) {
         warn('Continuity audit failed:', e);
@@ -247,14 +248,14 @@ function isSameChatIdentity(a, b) {
 
 /**
  * Render the Catch-up Window: the last CATCHUP_WINDOW_EXCHANGES Exchanges past
- * the coverage anchor, each Exchange being its user line plus the assistant
- * reply.
+ * the coverage anchor index, each Exchange being its user line plus the
+ * assistant reply.
  * @param {ChatMessage[]} chat
- * @param {string} anchorScId
+ * @param {number} anchorIndex - -1 selects the whole chat.
  * @returns {string}
  */
-function buildAuditStory(chat, anchorScId) {
-    const assistantIndices = listAssistantIndicesAfter(chat, anchorScId) ?? [];
+function buildAuditStory(chat, anchorIndex) {
+    const assistantIndices = listAssistantIndicesAfter(chat, anchorIndex);
     const windowIndices = assistantIndices.slice(-CATCHUP_WINDOW_EXCHANGES);
     const included = new Set(windowIndices);
     for (const index of windowIndices) {
@@ -276,7 +277,7 @@ function buildAuditStory(chat, anchorScId) {
         .map((index) => {
             const message = chat[index];
             const speaker = message.is_user ? playerName : String(message.name || 'Assistant');
-            return `[${message.sc_id}] ${speaker}: ${String(message.mes || '')}`;
+            return `[${index}] ${speaker}: ${String(message.mes || '')}`;
         })
         .join('\n\n');
 }

@@ -5,7 +5,7 @@ import {
 } from '../foundation/continuity.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
-import { warn } from '../foundation/logger.js';
+import { trace, warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/state.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 
@@ -75,34 +75,43 @@ export function formatContinuityBlock(state) {
 }
 
 /**
- * Render the live Continuity Checkpoint (ADR-0010) into the dedicated
+ * Render the live Continuity Checkpoint (ADR-0012) into the dedicated
  * injection slot. Staleness is derived, not stored: the block carries the
  * spec §7 marker and an uncapped depth while newer un-audited Exchanges
  * trail the checkpoint. The slot clears when the extension or the Auditor is
- * disabled, no checkpoint chain is live, or the state renders nothing.
+ * disabled, no checkpoint payload exists, or the state renders nothing.
  * @returns {void}
  */
 export function updateContinuityInjection() {
     try {
         if (isPromptMutationFrozen()) {
+            trace('Continuity slot skipped: prompt mutation frozen, keeping previous');
             return;
         }
         const settings = getEffectiveSettings();
         const chat = getChat();
         const live = findLiveCheckpoint(chat);
+        const checkpointIndex = live ? live.index : -1;
         let text = '';
         let depth = 0;
+        let drift = 0;
         if (settings.enabled && settings.continuityEnabled === true && live) {
             const block = formatContinuityBlock(live.state);
             if (block !== '') {
-                const drift = (
-                    listAssistantIndicesAfter(chat, String(live.message.sc_id ?? '')) ?? []
-                ).length;
+                drift = listAssistantIndicesAfter(chat, checkpointIndex).length;
                 text = drift > 0 ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
                 depth = 1 + drift;
             }
         }
         if (text === '') {
+            const reason = !settings.enabled
+                ? 'extension off'
+                : settings.continuityEnabled !== true
+                  ? 'auditor off'
+                  : live
+                    ? 'state renders empty'
+                    : 'no checkpoint payload';
+            trace(`Continuity slot cleared: ${reason}`);
             setExtensionPrompt(CONTINUITY_INJECTION_SLOT, '', {
                 position: EXTENSION_PROMPT_POSITIONS.NONE,
                 depth: 0,
@@ -111,6 +120,9 @@ export function updateContinuityInjection() {
             });
             return;
         }
+        trace(
+            `Continuity slot set: checkpoint @${checkpointIndex}, drift ${drift}, depth ${depth}, ${text.length} chars`,
+        );
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
             depth,

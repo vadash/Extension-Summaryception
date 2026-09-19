@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { onAppReady } from '../src/entry/events.js';
 import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
-import { hashMessageText } from '../src/foundation/continuity.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
 import { makeMessage, makeSummaryStore, installSummaryContext } from './test-helpers.js';
 
@@ -92,11 +91,7 @@ describe('Continuity slot re-render across chat load', () => {
 
     it('re-renders the continuity slot from the loaded chat checkpoint on app ready', async () => {
         const chat = [makeMessage({ scId: 'message-0' }), makeMessage({ scId: 'message-1' })];
-        chat[1].extra.summaryception_continuity = {
-            state: makeLoadedContinuity(),
-            audited_sc_id: 'message-1',
-            text_hash: hashMessageText(chat[1].mes),
-        };
+        chat[1].extra.summaryception_continuity = makeLoadedContinuity();
         const setExtensionPrompt = vi.fn();
         installSummaryContext({
             chat,

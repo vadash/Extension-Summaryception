@@ -1,5 +1,4 @@
 import { clampInteger } from './numeric.js';
-import { getMessageIndexByScId } from './message-identity.js';
 
 const BOND_BOUNDS = Object.freeze({ bond: [-5, 20], sparks: [0, 99], grudge: [0, 99] });
 const STEP_CEILING = 99;
@@ -297,27 +296,18 @@ export function applyPairFlags(pair, flags, turnCount) {
 }
 
 /**
- * Chat indices of assistant messages strictly after the anchor sc_id, or null
- * when a non-empty anchor is missing from the chat. Identity-based on purpose:
- * swipes, continues, deletions, and forks all break index math, and every
- * consumer (turn counting, audit coverage, anchor re-pointing) must walk the
- * same range so the %3 / %5 conversions stay phase-sensitive.
+ * Chat indices of assistant messages strictly after the anchor chat index,
+ * or the whole chat for -1. Index-based on purpose: every consumer (turn
+ * counting, audit coverage, injection drift) reads the current chat array,
+ * so ranges derive from positions at read time (ADR-0012).
  * @param {ChatMessage[] | unknown} chat
- * @param {string} anchorScId - '' selects the whole chat.
- * @returns {number[] | null}
+ * @param {number} anchorIndex - -1 selects the whole chat.
+ * @returns {number[]}
  */
-export function listAssistantIndicesAfter(chat, anchorScId) {
+export function listAssistantIndicesAfter(chat, anchorIndex) {
     const messages = Array.isArray(chat) ? chat : [];
-    let startIndex = 0;
-    if (anchorScId) {
-        const anchorIndex = getMessageIndexByScId(messages).get(anchorScId);
-        if (anchorIndex === undefined) {
-            return null;
-        }
-        startIndex = anchorIndex + 1;
-    }
     const indices = [];
-    for (let index = startIndex; index < messages.length; index++) {
+    for (let index = Math.max(anchorIndex + 1, 0); index < messages.length; index++) {
         const message = messages[index];
         if (message && !message.is_user && !message.is_system) {
             indices.push(index);
@@ -333,89 +323,35 @@ export function listAssistantIndicesAfter(chat, anchorScId) {
  * @returns {number}
  */
 export function deriveTurnCount(chat) {
-    const indices = listAssistantIndicesAfter(chat, '');
-    return indices === null ? 0 : indices.length;
+    return listAssistantIndicesAfter(chat, -1).length;
 }
 
 /**
- * FNV-1a 32-bit hash of the message body as 8 hex chars. Checkpoint payloads
- * store it so a swiped, edited, or regenerated variation invalidates its own
- * checkpoint; code-unit iteration keeps the value stable across engines.
- * @param {unknown} mes
- * @returns {string}
- */
-export function hashMessageText(mes) {
-    const text = String(mes ?? '');
-    let hash = 0x811c9dc5;
-    for (let index = 0; index < text.length; index++) {
-        hash ^= text.charCodeAt(index);
-        hash = Math.imul(hash, 0x01000193);
-    }
-    return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
-/**
- * A checkpoint counts only when the payload is well-formed, belongs to the
- * carrying message, and still hashes against the reply's current text.
- * @param {ChatMessage} message
- * @param {unknown} payload
- * @returns {boolean}
- */
-function isValidCheckpoint(message, payload) {
-    return (
-        isRecord(payload) &&
-        typeof payload.audited_sc_id === 'string' &&
-        payload.audited_sc_id !== '' &&
-        payload.audited_sc_id === message.sc_id &&
-        typeof payload.text_hash === 'string' &&
-        isRecord(payload.state) &&
-        hashMessageText(message.mes) === payload.text_hash
-    );
-}
-
-/**
- * Walk the chat ascending and return the newest Continuity Checkpoint whose
- * chain is intact and whose index sits strictly before the most recent user
- * message (ADR-0011): every earlier checkpoint must count too, so the first
- * malformed, re-targeted, or text-changed checkpoint drops the read model
- * back to the previous one (ADR-0010). A post-user checkpoint is out of the
- * read model, never a broken link. Messages without a payload are not links
- * and never break the chain. No user message in the chat means no bound and
- * the newest valid checkpoint wins.
+ * Walk the chat descending and return the newest Continuity Checkpoint: the
+ * first assistant message whose extra carries a summaryception_continuity
+ * state payload (ADR-0012). No hash, no identity check, no anchor rule —
+ * a newer audit simply overwrites the payload on its reply.
  * @param {ChatMessage[] | unknown} chat
- * @returns {{ state: SummaryceptionContinuityState, message: ChatMessage, index: number } | null}
+ * @returns {{ state: SummaryceptionContinuityState, index: number } | null}
  */
 export function findLiveCheckpoint(chat) {
     const messages = Array.isArray(chat) ? chat : [];
-    let lastUserIndex = -1;
     for (let index = messages.length - 1; index >= 0; index--) {
-        if (messages[index]?.is_user) {
-            lastUserIndex = index;
-            break;
-        }
-    }
-    let live = null;
-    for (let index = 0; index < messages.length; index++) {
-        // Checkpoints at or after the last user message are discarded-draft
-        // state; stop before validating them so they cannot break the chain.
-        if (index === lastUserIndex) {
-            break;
-        }
         const message = messages[index];
-        const payload = message?.extra?.summaryception_continuity;
-        if (payload === undefined) {
+        if (!message || message.is_user || message.is_system) {
             continue;
         }
-        if (!isValidCheckpoint(message, payload)) {
-            break;
+        const payload = message.extra?.summaryception_continuity;
+        if (isRecord(payload)) {
+            return {
+                state: /** @type {SummaryceptionContinuityState} */ (
+                    /** @type {unknown} */ (payload)
+                ),
+                index,
+            };
         }
-        live = {
-            state: /** @type {SummaryceptionContinuityState} */ (payload.state),
-            message,
-            index,
-        };
     }
-    return live;
+    return null;
 }
 
 const GATE_LADDER = Object.freeze([

@@ -5,7 +5,7 @@ import {
     beginForegroundGeneration,
     initCommitCallbacks,
 } from '../src/core/summarizer-commit.js';
-import { createDefaultContinuity, hashMessageText } from '../src/foundation/continuity.js';
+import { createDefaultContinuity } from '../src/foundation/continuity.js';
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
@@ -137,18 +137,13 @@ describe('updateContinuityInjection', () => {
     });
 
     /**
-     * Attach a well-formed Continuity Checkpoint to the named chat message;
-     * overrides let a test corrupt the payload on purpose.
+     * Attach a Continuity State payload to the named chat message: the
+     * payload is the state itself (ADR-0012).
      */
-    function attachCheckpoint(chat, scId, state, overrides = {}) {
+    function attachCheckpoint(chat, scId, state) {
         const message = chat.find((m) => m.sc_id === scId);
         message.extra = message.extra ?? {};
-        message.extra.summaryception_continuity = {
-            state,
-            audited_sc_id: scId,
-            text_hash: hashMessageText(message.mes),
-            ...overrides,
-        };
+        message.extra.summaryception_continuity = state;
     }
 
     function installContext({ settings, chat = [] } = {}) {
@@ -222,23 +217,23 @@ describe('updateContinuityInjection', () => {
         expect(role).toBe(EXTENSION_PROMPT_ROLES.SYSTEM);
     });
 
-    it('renders the pre-user checkpoint when the newest checkpoint sits at or after the last user message', () => {
+    it('renders the newest checkpoint even when it sits at or after the last user message', () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'u1' }),
             makeMessage({ scId: 'a1' }),
             makeMessage({ isUser: true, scId: 'u2' }),
             makeMessage({ scId: 'a2' }),
         ];
-        const preUser = makeContinuity({
+        const older = makeContinuity({
             turn_count: 1,
             physics: { ...makeContinuity().physics, location: 'Old Salon' },
         });
-        const postUser = makeContinuity({
+        const newer = makeContinuity({
             turn_count: 2,
             physics: { ...makeContinuity().physics, location: 'New Kitchen' },
         });
-        attachCheckpoint(chat, 'a1', preUser);
-        attachCheckpoint(chat, 'a2', postUser);
+        attachCheckpoint(chat, 'a1', older);
+        attachCheckpoint(chat, 'a2', newer);
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
             chat,
@@ -247,8 +242,8 @@ describe('updateContinuityInjection', () => {
         updateContinuityInjection();
 
         const text = setExtensionPrompt.mock.calls[0][1];
-        expect(text).toContain('Location: Old Salon');
-        expect(text).not.toContain('New Kitchen');
+        expect(text).toContain('Location: New Kitchen');
+        expect(text).not.toContain('Old Salon');
     });
 
     it('derives the stale marker and an uncapped depth while newer exchanges trail the checkpoint', () => {
@@ -296,13 +291,13 @@ describe('updateContinuityInjection', () => {
         );
     });
 
-    it('renders no block when a hash mismatch breaks the only chain link', () => {
+    it('renders no block when the only payload is not a state object', () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'u1' }),
             makeMessage({ scId: 'a1' }),
             makeMessage({ isUser: true, scId: 'u2' }),
         ];
-        attachCheckpoint(chat, 'a1', makeContinuity(), { text_hash: 'deadbeef' });
+        attachCheckpoint(chat, 'a1', 'garbage');
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
             chat,

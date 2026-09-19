@@ -11,7 +11,6 @@ import {
     deriveTurnCount,
     diffContinuityStates,
     findLiveCheckpoint,
-    hashMessageText,
     resolveGate,
 } from '../src/foundation/continuity.js';
 
@@ -463,18 +462,6 @@ describe('resolveGate', () => {
     });
 });
 
-describe('hashMessageText', () => {
-    it('matches the FNV-1a 32-bit reference vectors', () => {
-        expect(hashMessageText('')).toBe('811c9dc5');
-        expect(hashMessageText('a')).toBe('e40c292c');
-        expect(hashMessageText('foobar')).toBe('bf9cf968');
-    });
-
-    it('treats a missing message body as the empty string', () => {
-        expect(hashMessageText(undefined)).toBe('811c9dc5');
-    });
-});
-
 describe('findLiveCheckpoint', () => {
     const auditedState = (overrides = {}) => ({
         turn_count: 1,
@@ -486,11 +473,7 @@ describe('findLiveCheckpoint', () => {
     });
 
     const withCheckpoint = (message, state) => {
-        message.extra.summaryception_continuity = {
-            state,
-            audited_sc_id: message.sc_id,
-            text_hash: hashMessageText(message.mes),
-        };
+        message.extra.summaryception_continuity = state;
         return message;
     };
 
@@ -500,7 +483,7 @@ describe('findLiveCheckpoint', () => {
         expect(findLiveCheckpoint(undefined)).toBeNull();
     });
 
-    it('returns the newest valid checkpoint strictly before the last user message', () => {
+    it('returns the newest payload regardless of user-message positions', () => {
         const chat = [
             makeMessage({ isUser: true, scId: 'u1' }),
             withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
@@ -510,9 +493,8 @@ describe('findLiveCheckpoint', () => {
 
         const live = findLiveCheckpoint(chat);
 
-        expect(live.state).toEqual(auditedState({ turn_count: 1 }));
-        expect(live.message.sc_id).toBe('a1');
-        expect(live.index).toBe(1);
+        expect(live.state).toEqual(auditedState({ turn_count: 2 }));
+        expect(live.index).toBe(3);
     });
 
     it('keeps newest-wins when the chat has no user message', () => {
@@ -524,11 +506,25 @@ describe('findLiveCheckpoint', () => {
         const live = findLiveCheckpoint(chat);
 
         expect(live.state).toEqual(auditedState({ turn_count: 2 }));
-        expect(live.message.sc_id).toBe('a2');
         expect(live.index).toBe(1);
     });
 
-    it('skips plain messages sitting between two checkpoints', () => {
+    it('keeps newest-wins when the checkpoint sits after the last user message', () => {
+        // The fresh-audit scenario: the audit lands while the newest user
+        // message is still the one before the reply (the old pre-user anchor
+        // rule nulled this and killed the injection).
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
+        ];
+
+        const live = findLiveCheckpoint(chat);
+
+        expect(live.state).toEqual(auditedState({ turn_count: 1 }));
+        expect(live.index).toBe(1);
+    });
+
+    it('skips user and system messages while searching', () => {
         const chat = [
             withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
             makeMessage({ isUser: true, scId: 'u1' }),
@@ -538,63 +534,19 @@ describe('findLiveCheckpoint', () => {
             makeMessage({ isUser: true, scId: 'u2' }),
         ];
 
-        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a3');
+        expect(findLiveCheckpoint(chat).index).toBe(4);
     });
 
-    it('ignores a post-user checkpoint without breaking the chain for earlier ones', () => {
-        const damaged = withCheckpoint(
-            makeMessage({ scId: 'a2' }),
-            auditedState({ turn_count: 2 }),
-        );
-        damaged.extra.summaryception_continuity.text_hash = 7;
+    it('skips a non-object payload and falls back to an older one', () => {
         const chat = [
-            makeMessage({ isUser: true, scId: 'u1' }),
             withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            makeMessage({ isUser: true, scId: 'u2' }),
-            damaged,
+            withCheckpoint(makeMessage({ scId: 'a2' }), 7),
         ];
 
         const live = findLiveCheckpoint(chat);
 
-        expect(live.message.sc_id).toBe('a1');
         expect(live.state).toEqual(auditedState({ turn_count: 1 }));
-    });
-
-    it('stops at a malformed checkpoint and returns the newest earlier one', () => {
-        const broken = withCheckpoint(makeMessage({ scId: 'a2' }), auditedState());
-        broken.extra.summaryception_continuity.text_hash = 7;
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            broken,
-            withCheckpoint(makeMessage({ scId: 'a3' }), auditedState({ turn_count: 3 })),
-        ];
-
-        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
-    });
-
-    it('stops when the payload does not belong to the carrying message', () => {
-        const copied = withCheckpoint(makeMessage({ scId: 'a2' }), auditedState());
-        copied.extra.summaryception_continuity.audited_sc_id = 'a1';
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            copied,
-        ];
-
-        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
-    });
-
-    it('stops when the audited variation text changed under the hash', () => {
-        const swiped = withCheckpoint(
-            makeMessage({ scId: 'a2', mes: 'Draft two text.' }),
-            auditedState({ turn_count: 2 }),
-        );
-        swiped.mes = 'Regenerated draft three.';
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            swiped,
-        ];
-
-        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
+        expect(live.index).toBe(0);
     });
 });
 

@@ -161,7 +161,7 @@ The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for 
 _Avoid_: roleplay state, sync state
 
 **Continuity Checkpoint**:
-The per-message copy of the Continuity State an audit commits into the audited reply's message extra, carrying the Exchange's `sc_id` and a hash of the reply text; the newest checkpoint whose chain stays intact and whose index sits before the most recent user message is the live Continuity State.
+The per-message copy of the Continuity State an audit commits into the audited reply's message extra. The newest assistant message carrying a checkpoint is the live Continuity State; a newer audit overwrites the payload in place.
 _Avoid_: snapshot, state backup
 
 **Continuity Block**:
