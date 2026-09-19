@@ -157,8 +157,12 @@ The background extraction call that reads a finished turn and emits semantic eve
 _Avoid_: secondary model, extractor, auditor LLM
 
 **Continuity State**:
-The bond, agenda, GM-note, and physics JSON the Engine stores in chat metadata.
-_Avoid_: roleplay state, snapshot, sync state
+The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for the chat.
+_Avoid_: roleplay state, sync state
+
+**Continuity Checkpoint**:
+The per-message copy of the Continuity State an audit commits into the audited reply's message extra, carrying the Exchange's `sc_id` and a hash of the reply text; the newest checkpoint whose chain stays intact is the live Continuity State.
+_Avoid_: snapshot, state backup
 
 **Continuity Block**:
 The compact in-chat prompt injection rendered from the Continuity State.
@@ -180,7 +184,8 @@ _Avoid_: audited turns, covered turns
 **Auditor Anchor**:
 The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping, continuing, or regenerating the anchored reply rewinds coverage one Exchange and restores the pre-audit state snapshot, so the settled variation audits next from clean counters; deleting the anchored reply restores through reconciliation the same way.
 Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` and `rewindContinuityOverDeletedAnchor` (src/core/continuity-runner.js)
-_Avoid_: cursor, checkpoint
+_Retiring_: superseded by the Continuity Checkpoint (ADR-0010) once that lands; still the current mechanism.
+_Avoid_: cursor
 
 **Auditor Flags**:
 The five per-pair booleans one Auditor reply carries (positive_interaction, slight, insult, betrayal, apology). All bond, sparks, grudge, and gate numbers are derived from them by code.
