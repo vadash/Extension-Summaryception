@@ -19,7 +19,7 @@ const PHYSICS_FIELDS = Object.freeze([
  * @param {unknown} value
  * @returns {value is Record<string, unknown>}
  */
-function isRecord(value) {
+export function isRecord(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
@@ -151,44 +151,7 @@ export function createDefaultContinuity() {
             contact_points: '',
             clothing_state: '',
         },
-        anchor_sc_id: '',
-        stale: false,
     };
-}
-
-/**
- * Sanitize the stored continuity tree in place; malformed entries are dropped
- * (mirrors normalizeLayers), absent or garbage field becomes cold start.
- * @param {unknown} continuity
- * @returns {SummaryceptionContinuityState}
- */
-export function normalizeContinuity(continuity) {
-    if (!isRecord(continuity)) {
-        return createDefaultContinuity();
-    }
-    const state = /** @type {SummaryceptionContinuityState} */ (
-        /** @type {unknown} */ (continuity)
-    );
-    state.turn_count = clampInteger(state.turn_count, 0, Number.MAX_SAFE_INTEGER);
-    const bonds = /** @type {Record<string, SummaryceptionContinuityBond>} */ ({});
-    for (const [key, value] of Object.entries(isRecord(state.bonds) ? state.bonds : {})) {
-        const canonical = canonicalizePairKey(key);
-        if (canonical === null || !USER_PAIR_PATTERN.test(canonical) || canonical in bonds) {
-            continue;
-        }
-        bonds[canonical] = normalizeBondPair(value);
-    }
-    state.bonds = bonds;
-    const agendas = /** @type {Record<string, SummaryceptionAgenda>} */ ({});
-    for (const [key, value] of Object.entries(isRecord(state.agendas) ? state.agendas : {})) {
-        agendas[key] = normalizeAgenda(value);
-    }
-    state.agendas = agendas;
-    state.gm_notes = filterGmNotes(Array.isArray(state.gm_notes) ? state.gm_notes : []).kept;
-    state.physics = normalizePhysics(state.physics);
-    state.anchor_sc_id = typeof state.anchor_sc_id === 'string' ? state.anchor_sc_id : '';
-    state.stale = state.stale === true;
-    return state;
 }
 
 /**
@@ -223,8 +186,8 @@ function classifyBonds(source, state, sectionVerdicts) {
 }
 
 /**
- * Classify raw Auditor JSON against the v1 continuity schema without freezing
- * or merging: the caller owns the freeze decision from sectionVerdicts.
+ * Classify raw Auditor JSON against the v1 continuity schema without merging
+ * into prior state: section verdicts drive the caller's repair retry.
  * Field damage is clamped into the returned state; missing sections, an
  * unknown pair key, or an unknown note tag produce a section verdict.
  * The returned flags mirror the raw per-pair bond payloads (record values
@@ -364,15 +327,80 @@ export function listAssistantIndicesAfter(chat, anchorScId) {
 }
 
 /**
- * Count assistant messages strictly after the anchor sc_id.
+ * Count every assistant message in the chat; the Turn Count re-derives from
+ * the chat start at every audit.
  * @param {ChatMessage[] | unknown} chat
- * @param {string} anchorScId - '' counts from chat start; returns null when a
- *   non-empty anchor is missing from the chat (the caller re-anchors).
- * @returns {number | null}
+ * @returns {number}
  */
-export function deriveTurnCount(chat, anchorScId) {
-    const indices = listAssistantIndicesAfter(chat, anchorScId);
-    return indices === null ? null : indices.length;
+export function deriveTurnCount(chat) {
+    const indices = listAssistantIndicesAfter(chat, '');
+    return indices === null ? 0 : indices.length;
+}
+
+/**
+ * FNV-1a 32-bit hash of the message body as 8 hex chars. Checkpoint payloads
+ * store it so a swiped, edited, or regenerated variation invalidates its own
+ * checkpoint; code-unit iteration keeps the value stable across engines.
+ * @param {unknown} mes
+ * @returns {string}
+ */
+export function hashMessageText(mes) {
+    const text = String(mes ?? '');
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < text.length; index++) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * A checkpoint counts only when the payload is well-formed, belongs to the
+ * carrying message, and still hashes against the reply's current text.
+ * @param {ChatMessage} message
+ * @param {unknown} payload
+ * @returns {boolean}
+ */
+function isValidCheckpoint(message, payload) {
+    return (
+        isRecord(payload) &&
+        typeof payload.audited_sc_id === 'string' &&
+        payload.audited_sc_id !== '' &&
+        payload.audited_sc_id === message.sc_id &&
+        typeof payload.text_hash === 'string' &&
+        isRecord(payload.state) &&
+        hashMessageText(message.mes) === payload.text_hash
+    );
+}
+
+/**
+ * Walk the chat ascending and return the newest Continuity Checkpoint whose
+ * chain is intact: every earlier checkpoint must count too, so the first
+ * malformed, re-targeted, or text-changed checkpoint drops the read model
+ * back to the previous one (ADR-0010). Messages without a payload are not
+ * links and never break the chain.
+ * @param {ChatMessage[] | unknown} chat
+ * @returns {{ state: SummaryceptionContinuityState, message: ChatMessage, index: number } | null}
+ */
+export function findLiveCheckpoint(chat) {
+    const messages = Array.isArray(chat) ? chat : [];
+    let live = null;
+    for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
+        const payload = message?.extra?.summaryception_continuity;
+        if (payload === undefined) {
+            continue;
+        }
+        if (!isValidCheckpoint(message, payload)) {
+            break;
+        }
+        live = {
+            state: /** @type {SummaryceptionContinuityState} */ (payload.state),
+            message,
+            index,
+        };
+    }
+    return live;
 }
 
 const GATE_LADDER = Object.freeze([
@@ -397,15 +425,7 @@ export function resolveGate(bond) {
     return null;
 }
 
-const DIFF_SECTIONS = Object.freeze([
-    'turn_count',
-    'bonds',
-    'agendas',
-    'gm_notes',
-    'physics',
-    'anchor_sc_id',
-    'stale',
-]);
+const DIFF_SECTIONS = Object.freeze(['turn_count', 'bonds', 'agendas', 'gm_notes', 'physics']);
 
 /**
  * Continuity State values are plain JSON data, so serialized equality is

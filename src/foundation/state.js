@@ -26,7 +26,6 @@ import {
     saveSettingsDebounced,
 } from './context.js';
 import { resolveScIdsToIndices } from './message-identity.js';
-import { createDefaultContinuity, normalizeContinuity } from './continuity.js';
 import { clampInteger, clampToStep } from './numeric.js';
 
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
@@ -264,10 +263,6 @@ function normalizeChatStore(store) {
     store.layers = normalizeLayers(store.layers);
     store.ghostedMessageIds = normalizeStringArray(store.ghostedMessageIds);
     store.mutationEpoch = normalizeMutationEpoch(store.mutationEpoch);
-    store.continuity = normalizeContinuity(store.continuity);
-    if (!isPlainObject(store.continuityRevert)) {
-        store.continuityRevert = null;
-    }
     return /** @type {SummaryceptionStore} */ (store);
 }
 
@@ -613,8 +608,6 @@ function createDefaultChatStore() {
         layers: [],
         ghostedMessageIds: [],
         mutationEpoch: 0,
-        continuity: createDefaultContinuity(),
-        continuityRevert: null,
     };
 }
 

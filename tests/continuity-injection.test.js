@@ -5,7 +5,7 @@ import {
     beginForegroundGeneration,
     initCommitCallbacks,
 } from '../src/core/summarizer-commit.js';
-import { createDefaultContinuity } from '../src/foundation/continuity.js';
+import { createDefaultContinuity, hashMessageText } from '../src/foundation/continuity.js';
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
@@ -45,8 +45,6 @@ function makeContinuity(overrides = {}) {
             contact_points: 'None',
             clothing_state: 'Quipsy in bike shorts and crop top.',
         },
-        anchor_sc_id: 'message-12',
-        stale: false,
         ...overrides,
     };
 }
@@ -127,15 +125,6 @@ describe('formatContinuityBlock', () => {
         expect(block).not.toContain('[ACTIVE AGENDAS & THREADS]');
     });
 
-    it('prepends the spec-verbatim stale marker only when the state is stale', () => {
-        const stale = formatContinuityBlock(makeContinuity({ stale: true }));
-        expect(stale.startsWith('<!-- active_continuity: cached from turn N-1 -->\n')).toBe(true);
-        expect(stale).toContain('<active_continuity>');
-
-        const fresh = formatContinuityBlock(makeContinuity({ stale: false }));
-        expect(fresh).not.toContain('<!--');
-    });
-
     it('renders nothing for a cold-start state', () => {
         expect(formatContinuityBlock(createDefaultContinuity())).toBe('');
     });
@@ -147,19 +136,34 @@ describe('updateContinuityInjection', () => {
         vi.restoreAllMocks();
     });
 
-    function installWithContinuity({ settings, continuity = makeContinuity(), chat = [] } = {}) {
+    /**
+     * Attach a well-formed Continuity Checkpoint to the named chat message;
+     * overrides let a test corrupt the payload on purpose.
+     */
+    function attachCheckpoint(chat, scId, state, overrides = {}) {
+        const message = chat.find((m) => m.sc_id === scId);
+        message.extra = message.extra ?? {};
+        message.extra.summaryception_continuity = {
+            state,
+            audited_sc_id: scId,
+            text_hash: hashMessageText(message.mes),
+            ...overrides,
+        };
+    }
+
+    function installContext({ settings, chat = [] } = {}) {
         const setExtensionPrompt = vi.fn();
-        const ctx = installSummaryContext({
+        installSummaryContext({
             chat,
             settings,
-            metadata: { summaryception: makeSummaryStore({ continuity }) },
+            metadata: { summaryception: makeSummaryStore() },
             setExtensionPrompt,
         });
-        return { ctx, setExtensionPrompt };
+        return setExtensionPrompt;
     }
 
     it('clears the slot when continuity is disabled', () => {
-        const { setExtensionPrompt } = installWithContinuity({
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: false },
         });
 
@@ -176,7 +180,7 @@ describe('updateContinuityInjection', () => {
     });
 
     it('clears the slot when the extension ui mode is off', () => {
-        const { setExtensionPrompt } = installWithContinuity({
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true, uiMode: UI_MODES.OFF },
         });
 
@@ -192,16 +196,16 @@ describe('updateContinuityInjection', () => {
         );
     });
 
-    it('injects the rendered block at In-Chat depth one past the unanchored drift', () => {
+    it('renders from the live checkpoint and stamps no marker while it covers the last assistant message', () => {
         const chat = [
-            makeMessage({ scId: 'anchor', isUser: false }),
-            makeMessage({ scId: 'u1', isUser: true }),
-            makeMessage({ scId: 'a2', isUser: false }),
-            makeMessage({ scId: 'a3', isUser: false }),
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ scId: 'a2' }),
         ];
-        const { setExtensionPrompt } = installWithContinuity({
+        attachCheckpoint(chat, 'a2', makeContinuity());
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
-            continuity: makeContinuity({ anchor_sc_id: 'anchor' }),
             chat,
         });
 
@@ -212,22 +216,22 @@ describe('updateContinuityInjection', () => {
         expect(name).toBe('summaryception_continuity');
         expect(text).toContain('<active_continuity>');
         expect(text).toContain('[SECRETS & ASYMMETRIC KNOWLEDGE]');
+        expect(text.startsWith('<!--')).toBe(false);
         expect(position).toBe(EXTENSION_PROMPT_POSITIONS.IN_CHAT);
-        expect(depth).toBe(3);
+        expect(depth).toBe(1);
         expect(scan).toBe(false);
         expect(role).toBe(EXTENSION_PROMPT_ROLES.SYSTEM);
     });
 
-    it('clamps the depth bump to the combined catch-up window', () => {
+    it('derives the stale marker and an uncapped depth while newer exchanges trail the checkpoint', () => {
         const chat = [
-            makeMessage({ scId: 'anchor', isUser: false }),
-            ...Array.from({ length: 9 }, (_, i) =>
-                makeMessage({ scId: `extra-${i}`, isUser: false }),
-            ),
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            ...Array.from({ length: 9 }, (_, i) => makeMessage({ scId: `extra-${i}` })),
         ];
-        const { setExtensionPrompt } = installWithContinuity({
+        attachCheckpoint(chat, 'a1', makeContinuity());
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
-            continuity: makeContinuity({ anchor_sc_id: 'anchor' }),
             chat,
         });
 
@@ -235,32 +239,7 @@ describe('updateContinuityInjection', () => {
 
         expect(setExtensionPrompt).toHaveBeenCalledWith(
             'summaryception_continuity',
-            expect.any(String),
-            EXTENSION_PROMPT_POSITIONS.IN_CHAT,
-            1 + 4,
-            false,
-            EXTENSION_PROMPT_ROLES.SYSTEM,
-        );
-    });
-
-    it('uncaps the depth bump while the state is frozen stale', () => {
-        const chat = [
-            makeMessage({ scId: 'anchor', isUser: false }),
-            ...Array.from({ length: 9 }, (_, i) =>
-                makeMessage({ scId: `extra-${i}`, isUser: false }),
-            ),
-        ];
-        const { setExtensionPrompt } = installWithContinuity({
-            settings: { continuityEnabled: true },
-            continuity: makeContinuity({ anchor_sc_id: 'anchor', stale: true }),
-            chat,
-        });
-
-        updateContinuityInjection();
-
-        expect(setExtensionPrompt).toHaveBeenCalledWith(
-            'summaryception_continuity',
-            expect.any(String),
+            expect.stringContaining('<!-- active_continuity: cached from turn N-1 -->'),
             EXTENSION_PROMPT_POSITIONS.IN_CHAT,
             1 + 9,
             false,
@@ -268,10 +247,51 @@ describe('updateContinuityInjection', () => {
         );
     });
 
-    it('clears the slot when the rendered block is empty', () => {
-        const { setExtensionPrompt } = installWithContinuity({
+    it('renders no block when no live checkpoint exists', () => {
+        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
-            continuity: createDefaultContinuity(),
+            chat,
+        });
+
+        updateContinuityInjection();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith(
+            'summaryception_continuity',
+            '',
+            EXTENSION_PROMPT_POSITIONS.NONE,
+            0,
+            false,
+            EXTENSION_PROMPT_ROLES.SYSTEM,
+        );
+    });
+
+    it('renders no block when a hash mismatch breaks the only chain link', () => {
+        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        attachCheckpoint(chat, 'a1', makeContinuity(), { text_hash: 'deadbeef' });
+        const setExtensionPrompt = installContext({
+            settings: { continuityEnabled: true },
+            chat,
+        });
+
+        updateContinuityInjection();
+
+        expect(setExtensionPrompt).toHaveBeenCalledWith(
+            'summaryception_continuity',
+            '',
+            EXTENSION_PROMPT_POSITIONS.NONE,
+            0,
+            false,
+            EXTENSION_PROMPT_ROLES.SYSTEM,
+        );
+    });
+
+    it('clears the slot when the rendered block is empty', () => {
+        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        attachCheckpoint(chat, 'a1', createDefaultContinuity());
+        const setExtensionPrompt = installContext({
+            settings: { continuityEnabled: true },
+            chat,
         });
 
         updateContinuityInjection();
@@ -287,7 +307,7 @@ describe('updateContinuityInjection', () => {
     });
 
     it('skips prompt mutation while the foreground freeze is active', () => {
-        const { setExtensionPrompt } = installWithContinuity({
+        const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
         });
         initCommitCallbacks({

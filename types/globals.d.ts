@@ -86,19 +86,21 @@ interface SummaryceptionContinuityState {
     agendas: Record<string, SummaryceptionAgenda>;
     gm_notes: string[];
     physics: SummaryceptionContinuityPhysics;
-    /** sc_id of the last assistant message covered by a successful audit */
-    anchor_sc_id: string;
-    /** True while the stored Continuity State is pegged after a failed or invalid audit */
-    stale: boolean;
+}
+
+/** Per-message Continuity Checkpoint carried in message extra (ADR-0010). */
+interface SummaryceptionContinuityCheckpoint {
+    state: SummaryceptionContinuityState;
+    /** sc_id of the audited assistant reply carrying this checkpoint */
+    audited_sc_id: string;
+    /** FNV-1a hash of the reply text; a mismatch breaks the checkpoint chain */
+    text_hash: string;
 }
 
 interface SummaryceptionStore {
     layers: SummaryceptionSnippet[][];
     ghostedMessageIds: string[];
     mutationEpoch: number;
-    continuity: SummaryceptionContinuityState;
-    /** Pre-audit Continuity State snapshot consumed when the anchored Exchange is invalidated */
-    continuityRevert: SummaryceptionContinuityState | null;
 }
 
 interface ExtensionSettings {

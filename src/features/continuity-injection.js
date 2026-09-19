@@ -1,17 +1,17 @@
-import { deriveTurnCount, resolveGate } from '../foundation/continuity.js';
-import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import {
-    CATCHUP_WINDOW_EXCHANGES,
-    EXTENSION_PROMPT_POSITIONS,
-    EXTENSION_PROMPT_ROLES,
-} from '../foundation/constants.js';
+    findLiveCheckpoint,
+    listAssistantIndicesAfter,
+    resolveGate,
+} from '../foundation/continuity.js';
+import { getChat, setExtensionPrompt } from '../foundation/context.js';
+import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
-import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 
 const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
 
-// Spec §7 fail-safe freeze marker; emitted verbatim, "N-1" is literal.
+// Derived-staleness marker for an un-audited tail; emitted verbatim, "N-1" is literal.
 const STALE_CONTINUITY_MARKER = '<!-- active_continuity: cached from turn N-1 -->';
 
 function formatBondLine(pair, { bond, sparks, grudge }) {
@@ -71,14 +71,15 @@ export function formatContinuityBlock(state) {
     if (sections.length === 0) {
         return '';
     }
-    const block = `<active_continuity>\n${sections.join('\n\n')}\n</active_continuity>`;
-    return state.stale ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
+    return `<active_continuity>\n${sections.join('\n\n')}\n</active_continuity>`;
 }
 
 /**
- * Render the chat store's Continuity State into the dedicated injection slot.
- * The slot clears when the extension or the Auditor is disabled or the state
- * renders nothing.
+ * Render the live Continuity Checkpoint (ADR-0010) into the dedicated
+ * injection slot. Staleness is derived, not stored: the block carries the
+ * spec §7 marker and an uncapped depth while newer un-audited Exchanges
+ * trail the checkpoint. The slot clears when the extension or the Auditor is
+ * disabled, no checkpoint chain is live, or the state renders nothing.
  * @returns {void}
  */
 export function updateContinuityInjection() {
@@ -87,11 +88,20 @@ export function updateContinuityInjection() {
             return;
         }
         const settings = getEffectiveSettings();
-        const state = getChatStore().continuity;
-        const text =
-            settings.enabled && settings.continuityEnabled === true
-                ? formatContinuityBlock(state)
-                : '';
+        const chat = getChat();
+        const live = findLiveCheckpoint(chat);
+        let text = '';
+        let depth = 0;
+        if (settings.enabled && settings.continuityEnabled === true && live) {
+            const block = formatContinuityBlock(live.state);
+            if (block !== '') {
+                const drift = (
+                    listAssistantIndicesAfter(chat, String(live.message.sc_id ?? '')) ?? []
+                ).length;
+                text = drift > 0 ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
+                depth = 1 + drift;
+            }
+        }
         if (text === '') {
             setExtensionPrompt(CONTINUITY_INJECTION_SLOT, '', {
                 position: EXTENSION_PROMPT_POSITIONS.NONE,
@@ -101,12 +111,6 @@ export function updateContinuityInjection() {
             });
             return;
         }
-        const drift = deriveTurnCount(getChat(), state.anchor_sc_id) ?? 0;
-        // A catch-up covers at most CATCHUP_WINDOW_EXCHANGES exchanges, so the
-        // success path bounds the depth bump by that window. A frozen state
-        // has no catch-up; the injection must reach past every uncovered
-        // exchange so the main model still sees the stale marker.
-        const depth = state.stale ? 1 + drift : 1 + Math.min(drift, CATCHUP_WINDOW_EXCHANGES);
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
             depth,

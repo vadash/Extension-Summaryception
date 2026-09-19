@@ -4,13 +4,7 @@ import { ensureChatScIds } from '../foundation/message-identity.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { refreshFull, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
-import {
-    abortActiveAuditorRun,
-    isAuditorTriggerMessage,
-    rewindContinuityAnchor,
-    rewindContinuityOverDeletedAnchor,
-    runAuditorExtraction,
-} from '../core/continuity-runner.js';
+import { isAuditorTriggerMessage, runAuditorExtraction } from '../core/continuity-runner.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -143,7 +137,7 @@ let promptFreezeRecoveryBound = false;
  * @param {number} messageIndex
  * @param {object} [options]
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
- * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, 'swipe', 'continue', and 'regenerate' rewind the anchor
+ * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, the other types dispatch nothing
  * @returns {void}
  */
 export function onMessageReceived(messageIndex, { notify, type } = {}) {
@@ -160,8 +154,6 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
                 void runAuditorExtraction({ notify }).catch((e) => {
                     warn('Continuity auditor run error:', e);
                 });
-            } else if (type === 'swipe' || type === 'continue' || type === 'regenerate') {
-                rewindContinuityAnchor(msg);
             }
         }
     } catch (e) {
@@ -171,12 +163,10 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
 
 /**
  * Reconciles the loaded chat before any automatic cycle can read it.
- * A chat switch also drops any in-flight audit attempt.
  * @returns {void}
  */
 export function onChatChanged() {
     trace('Chat changed.');
-    abortActiveAuditorRun('chat_changed');
     recoverPromptFreeze('chat change');
     scheduleLoadedChatReconciliation();
 }
@@ -224,9 +214,6 @@ export function onGenerationStarted(...args) {
         trace('Ignoring generation start from active Summaryception request.');
         return;
     }
-    // Foreground generation invalidates the in-flight audit (spec §7.2);
-    // quiet generations are ignored inside the abort.
-    abortActiveAuditorRun(String(args[0] || ''));
     beginForegroundGeneration();
     pauseMemoryToastForGeneration();
     refreshUi();
@@ -305,24 +292,9 @@ async function reconcileLoadedChatState() {
     if (ensureChatScIds(chat)) {
         await persistChatState();
     }
-    if (reconcileContinuityAnchor(chat)) {
-        await persistChatState();
-    }
     updateInjection();
     updateContinuityInjection();
     await syncGhosting();
-}
-
-/**
- * Re-derive the continuity anchor against the loaded chat: a stored anchor
- * that no longer resolves (regenerate deletion, fork, branch without copied
- * metadata) restores the pre-audit revert snapshot, or cold-starts without
- * one, so the next audit re-covers cleanly. The runner owns the rule.
- * @param {ChatMessage[]} chat
- * @returns {boolean} Whether the store changed and needs persisting.
- */
-function reconcileContinuityAnchor(chat) {
-    return rewindContinuityOverDeletedAnchor(chat);
 }
 
 /**

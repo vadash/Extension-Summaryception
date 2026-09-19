@@ -177,15 +177,9 @@ The most recent four Exchanges a single combined Auditor call covers after misse
 _Avoid_: catch-up cap, recovery span
 
 **Turn Count**:
-The total number of Exchanges in the chat, re-derived by code from the chat at every audit. Coverage never feeds it: the Catch-up Window and the Auditor Anchor bound what gets audited, never the count.
+The total number of Exchanges in the chat, re-derived by code from the chat at every audit. Coverage never feeds it: the Catch-up Window bounds what gets audited and the live Continuity Checkpoint anchors where coverage resumes, never the count.
 Code: `turn_count` (src/foundation/continuity.js), `deriveTurnCount` (src/foundation/continuity.js)
 _Avoid_: audited turns, covered turns
-
-**Auditor Anchor**:
-The `sc_id` marking the last Exchange the Continuity State covers; audits read strictly after it. Swiping, continuing, or regenerating the anchored reply rewinds coverage one Exchange and restores the pre-audit state snapshot, so the settled variation audits next from clean counters; deleting the anchored reply restores through reconciliation the same way.
-Code: `anchor_sc_id` on the Continuity State (src/foundation/continuity.js); rewind via `rewindContinuityAnchor` and `rewindContinuityOverDeletedAnchor` (src/core/continuity-runner.js)
-_Retiring_: superseded by the Continuity Checkpoint (ADR-0010) once that lands; still the current mechanism.
-_Avoid_: cursor
 
 **Auditor Flags**:
 The five per-pair booleans one Auditor reply carries (positive_interaction, slight, insult, betrayal, apology). All bond, sparks, grudge, and gate numbers are derived from them by code.

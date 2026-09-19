@@ -8,12 +8,12 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 }));
 
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
-import { onChatChanged } from '../src/entry/events.js';
+import { findLiveCheckpoint, hashMessageText } from '../src/foundation/continuity.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
-// Continuity State as of exchange 1's settled audit: anchor at a1, one spark,
-// no notes, no scene location yet.
+// Continuity State as of exchange 1's settled audit: checkpoint on a1, one
+// spark, no notes, no scene location yet.
 const auditedExchangeOne = (overrides = {}) => ({
     turn_count: 1,
     bonds: { 'Quipsy↔User': { bond: 1, sparks: 1, grudge: 0 } },
@@ -26,8 +26,6 @@ const auditedExchangeOne = (overrides = {}) => ({
         contact_points: '',
         clothing_state: '',
     },
-    anchor_sc_id: 'a1',
-    stale: false,
     ...overrides,
 });
 
@@ -53,8 +51,6 @@ const draftTwoAudit = () =>
         },
     });
 
-const flushReconciliation = () => new Promise((resolve) => setTimeout(resolve, 150));
-
 afterEach(() => {
     vi.resetModules();
     callSummarizer.mockReset();
@@ -62,44 +58,45 @@ afterEach(() => {
 });
 
 describe('continuity coverage across regenerate', () => {
-    it('rewinds coverage when a regenerate deletes the audited reply', async () => {
+    it('drops the read model back to the prior checkpoint when the audited reply is deleted', async () => {
         const chat = regenChat();
         const setExtensionPrompt = vi.fn();
-        const ctx = installSummaryContext({
+        installSummaryContext({
             chat,
             setExtensionPrompt,
-            metadata: {
-                summaryception: makeSummaryStore({ continuity: auditedExchangeOne() }),
-            },
+            metadata: { summaryception: makeSummaryStore() },
             settings: { continuityEnabled: true },
         });
+        chat[1].extra.summaryception_continuity = {
+            state: auditedExchangeOne(),
+            audited_sc_id: 'a1',
+            text_hash: hashMessageText(chat[1].mes),
+        };
 
         // Exchange 2's draft reply lands and is audited: the draft's thread,
-        // scene location, and spark enter the state, anchored at a2.
+        // scene location, and spark enter the state, checkpointed on a2.
         callSummarizer.mockResolvedValue({ status: 'completed', text: draftTwoAudit() });
         await runAuditorExtraction();
-        const audited = ctx.chatMetadata.summaryception.continuity;
-        expect(audited.anchor_sc_id).toBe('a2');
-        expect(audited.gm_notes).toEqual(['[T] draft-two thread']);
+        const audited = chat[3].extra.summaryception_continuity;
+        expect(audited.audited_sc_id).toBe('a2');
+        expect(audited.state.gm_notes).toEqual(['[T] draft-two thread']);
 
-        // Regenerate removes the audited reply; the host fires CHAT_CHANGED.
+        // Regenerate removes the audited reply. No rewind event fires: the
+        // chain read model drops back to exchange 1 by itself.
         chat.splice(3, 1);
-        onChatChanged();
-        await flushReconciliation();
 
-        // Coverage rewinds to exchange 1: the deleted draft's audit
-        // contribution leaves the state ("turn 8 continuity only").
-        const continuity = ctx.chatMetadata.summaryception.continuity;
-        expect(continuity.anchor_sc_id).toBe('a1');
-        expect(continuity.gm_notes).toEqual([]);
-        expect(continuity.bonds['Quipsy↔User']).toEqual({ bond: 1, sparks: 1, grudge: 0 });
-        expect(continuity.physics.location).toBe('');
+        const live = findLiveCheckpoint(chat);
+        expect(live.message.sc_id).toBe('a1');
+        expect(live.state.gm_notes).toEqual([]);
+        expect(live.state.bonds['Quipsy↔User']).toEqual({ bond: 1, sparks: 1, grudge: 0 });
+        expect(live.state.physics.location).toBe('');
 
-        // The injected block carries the same rewind: no deleted-draft content
-        // reaches the regenerated generation's prompt.
+        // The injected block carries the same drop-back: no deleted-draft
+        // content reaches the regenerated generation's prompt.
         updateContinuityInjection();
         const block = setExtensionPrompt.mock.calls.at(-1)?.[1] ?? '';
         expect(block).not.toContain('draft-two thread');
         expect(block).not.toContain('Kitchen');
+        expect(block).toContain('BOND +1');
     });
 });

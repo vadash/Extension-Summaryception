@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-import { makeMessage, installSummaryContext, makeSummaryStore } from './test-helpers.js';
-import { onAppReady } from '../src/entry/events.js';
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
+import { makeMessage } from './test-helpers.js';
 
 import { defaultSettings } from '../src/foundation/constants.js';
 import {
@@ -12,7 +10,8 @@ import {
     createDefaultContinuity,
     deriveTurnCount,
     diffContinuityStates,
-    normalizeContinuity,
+    findLiveCheckpoint,
+    hashMessageText,
     resolveGate,
 } from '../src/foundation/continuity.js';
 
@@ -28,8 +27,6 @@ const coldStart = () => ({
         contact_points: '',
         clothing_state: '',
     },
-    anchor_sc_id: '',
-    stale: false,
 });
 
 const validAuditorJson = () =>
@@ -101,8 +98,6 @@ describe('classifyContinuity', () => {
                 contact_points: 'Hand on arm',
                 clothing_state: 'Robe',
             },
-            anchor_sc_id: '',
-            stale: false,
         });
     });
 
@@ -305,100 +300,6 @@ describe('classifyContinuity', () => {
     });
 });
 
-describe('normalizeContinuity', () => {
-    it('turns absent stored continuity into the cold-start default', () => {
-        expect(normalizeContinuity(undefined)).toEqual(coldStart());
-    });
-
-    it('turns garbage stored continuity into the cold-start default without throwing', () => {
-        expect(normalizeContinuity('junk')).toEqual(coldStart());
-        expect(normalizeContinuity(7)).toEqual(coldStart());
-        expect(normalizeContinuity([['bonds']])).toEqual(coldStart());
-    });
-
-    it('sanitizes stored continuity in place: clamps fields, drops malformed entries', () => {
-        const stored = {
-            turn_count: 12,
-            bonds: {
-                'Quipsy↔User': { bond: 999, sparks: -5, grudge: 3 },
-                broken: { bond: 1 },
-            },
-            agendas: {
-                Quipsy: { task: 'Train', step: { current: 9, max: 1 } },
-                Mirra: 'gone',
-            },
-            gm_notes: ['[S] Secret', '[X] Mistagged', 42],
-            physics: { location: 'Salon', nope: 'dropped' },
-        };
-        const normalized = normalizeContinuity(stored);
-        expect(normalized).toBe(stored);
-        expect(normalized).toEqual({
-            turn_count: 12,
-            bonds: { 'Quipsy↔User': { bond: 20, sparks: 0, grudge: 3 } },
-            agendas: {
-                Quipsy: {
-                    task: 'Train',
-                    step: { current: 1, max: 1 },
-                    status: 'None',
-                    body_state: 'None',
-                    fibs: 'None',
-                    aware: 'None',
-                },
-                Mirra: {
-                    task: 'None',
-                    step: { current: 1, max: 1 },
-                    status: 'None',
-                    body_state: 'None',
-                    fibs: 'None',
-                    aware: 'None',
-                },
-            },
-            gm_notes: ['[S] Secret'],
-            physics: { ...coldStart().physics, location: 'Salon' },
-            anchor_sc_id: '',
-            stale: false,
-        });
-    });
-
-    it('rewrites drifted pair keys to the canonical record', () => {
-        const stored = {
-            turn_count: 3,
-            bonds: {
-                'Quipsy ↔ User': { bond: 999, sparks: -1, grudge: 0 },
-                'User↔Quipsy': { bond: 2, sparks: 0, grudge: 0 },
-            },
-            agendas: {},
-            gm_notes: [],
-            physics: {},
-        };
-        expect(normalizeContinuity(stored)).toEqual({
-            turn_count: 3,
-            bonds: { 'Quipsy↔User': { bond: 20, sparks: 0, grudge: 0 } },
-            agendas: {},
-            gm_notes: [],
-            physics: coldStart().physics,
-            anchor_sc_id: '',
-            stale: false,
-        });
-    });
-
-    it('collapses duplicate spellings to one canonical entry, first stored wins', () => {
-        const firstWins = {
-            turn_count: 1,
-            bonds: {
-                'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 },
-                'User↔Quipsy': { bond: 5, sparks: 0, grudge: 0 },
-            },
-            agendas: {},
-            gm_notes: [],
-            physics: {},
-        };
-        expect(normalizeContinuity(firstWins).bonds).toEqual({
-            'Quipsy↔User': { bond: 1, sparks: 0, grudge: 0 },
-        });
-    });
-});
-
 describe('createDefaultContinuity', () => {
     it('matches the cold-start contract', () => {
         expect(createDefaultContinuity()).toEqual(coldStart());
@@ -539,18 +440,10 @@ describe('deriveTurnCount', () => {
         makeMessage({ scId: 'a3' }),
     ];
 
-    it('counts assistant messages strictly after the anchor sc_id', () => {
-        expect(deriveTurnCount(chat, 'a1')).toBe(2);
-        expect(deriveTurnCount(chat, 'a3')).toBe(0);
-    });
-
-    it('counts every assistant message from chat start when the anchor is empty', () => {
-        expect(deriveTurnCount(chat, '')).toBe(3);
-        expect(deriveTurnCount([], '')).toBe(0);
-    });
-
-    it('returns null when a non-empty anchor is missing from the chat', () => {
-        expect(deriveTurnCount(chat, 'ghost')).toBeNull();
+    it('counts every assistant message from chat start, skipping users and system messages', () => {
+        expect(deriveTurnCount(chat)).toBe(3);
+        expect(deriveTurnCount([])).toBe(0);
+        expect(deriveTurnCount(undefined)).toBe(0);
     });
 });
 
@@ -570,29 +463,104 @@ describe('resolveGate', () => {
     });
 });
 
-describe('anchor reconcile on chat load', () => {
-    afterEach(() => {
-        resetCommitStateForTests();
-        delete globalThis.SillyTavern;
+describe('hashMessageText', () => {
+    it('matches the FNV-1a 32-bit reference vectors', () => {
+        expect(hashMessageText('')).toBe('811c9dc5');
+        expect(hashMessageText('a')).toBe('e40c292c');
+        expect(hashMessageText('foobar')).toBe('bf9cf968');
     });
 
-    it('re-anchors a stale anchor to cold start and bumps the mutation epoch on load', async () => {
-        const chat = [makeMessage({ scId: 'message-0' })];
-        installSummaryContext({
-            chat,
-            metadata: {
-                summaryception: makeSummaryStore({
-                    mutationEpoch: 2,
-                    continuity: { ...coldStart(), anchor_sc_id: 'ghost' },
-                }),
-            },
-        });
+    it('treats a missing message body as the empty string', () => {
+        expect(hashMessageText(undefined)).toBe('811c9dc5');
+    });
+});
 
-        await onAppReady();
+describe('findLiveCheckpoint', () => {
+    const auditedState = (overrides = {}) => ({
+        turn_count: 1,
+        bonds: { 'Quipsy↔User': { bond: 2, sparks: 0, grudge: 0 } },
+        agendas: {},
+        gm_notes: [],
+        physics: { ...coldStart().physics, location: 'Salon' },
+        ...overrides,
+    });
 
-        const store = globalThis.SillyTavern.getContext().chatMetadata.summaryception;
-        expect(store.continuity.anchor_sc_id).toBe('');
-        expect(store.mutationEpoch).toBe(3);
+    const withCheckpoint = (message, state) => {
+        message.extra.summaryception_continuity = {
+            state,
+            audited_sc_id: message.sc_id,
+            text_hash: hashMessageText(message.mes),
+        };
+        return message;
+    };
+
+    it('returns null for a chat without any checkpoint payload', () => {
+        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
+        expect(findLiveCheckpoint(chat)).toBeNull();
+        expect(findLiveCheckpoint(undefined)).toBeNull();
+    });
+
+    it('returns the newest valid checkpoint with its carrying message', () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            withCheckpoint(makeMessage({ scId: 'a2' }), auditedState({ turn_count: 2 })),
+        ];
+
+        const live = findLiveCheckpoint(chat);
+
+        expect(live.state).toEqual(auditedState({ turn_count: 2 }));
+        expect(live.message.sc_id).toBe('a2');
+        expect(live.index).toBe(3);
+    });
+
+    it('skips plain messages sitting between two checkpoints', () => {
+        const chat = [
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState()),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ isSystem: true, scId: 's1' }),
+            withCheckpoint(makeMessage({ scId: 'a2' }), auditedState({ turn_count: 3 })),
+        ];
+
+        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a2');
+    });
+
+    it('stops at a malformed checkpoint and returns the newest earlier one', () => {
+        const broken = withCheckpoint(makeMessage({ scId: 'a2' }), auditedState());
+        broken.extra.summaryception_continuity.text_hash = 7;
+        const chat = [
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
+            broken,
+            withCheckpoint(makeMessage({ scId: 'a3' }), auditedState({ turn_count: 3 })),
+        ];
+
+        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
+    });
+
+    it('stops when the payload does not belong to the carrying message', () => {
+        const copied = withCheckpoint(makeMessage({ scId: 'a2' }), auditedState());
+        copied.extra.summaryception_continuity.audited_sc_id = 'a1';
+        const chat = [
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
+            copied,
+        ];
+
+        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
+    });
+
+    it('stops when the audited variation text changed under the hash', () => {
+        const swiped = withCheckpoint(
+            makeMessage({ scId: 'a2', mes: 'Draft two text.' }),
+            auditedState({ turn_count: 2 }),
+        );
+        swiped.mes = 'Regenerated draft three.';
+        const chat = [
+            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
+            swiped,
+        ];
+
+        expect(findLiveCheckpoint(chat).message.sc_id).toBe('a1');
     });
 });
 
@@ -616,8 +584,6 @@ describe('diffContinuityStates', () => {
             contact_points: 'None',
             clothing_state: 'Robe',
         },
-        anchor_sc_id: 'a2',
-        stale: false,
         ...overrides,
     });
 
@@ -654,18 +620,10 @@ describe('diffContinuityStates', () => {
 
     it('reports scalar sections in schema order', () => {
         const prior = fullState();
-        const next = fullState({ turn_count: 3, anchor_sc_id: 'a3', stale: true });
+        const next = fullState({ turn_count: 3 });
 
-        expect(Object.keys(diffContinuityStates(prior, next))).toEqual([
-            'turn_count',
-            'anchor_sc_id',
-            'stale',
-        ]);
-        expect(diffContinuityStates(prior, next)).toEqual({
-            turn_count: [2, 3],
-            anchor_sc_id: ['a2', 'a3'],
-            stale: [false, true],
-        });
+        expect(Object.keys(diffContinuityStates(prior, next))).toEqual(['turn_count']);
+        expect(diffContinuityStates(prior, next)).toEqual({ turn_count: [2, 3] });
     });
 
     it('returns an empty report for identical states', () => {
