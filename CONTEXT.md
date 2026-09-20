@@ -46,11 +46,16 @@ Code: `syncGhosting` (src/core/ghosting.js)
 
 **Batch**:
 The assistant turns one Layer 0 summarizer request covers. Batch ranges count assistant turns only; user messages between them belong to the request's Passage.
-Code: `summarizeBatchFromTurns` (src/core/summarizer-batch.js)
+Code: `SummaryRoutePlan.batchTurns` (src/core/summarization-routes.js)
 
 **Passage**:
 The contiguous chat-index range of raw messages one summarizer request summarizes, including the user messages interleaved with a Batch. A Passage therefore starts one or more indices before its Batch.
-Code: `passageStart` / `passageText` (src/core/summarizer-batch.js)
+Code: `passageStart` / `passageText` (src/core/layer0-run.js)
+
+**Layer 0 Run**:
+The lifecycle that turns one or more Passages into committed Layer 0 Snippets. One run owns capture, output validation, the all-or-nothing commit with rollback, and one progress settlement; a single Batch is a one-Passage run. A run whose commit the Foreground Gate defers is blocked, and a run with no Passage to cover is idle.
+Code: `runLayer0` (src/core/layer0-run.js)
+_Avoid_: batch job, summarization task
 
 **Chat Index**:
 A message's position in the chat array. Every range in the extension — Batch, Passage, Verbatim Window — is a chat-index range; stable identity uses Summaryception IDs (`sc_id`), never indices.

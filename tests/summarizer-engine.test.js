@@ -4,9 +4,8 @@ const routeMocks = vi.hoisted(() => ({
     buildForceSummaryRoutePlan: vi.fn(),
     buildSlopSummaryRoutePlan: vi.fn(),
 }));
-const batchMocks = vi.hoisted(() => ({
-    summarizeBatchFromTurns: vi.fn(),
-    summarizeAtomicLayer0Partitions: vi.fn(),
+const layer0Mocks = vi.hoisted(() => ({
+    runLayer0: vi.fn(),
 }));
 const stateMocks = vi.hoisted(() => ({
     getChatStore: vi.fn(() => ({})),
@@ -18,7 +17,7 @@ vi.mock('../src/core/summarization-routes.js', async (importOriginal) => ({
     ...(await importOriginal()),
     ...routeMocks,
 }));
-vi.mock('../src/core/summarizer-batch.js', () => batchMocks);
+vi.mock('../src/core/layer0-run.js', () => layer0Mocks);
 vi.mock('../src/foundation/state.js', () => stateMocks);
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     drainPromotionOverflow: vi.fn(async () => ({ status: 'completed', attempts: 0 })),
@@ -36,6 +35,7 @@ import {
     resetCommitStateForTests,
 } from '../src/core/summarizer-commit.js';
 import { ELASTIC_STRATEGIES, runManual } from '../src/core/summarizer-engine.js';
+import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
 import { installSummaryContext } from './test-helpers.js';
 
 const TARGET_INDEX = 5;
@@ -54,9 +54,7 @@ function makeDeps({ stopAfterFirstBatch = false } = {}) {
         withUsageRun: vi.fn(async (_label, work) => await work()),
     };
     if (stopAfterFirstBatch) {
-        runToken.isStopped.mockImplementation(
-            () => batchMocks.summarizeBatchFromTurns.mock.calls.length >= 1,
-        );
+        runToken.isStopped.mockImplementation(() => layer0Mocks.runLayer0.mock.calls.length >= 1);
     }
     return deps;
 }
@@ -66,7 +64,7 @@ function forceRoutePlan() {
     return {
         ready: true,
         reason: 'ready',
-        commitMode: 'TURNS',
+        commitMode: SUMMARY_COMMIT_MODES.TURNS,
         batchTurns: [{ index: 2 }],
         partitions: [{}],
         totalBatches: 1,
@@ -93,7 +91,7 @@ describe('manual run progress callbacks', () => {
         stateMocks.getEffectiveSettings.mockReturnValue({});
         stateMocks.getCurrentSummarizedBoundary.mockImplementation(() => boundary);
         // One commit moves the boundary to the target, so the plan turns unready and the run ends after one batch.
-        batchMocks.summarizeBatchFromTurns.mockImplementation(async () => {
+        layer0Mocks.runLayer0.mockImplementation(async () => {
             boundary = TARGET_INDEX;
             return { status: 'completed' };
         });
@@ -125,7 +123,7 @@ describe('manual run progress callbacks', () => {
     it('refreshes the UI after each committed batch', async () => {
         stubRoutePlan(routeMocks.buildForceSummaryRoutePlan, forceRoutePlan());
         // Each commit advances the boundary partway; two commits reach the target.
-        batchMocks.summarizeBatchFromTurns.mockImplementation(async () => {
+        layer0Mocks.runLayer0.mockImplementation(async () => {
             boundary += 3;
             return { status: 'completed' };
         });
@@ -133,7 +131,7 @@ describe('manual run progress callbacks', () => {
         const deps = makeDeps();
         await runManual(deps, ELASTIC_STRATEGIES.FORCE, {});
 
-        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
+        expect(layer0Mocks.runLayer0).toHaveBeenCalledTimes(2);
         // One refresh per committed batch plus the end-of-run refresh.
         expect(deps.refreshUi).toHaveBeenCalledTimes(3);
     });
@@ -142,7 +140,7 @@ describe('manual run progress callbacks', () => {
         stubRoutePlan(routeMocks.buildSlopSummaryRoutePlan, {
             ready: true,
             reason: 'ready',
-            commitMode: 'TURNS_WITH_SOURCE_END',
+            commitMode: SUMMARY_COMMIT_MODES.TURNS_WITH_SOURCE_END,
             batchTurns: [{ index: 2 }],
             partitions: [{}],
             totalBatches: 1,
@@ -171,7 +169,7 @@ describe('manual run progress callbacks', () => {
         });
 
         expect(outcome.status).toBe('aborted');
-        expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
+        expect(layer0Mocks.runLayer0).not.toHaveBeenCalled();
     });
 });
 
@@ -184,7 +182,7 @@ describe('manual run work gate', () => {
         stateMocks.getEffectiveSettings.mockReturnValue({});
         stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch fails without moving the summarized boundary.
-        batchMocks.summarizeBatchFromTurns.mockResolvedValue({ status: 'failed' });
+        layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
 
@@ -195,7 +193,7 @@ describe('manual run work gate', () => {
 
         expect(deps.queue.beginRun).toHaveBeenCalledWith('manual-run');
         expect(deps.runToken.end).toHaveBeenCalledTimes(1);
-        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
+        expect(layer0Mocks.runLayer0).toHaveBeenCalledTimes(1);
         expect(outcome.status).toBe('aborted');
         expect(outcome.failed).toBe(1);
     });
@@ -218,7 +216,7 @@ describe('manual run pre-run outcomes', () => {
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
         expect(outcome).toEqual({ status: 'idle', completed: 0, failed: 0, totalBatches: 0 });
-        expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
+        expect(layer0Mocks.runLayer0).not.toHaveBeenCalled();
     });
 
     it('reports blocked with no batches when the gate closed before the run', async () => {
@@ -227,7 +225,7 @@ describe('manual run pre-run outcomes', () => {
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
         expect(outcome).toEqual({ status: 'blocked', completed: 0, failed: 0, totalBatches: 0 });
-        expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
+        expect(layer0Mocks.runLayer0).not.toHaveBeenCalled();
     });
 });
 
@@ -240,7 +238,7 @@ describe('manual run failure limit', () => {
         stateMocks.getEffectiveSettings.mockReturnValue({});
         stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch commit fails without moving the summarized boundary.
-        batchMocks.summarizeBatchFromTurns.mockResolvedValue({ status: 'failed' });
+        layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
 
@@ -250,23 +248,43 @@ describe('manual run failure limit', () => {
         expect(outcome.status).toBe('failed');
         expect(outcome.failed).toBe(3);
         expect(outcome.completed).toBe(0);
-        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(3);
+        expect(layer0Mocks.runLayer0).toHaveBeenCalledTimes(3);
     });
 
-    it('halts as blocked when a completed batch does not move the boundary', async () => {
-        // One failure, then a completed batch that never moves the boundary.
-        // The blocked halt must stop the run before the two trailing failures.
-        batchMocks.summarizeBatchFromTurns
+    it('halts as blocked when a completed run leaves the boundary where it was', async () => {
+        // One failure, then a completed run that never moves the boundary. The
+        // blocked halt must stop the run, so the default failed result the loop
+        // would keep drawing never reaches the tally.
+        layer0Mocks.runLayer0
             .mockResolvedValueOnce({ status: 'failed' })
-            .mockResolvedValueOnce({ status: 'completed' })
-            .mockResolvedValueOnce({ status: 'failed' })
-            .mockResolvedValueOnce({ status: 'failed' });
+            .mockResolvedValueOnce({ status: 'completed' });
 
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
         expect(outcome.status).toBe('blocked');
         expect(outcome.failed).toBe(1);
         expect(outcome.completed).toBe(0);
-        expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);
+        expect(layer0Mocks.runLayer0).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('manual run gate outcome', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        resetCommitStateForTests();
+        installSummaryContext({ chat: [] });
+        stateMocks.getChatStore.mockReturnValue({});
+        stateMocks.getEffectiveSettings.mockReturnValue({});
+        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
+    });
+
+    it('halts as blocked, without a failure, when the run reports the gate blocked', async () => {
+        layer0Mocks.runLayer0.mockResolvedValue({ status: 'blocked' });
+
+        const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
+
+        expect(outcome).toEqual({ status: 'blocked', completed: 0, failed: 0, totalBatches: 1 });
+        expect(layer0Mocks.runLayer0).toHaveBeenCalledTimes(1);
     });
 });

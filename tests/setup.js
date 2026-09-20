@@ -69,6 +69,7 @@ const foundationMocks = vi.hoisted(() => {
         trace: vi.fn(),
         warn: vi.fn(),
         error: vi.fn(),
+        serializeError: vi.fn((error) => ({ message: String(error?.message || error) })),
     };
 
     function resetContext() {

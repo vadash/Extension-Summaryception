@@ -8,14 +8,13 @@ import {
     saveSettings,
 } from '../foundation/state.js';
 import { debug, info, trace, warn } from '../foundation/logger.js';
-import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summarizer-batch.js';
+import { runLayer0 } from './layer0-run.js';
 import { drainPromotionOverflow } from './summarizer-promotion.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { promptWorkGate } from './summarizer-commit.js';
 import { deriveManualRunOutcome } from './run-outcome.js';
 import { formatTokenValue } from './token-count.js';
 import {
-    SUMMARY_COMMIT_MODES,
     buildAutoSummaryRoutePlan,
     buildForceSummaryRoutePlan,
     buildSlopSummaryRoutePlan,
@@ -187,14 +186,18 @@ export async function describeManualRun(strategy) {
 }
 
 /**
- * Commit a route plan and apply the auto-run gate on top of the batch outcome.
+ * Run a route plan and apply the auto-run gate on top of the run outcome. A run
+ * that waited for the Foreground Gate or found no work is terminal, not failed.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for automatic runs.
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
 async function processRoutePlan(routePlan, notify) {
-    const outcome = await commitRoutePlan(routePlan, { catchExceptions: true }, notify);
+    const outcome = await runLayer0(routePlan, notify);
 
+    if (outcome.status === 'blocked' || outcome.status === 'idle') {
+        return outcome;
+    }
     if (outcome.status !== 'completed') {
         debug('Route batch failed, stopping summarization cycle to avoid retry loop.');
         return outcome;
@@ -203,30 +206,6 @@ async function processRoutePlan(routePlan, notify) {
         return { ...outcome, status: 'blocked' };
     }
     return outcome;
-}
-
-/**
- * Commit one normalized route plan.
- * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
- * @param {{ catchExceptions?: boolean }} [options]
- * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for automatic runs; manual runs own their progress UI and stay silent.
- * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
- */
-async function commitRoutePlan(routePlan, options = {}, notify) {
-    if (routePlan.commitMode === SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS) {
-        return await summarizeAtomicLayer0Partitions(routePlan.partitions, options, notify);
-    }
-    if (routePlan.commitMode === SUMMARY_COMMIT_MODES.TURNS_WITH_SOURCE_END) {
-        return await summarizeBatchFromTurns(
-            routePlan.batchTurns,
-            {
-                ...options,
-                sourceEndIdx: routePlan.sourceEndIdx,
-            },
-            notify,
-        );
-    }
-    return await summarizeBatchFromTurns(routePlan.batchTurns, options, notify);
 }
 
 const isManualTargetReached = (targetIndex) =>
@@ -351,7 +330,7 @@ const MANUAL_FAILURE_LIMIT = 3;
  * @param {object} step - One loop step's inputs.
  * @param {import('./summarizer-queue.js').WorkGateRun} step.runToken - The run's work gate lease; a stopped lease detects external stops.
  * @param {ManualRunTally} step.tally - Run state updated in place.
- * @param {{ success: boolean, committed: boolean, done?: boolean }} step.result - Batch result flags.
+ * @param {{ success: boolean, committed: boolean, blocked: boolean, done?: boolean }} step.result - Batch result flags.
  * @param {AbortSignal} [step.signal] - Cancellation signal for the run.
  * @param {import('./notify.js').NotifyAdapter} [step.notify] - Notify adapter for promotions.
  * @param {number} step.consecutiveFailures - Failure streak before this step.
@@ -365,19 +344,23 @@ async function applyManualLoopStep({
     notify,
     consecutiveFailures,
 }) {
-    if (result.success && result.committed) {
+    if (result.blocked) {
+        tally.blocked = true;
+    } else if (result.success && result.committed) {
         tally.completed++;
         consecutiveFailures = 0;
         if ((await promptWorkGate('manual outcome')) === 'blocked') {
             tally.blocked = true;
         }
     } else if (result.success) {
+        // A completed run that moved nothing has no batch to count, so the loop
+        // halts instead of re-planning the same work.
         tally.blocked = true;
     } else {
         tally.failed++;
     }
 
-    if (result.success && result.committed && !tally.blocked) {
+    if (result.success && result.committed) {
         const promotion = await normalizePromotions(notify);
         if (promotion.status === 'blocked') {
             tally.blocked = true;
@@ -403,18 +386,19 @@ async function applyManualLoopStep({
 }
 
 /**
- * Commit one route plan through the strategy's boundary assessment.
+ * Run one route plan through the strategy's boundary assessment.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} plan
  * @param {ManualStrategy} strategy
  * @param {import('./notify.js').NotifyAdapter} [notify]
- * @returns {Promise<{ success: boolean, committed: boolean, done?: boolean }>}
+ * @returns {Promise<{ success: boolean, committed: boolean, blocked: boolean, done?: boolean }>}
  */
 async function processStrategyBatch(plan, strategy, notify) {
     const beforeIndex = getCurrentSummarizedBoundary(getChat(), getChatStore());
-    const outcome = await commitRoutePlan(plan, { catchExceptions: true }, notify);
+    const outcome = await runLayer0(plan, notify);
     const afterIndex = getCurrentSummarizedBoundary(getChat(), getChatStore());
     return {
         success: outcome.status === 'completed',
+        blocked: outcome.status === 'blocked',
         ...strategy.assessCommit(plan, beforeIndex, afterIndex),
     };
 }
