@@ -9,7 +9,7 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 
 import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
-import { findLiveCheckpoint } from '../src/core/continuity-state.js';
+import { deriveContinuityCoverage } from '../src/core/continuity-coverage.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
@@ -95,11 +95,11 @@ describe('continuity coverage across regenerate', () => {
         // newest-payload read model drops back to exchange 1 by itself.
         chat.splice(3, 1);
 
-        const live = findLiveCheckpoint(chat);
-        expect(live.index).toBe(1);
-        expect(live.state.gm_notes).toEqual([]);
-        expect(live.state.bonds['Quipsy↔User']).toEqual({ bond: 1, sparks: 1, grudge: 0 });
-        expect(live.state.physics.location).toBe('');
+        const coverage = deriveContinuityCoverage(chat);
+        expect(coverage.checkpointIndex).toBe(1);
+        expect(coverage.state.gm_notes).toEqual([]);
+        expect(coverage.state.bonds['Quipsy↔User']).toEqual({ bond: 1, sparks: 1, grudge: 0 });
+        expect(coverage.state.physics.location).toBe('');
 
         // The injected block carries the same drop-back: no deleted-draft
         // content reaches the regenerated generation's prompt.
@@ -166,7 +166,7 @@ describe('continuity injection across reroll', () => {
         expect(isPromptMutationFrozen()).toBe(true);
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
-        expect(findLiveCheckpoint(chat).index).toBe(1);
+        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
 
         const slotCall = setExtensionPrompt.mock.calls.find(
             ([name]) => name === 'summaryception_continuity',
@@ -189,7 +189,7 @@ describe('continuity injection across reroll', () => {
         onGenerationStarted('swipe', {}, false);
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
-        expect(findLiveCheckpoint(chat).index).toBe(1);
+        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
     });
 
     it('keeps the checkpoint on generations that do not replace the last reply', () => {
@@ -203,6 +203,6 @@ describe('continuity injection across reroll', () => {
         onGenerationStarted('normal', {}, false);
 
         expect(chat[3].extra.summaryception_continuity).toBeDefined();
-        expect(findLiveCheckpoint(chat).index).toBe(3);
+        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(3);
     });
 });

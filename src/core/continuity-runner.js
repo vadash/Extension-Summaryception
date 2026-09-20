@@ -2,11 +2,9 @@ import {
     classifyContinuity,
     applyPairFlags,
     createDefaultContinuity,
-    deriveTurnCount,
-    findLiveCheckpoint,
     isRecord,
-    listAssistantIndicesAfter,
 } from './continuity-state.js';
+import { deriveContinuityCoverage } from './continuity-coverage.js';
 import { diffContinuityStates } from './continuity-diff.js';
 import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import {
@@ -15,11 +13,7 @@ import {
     trace,
     warn,
 } from '../foundation/logger.js';
-import {
-    CATCHUP_WINDOW_EXCHANGES,
-    listNonEmptyLayers,
-    LOG_PREFIX,
-} from '../foundation/constants.js';
+import { listNonEmptyLayers, LOG_PREFIX } from '../foundation/constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
 import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
 import { silentAdapter } from './notify.js';
@@ -64,21 +58,17 @@ export function discardRegeneratedCheckpoint(generationType) {
         return false;
     }
     const chat = getChat();
-    const live = findLiveCheckpoint(chat);
-    if (!live) {
+    const coverage = deriveContinuityCoverage(chat);
+    if (coverage.checkpointIndex === null || coverage.unauditedIndices.length > 0) {
         return false;
     }
-    const lastAssistantIndex = listAssistantIndicesAfter(chat, -1).at(-1);
-    if (lastAssistantIndex === undefined || live.index !== lastAssistantIndex) {
-        return false;
-    }
-    const message = chat[live.index];
+    const message = chat[coverage.checkpointIndex];
     if (!message?.extra) {
         return false;
     }
     delete message.extra.summaryception_continuity;
     trace(
-        `Continuity checkpoint dropped: host ${generationType} replaces the audited reply (@${live.index})`,
+        `Continuity checkpoint dropped: host ${generationType} replaces the audited reply (@${coverage.checkpointIndex})`,
     );
     return true;
 }
@@ -102,23 +92,21 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
         return { status: 'idle' };
     }
     const chat = getChat();
-    const live = findLiveCheckpoint(chat);
-    const anchorIndex = live ? live.index : -1;
-    const assistantIndices = listAssistantIndicesAfter(chat, anchorIndex);
-    if (assistantIndices.length === 0) {
+    const coverage = deriveContinuityCoverage(chat);
+    if (coverage.targetIndex === null) {
         return { status: 'idle' };
     }
-    const turnCount = deriveTurnCount(chat);
-    const targetIndex = assistantIndices[assistantIndices.length - 1];
+    const targetIndex = coverage.targetIndex;
     const target = chat[targetIndex];
-    const priorState = live ? structuredClone(live.state) : createDefaultContinuity();
+    const turnCount = coverage.turnCount;
+    const priorState = coverage.state ? structuredClone(coverage.state) : createDefaultContinuity();
     const store = getChatStore();
-    const storyTxt = buildAuditStory(chat, anchorIndex);
+    const storyTxt = buildAuditStory(chat, coverage.windowIndices);
     const contextStr = buildAuditorContext(priorState, store);
     if (isContinuityStateLogEnabled()) {
         logContinuityAudit(
-            `${LOG_PREFIX} [Continuity] audit - START (turn ${turnCount}, coverage ${anchorIndex < 0 ? 'start' : anchorIndex})`,
-            { kind: 'start', turn_count: turnCount, coverage_index: anchorIndex },
+            `${LOG_PREFIX} [Continuity] audit - START (turn ${turnCount}, coverage ${coverage.checkpointIndex ?? 'start'})`,
+            { kind: 'start', turn_count: turnCount, coverage_index: coverage.checkpointIndex },
         );
     }
     try {
@@ -290,33 +278,15 @@ function isSameChatIdentity(a, b) {
 }
 
 /**
- * Render the Catch-up Window: the last CATCHUP_WINDOW_EXCHANGES Exchanges past
- * the coverage anchor index, each Exchange being its user line plus the
- * assistant reply.
+ * Render the covered chat indices as the audit story: each Exchange is its
+ * user line plus the assistant reply.
  * @param {ChatMessage[]} chat
- * @param {number} anchorIndex - -1 selects the whole chat.
+ * @param {number[]} windowIndices - Sorted covered indices from the coverage read model.
  * @returns {string}
  */
-function buildAuditStory(chat, anchorIndex) {
-    const assistantIndices = listAssistantIndicesAfter(chat, anchorIndex);
-    const windowIndices = assistantIndices.slice(-CATCHUP_WINDOW_EXCHANGES);
-    const included = new Set(windowIndices);
-    for (const index of windowIndices) {
-        // Walk back over non-user (assistant, system, hidden) messages to the
-        // Exchange's user turn; a system message between the turns must not
-        // drop the user line.
-        let back = index - 1;
-        while (back >= 0) {
-            if (chat[back]?.is_user) {
-                included.add(back);
-                break;
-            }
-            back--;
-        }
-    }
+function buildAuditStory(chat, windowIndices) {
     const playerName = getName1();
-    return [...included]
-        .sort((a, b) => a - b)
+    return windowIndices
         .map((index) => {
             const message = chat[index];
             const speaker = message.is_user ? playerName : String(message.name || 'Assistant');

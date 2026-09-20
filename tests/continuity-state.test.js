@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { makeMessage } from './test-helpers.js';
-
 import { defaultSettings } from '../src/foundation/constants.js';
 import {
     applyPairFlags,
     canonicalizePairKey,
     classifyContinuity,
     createDefaultContinuity,
-    deriveTurnCount,
-    findLiveCheckpoint,
 } from '../src/core/continuity-state.js';
 import { formatContinuityBlock } from '../src/features/continuity-injection.js';
 
@@ -427,24 +423,6 @@ describe('applyPairFlags', () => {
     });
 });
 
-describe('deriveTurnCount', () => {
-    const chat = [
-        makeMessage({ isUser: true, scId: 'u1' }),
-        makeMessage({ scId: 'a1' }),
-        makeMessage({ isUser: true, scId: 'u2' }),
-        makeMessage({ scId: 'a2' }),
-        makeMessage({ isSystem: true, scId: 's1' }),
-        makeMessage({ isUser: true, scId: 'u3' }),
-        makeMessage({ scId: 'a3' }),
-    ];
-
-    it('counts every assistant message from chat start, skipping users and system messages', () => {
-        expect(deriveTurnCount(chat)).toBe(3);
-        expect(deriveTurnCount([])).toBe(0);
-        expect(deriveTurnCount(undefined)).toBe(0);
-    });
-});
-
 describe('gate ladder rendering', () => {
     const stateWithBond = (bond) => ({
         turn_count: 1,
@@ -476,94 +454,6 @@ describe('gate ladder rendering', () => {
         } else {
             expect(block).toContain(`; Gate: ${gate}`);
         }
-    });
-});
-
-describe('findLiveCheckpoint', () => {
-    const auditedState = (overrides = {}) => ({
-        turn_count: 1,
-        bonds: { 'Quipsy↔User': { bond: 2, sparks: 0, grudge: 0 } },
-        agendas: {},
-        gm_notes: [],
-        physics: { ...coldStart().physics, location: 'Salon' },
-        ...overrides,
-    });
-
-    const withCheckpoint = (message, state) => {
-        message.extra.summaryception_continuity = state;
-        return message;
-    };
-
-    it('returns null for a chat without any checkpoint payload', () => {
-        const chat = [makeMessage({ isUser: true, scId: 'u1' }), makeMessage({ scId: 'a1' })];
-        expect(findLiveCheckpoint(chat)).toBeNull();
-        expect(findLiveCheckpoint(undefined)).toBeNull();
-    });
-
-    it('returns the newest payload regardless of user-message positions', () => {
-        const chat = [
-            makeMessage({ isUser: true, scId: 'u1' }),
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            makeMessage({ isUser: true, scId: 'u2' }),
-            withCheckpoint(makeMessage({ scId: 'a2' }), auditedState({ turn_count: 2 })),
-        ];
-
-        const live = findLiveCheckpoint(chat);
-
-        expect(live.state).toEqual(auditedState({ turn_count: 2 }));
-        expect(live.index).toBe(3);
-    });
-
-    it('keeps newest-wins when the chat has no user message', () => {
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            withCheckpoint(makeMessage({ scId: 'a2' }), auditedState({ turn_count: 2 })),
-        ];
-
-        const live = findLiveCheckpoint(chat);
-
-        expect(live.state).toEqual(auditedState({ turn_count: 2 }));
-        expect(live.index).toBe(1);
-    });
-
-    it('keeps newest-wins when the checkpoint sits after the last user message', () => {
-        // The fresh-audit scenario: the audit lands while the newest user
-        // message is still the one before the reply (the old pre-user anchor
-        // rule nulled this and killed the injection).
-        const chat = [
-            makeMessage({ isUser: true, scId: 'u1' }),
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-        ];
-
-        const live = findLiveCheckpoint(chat);
-
-        expect(live.state).toEqual(auditedState({ turn_count: 1 }));
-        expect(live.index).toBe(1);
-    });
-
-    it('skips user and system messages while searching', () => {
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            makeMessage({ isUser: true, scId: 'u1' }),
-            makeMessage({ scId: 'a2' }),
-            makeMessage({ isSystem: true, scId: 's1' }),
-            withCheckpoint(makeMessage({ scId: 'a3' }), auditedState({ turn_count: 3 })),
-            makeMessage({ isUser: true, scId: 'u2' }),
-        ];
-
-        expect(findLiveCheckpoint(chat).index).toBe(4);
-    });
-
-    it('skips a non-object payload and falls back to an older one', () => {
-        const chat = [
-            withCheckpoint(makeMessage({ scId: 'a1' }), auditedState({ turn_count: 1 })),
-            withCheckpoint(makeMessage({ scId: 'a2' }), 7),
-        ];
-
-        const live = findLiveCheckpoint(chat);
-
-        expect(live.state).toEqual(auditedState({ turn_count: 1 }));
-        expect(live.index).toBe(0);
     });
 });
 

@@ -1,4 +1,4 @@
-import { findLiveCheckpoint, listAssistantIndicesAfter } from '../core/continuity-state.js';
+import { deriveContinuityCoverage } from '../core/continuity-coverage.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { trace, warn } from '../foundation/logger.js';
@@ -103,17 +103,16 @@ export function updateContinuityInjection() {
     try {
         const settings = getEffectiveSettings();
         const chat = getChat();
-        const live = findLiveCheckpoint(chat);
-        const checkpointIndex = live ? live.index : -1;
+        const coverage = deriveContinuityCoverage(chat);
         let text = '';
         let depth = 0;
         let drift = 0;
-        if (settings.enabled && settings.continuityEnabled === true && live) {
-            const block = formatContinuityBlock(live.state);
+        if (settings.enabled && settings.continuityEnabled === true && coverage.state) {
+            const block = formatContinuityBlock(coverage.state);
             if (block !== '') {
-                drift = listAssistantIndicesAfter(chat, checkpointIndex).length;
-                text = drift > 0 ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
-                depth = 1 + drift;
+                drift = coverage.unauditedIndices.length;
+                text = coverage.stale ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
+                depth = coverage.blockDepth;
             }
         }
         if (text === '') {
@@ -121,7 +120,7 @@ export function updateContinuityInjection() {
                 ? 'extension off'
                 : settings.continuityEnabled !== true
                   ? 'auditor off'
-                  : live
+                  : coverage.state
                     ? 'state renders empty'
                     : 'no checkpoint payload';
             trace(`Continuity slot cleared: ${reason}`);
@@ -134,7 +133,7 @@ export function updateContinuityInjection() {
             return;
         }
         trace(
-            `Continuity slot set: checkpoint @${checkpointIndex}, drift ${drift}, depth ${depth}, ${text.length} chars`,
+            `Continuity slot set: checkpoint @${coverage.checkpointIndex}, drift ${drift}, depth ${depth}, ${text.length} chars`,
         );
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
