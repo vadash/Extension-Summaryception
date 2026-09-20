@@ -191,12 +191,12 @@ _Avoid_: snapshot, state backup
 
 **Continuity Mark**:
 The indicator the extension adds to the chat view of every assistant reply whose message extra carries a Continuity Checkpoint payload. The reply holding the live checkpoint carries a second, distinct mark.
-Code: `updateContinuityMarker` (src/entry/continuity-marker.js)
+Code: `updateContinuityMarker` (src/entry/continuity-marker.js), `deriveContinuityMarks` (src/core/continuity-coverage.js)
 _Avoid_: continuity badge, audit checkmark
 
 **Live Mark**:
 The second, distinct Continuity Mark on the reply holding the live Continuity Checkpoint, the newest payload message. The Live Mark implies the base Continuity Mark.
-Code: `deriveContinuityMarks` (src/entry/continuity-marker.js)
+Code: `deriveContinuityMarks` (src/core/continuity-coverage.js)
 _Avoid_: current checkpoint badge, anchor dot
 
 **Continuity Coverage**:

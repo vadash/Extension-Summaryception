@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveContinuityMarks } from '../src/entry/continuity-marker.js';
+import { deriveContinuityMarks } from '../src/core/continuity-coverage.js';
 import { makeMessage } from './test-helpers.js';
 
 function audited(message) {

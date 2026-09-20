@@ -23,6 +23,37 @@ export function isRecord(value) {
 }
 
 /**
+ * The assistant-reply test every Continuity chat walk shares: a present
+ * message that is neither the user turn nor a system line.
+ * @param {ChatMessage} [message]
+ * @returns {boolean}
+ */
+export function isAssistantMessage(message) {
+    if (!message) {
+        return false;
+    }
+    return !message.is_user && !message.is_system;
+}
+
+/**
+ * Turn Count: the number of assistant turns in the chat, re-derived from the
+ * chat at every audit (ADR-0006). Coverage consumes this derivation, and the
+ * Conversion multiples evaluate against the count an audit applies.
+ * @param {ChatMessage[] | unknown} chat
+ * @returns {number}
+ */
+export function deriveTurnCount(chat) {
+    const messages = Array.isArray(chat) ? chat : [];
+    let count = 0;
+    for (const message of messages) {
+        if (isAssistantMessage(message)) {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+/**
  * Agenda and bond text fields degrade to their schema defaults rather than
  * verdicts: only missing sections, unknown pair keys, and unknown note tags
  * are section-repair worthy.

@@ -6,6 +6,7 @@ import {
     canonicalizePairKey,
     classifyContinuity,
     createDefaultContinuity,
+    deriveTurnCount,
 } from '../src/core/continuity-state.js';
 import { formatContinuityBlock } from '../src/features/continuity-injection.js';
 
@@ -461,5 +462,22 @@ describe('continuity state log defaults', () => {
     it('defaults both continuity state log flags to false', () => {
         expect(defaultSettings.continuityStateLogMode).toBe(false);
         expect(defaultSettings.continuityStateLogFullMode).toBe(false);
+    });
+});
+
+describe('deriveTurnCount', () => {
+    it('counts every assistant turn in the chat', () => {
+        const chat = [{ is_user: true }, {}, { is_user: true }, {}, {}];
+        expect(deriveTurnCount(chat)).toBe(3);
+    });
+
+    it('ignores user, system, and falsy entries', () => {
+        const chat = [{ is_user: true }, null, { is_system: true }, {}];
+        expect(deriveTurnCount(chat)).toBe(1);
+    });
+
+    it('derives zero from an empty or missing chat', () => {
+        expect(deriveTurnCount([])).toBe(0);
+        expect(deriveTurnCount(undefined)).toBe(0);
     });
 });

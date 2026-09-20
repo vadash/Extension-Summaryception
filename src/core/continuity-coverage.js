@@ -1,6 +1,6 @@
 import { getChat } from '../foundation/context.js';
 import { CATCHUP_WINDOW_EXCHANGES } from '../foundation/constants.js';
-import { isRecord } from './continuity-state.js';
+import { deriveTurnCount, isAssistantMessage, isRecord } from './continuity-state.js';
 
 /**
  * Continuity Coverage: the one read model of the chat for the Continuity
@@ -84,7 +84,7 @@ export function deriveContinuityCoverage(chat, options = {}) {
     return {
         checkpointIndex,
         state: checkpoint ? checkpoint.state : null,
-        turnCount: listAssistantIndicesAfter(messages, -1).length,
+        turnCount: deriveTurnCount(messages),
         unauditedIndices,
         targetIndex:
             unauditedIndices.length > 0 ? unauditedIndices[unauditedIndices.length - 1] : null,
@@ -93,6 +93,34 @@ export function deriveContinuityCoverage(chat, options = {}) {
         blockDepth: 1 + unauditedIndices.filter((index) => index !== excludedIndex).length,
         rerollTail,
     };
+}
+
+/**
+ * @typedef {object} ContinuityMarks
+ * @property {number[]} markedIndices - Chat indices of assistant replies whose extra carries a Continuity Checkpoint payload.
+ * @property {number | null} liveIndex - Chat index holding the live Continuity Checkpoint, or null when no reply carries a payload.
+ */
+
+/**
+ * The Continuity Mark read model: payload presence is the only test, no
+ * freshness or coverage math. The Live Mark rides the same newest-payload-wins
+ * walk as the coverage anchor, read over the full chat view: the reroll tail
+ * keeps its payload mark and its Live Mark because the stale marker reads the
+ * chat view, not the prompt view (ADR-0017, ADR-0022).
+ * @param {ChatMessage[] | unknown} chat
+ * @returns {ContinuityMarks}
+ */
+export function deriveContinuityMarks(chat) {
+    const messages = Array.isArray(chat) ? chat : [];
+    const markedIndices = [];
+    for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
+        if (isAssistantMessage(message) && isRecord(message.extra?.summaryception_continuity)) {
+            markedIndices.push(index);
+        }
+    }
+    const checkpoint = findLiveCheckpoint(messages, -1);
+    return { markedIndices, liveIndex: checkpoint ? checkpoint.index : null };
 }
 
 /**
@@ -106,7 +134,7 @@ function listAssistantIndicesAfter(messages, anchorIndex) {
     const indices = [];
     for (let index = (anchorIndex ?? -1) + 1; index < messages.length; index++) {
         const message = messages[index];
-        if (message && !message.is_user && !message.is_system) {
+        if (isAssistantMessage(message)) {
             indices.push(index);
         }
     }
@@ -149,7 +177,7 @@ function findLiveCheckpoint(messages, excludedIndex) {
             continue;
         }
         const message = messages[index];
-        if (!message || message.is_user || message.is_system) {
+        if (!isAssistantMessage(message)) {
             continue;
         }
         const payload = message.extra?.summaryception_continuity;
