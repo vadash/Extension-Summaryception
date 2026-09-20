@@ -102,7 +102,7 @@
 - Show the Off banner beside the selected panel.
 - Open the Status tab on every startup.
 - A state category toggle needs both write handling and render synchronization.
-- Feature modules return structured outcomes and emit notify events; entry owns all notice text, display duration, and update cadence (ADR-0004).
+- Feature modules return structured outcomes and emit notify events; entry owns all notice text, display duration, and update cadence (ADR-0019).
 - Bind toast action buttons with delegated document clicks. Toast content does not exist at bind time.
 - Keep user-facing text out of feature modules.
 - Keep the first view focused on status, activity, and required action.

@@ -73,7 +73,7 @@ export function discardRegeneratedCheckpoint(generationType) {
  * guarding only the chat-switch window around the host's saveMetadata wait.
  * @param {object} [options]
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter; defaults to the silent adapter
- * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>} Run Outcome per ADR-0004
+ * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>} Run Outcome per ADR-0019
  */
 export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
     const settings = getEffectiveSettings();

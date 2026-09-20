@@ -137,7 +137,7 @@ const SLOP_NOTICES = {
 
 /**
  * Display policy for one manual run strategy: the progress text core reports
- * counts for, and the notice each terminal status renders (ADR-0004).
+ * counts for, and the notice each terminal status renders (ADR-0019).
  * @typedef {object} ManualRunView
  * @property {string} label - Progress text label for the active operation.
  * @property {string} title - User-visible progress toast title.
@@ -304,7 +304,7 @@ const NOTIFY_PROGRESS_VIEWS = {
 const DEFAULT_PROGRESS_VIEW = { subtitle: 'Working', text: 'Working', everyN: 1 };
 
 /**
- * Terminal notices render right after the progress toast closes (ADR-0004).
+ * Terminal notices render right after the progress toast closes (ADR-0019).
  * Unknown kinds close silently.
  * @type {Record<string, () => void>}
  */
@@ -321,12 +321,12 @@ const NOTIFY_TERMINAL_VIEWS = {
 
 /**
  * Fixed display duration for retry warnings. Independent of the backoff wait,
- * which lives in retry policy (ADR-0004).
+ * which lives in retry policy (ADR-0019).
  */
 const RETRY_NOTICE_MS = 5000;
 
 /**
- * Per-kind transient notice policy (ADR-0004): severity, fixed display
+ * Per-kind transient notice policy (ADR-0019): severity, fixed display
  * duration, and phrasing built from the event's structured payload. Durations
  * never derive from core wait times; unknown kinds stay silent.
  * @type {Record<string, (event: import('../core/notify.js').NotifyTransientEvent) => void>}
@@ -400,7 +400,7 @@ export function pauseMemoryToastForGeneration() {
 
 /**
  * Display durations and update cadence live here. Events carry structured
- * data only (ADR-0004).
+ * data only (ADR-0019).
  * @returns {import('../core/notify.js').NotifyAdapter}
  */
 export function createToastrNotifyAdapter() {

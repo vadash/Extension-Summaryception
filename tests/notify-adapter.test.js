@@ -20,7 +20,7 @@ function installTextCapture() {
 }
 
 /**
- * The entry adapter maps structured notify events onto toastr (ADR-0004).
+ * The entry adapter maps structured notify events onto toastr (ADR-0019).
  * Tests assert notification kind, persistence, cadence, and processed/total
  * counts. Wording stays unasserted per house test rules.
  */
@@ -144,7 +144,7 @@ describe('toastr notify adapter mapping', () => {
         expect(toastr.error).not.toHaveBeenCalled();
     });
     // Severity, fragments, and non-persistence are the adapter contract. The
-    // entry owns the exact display durations (ADR-0004).
+    // entry owns the exact display durations (ADR-0019).
     it.each([
         {
             event: { kind: 'run-aborted' },

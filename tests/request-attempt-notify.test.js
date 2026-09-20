@@ -23,7 +23,7 @@ import {
 } from './test-helpers.js';
 
 /**
- * The attempt layer emits structured notify events (ADR-0004) instead of
+ * The attempt layer emits structured notify events (ADR-0019) instead of
  * calling the notification library. Retry waits stay in retry policy. The
  * abort signal cuts them short independently of any display duration.
  */

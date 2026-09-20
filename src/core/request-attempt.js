@@ -293,7 +293,7 @@ function createAttemptAbortContext(userSignal, timeoutMs, timeoutRetryable) {
 
 /**
  * Display duration is adapter policy. The wait stays in retry policy
- * (ADR-0004).
+ * (ADR-0019).
  * @param {object} p
  * @param {number} p.delay - Milliseconds to wait
  * @param {(line: string) => void} p.log - Structured log emitter (warn/info)

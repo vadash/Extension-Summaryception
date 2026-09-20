@@ -131,7 +131,7 @@ describe('hide non-text messages in summarized range', () => {
 
 /**
  * Ghosting reports its hide/unhide lifecycle through the notify adapter
- * (ADR-0004). Tests assert the structured events, never toast text.
+ * (ADR-0019). Tests assert the structured events, never toast text.
  */
 describe('ghosting notify adapter events', () => {
     it('emits structured hide progress events for manual range ghosting', async () => {

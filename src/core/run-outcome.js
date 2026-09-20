@@ -12,7 +12,7 @@
  */
 
 /**
- * Structured result of one summarizer request (ADR-0004). The deepest shared
+ * Structured result of one summarizer request (ADR-0019). The deepest shared
  * request entry returns this instead of an empty-string sentinel. Completed
  * outcomes carry the resolved Call Profile so post-hoc output validation
  * consumes the same frozen policy the request ran under (ADR-0008).

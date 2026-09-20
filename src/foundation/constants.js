@@ -18,7 +18,7 @@ export const TOAST_TITLE = 'Summaryception';
 
 /**
  * Stable ghosting progress labels and terminal clear kinds emitted on the
- * notify adapter (ADR-0004); the entry adapter maps them to on-screen text.
+ * notify adapter (ADR-0019); the entry adapter maps them to on-screen text.
  * Core carries these ids, never prose.
  * @type {{ HIDE: string, UNHIDE: string, UNHIDDEN: string }}
  */
@@ -30,7 +30,7 @@ export const GHOST_PROGRESS = Object.freeze({
 
 /**
  * Stable batch progress label and terminal clear kinds emitted on the notify
- * adapter (ADR-0004); the entry adapter maps them to on-screen text. Core
+ * adapter (ADR-0019); the entry adapter maps them to on-screen text. Core
  * carries these ids, never prose.
  * @type {{ MEMORY: string, UPDATED: string, ABORTED: string, FAILED: string }}
  */
@@ -42,7 +42,7 @@ export const BATCH_PROGRESS = Object.freeze({
 });
 
 /**
- * Stable transient event kinds emitted on the notify adapter (ADR-0004); the
+ * Stable transient event kinds emitted on the notify adapter (ADR-0019); the
  * entry adapter maps each kind to a user notice. Core carries these ids, never
  * prose.
  * @type {{ RUN_ABORTED: string, RUN_FAILED: string, EASY_GUARD_BLOCKED: string, RETRY_WAIT: string, ROUTE_CYCLE_WAIT: string, LANGUAGE_MIX_RETRY: string, PROMOTION_STARTED: string }}

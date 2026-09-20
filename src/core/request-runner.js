@@ -447,7 +447,7 @@ function logRetryStopReason(reason, maxRetries) {
 
 /**
  * Stopping a run is not a failure. Entry renders the notice from this
- * structured event (ADR-0004).
+ * structured event (ADR-0019).
  * @param {import('./notify.js').NotifyAdapter} notify - Notify adapter threaded from the request series
  * @returns {import('./run-outcome.js').RunOutcome} The aborted outcome
  */

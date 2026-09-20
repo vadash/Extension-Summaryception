@@ -143,7 +143,7 @@ export function makeToastrMock() {
 
 /**
  * Build a silent notify adapter that records every structured event
- * (ADR-0004 seam). Events are flat records: `type` plus the structured payload.
+ * (ADR-0019 seam). Events are flat records: `type` plus the structured payload.
  * @returns {{ events: Array<object>, transient: (event: object) => void, progress: (event: object) => object, update: (handle: unknown, event: object) => void, clear: (handle: unknown, event?: object) => void }}
  */
 export function makeNotifyRecorder() {

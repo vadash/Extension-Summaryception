@@ -1,5 +1,5 @@
 /**
- * Notify adapter seam (ADR-0004): core modules emit structured events, entry
+ * Notify adapter seam (ADR-0019): core modules emit structured events, entry
  * renders every user-facing notice. The adapter is created once at the
  * composition root and reaches core only through explicit arguments; callers
  * without one fall back to a silent adapter.
@@ -17,7 +17,7 @@
  */
 
 /**
- * Structured transient event payload (ADR-0004). Core sends only the fields
+ * Structured transient event payload (ADR-0019). Core sends only the fields
  * its `kind` documents; entry views read only those fields.
  * @typedef {object} NotifyTransientEvent
  * @property {string} kind - Stable event kind from NOTIFY_EVENTS.

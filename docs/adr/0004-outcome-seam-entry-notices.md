@@ -1,7 +1,8 @@
 # Structured run outcomes cross the core seam; entry renders all notices
 
-Core modules return a structured Run Outcome and receive an explicit notify adapter for mid-run notices (one-shot, progress handle, clear); every user-facing toast string lives in entry modules. Toasting directly from core was rejected: bare toastr globals bypass the host facade (ADR-0001), retry delays fused to toast lifetimes, and the `''` return collapsed abort, guard block, and failure into one indistinguishable sentinel. Per-call-site toast callbacks were rejected: one notify adapter with a silent test recorder is two real adapters at one seam, testable without DOM or toastr.
-
-The adapter instance is created once at the composition root and distributed by argument; core holds no accessor.
-
-The outcome vocabulary spans the summarizer request, batch commit, promotion drain, and the auto cycle: `completed`, `aborted`, `blocked`, `failed`, `idle` (`idle` marks no eligible work).
+> Superseded by ADR-0019 (2026-09-20). Decided that core modules return a
+> structured Run Outcome, that core receives notices through one explicit notify
+> adapter created at the composition root, and that every user-facing toast
+> string lives in entry. ADR-0019 restates that decision whole and extends it
+> with the Manual Run as a fifth run level, the `partial` status, and the manual
+> run's display policy.
