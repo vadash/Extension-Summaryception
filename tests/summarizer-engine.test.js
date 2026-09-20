@@ -31,7 +31,10 @@ vi.mock('../src/core/summary-preflight.js', () => ({
     prepareSummaryCycle: vi.fn(async () => ({ chat: [], store: {} })),
 }));
 
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
+import {
+    beginForegroundGeneration,
+    resetCommitStateForTests,
+} from '../src/core/summarizer-commit.js';
 import { ELASTIC_STRATEGIES, runManual } from '../src/core/summarizer-engine.js';
 import { installSummaryContext } from './test-helpers.js';
 
@@ -195,6 +198,36 @@ describe('manual run work gate', () => {
         expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
         expect(outcome.status).toBe('aborted');
         expect(outcome.failed).toBe(1);
+    });
+});
+
+describe('manual run pre-run outcomes', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        resetCommitStateForTests();
+        installSummaryContext({ chat: [] });
+        stateMocks.getChatStore.mockReturnValue({});
+        stateMocks.getEffectiveSettings.mockReturnValue({});
+        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
+    });
+
+    it('reports idle when the route plan finds no eligible work', async () => {
+        routeMocks.buildForceSummaryRoutePlan.mockResolvedValue({ ready: false, reason: 'none' });
+
+        const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
+
+        expect(outcome).toEqual({ status: 'idle', completed: 0, failed: 0, totalBatches: 0 });
+        expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
+    });
+
+    it('reports blocked with no batches when the gate closed before the run', async () => {
+        beginForegroundGeneration();
+
+        const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
+
+        expect(outcome).toEqual({ status: 'blocked', completed: 0, failed: 0, totalBatches: 0 });
+        expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
     });
 });
 
