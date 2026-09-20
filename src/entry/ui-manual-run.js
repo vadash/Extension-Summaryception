@@ -15,6 +15,7 @@ import {
     clearManualProgressToast,
     confirmSlopBreaker,
     createManualProgressToast,
+    manualRunView,
     showBusySummaryToast,
     showCatchupOutcome,
     showSlopBreakerNoop,
@@ -46,22 +47,21 @@ const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>W
  * outcome report (nothing ran).
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @param {string} idleHtml Button html restored after the run.
- * @param {{ run: (options: object) => Promise<object | undefined>, report: (outcome: object) => void, notify: import('../core/notify.js').NotifyAdapter }} ops
+ * @param {{ run: (options: object) => Promise<object | undefined>, report: (outcome: object) => void, notify: import('../core/notify.js').NotifyAdapter, view: import('./ui-dialogs.js').ManualRunView }} ops
  * @returns {Promise<void>}
  */
-async function runManualSummarization($button, idleHtml, { run, report, notify }) {
+async function runManualSummarization($button, idleHtml, { run, report, notify, view }) {
     const controller = new AbortController();
     let progressToast = null;
     const options = {
         signal: controller.signal,
         notify,
         onStart: (progress) => {
-            progressToast = createManualProgressToast({
-                ...progress,
-                onCancel: () => cancelManualRun(controller),
-            });
+            progressToast = createManualProgressToast(progress, view, () =>
+                cancelManualRun(controller),
+            );
         },
-        onProgress: (progress) => updateManualProgressToast(progressToast, progress),
+        onProgress: (progress) => updateManualProgressToast(progressToast, progress, view),
     };
     if ($button) {
         $button.prop('disabled', true).html(MANUAL_RUN_BUSY_HTML);
@@ -136,6 +136,7 @@ async function executeForceSummarize($button, notify) {
             },
             report: showCatchupOutcome,
             notify,
+            view: manualRunView(ELASTIC_STRATEGIES.FORCE),
         },
     );
 }
@@ -168,6 +169,7 @@ async function onSlopBreaker(buttonEl, notify) {
             run: (options) => runManual(manualRunnerDeps, ELASTIC_STRATEGIES.SLOP, options),
             report: showSlopBreakerOutcome,
             notify,
+            view: manualRunView(ELASTIC_STRATEGIES.SLOP),
         },
     );
 }

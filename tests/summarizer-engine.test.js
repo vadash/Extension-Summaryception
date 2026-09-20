@@ -110,10 +110,12 @@ describe('manual run progress callbacks', () => {
             completed: 0,
             failed: 0,
             totalBatches: 1,
-            label: 'Processing',
-            title: 'Summaryception Catch-Up',
         });
-        expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ completed: 1 }));
+        expect(onProgress).toHaveBeenCalledWith({
+            completed: 1,
+            failed: 0,
+            totalBatches: 1,
+        });
         expect(outcome.fullyCommitted).toBe(true);
     });
 
@@ -152,8 +154,6 @@ describe('manual run progress callbacks', () => {
             completed: 0,
             failed: 0,
             totalBatches: 1,
-            label: 'Breaking slop',
-            title: 'Summaryception Slop Breaker',
         });
         expect(outcome.fullyCommitted).toBe(true);
     });

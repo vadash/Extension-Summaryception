@@ -41,8 +41,6 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @property {number} completed - Number of committed batches so far.
  * @property {number} failed - Number of failed batches so far.
  * @property {number} totalBatches - Estimated total batches for the run.
- * @property {string} label - Short progress label for the active operation.
- * @property {string} title - User-visible progress title.
  */
 
 /**
@@ -245,8 +243,6 @@ const isManualTargetReached = (targetIndex) =>
  * boundary movement around one batch commit into the batch result flags.
  * @typedef {object} ManualStrategy
  * @property {string} usageLabel - Usage accounting scope label for the run.
- * @property {string} label - Short progress label for the active operation.
- * @property {string} title - User-visible progress title.
  * @property {(prepared?: { chat: ChatMessage[], store: SummaryceptionStore }, targetIndex?: number) => Promise<import('./summarization-routes.js').SummaryRoutePlan>} buildBatch - Builds the next route plan.
  * @property {(plan: import('./summarization-routes.js').SummaryRoutePlan, beforeIndex: number, afterIndex: number) => { committed: boolean, done?: boolean }} assessCommit - Boundary assessment for one committed batch.
  */
@@ -254,8 +250,6 @@ const isManualTargetReached = (targetIndex) =>
 const MANUAL_STRATEGIES = Object.freeze({
     [ELASTIC_STRATEGIES.FORCE]: {
         usageLabel: 'force summarize catch-up',
-        label: 'Processing',
-        title: 'Summaryception Catch-Up',
         buildBatch: buildForceBatch,
         assessCommit: (_plan, beforeIndex, afterIndex) => ({
             committed: afterIndex > beforeIndex,
@@ -263,8 +257,6 @@ const MANUAL_STRATEGIES = Object.freeze({
     },
     [ELASTIC_STRATEGIES.SLOP]: {
         usageLabel: 'slop breaker',
-        label: 'Breaking slop',
-        title: 'Summaryception Slop Breaker',
         buildBatch: buildSlopBatch,
         assessCommit: (plan, _beforeIndex, afterIndex) => ({
             committed: plan.sourceEndIdx !== undefined && afterIndex >= plan.sourceEndIdx,
@@ -316,7 +308,7 @@ async function executeManualTask(deps, strategy, target, options) {
     const runToken = deps.queue.beginRun('manual-run');
 
     try {
-        options.onStart?.(createProgress(outcome, strategy));
+        options.onStart?.(createProgress(outcome));
 
         while (!isCancelled(options.signal) && !runToken.isStopped()) {
             const batch = await strategy.buildBatch(undefined, target.targetIndex);
@@ -342,7 +334,7 @@ async function executeManualTask(deps, strategy, target, options) {
                 deps.refreshUi();
             }
 
-            options.onProgress?.(createProgress(outcome, strategy));
+            options.onProgress?.(createProgress(outcome));
             await sleep(200);
         }
 
@@ -472,13 +464,11 @@ function createManualRunOutcome(overrides = {}) {
     };
 }
 
-function createProgress(outcome, strategy) {
+function createProgress(outcome) {
     return {
         completed: outcome.completed,
         failed: outcome.failed,
         totalBatches: outcome.totalBatches,
-        label: strategy.label,
-        title: strategy.title,
     };
 }
 

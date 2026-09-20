@@ -1,3 +1,4 @@
+import { ELASTIC_STRATEGIES } from '../core/summarizer-engine.js';
 import { formatTokenValue } from '../core/token-count.js';
 import {
     BATCH_PROGRESS,
@@ -102,28 +103,59 @@ export function showSlopBreakerOutcome(outcome) {
 }
 
 /**
- * @param {import('../core/summarizer-engine.js').ManualRunProgress & { onCancel: () => void }} progress
+ * Display policy for one manual run strategy: the progress text core reports
+ * counts for, and the notice each terminal status renders (ADR-0004).
+ * @typedef {object} ManualRunView
+ * @property {string} label - Progress text label for the active operation.
+ * @property {string} title - User-visible progress toast title.
+ */
+
+/** @type {Record<string, ManualRunView>} */
+const MANUAL_RUN_VIEWS = {
+    [ELASTIC_STRATEGIES.FORCE]: {
+        label: 'Processing',
+        title: 'Summaryception Catch-Up',
+    },
+    [ELASTIC_STRATEGIES.SLOP]: {
+        label: 'Breaking slop',
+        title: 'Summaryception Slop Breaker',
+    },
+};
+
+/**
+ * @param {string} strategy Manual run strategy.
+ * @returns {ManualRunView}
+ */
+export function manualRunView(strategy) {
+    return MANUAL_RUN_VIEWS[strategy];
+}
+
+/**
+ * @param {import('../core/summarizer-engine.js').ManualRunProgress} progress
+ * @param {ManualRunView} view - Display policy of the running strategy.
+ * @param {() => void} onCancel - Cancels the run from the toast's close button.
  * @returns {unknown}
  */
-export function createManualProgressToast(progress) {
-    return toastr.info(getProgressText(progress), progress.title, {
+export function createManualProgressToast(progress, view, onCancel) {
+    return toastr.info(getProgressText(progress, view.label), view.title, {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,
         closeButton: true,
-        onCloseClick: progress.onCancel,
+        onCloseClick: onCancel,
     });
 }
 
 /**
  * @param {unknown} progressToast
  * @param {import('../core/summarizer-engine.js').ManualRunProgress} progress
+ * @param {ManualRunView} view - Display policy of the running strategy.
  * @returns {void}
  */
-export function updateManualProgressToast(progressToast, progress) {
+export function updateManualProgressToast(progressToast, progress, view) {
     $(progressToast)
         .find('.toast-message')
-        .text(`${getProgressText(progress)}\nClick x to pause`);
+        .text(`${getProgressText(progress, view.label)}\nClick x to pause`);
 }
 
 /**
@@ -396,10 +428,11 @@ export function createToastrNotifyAdapter() {
 
 /**
  * @param {import('../core/summarizer-engine.js').ManualRunProgress} progress
+ * @param {string} label - Progress text label for the active operation.
  * @returns {string}
  */
-function getProgressText(progress) {
+function getProgressText(progress, label) {
     const pct = Math.round((progress.completed / progress.totalBatches) * 100);
     const failStr = progress.failed > 0 ? ` | ${progress.failed} failed` : '';
-    return `${progress.label}: ${progress.completed} / ${progress.totalBatches} batches (${pct}%)${failStr}`;
+    return `${label}: ${progress.completed} / ${progress.totalBatches} batches (${pct}%)${failStr}`;
 }
