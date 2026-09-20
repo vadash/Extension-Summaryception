@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveContinuityCoverage } from '../src/core/continuity-coverage.js';
+import { deriveContinuityCoverage, isRerollTail } from '../src/core/continuity-coverage.js';
 import { makeMessage } from './test-helpers.js';
 
 /**
@@ -157,5 +157,49 @@ describe('deriveContinuityCoverage', () => {
 
         expect(deriveContinuityCoverage(settled).blockDepth).toBe(1);
         expect(deriveContinuityCoverage(drifted).blockDepth).toBe(3);
+    });
+});
+
+describe('reroll tail', () => {
+    const tailReply = () => [user('u1'), reply('a1')];
+    const trailingUser = () => [user('u1'), reply('a1'), user('u2')];
+
+    it('detects only the reroll types whose target is the chat tail', () => {
+        expect(isRerollTail('swipe', tailReply())).toBe(true);
+        expect(isRerollTail('regenerate', tailReply())).toBe(true);
+        expect(isRerollTail('normal', tailReply())).toBe(false);
+        expect(isRerollTail('regenerate', trailingUser())).toBe(false);
+        expect(isRerollTail('swipe', [])).toBe(false);
+    });
+
+    it('takes the prompt view: the excluded tail is never the live checkpoint', () => {
+        const chat = [
+            user('u1'),
+            withCheckpoint(reply('a1'), auditedState(1)),
+            user('u2'),
+            withCheckpoint(reply('a2'), auditedState(2)),
+        ];
+
+        const coverage = deriveContinuityCoverage(chat, { rerollTail: true });
+
+        expect(coverage.checkpointIndex).toBe(1);
+        expect(coverage.state).toEqual(auditedState(1));
+        expect(coverage.unauditedIndices).toEqual([3]);
+        expect(coverage.stale).toBe(true);
+        expect(coverage.blockDepth).toBe(1);
+    });
+
+    it('counts the tail again once the reroll is over', () => {
+        const chat = [
+            user('u1'),
+            withCheckpoint(reply('a1'), auditedState(1)),
+            user('u2'),
+            reply('a2'),
+        ];
+
+        const coverage = deriveContinuityCoverage(chat);
+
+        expect(coverage.blockDepth).toBe(2);
+        expect(coverage.stale).toBe(true);
     });
 });

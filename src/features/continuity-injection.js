@@ -92,7 +92,7 @@ export function formatContinuityBlock(state) {
 }
 
 /**
- * Render the live Continuity Checkpoint (ADR-0014) into the dedicated
+ * Render the live Continuity Checkpoint (ADR-0017) into the dedicated
  * injection slot. Staleness is derived, not stored: the block carries the
  * spec §7 marker and an uncapped depth while newer un-audited Exchanges
  * trail the checkpoint. The slot clears when the extension or the Auditor is
@@ -132,8 +132,9 @@ export function updateContinuityInjection() {
             });
             return;
         }
+        const promptViewNote = coverage.rerollTail ? ' (reroll tail excluded)' : '';
         trace(
-            `Continuity slot set: checkpoint @${coverage.checkpointIndex}, drift ${drift}, depth ${depth}, ${text.length} chars`,
+            `Continuity slot set: checkpoint @${coverage.checkpointIndex}, drift ${drift}, depth ${depth}${promptViewNote}, ${text.length} chars`,
         );
         setExtensionPrompt(CONTINUITY_INJECTION_SLOT, text, {
             position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,

@@ -164,7 +164,7 @@ describe('runAuditorExtraction', () => {
     });
 
     it('lands the audit when the chat merely grows mid-flight', async () => {
-        // ADR-0014 attach-by-reference: new exchanges after dispatch no
+        // ADR-0017 attach-by-reference: new exchanges after dispatch no
         // longer discard the audit; the checkpoint lands on the audited reply.
         const ctx = installSoloChat();
         callSummarizer.mockImplementation(async () => {

@@ -4,7 +4,7 @@ import {
     createDefaultContinuity,
     isRecord,
 } from './continuity-state.js';
-import { deriveContinuityCoverage } from './continuity-coverage.js';
+import { deriveContinuityCoverage, isRerollTail } from './continuity-coverage.js';
 import { diffContinuityStates } from './continuity-diff.js';
 import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import {
@@ -36,39 +36,31 @@ export function isAuditorTriggerMessage(message, type) {
 }
 
 /**
- * Host generation types that replace the last assistant message instead of
- * appending after it.
- */
-const REGENERATION_TYPES = new Set(['swipe', 'regenerate']);
-
-/**
- * Drop the live Continuity Checkpoint when the host starts regenerating its
- * message: the payload describes the exact draft being replaced, and ST keeps
- * the message with its extra in the chat during the regeneration, so
- * newest-payload-wins would otherwise ship the discarded draft's state into
- * the regenerated prompt. After the drop the read model falls back to the
- * prior checkpoint and the regenerated reply is unaudited, so the next
- * settled audit re-covers it. In-memory only: ST persists the chat when the
- * regenerated reply settles.
+ * Drop the Continuity Checkpoint on the message a host reroll replaces: the
+ * payload describes the exact draft being replaced, and ST keeps the message
+ * with its extra in the chat during the regeneration, so newest-payload-wins
+ * would otherwise ship the discarded draft's state into the regenerated
+ * prompt. After the drop the read model falls back to the prior checkpoint and
+ * the regenerated reply is unaudited, so the next settled audit re-covers it.
+ * In-memory only: ST persists the chat when the regenerated reply settles.
+ * The drop fires only when the reroll replaces the chat's last message; a
+ * regenerate over a trailing user turn generates a new reply and replaces
+ * nothing, so its checkpoint stays.
  * @param {unknown} generationType - ST GENERATION_STARTED type argument.
  * @returns {boolean} True when a checkpoint was dropped.
  */
 export function discardRegeneratedCheckpoint(generationType) {
-    if (typeof generationType !== 'string' || !REGENERATION_TYPES.has(generationType)) {
-        return false;
-    }
     const chat = getChat();
-    const coverage = deriveContinuityCoverage(chat);
-    if (coverage.checkpointIndex === null || coverage.unauditedIndices.length > 0) {
+    if (!isRerollTail(generationType, chat)) {
         return false;
     }
-    const message = chat[coverage.checkpointIndex];
-    if (!message?.extra) {
+    const message = chat[chat.length - 1];
+    if (!message?.extra?.summaryception_continuity) {
         return false;
     }
     delete message.extra.summaryception_continuity;
     trace(
-        `Continuity checkpoint dropped: host ${generationType} replaces the audited reply (@${coverage.checkpointIndex})`,
+        `Continuity checkpoint dropped: host ${generationType} replaces the audited reply (@${chat.length - 1})`,
     );
     return true;
 }
@@ -77,7 +69,7 @@ export function discardRegeneratedCheckpoint(generationType) {
  * Run one Continuity Auditor lifecycle (issue #28): gate, dispatch one
  * combined extraction call over the summarizer router, validate once with
  * classifyContinuity, apply the JS flags rulebook, and overwrite
- * the Continuity State payload on the audited reply's extra (ADR-0014),
+ * the Continuity State payload on the audited reply's extra (ADR-0017),
  * guarding only the chat-switch window around the host's saveMetadata wait.
  * @param {object} [options]
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter; defaults to the silent adapter
@@ -126,7 +118,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             return { status: 'failed' };
         }
         // Attach to the audited reply's message object; a mid-flight chat
-        // growth leaves it in place, a deletion drops the write (ADR-0014).
+        // growth leaves it in place, a deletion drops the write (ADR-0017).
         const currentChat = getChat();
         if (!currentChat.includes(target)) {
             if (isContinuityStateLogEnabled()) {
@@ -200,7 +192,7 @@ function logAuditCompletion(priorSnapshot, state, turnCount, auditedScId) {
  * or an abort yields no audit; a completed response without text is a
  * contract violation and counts as a failed draft. Validation failure means
  * no checkpoint write; the next audit re-covers the Exchanges through the
- * Catch-up Window (ADR-0014, single-call audit).
+ * Catch-up Window (ADR-0017, single-call audit).
  * @param {string} storyTxt
  * @param {string} contextStr
  * @param {object} deps

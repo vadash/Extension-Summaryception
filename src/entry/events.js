@@ -9,6 +9,7 @@ import {
     runAuditorExtraction,
     discardRegeneratedCheckpoint,
 } from '../core/continuity-runner.js';
+import { beginRerollTail, endRerollTail } from '../core/continuity-coverage.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -218,11 +219,12 @@ export function onGenerationStarted(...args) {
         return;
     }
     // A reroll replaces the last reply; its own checkpoint must leave the
-    // read model before the freeze locks the slot content in. The hook is
-    // the gate's pre-freeze window, so the drop and the slot refresh land
-    // even when a stale-heal is still in flight.
+    // read model and the prompt view must exclude that reply before the freeze
+    // locks the slot content in. The hook is the gate's pre-freeze window, so
+    // both land even when a stale-heal is still in flight.
     beginForegroundGeneration({
         beforeFreeze: () => {
+            beginRerollTail(args[0]);
             if (discardRegeneratedCheckpoint(args[0])) {
                 updateContinuityInjection();
             }
@@ -245,6 +247,7 @@ export function onGenerationEnded() {
         return;
     }
 
+    endRerollTail();
     void (async () => {
         try {
             await endForegroundGeneration();

@@ -9,7 +9,11 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 
 import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
-import { deriveContinuityCoverage } from '../src/core/continuity-coverage.js';
+import {
+    deriveContinuityCoverage,
+    endRerollTail,
+    isRerollTailInFlight,
+} from '../src/core/continuity-coverage.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
@@ -69,6 +73,7 @@ afterEach(() => {
     vi.resetModules();
     callSummarizer.mockReset();
     continuityWrites.frozenAtWrite.length = 0;
+    endRerollTail();
     resetCommitStateForTests();
     delete globalThis.SillyTavern;
 });
@@ -172,10 +177,48 @@ describe('continuity injection across reroll', () => {
             ([name]) => name === 'summaryception_continuity',
         );
         expect(slotCall).toBeDefined();
-        const block = slotCall[1];
+        const [, block, , depth] = slotCall;
         expect(block).not.toContain('draft-two thread');
         expect(block).not.toContain('Kitchen');
         expect(block).toContain('BOND +1');
+        // The host drops the rerolled reply from the prompt chat (ST
+        // script.js coreChat.pop() for a swipe, and the delete for a
+        // regenerate), so the block lands one message past the covered
+        // exchange: directly before the pending user turn u2, not inside the
+        // covered exchange.
+        expect(depth).toBe(1);
+    });
+
+    it('keeps the checkpoint and the whole prompt view when regenerate answers a trailing user turn', () => {
+        // ST treats regenerate on a trailing user message as "generate a new
+        // reply": nothing is replaced and nothing leaves the prompt.
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+        ];
+        chat[1].extra.summaryception_continuity = auditedExchangeOne();
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            setExtensionPrompt,
+            metadata: { summaryception: makeSummaryStore() },
+            settings: { continuityEnabled: true },
+        });
+
+        onGenerationStarted('regenerate', {}, false);
+
+        expect(chat[1].extra.summaryception_continuity).toBeDefined();
+        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
+        expect(isRerollTailInFlight()).toBe(false);
+
+        updateContinuityInjection();
+
+        const slotCall = setExtensionPrompt.mock.calls.find(
+            ([name]) => name === 'summaryception_continuity',
+        );
+        expect(slotCall[1]).toContain('BOND +1');
+        expect(slotCall[3]).toBe(1);
     });
 
     it('drops the checkpoint on swipe generations the same way', () => {

@@ -161,8 +161,18 @@ The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for 
 _Avoid_: roleplay state, sync state
 
 **Continuity Checkpoint**:
-The per-message copy of the Continuity State an audit commits into the audited reply's message extra. The newest assistant message carrying a checkpoint is the live Continuity State; a newer audit overwrites the payload in place. A swipe or regenerate drops the checkpoint on the rerolled reply at generation start, so the rerolled answer is unaudited until the next audit re-covers it.
+The per-message copy of the Continuity State an audit commits into the audited reply's message extra. The newest assistant message carrying a checkpoint is the live Continuity State; a newer audit overwrites the payload in place. A swipe or regenerate that replaces the chat's last message drops that reply's checkpoint at generation start, so the rerolled answer is unaudited until the next audit re-covers it; a regenerate over a trailing user turn replaces nothing and keeps it.
 _Avoid_: snapshot, state backup
+
+**Continuity Coverage**:
+The one read model of the chat for the Continuity Engine: the live Continuity Checkpoint, the un-audited replies after it, the Catch-up Window, the Turn Count, the staleness verdict, and the Continuity Block's prompt placement. The Auditor's lifecycle and the block injection both consume it, so coverage derives in one place instead of twice.
+Code: `deriveContinuityCoverage` (src/core/continuity-coverage.js)
+_Avoid_: continuity snapshot, sync read model
+
+**Reroll Tail**:
+The chat's last message while a swipe or regenerate generation is replacing it. The host excludes that message from the prompt chat, so the Continuity Block's placement counts the prompt view, which drops the tail; the stale marker keeps reading the chat view.
+Code: `isRerollTail` / `beginRerollTail` (src/core/continuity-coverage.js)
+_Avoid_: swiped message, pending reply
 
 **Continuity Block**:
 The compact in-chat prompt injection rendered from the Continuity State.
