@@ -341,22 +341,6 @@ describe('settings normalization', () => {
     });
 });
 
-describe('ui gating', () => {
-    it('toggles the continuity section with the extension enabled state', async () => {
-        const { syncEnabledContent } = await import('../src/entry/ui.js');
-        const toggles = {};
-        globalThis.$ = vi.fn((selector) => ({
-            toggle(visible) {
-                toggles[selector] = visible;
-            },
-        }));
-        syncEnabledContent({ enabled: true, uiMode: 'advanced', autoPaused: false });
-        expect(toggles['#sc_continuity_section']).toBe(true);
-        syncEnabledContent({ enabled: false, uiMode: 'off', autoPaused: false });
-        expect(toggles['#sc_continuity_section']).toBe(false);
-    });
-});
-
 describe('continuity state audit log', () => {
     const { logger } = globalThis.summaryceptionFoundationMocks;
 

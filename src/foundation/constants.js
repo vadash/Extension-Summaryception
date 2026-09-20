@@ -108,6 +108,16 @@ export const UI_MODES = Object.freeze({
 });
 
 /**
+ * Operation Mode: whether the extension is On or Off. Off is the only state
+ * that disables runtime behavior. Distinct from the Complexity Mode axis in
+ * UI_MODES, which selects the visible panel.
+ */
+export const OPERATION_MODES = Object.freeze({
+    ON: 'on',
+    OFF: 'off',
+});
+
+/**
  * Slider and numeric-stepper bounds, keyed by setting id. Single source of
  * truth for the min/max/step attributes in settings.html and for the
  * read-time clamps in the settings normalizer; declaration↔template

@@ -69,8 +69,18 @@ _Avoid_: output sanitization, response post-processing
 A counter bumped on every summary store mutation, including Ghosting ownership. Consumers use it to detect stale derived data.
 Code: `getSummaryStoreMutationEpoch` (src/foundation/state.js)
 
+**Operation Mode**:
+Whether the extension is On or Off. On gates all runtime behavior: automatic cycles, manual runs, prompt injection, and the Continuity Engine. Off is the only state that disables runtime behavior, and turning Off never discards a stored configuration value.
+Code: `readOperationMode` (src/foundation/operation-mode.js); stored in `uiMode` / `enabled`
+_Avoid_: enabled flag, power state
+
+**Complexity Mode**:
+Which panel the settings UI shows: Easy or Advanced. Independent of Operation Mode, so the panel stays visible and editable while the extension is Off, and the selected Complexity Mode is remembered across an Off period.
+Code: `configMode` (src/foundation/state.js); panel flags from `buildEnabledContentModel` (src/entry/ui-view-models.js)
+_Avoid_: view mode, UI level
+
 **Effective Settings**:
-Runtime settings with the extension-Off mode resolved to `enabled: false`. Runtime behavior reads these, never raw settings.
+Runtime settings with the Operation Mode Off resolved to `enabled: false`. Runtime behavior reads these, never raw settings.
 Code: `getEffectiveSettings` (src/foundation/state.js)
 
 **Memory Mode**:

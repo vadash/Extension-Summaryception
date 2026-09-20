@@ -94,6 +94,7 @@
 - Status panels read the auto work read model; entry renders scalars.
 - Sliders save on input. Text and numeric controls save on change or blur.
 - Operating mode gates runtime behavior. Complexity mode selects the visible panel.
+- Mode transitions cross the Operation Mode module (src/foundation/operation-mode.js). Nothing writes uiMode, configMode, or enabled by hand.
 - Bind plain settings through the data-attribute engine. Hand-bind only controls with special semantics.
 - Prompt Profiles bind through src/entry/ui-prompts.js; defaults reset lives in foundation/state.js resetSettingsToDefaults.
 - One layer-label helper serves status panel, snippet browser, and slash commands.

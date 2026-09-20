@@ -8,6 +8,7 @@ import {
 } from '../foundation/constants.js';
 import { error, warn } from '../foundation/logger.js';
 import { clampInteger } from '../foundation/numeric.js';
+import { selectOff, setComplexity, setEnabled } from '../foundation/operation-mode.js';
 import { refreshFull, refreshPreview } from '../foundation/refresh.js';
 import {
     deriveAdvancedEngineTuning,
@@ -71,13 +72,10 @@ function bindModeHandlers() {
             return;
         }
 
-        s.uiMode = mode;
-        s.enabled = mode !== UI_MODES.OFF;
-        // Remember the complexity panel so it stays visible when the
-        // extension is off. Selecting Easy or Advanced updates it. Off
-        // leaves it unchanged.
-        if (mode === UI_MODES.EASY || mode === UI_MODES.ADVANCED) {
-            s.configMode = mode;
+        if (mode === UI_MODES.OFF) {
+            selectOff(s);
+        } else {
+            setComplexity(s, mode);
         }
         saveAndRefreshUi();
         if (s.enabled) {
@@ -92,10 +90,7 @@ function bindModeHandlers() {
 function bindToggleHandlers() {
     $(document).on('change', '#sc_enabled', function () {
         const s = getSettings();
-        s.enabled = $(this).prop('checked');
-        // Preserve the chosen complexity panel. This toggle flips on/off
-        // only, never Easy/Advanced.
-        s.uiMode = s.enabled ? s.configMode || UI_MODES.EASY : UI_MODES.OFF;
+        setEnabled(s, $(this).prop('checked'));
         saveAndRefreshUi();
         if (s.enabled) {
             requestAutoSummaryRefresh('enabled');

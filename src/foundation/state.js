@@ -15,7 +15,6 @@ import {
     SLIDER_LIMITS,
     SUMMARIZER_REPAIR_PROMPT_PRESETS,
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
-    UI_MODES,
     defaultSettings,
 } from './constants.js';
 import {
@@ -27,6 +26,7 @@ import {
 } from './context.js';
 import { resolveScIdsToIndices } from './message-identity.js';
 import { clampInteger, clampToStep } from './numeric.js';
+import { readOperationMode, repairOperationMode } from './operation-mode.js';
 
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
 
@@ -50,7 +50,7 @@ export function getSettings() {
             settingsRecord[key] = defaultsRecord[key];
         }
     }
-    const modeSettingsNormalized = normalizeModeSettings(settings, hadUiMode);
+    const modeSettingsNormalized = repairOperationMode(settings, { hadUiMode });
     const memorySettingsNormalized = normalizeMemorySettings(settings);
     const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
     normalizeVerbatimWindowSettings(settings);
@@ -75,7 +75,7 @@ export function getSettings() {
  */
 export function getEffectiveSettings() {
     const settings = getSettings();
-    return settings.uiMode === UI_MODES.OFF ? { ...settings, enabled: false } : settings;
+    return readOperationMode(settings).enabled ? settings : { ...settings, enabled: false };
 }
 
 /**
@@ -86,15 +86,17 @@ export function saveSettings() {
 }
 
 /**
- * Keys a defaults reset never touches: the selected memory/UI/config modes,
- * every connection/merge/fallback/auditor route setting including per-route
- * timeouts, and debugMode (re-enabled explicitly after the reset loop).
+ * Keys a defaults reset never touches: the selected memory/UI/config modes and
+ * the Operation Mode gate they project, every connection/merge/fallback/auditor
+ * route setting including per-route timeouts, and debugMode (re-enabled
+ * explicitly after the reset loop).
  * @type {Set<string>}
  */
 const RESET_PRESERVED_KEYS = new Set([
     'memoryMode',
     'uiMode',
     'configMode',
+    'enabled',
     'connectionSource',
     'connectionProfileId',
     'requestTimeoutSeconds',
@@ -497,28 +499,6 @@ function normalizeRequestTimeouts(settings) {
         SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MAX,
         SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.STEP,
     );
-}
-
-function normalizeModeSettings(settings, hadMode) {
-    if (!hadMode || !isSettingValue(Object.values(UI_MODES), settings.uiMode)) {
-        settings.uiMode = settings.enabled === false ? UI_MODES.OFF : defaultSettings.uiMode;
-    }
-
-    // configMode tracks the Easy/Advanced complexity panel independently of
-    // on/off, so config stays visible and editable even when the extension
-    // is off.
-    if (
-        !Object.hasOwn(settings, 'configMode') ||
-        !isSettingValue([UI_MODES.EASY, UI_MODES.ADVANCED], settings.configMode)
-    ) {
-        settings.configMode =
-            settings.uiMode === UI_MODES.ADVANCED ? UI_MODES.ADVANCED : defaultSettings.configMode;
-    }
-
-    const nextEnabled = settings.uiMode !== UI_MODES.OFF;
-    const changed = !hadMode || settings.enabled !== nextEnabled;
-    settings.enabled = nextEnabled;
-    return changed;
 }
 
 function deriveEasySourceCap(contextTokens) {

@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
     buildContextBudgetViewModel,
+    buildEnabledContentModel,
     buildTriggerGaugeModel,
     formatBudgetTokenLabel,
     getContextColorClass,
 } from '../src/entry/ui-view-models.js';
+
+const OFF_MODE = { mode: 'off', complexity: 'advanced', enabled: false };
+const ON_EASY = { mode: 'on', complexity: 'easy', enabled: true };
+const ON_ADVANCED = { mode: 'on', complexity: 'advanced', enabled: true };
 
 describe('context budget color tiers', () => {
     it('keeps counts at or below a threshold in the tier below it', () => {
@@ -138,5 +143,44 @@ describe('trigger gauge model', () => {
             triggerTokens: 16001,
             label: 'Summarize at Recent + Queued',
         });
+    });
+});
+
+describe('enabled content model', () => {
+    it('shows the remembered panel while Off, with no run controls', () => {
+        expect(buildEnabledContentModel(OFF_MODE, { autoPaused: false })).toEqual({
+            modeLabel: 'Off',
+            off: true,
+            easyPanel: false,
+            advancedPanel: true,
+            continuitySection: false,
+            stop: false,
+            resume: false,
+        });
+    });
+
+    it('gates the continuity section on the Advanced panel', () => {
+        expect(buildEnabledContentModel(ON_ADVANCED, { autoPaused: false }).continuitySection).toBe(
+            true,
+        );
+        expect(buildEnabledContentModel(ON_EASY, { autoPaused: false }).continuitySection).toBe(
+            false,
+        );
+    });
+
+    it('swaps Stop for Resume while the Pause Latch is set', () => {
+        expect(buildEnabledContentModel(ON_EASY, { autoPaused: true })).toMatchObject({
+            stop: false,
+            resume: true,
+        });
+        expect(buildEnabledContentModel(ON_EASY, { autoPaused: false })).toMatchObject({
+            stop: true,
+            resume: false,
+        });
+    });
+
+    it('labels the visible panel', () => {
+        expect(buildEnabledContentModel(ON_EASY, {}).modeLabel).toBe('Easy');
+        expect(buildEnabledContentModel(ON_ADVANCED, {}).modeLabel).toBe('Advanced');
     });
 });

@@ -369,4 +369,20 @@ describe('resetSettingsToDefaults', () => {
         expect(s.stripPatterns).toEqual(defaultSettings.stripPatterns);
         expect(s.stripPatterns).not.toBe(defaultSettings.stripPatterns);
     });
+
+    it('keeps the Off Operation Mode and its gate through a reset', () => {
+        const s = settingsFor({
+            uiMode: UI_MODES.OFF,
+            configMode: UI_MODES.ADVANCED,
+            enabled: false,
+        });
+
+        resetSettingsToDefaults();
+
+        expect(s).toMatchObject({
+            uiMode: UI_MODES.OFF,
+            configMode: UI_MODES.ADVANCED,
+            enabled: false,
+        });
+    });
 });

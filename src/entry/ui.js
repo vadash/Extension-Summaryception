@@ -1,12 +1,12 @@
 import {
     MEMORY_MODES,
     MEMORY_POSITIONS,
-    UI_MODES,
     layerLabel,
     listNonEmptyLayers,
 } from '../foundation/constants.js';
 import { getChat } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
+import { readOperationMode } from '../foundation/operation-mode.js';
 import {
     getEffectiveSettings,
     getSettings,
@@ -26,6 +26,7 @@ import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
 import {
     buildContextBudgetViewModel,
+    buildEnabledContentModel,
     buildTriggerGaugeModel,
     formatBudgetTokenLabel,
     getContextColorClass,
@@ -44,7 +45,10 @@ export async function updateUI() {
         const store = getChatStore();
 
         syncSettingsInputs(s, effectiveSettings);
-        syncEnabledContent(s);
+        const enabledContent = buildEnabledContentModel(readOperationMode(s), {
+            autoPaused: s.autoPaused,
+        });
+        syncEnabledContent(enabledContent);
 
         syncRoleMaskModeControl(s.maskUserRoleAsAssistant);
         const work = await describeAutoWork(getChat(), store, effectiveSettings).catch(() => null);
@@ -53,7 +57,13 @@ export async function updateUI() {
             totalSnippets: listNonEmptyLayers(store).reduce((n, { layer }) => n + layer.length, 0),
         };
 
-        const overview = { settings: effectiveSettings, work, ghostedCount, metrics };
+        const overview = {
+            settings: effectiveSettings,
+            modeLabel: enabledContent.modeLabel,
+            work,
+            ghostedCount,
+            metrics,
+        };
         await renderStatusOverview('sc_status', 'enabled', overview);
         await renderStatusOverview('sc_easy_status', 'mode', overview);
         await renderBudgetStatus(effectiveSettings, store, work);
@@ -82,26 +92,17 @@ function syncSettingsInputs(s, effectiveSettings) {
 
 /**
  * Toggle the complexity panels, continuity section, and stop/resume controls
- * from the settings object.
- * @param {ReturnType<typeof getSettings>} s
+ * from the mode view model.
+ * @param {{ off: boolean, easyPanel: boolean, advancedPanel: boolean, continuitySection: boolean, stop: boolean, resume: boolean }} view
  * @returns {void}
  */
-export function syncEnabledContent(s) {
-    // Off shows the banner and keeps the complexity panel (from configMode)
-    // visible, so configuration stays editable while the extension is off.
-    const off = s.uiMode === UI_MODES.OFF;
-    const complexity = off ? s.configMode || UI_MODES.EASY : s.uiMode;
-    $('#sc_off_content').toggle(off);
-    $('#sc_easy_content').toggle(complexity === UI_MODES.EASY);
-    $('#sc_enabled_content').toggle(complexity === UI_MODES.ADVANCED);
-    // Continuity Auditor is a runtime feature: visible only while the
-    // extension is enabled and the advanced panel is shown.
-    $('#sc_continuity_section').toggle(Boolean(s.enabled) && complexity === UI_MODES.ADVANCED);
-    // Stop sets the autoPaused latch. Show Resume while paused so users can
-    // continue without re-triggering automatic work.
-    const paused = Boolean(s.autoPaused);
-    $('#sc_stop_summarize, #sc_easy_stop_summarize').toggle(s.enabled && !paused);
-    $('#sc_resume_summarize, #sc_easy_resume_summarize').toggle(s.enabled && paused);
+export function syncEnabledContent(view) {
+    $('#sc_off_content').toggle(view.off);
+    $('#sc_easy_content').toggle(view.easyPanel);
+    $('#sc_enabled_content').toggle(view.advancedPanel);
+    $('#sc_continuity_section').toggle(view.continuitySection);
+    $('#sc_stop_summarize, #sc_easy_stop_summarize').toggle(view.stop);
+    $('#sc_resume_summarize, #sc_easy_resume_summarize').toggle(view.resume);
 }
 
 function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
@@ -137,21 +138,11 @@ function setContextValueColor($element, tokens) {
 }
 
 async function renderStatusOverview(prefix, modeField, overview) {
-    const { settings: s, work, ghostedCount, metrics } = overview;
-    $(`#${prefix}_${modeField}`).text(getModeLabel(s));
+    const { settings: s, modeLabel, work, ghostedCount, metrics } = overview;
+    $(`#${prefix}_${modeField}`).text(modeLabel);
     $(`#${prefix}_worker`).text(await getWorkerLabel(s, work));
     $(`#${prefix}_snippets`).text(String(metrics.totalSnippets));
     $(`#${prefix}_ghosted`).text(String(ghostedCount));
-}
-
-function getModeLabel(s) {
-    if (s.uiMode === UI_MODES.EASY) {
-        return 'Easy';
-    }
-    if (s.uiMode === UI_MODES.ADVANCED) {
-        return 'Advanced';
-    }
-    return 'Off';
 }
 
 /**

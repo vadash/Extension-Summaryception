@@ -306,3 +306,32 @@ describe('auditor connection routes', () => {
         );
     });
 });
+
+describe('enabled content rendering', () => {
+    it('maps each mode view-model flag onto its panel selectors', async () => {
+        const { syncEnabledContent } = await import('../src/entry/ui.js');
+        const toggles = {};
+        globalThis.$ = (selector) => ({
+            toggle(visible) {
+                toggles[selector] = visible;
+            },
+        });
+
+        syncEnabledContent({
+            modeLabel: 'Off',
+            off: true,
+            easyPanel: false,
+            advancedPanel: true,
+            continuitySection: false,
+            stop: false,
+            resume: false,
+        });
+
+        expect(toggles['#sc_off_content']).toBe(true);
+        expect(toggles['#sc_easy_content']).toBe(false);
+        expect(toggles['#sc_enabled_content']).toBe(true);
+        expect(toggles['#sc_continuity_section']).toBe(false);
+        expect(toggles['#sc_stop_summarize, #sc_easy_stop_summarize']).toBe(false);
+        expect(toggles['#sc_resume_summarize, #sc_easy_resume_summarize']).toBe(false);
+    });
+});
