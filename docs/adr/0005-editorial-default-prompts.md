@@ -1,5 +1,7 @@
 # Editorial hierarchy as the default summarizer prompts
 
-> Superseded in part (2026-09-18, issue #26): the `[STATE]` half of the contract was removed; Layer 0 is narrative-only and keeps only the `current_date_time` scene-time key. The `[NARRATIVE]` binding, size guard, and promotion input below still hold.
-
-The summarizer_v1.1 community prompt (a rolling 7-section editorial document with Core Memories, Plot Summary, Emotional Arc, Character States, Inside Jokes, Secrets, and Future Hooks) was adapted into the default L0 and promotion prompt rules instead of being adopted as an output format. The pipeline hard-binds to the `[NARRATIVE]`+`[STATE]` contract (structural headers, size guard, state compactor, injection, promotion input), so v1.1's real value — its salience hierarchy (firsts/shifts/breaks, salient moments vs excess tissue, cause-to-effect chains) and its thread-maintenance rules (stale is not resolved, revise threads in place, recurring flash/dream patterns recorded as meaning rather than image) — was distilled into `LAYER0_DURABILITY_RULES`, the promotion synthesis priorities, and both repair prompts. Rejected: a 7-section output format (a memory-model rewrite, not a prompt swap) and monotone never-delete anchor persistence (contradicts the lossy rolling `[STATE]` semantics, where omission means dropped); salience rules carried in prose are the only protection for these salient moments. Custom-edited prompt textareas keep their text; default-preset users receive the new wording without stored-value detection.
+> Superseded by ADR-0015 (2026-09-20). Distilled summarizer_v1.1's editorial
+> salience and thread-maintenance rules into the default Layer 0 and promotion
+> prompt rules, binding the pipeline to a `[NARRATIVE]`+`[STATE]` output
+> contract. Issue #26 later removed the `[STATE]` half; ADR-0015 restates the
+> surviving decision as the narrative-only contract in force today.
