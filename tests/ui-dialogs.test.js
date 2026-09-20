@@ -80,3 +80,60 @@ describe('manual run display policy', () => {
         );
     });
 });
+
+describe('manual run notices', () => {
+    beforeEach(() => {
+        globalThis.toastr = makeToastrMock();
+    });
+
+    it('selects the catch-up notice by status and phrases it from the counts', () => {
+        const { notices } = manualRunView(ELASTIC_STRATEGIES.FORCE);
+
+        notices.completed({ status: 'completed', completed: 2, failed: 0, totalBatches: 2 });
+        notices.partial({ status: 'partial', completed: 1, failed: 1, totalBatches: 4 });
+        notices.aborted({ status: 'aborted', completed: 1, failed: 0, totalBatches: 4 });
+        notices.failed({ status: 'failed', completed: 1, failed: 3, totalBatches: 4 });
+
+        expect(globalThis.toastr.success).toHaveBeenCalledTimes(1);
+        expect(globalThis.toastr.error).toHaveBeenCalledTimes(1);
+        expect(globalThis.toastr.warning).toHaveBeenCalledTimes(2);
+        expect(globalThis.toastr.warning.mock.calls[0][0]).toContain('will retry on next trigger');
+        expect(globalThis.toastr.warning.mock.calls[1][0]).toContain('Progress saved');
+    });
+
+    it('separates a gate block before the run from one mid-run by the batch count', () => {
+        const { notices } = manualRunView(ELASTIC_STRATEGIES.FORCE);
+
+        notices.blocked({ status: 'blocked', completed: 0, failed: 0, totalBatches: 0 });
+        notices.blocked({ status: 'blocked', completed: 1, failed: 0, totalBatches: 4 });
+
+        expect(globalThis.toastr.warning.mock.calls[0][0]).toContain(
+            'Foreground generation is active',
+        );
+        expect(globalThis.toastr.warning.mock.calls[1][0]).toContain('paused at 1/4');
+    });
+
+    it('renders the idle notice the strategy owns', () => {
+        const idle = { status: 'idle', completed: 0, failed: 0, totalBatches: 0 };
+
+        manualRunView(ELASTIC_STRATEGIES.FORCE).notices.idle(idle);
+        manualRunView(ELASTIC_STRATEGIES.SLOP).notices.idle(idle);
+
+        expect(globalThis.toastr.info.mock.calls[0][0]).toContain('Nothing eligible');
+        expect(globalThis.toastr.info.mock.calls[1][0]).toContain('Nothing to reset');
+    });
+
+    it('reads the completed count for slop notices', () => {
+        const { notices } = manualRunView(ELASTIC_STRATEGIES.SLOP);
+
+        notices.blocked({ status: 'blocked', completed: 0, failed: 0, totalBatches: 0 });
+        notices.failed({ status: 'failed', completed: 0, failed: 1, totalBatches: 2 });
+        notices.partial({ status: 'partial', completed: 1, failed: 1, totalBatches: 2 });
+
+        expect(globalThis.toastr.warning.mock.calls[0][0]).toContain(
+            'Foreground generation is active',
+        );
+        expect(globalThis.toastr.error.mock.calls[0][0]).toContain('No new cut was completed');
+        expect(globalThis.toastr.warning.mock.calls[1][0]).toContain('paused after 1 batch.');
+    });
+});

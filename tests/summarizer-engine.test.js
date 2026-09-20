@@ -116,7 +116,7 @@ describe('manual run progress callbacks', () => {
             failed: 0,
             totalBatches: 1,
         });
-        expect(outcome.fullyCommitted).toBe(true);
+        expect(outcome.status).toBe('completed');
     });
 
     it('refreshes the UI after each committed batch', async () => {
@@ -155,10 +155,10 @@ describe('manual run progress callbacks', () => {
             failed: 0,
             totalBatches: 1,
         });
-        expect(outcome.fullyCommitted).toBe(true);
+        expect(outcome.status).toBe('completed');
     });
 
-    it('cancels before any batch when the signal is already aborted', async () => {
+    it('aborts before any batch when the signal is already aborted', async () => {
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
         const controller = new AbortController();
         controller.abort();
@@ -167,7 +167,7 @@ describe('manual run progress callbacks', () => {
             signal: controller.signal,
         });
 
-        expect(outcome.cancelled).toBe(true);
+        expect(outcome.status).toBe('aborted');
         expect(batchMocks.summarizeBatchFromTurns).not.toHaveBeenCalled();
     });
 });
@@ -185,7 +185,7 @@ describe('manual run work gate', () => {
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
 
-    it('opens one lease and exits cancelled when the gate stops the run', async () => {
+    it('opens one lease and exits aborted when the gate stops the run', async () => {
         const deps = makeDeps({ stopAfterFirstBatch: true });
 
         const outcome = await runManual(deps, ELASTIC_STRATEGIES.FORCE, {});
@@ -193,9 +193,8 @@ describe('manual run work gate', () => {
         expect(deps.queue.beginRun).toHaveBeenCalledWith('manual-run');
         expect(deps.runToken.end).toHaveBeenCalledTimes(1);
         expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(1);
-        expect(outcome.cancelled).toBe(true);
+        expect(outcome.status).toBe('aborted');
         expect(outcome.failed).toBe(1);
-        expect(outcome.failureLimitReached).toBe(false);
     });
 });
 
@@ -215,10 +214,9 @@ describe('manual run failure limit', () => {
     it('stops the run after three consecutive batch failures', async () => {
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
-        expect(outcome.failureLimitReached).toBe(true);
+        expect(outcome.status).toBe('failed');
         expect(outcome.failed).toBe(3);
         expect(outcome.completed).toBe(0);
-        expect(outcome.fullyCommitted).toBe(false);
         expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(3);
     });
 
@@ -233,8 +231,7 @@ describe('manual run failure limit', () => {
 
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
-        expect(outcome.blocked).toBe(true);
-        expect(outcome.failureLimitReached).toBe(false);
+        expect(outcome.status).toBe('blocked');
         expect(outcome.failed).toBe(1);
         expect(outcome.completed).toBe(0);
         expect(batchMocks.summarizeBatchFromTurns).toHaveBeenCalledTimes(2);

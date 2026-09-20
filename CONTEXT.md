@@ -103,8 +103,8 @@ The Layer 0 route plus its configured fallback route, used as one failover unit.
 _Avoid_: narrative models, narrative summarizer chain
 
 **Run Outcome**:
-The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle: `completed`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). Outcomes and notify events carry data only; entry renders all user-facing notices.
-Code: `SummarizationRunOutcome` (src/core/run-outcome.js)
+The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.
+Code: `SummarizationRunOutcome` / `ManualRunOutcome` (src/core/run-outcome.js)
 
 **Log Tier**:
 The fixed channel policy for console output: Info logs one line per lifecycle milestone, Debug logs state decisions, Trace logs high-frequency internals, and Warn and Error always print. Trace needs trace mode on top of debug mode.

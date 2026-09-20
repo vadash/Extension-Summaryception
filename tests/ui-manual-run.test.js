@@ -51,3 +51,67 @@ describe('manual run failure handling', () => {
         expect(button.html()).toBe(forceIdleHtml);
     });
 });
+
+describe('manual run outcome notices', () => {
+    let dom;
+    let button;
+
+    beforeEach(() => {
+        installSummaryContext();
+        globalThis.toastr = makeToastrMock();
+        globalThis.document = {};
+        dom = createJQueryHarness();
+        globalThis.$ = dom.$;
+        summarizerMocks.describeManualRun.mockResolvedValue({ ready: true, backlog: 2 });
+        bindManualRunControls({ notify: null, manualRunnerDeps: {}, pauseLatchDeps: {} });
+        button = dom.element('#sc_force_summarize');
+    });
+
+    afterEach(() => {
+        delete globalThis.document;
+    });
+
+    it('renders the notice the outcome status selects', async () => {
+        summarizerMocks.runManual.mockResolvedValue({
+            status: 'aborted',
+            completed: 1,
+            failed: 0,
+            totalBatches: 4,
+        });
+
+        await dom.trigger('click', '#sc_force_summarize, #sc_easy_force_summarize', button);
+
+        expect(globalThis.toastr.warning.mock.calls[0][0]).toContain('Progress saved');
+        expect(globalThis.toastr.success).not.toHaveBeenCalled();
+        expect(button.prop('disabled')).toBe(false);
+    });
+
+    it('renders the idle notice from the outcome', async () => {
+        summarizerMocks.runManual.mockResolvedValue({
+            status: 'idle',
+            completed: 0,
+            failed: 0,
+            totalBatches: 0,
+        });
+
+        await dom.trigger('click', '#sc_force_summarize, #sc_easy_force_summarize', button);
+
+        const messages = globalThis.toastr.info.mock.calls.map((call) => call[0]);
+        expect(messages).toContain('Nothing eligible to summarize.');
+    });
+
+    it('stays silent for a status no notice maps', async () => {
+        summarizerMocks.runManual.mockResolvedValue({
+            status: 'unknown',
+            completed: 0,
+            failed: 0,
+            totalBatches: 0,
+        });
+
+        await dom.trigger('click', '#sc_force_summarize, #sc_easy_force_summarize', button);
+
+        expect(globalThis.toastr.success).not.toHaveBeenCalled();
+        expect(globalThis.toastr.warning).not.toHaveBeenCalled();
+        expect(globalThis.toastr.error).not.toHaveBeenCalled();
+    });
+});

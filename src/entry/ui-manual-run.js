@@ -17,9 +17,7 @@ import {
     createManualProgressToast,
     manualRunView,
     showBusySummaryToast,
-    showCatchupOutcome,
-    showSlopBreakerNoop,
-    showSlopBreakerOutcome,
+    showManualRunIdle,
     updateManualProgressToast,
 } from './ui-dialogs.js';
 
@@ -41,16 +39,15 @@ function cancelManualRun(controller) {
 const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
 
 /**
- * Shared manual-run driver: busy button, abort/progress wiring, outcome
- * report, injection refresh, reload, and UI update. `run` receives the
- * engine options carrying the abort signal; returning undefined skips the
- * outcome report (nothing ran).
+ * Shared manual-run driver: busy button, abort/progress wiring, status notice,
+ * injection refresh, reload, and UI update. `run` receives the engine options
+ * carrying the abort signal; returning undefined skips the notice (nothing ran).
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @param {string} idleHtml Button html restored after the run.
- * @param {{ run: (options: object) => Promise<object | undefined>, report: (outcome: object) => void, notify: import('../core/notify.js').NotifyAdapter, view: import('./ui-dialogs.js').ManualRunView }} ops
+ * @param {{ run: (options: object) => Promise<import('../core/run-outcome.js').ManualRunOutcome | undefined>, notify: import('../core/notify.js').NotifyAdapter, view: import('./ui-dialogs.js').ManualRunView }} ops
  * @returns {Promise<void>}
  */
-async function runManualSummarization($button, idleHtml, { run, report, notify, view }) {
+async function runManualSummarization($button, idleHtml, { run, notify, view }) {
     const controller = new AbortController();
     let progressToast = null;
     const options = {
@@ -83,7 +80,7 @@ async function runManualSummarization($button, idleHtml, { run, report, notify, 
         updateUI();
     }
     if (outcome !== undefined) {
-        report(outcome);
+        view.notices[outcome.status]?.(outcome);
         refreshPreview();
         reloadAfterManualRun(outcome);
     }
@@ -125,7 +122,7 @@ async function executeForceSummarize($button, notify) {
             run: async (options) => {
                 const preview = await describeManualRun(ELASTIC_STRATEGIES.FORCE);
                 if (!preview.ready) {
-                    toastr.info('Nothing eligible to summarize.', TOAST_TITLE);
+                    showManualRunIdle(ELASTIC_STRATEGIES.FORCE);
                     return;
                 }
                 toastr.info(`${preview.backlog} turns ready to process. Starting...`, TOAST_TITLE, {
@@ -134,7 +131,6 @@ async function executeForceSummarize($button, notify) {
 
                 return runManual(manualRunnerDeps, ELASTIC_STRATEGIES.FORCE, options);
             },
-            report: showCatchupOutcome,
             notify,
             view: manualRunView(ELASTIC_STRATEGIES.FORCE),
         },
@@ -155,7 +151,7 @@ async function onSlopBreaker(buttonEl, notify) {
 
     const preview = await describeManualRun(ELASTIC_STRATEGIES.SLOP);
     if (!preview.ready) {
-        showSlopBreakerNoop();
+        showManualRunIdle(ELASTIC_STRATEGIES.SLOP);
         return;
     }
     if (!(await confirmSlopBreaker())) {
@@ -167,7 +163,6 @@ async function onSlopBreaker(buttonEl, notify) {
         '<i class="fa-solid fa-broom"></i><span>Slop Breaker</span>',
         {
             run: (options) => runManual(manualRunnerDeps, ELASTIC_STRATEGIES.SLOP, options),
-            report: showSlopBreakerOutcome,
             notify,
             view: manualRunView(ELASTIC_STRATEGIES.SLOP),
         },
@@ -187,11 +182,11 @@ function showManualCacheWarning(settings) {
 
 /**
  * Reload the page after successful manual context changes.
- * @param {{ fullyCommitted?: boolean } | undefined} outcome
+ * @param {import('../core/run-outcome.js').ManualRunOutcome | undefined} outcome
  * @returns {void}
  */
 function reloadAfterManualRun(outcome) {
-    if (outcome?.fullyCommitted) {
+    if (outcome?.status === 'completed') {
         reloadPage();
     }
 }

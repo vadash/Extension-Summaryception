@@ -12,6 +12,7 @@ import { summarizeAtomicLayer0Partitions, summarizeBatchFromTurns } from './summ
 import { drainPromotionOverflow } from './summarizer-promotion.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { promptWorkGate } from './summarizer-commit.js';
+import { deriveManualRunOutcome } from './run-outcome.js';
 import { formatTokenValue } from './token-count.js';
 import {
     SUMMARY_COMMIT_MODES,
@@ -25,16 +26,8 @@ export const ELASTIC_STRATEGIES = Object.freeze({
     SLOP: 'SLOP',
 });
 
-/**
- * @typedef {object} ManualRunOutcome
- * @property {boolean} cancelled - Whether the manual run was cancelled.
- * @property {boolean} blocked - Whether the prompt guard blocked completion.
- * @property {number} completed - Number of committed batches.
- * @property {number} failed - Number of failed batches.
- * @property {number} totalBatches - Estimated total batches for the run.
- * @property {boolean} fullyCommitted - Whether all requested work was committed and normalized.
- * @property {boolean} failureLimitReached - Whether consecutive failures halted the run.
- */
+/** @typedef {import('./run-outcome.js').ManualRunOutcome} ManualRunOutcome */
+/** @typedef {import('./run-outcome.js').ManualRunTally} ManualRunTally */
 
 /**
  * @typedef {object} ManualRunProgress
@@ -104,34 +97,35 @@ export async function runElasticAutoCycle(queue, { refreshUi, notify } = {}) {
 export async function runManual(deps, strategy, options = {}) {
     const manualStrategy = MANUAL_STRATEGIES[strategy];
     if (!manualStrategy) {
-        return createManualRunOutcome();
+        return deriveManualRunOutcome(createManualRunTally());
     }
     return await deps.withUsageRun(manualStrategy.usageLabel, async () => {
         if (!(await prepareManualRun(deps, `manual ${strategy.toLowerCase()}`))) {
-            return createManualRunOutcome({ blocked: true });
+            return deriveManualRunOutcome({ ...createManualRunTally(), blocked: true });
         }
 
         const prepared = await prepareSummaryCycle();
         const initialRoutePlan = await manualStrategy.buildBatch(prepared);
         const targetIndex = initialRoutePlan.targetIndex;
         if (!initialRoutePlan.ready || typeof targetIndex !== 'number') {
-            return createManualRunOutcome();
+            return deriveManualRunOutcome(createManualRunTally());
         }
 
-        const outcome = await executeManualTask(
+        const tally = await executeManualTask(
             deps,
             manualStrategy,
             { targetIndex, totalBatches: initialRoutePlan.totalBatches },
             options,
         );
-        const promotionStatus = await normalizeManualMemory(outcome, options.notify);
+        const promotionStatus = await normalizeManualMemory(tally, options.notify);
         deps.refreshUi();
-        return {
-            ...outcome,
-            blocked: outcome.blocked || promotionStatus === 'blocked',
-            fullyCommitted:
-                isManualRunComplete(outcome, targetIndex) && promotionStatus === 'completed',
-        };
+        return deriveManualRunOutcome(
+            { ...tally, blocked: tally.blocked || promotionStatus === 'blocked' },
+            {
+                targetReached: isManualTargetReached(targetIndex),
+                promotionCompleted: promotionStatus === 'completed',
+            },
+        );
     });
 }
 
@@ -300,15 +294,15 @@ async function buildSlopBatch(prepared, targetIndex) {
  * @param {ManualStrategy} strategy
  * @param {{ targetIndex: number, totalBatches: number }} target - Values captured from the initial route plan.
  * @param {ManualRunOptions} options
- * @returns {Promise<ManualRunOutcome>}
+ * @returns {Promise<ManualRunTally>}
  */
 async function executeManualTask(deps, strategy, target, options) {
-    const outcome = createManualRunOutcome({ totalBatches: target.totalBatches });
+    const tally = createManualRunTally({ totalBatches: target.totalBatches });
     let consecutiveFailures = 0;
     const runToken = deps.queue.beginRun('manual-run');
 
     try {
-        options.onStart?.(createProgress(outcome));
+        options.onStart?.(createProgress(tally));
 
         while (!isCancelled(options.signal) && !runToken.isStopped()) {
             const batch = await strategy.buildBatch(undefined, target.targetIndex);
@@ -318,7 +312,7 @@ async function executeManualTask(deps, strategy, target, options) {
 
             const result = await processStrategyBatch(batch, strategy, options.notify);
             const step = await applyManualLoopStep({
-                outcome,
+                tally,
                 result,
                 signal: options.signal,
                 runToken,
@@ -334,14 +328,14 @@ async function executeManualTask(deps, strategy, target, options) {
                 deps.refreshUi();
             }
 
-            options.onProgress?.(createProgress(outcome));
+            options.onProgress?.(createProgress(tally));
             await sleep(200);
         }
 
         if (isCancelled(options.signal) || runToken.isStopped()) {
-            outcome.cancelled = true;
+            tally.aborted = true;
         }
-        return outcome;
+        return tally;
     } finally {
         runToken.end();
         await flushPendingChatSave();
@@ -356,7 +350,7 @@ const MANUAL_FAILURE_LIMIT = 3;
  * and a success whose boundary did not move preserves it.
  * @param {object} step - One loop step's inputs.
  * @param {import('./summarizer-queue.js').WorkGateRun} step.runToken - The run's work gate lease; a stopped lease detects external stops.
- * @param {ManualRunOutcome} step.outcome - Run outcome updated in place.
+ * @param {ManualRunTally} step.tally - Run state updated in place.
  * @param {{ success: boolean, committed: boolean, done?: boolean }} step.result - Batch result flags.
  * @param {AbortSignal} [step.signal] - Cancellation signal for the run.
  * @param {import('./notify.js').NotifyAdapter} [step.notify] - Notify adapter for promotions.
@@ -364,7 +358,7 @@ const MANUAL_FAILURE_LIMIT = 3;
  * @returns {Promise<{ exit: boolean, consecutiveFailures: number }>} Exit decision and the updated streak.
  */
 async function applyManualLoopStep({
-    outcome,
+    tally,
     result,
     signal,
     runToken,
@@ -372,40 +366,40 @@ async function applyManualLoopStep({
     consecutiveFailures,
 }) {
     if (result.success && result.committed) {
-        outcome.completed++;
+        tally.completed++;
         consecutiveFailures = 0;
         if ((await promptWorkGate('manual outcome')) === 'blocked') {
-            outcome.blocked = true;
+            tally.blocked = true;
         }
     } else if (result.success) {
-        outcome.blocked = true;
+        tally.blocked = true;
     } else {
-        outcome.failed++;
+        tally.failed++;
     }
 
-    if (result.success && result.committed && !outcome.blocked) {
+    if (result.success && result.committed && !tally.blocked) {
         const promotion = await normalizePromotions(notify);
         if (promotion.status === 'blocked') {
-            outcome.blocked = true;
+            tally.blocked = true;
         } else if (promotion.status === 'failed') {
-            outcome.failed++;
+            tally.failed++;
             return { exit: true, consecutiveFailures };
         }
     }
 
-    if (result.done || outcome.blocked) {
+    if (result.done || tally.blocked) {
         return { exit: true, consecutiveFailures };
     }
     if (isCancelled(signal) || runToken.isStopped()) {
-        outcome.cancelled = true;
+        tally.aborted = true;
         return { exit: true, consecutiveFailures };
     }
 
     if (!result.success) {
         consecutiveFailures++;
-        outcome.failureLimitReached = consecutiveFailures >= MANUAL_FAILURE_LIMIT;
+        tally.failureLimitReached = consecutiveFailures >= MANUAL_FAILURE_LIMIT;
     }
-    return { exit: outcome.failureLimitReached, consecutiveFailures };
+    return { exit: tally.failureLimitReached, consecutiveFailures };
 }
 
 /**
@@ -425,8 +419,8 @@ async function processStrategyBatch(plan, strategy, notify) {
     };
 }
 
-async function normalizeManualMemory(outcome, notify) {
-    if (outcome.cancelled || outcome.blocked || outcome.completed === 0 || outcome.failed > 0) {
+async function normalizeManualMemory(tally, notify) {
+    if (tally.aborted || tally.blocked || tally.completed === 0 || tally.failed > 0) {
         return 'skipped';
     }
     if ((await promptWorkGate('manual promotion')) === 'blocked') {
@@ -440,35 +434,29 @@ async function normalizePromotions(notify) {
     return await drainPromotionOverflow({ maxConsecutiveFailures: 3, notify });
 }
 
-function isManualRunComplete(outcome, targetIndex) {
-    if (outcome.cancelled || outcome.blocked || outcome.failed > 0 || outcome.completed === 0) {
-        return false;
-    }
-    return isManualTargetReached(targetIndex);
-}
-
 async function prepareManualRun(deps, recoverReason) {
     return (await promptWorkGate(recoverReason, { refreshUi: deps.refreshUi })) === 'open';
 }
 
-function createManualRunOutcome(overrides = {}) {
+/** @param {Partial<ManualRunTally>} [overrides] @returns {ManualRunTally} */
+function createManualRunTally(overrides = {}) {
     return {
-        cancelled: false,
-        blocked: false,
         completed: 0,
         failed: 0,
         totalBatches: 0,
-        fullyCommitted: false,
+        aborted: false,
+        blocked: false,
         failureLimitReached: false,
         ...overrides,
     };
 }
 
-function createProgress(outcome) {
+/** @param {ManualRunTally} tally @returns {ManualRunProgress} */
+function createProgress(tally) {
     return {
-        completed: outcome.completed,
-        failed: outcome.failed,
-        totalBatches: outcome.totalBatches,
+        completed: tally.completed,
+        failed: tally.failed,
+        totalBatches: tally.totalBatches,
     };
 }
 
