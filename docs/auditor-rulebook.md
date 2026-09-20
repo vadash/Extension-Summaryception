@@ -5,6 +5,21 @@ audited exchange. It never writes narrative prose and never does arithmetic: bon
 scores, sparks, grudges, gates, and turn counting are computed by JavaScript from
 the model's booleans.
 
+## Audit lag is structural and announced
+
+Audits fire on settled replies (ADR-0017), so the injected block always describes
+the last audited reply, never the reply being generated or the user turn after it.
+When newer replies trail the checkpoint, `deriveContinuityCoverage` reports
+staleness and `updateContinuityInjection` prepends a literal marker to the block:
+
+```text
+<!-- active_continuity: cached from turn N-1 -->
+```
+
+The next settled audit re-covers at most the four most recent un-audited Exchanges
+through the Catch-up Window (`CATCHUP_WINDOW_EXCHANGES`); older turns stay unknown
+to the state. The marker is derived at injection time, never stored.
+
 ## Note tags
 
 `gm_notes` entries are tagged `[R]`, `[T]`, or `[S]`. The `[D]` tag is retired.

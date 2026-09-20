@@ -123,6 +123,8 @@ OpenAI-compatible local endpoints may need SillyTavern's CORS proxy. Since v20, 
 
 Everything above is narrative memory: prose about what happened. The Continuity Auditor is the other half. It is an opt-in background call that audits each finished reply in solo chats and keeps a live game-state: positions, relationship bonds, NPC agendas, secrets. Off by default.
 
+Why bother? Without it, keeping the story straight is the main model's job. It spends its output re-stating who stands where, how the relationship shifted, and which agenda moved, and that bookkeeping crowds out the scene itself. The Auditor does that bookkeeping outside the main model and hands the result back as a compact block, so replies come out shorter and more focused on what is actually happening. The block describes the last audited reply, so it runs one message behind the live chat.
+
 Enable it under Continuity Auditor and give it a fast model. It runs after every reply, so latency matters more than brains here. Connection settings live under Models → Continuity Connections, separate from the summarizer routes: it inherits Layer 0 unless you point it elsewhere, and "Fall back to the Narrative Chain" lets it use the Layer 0 chain as last resort when both Auditor routes fail.
 
 The game-state is four things:
