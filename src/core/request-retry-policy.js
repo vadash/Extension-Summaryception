@@ -22,7 +22,7 @@ export function computeRetryDelay(err, attempt) {
 /**
  * @param {Error & { retryable?: boolean, message?: string, status?: number, response?: { status?: number } }} error
  * @param {boolean} signalAborted
- * @returns {{ aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus: string }}
+ * @returns {{ aborted: boolean, shouldRetry: boolean, hardFailover: boolean }}
  */
 export function classifyAttemptRetryStatus(error, signalAborted) {
     if (signalAborted || error.message === 'Aborted by user') {
@@ -30,7 +30,6 @@ export function classifyAttemptRetryStatus(error, signalAborted) {
             aborted: true,
             shouldRetry: false,
             hardFailover: false,
-            failureStatus: 'aborted',
         };
     }
 
@@ -39,7 +38,6 @@ export function classifyAttemptRetryStatus(error, signalAborted) {
             aborted: false,
             shouldRetry: false,
             hardFailover: true,
-            failureStatus: 'hard-failover',
         };
     }
 
@@ -47,7 +45,6 @@ export function classifyAttemptRetryStatus(error, signalAborted) {
         aborted: false,
         shouldRetry: isRetryableError(error),
         hardFailover: false,
-        failureStatus: 'failed',
     };
 }
 
@@ -71,43 +68,32 @@ export function isHardNetworkError(error) {
     );
 }
 
-function isValidationFailureStatus(status) {
-    return (
-        status === 'empty' ||
-        status === 'cn-rejected' ||
-        status === 'integrity-rejected' ||
-        status === 'size-rejected'
-    );
-}
-
 /**
  * @param {object} p
- * @param {{ shouldRetry: boolean, failureStatus?: string }} p.attemptResult - Attempt result
+ * @param {{ status: string }} p.attemptResult - Attempt result; `rejected` marks an Output Hygiene validation failure
  * @param {number} p.attempt - Zero-based attempt index
  * @param {number} p.maxRetries - Maximum retry count for this route
  * @param {string} p.repairPrompt - Fully substituted repair prompt
  * @returns {boolean}
  */
 export function shouldSwitchToRepairPrompt({ attemptResult, attempt, maxRetries, repairPrompt }) {
-    return (
-        Boolean(repairPrompt) &&
-        attempt < maxRetries &&
-        attemptResult.shouldRetry &&
-        isValidationFailureStatus(attemptResult.failureStatus)
-    );
+    return Boolean(repairPrompt) && attempt < maxRetries && attemptResult.status === 'rejected';
 }
 
 /**
- * @param {{ shouldRetry: boolean, hardFailover?: boolean }} attemptResult - Attempt result
+ * @param {{ status: 'hard-failover' | 'guard-stopped' | 'failed' | 'rejected', retryable?: boolean }} attemptResult - Attempt result
  * @param {number} attempt - Zero-based attempt index
  * @param {number} maxRetries - Maximum retry count for this route
  * @returns {'' | 'hard-failover' | 'non-retryable' | 'primary-probe-failed' | 'retries-exhausted'}
  */
 export function getRetryStopReason(attemptResult, attempt, maxRetries) {
-    if (attemptResult.hardFailover) {
+    if (attemptResult.status === 'hard-failover') {
         return 'hard-failover';
     }
-    if (!attemptResult.shouldRetry) {
+    if (attemptResult.status === 'guard-stopped') {
+        return 'non-retryable';
+    }
+    if (attemptResult.status === 'failed' && !attemptResult.retryable) {
         return 'non-retryable';
     }
     if (attempt >= maxRetries) {

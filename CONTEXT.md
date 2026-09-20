@@ -121,6 +121,11 @@ Code: `SummaryRoutePlan` (src/core/summarization-routes.js)
 The Layer 0 route plus its configured fallback route, used as one failover unit. The Auditor's optional last-resort failover runs the Narrative Chain when both Auditor routes fail.
 _Avoid_: narrative models, narrative summarizer chain
 
+**Route Series**:
+One Narrative Chain hop's retry series: repeated summarizer attempts over one connection route until an attempt settles terminally or the retry budget runs out, with the repair switch and retry waits between attempts. Returns a Route Series Result — `completed`, `aborted`, `hard-failover`, `failed`, `rejected`, or `guard-stopped` — where `failed{retryable}` and `rejected` always imply the budget ran out.
+Code: `runRouteSeries` (src/core/request-series.js)
+_Avoid_: attempt series, retry loop
+
 **Run Outcome**:
 The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.
 Code: `SummarizationRunOutcome` / `ManualRunOutcome` (src/core/run-outcome.js)

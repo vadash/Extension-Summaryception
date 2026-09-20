@@ -14,14 +14,13 @@ describe('classifyAttemptRetryStatus', () => {
             aborted: true,
             shouldRetry: false,
             hardFailover: false,
-            failureStatus: 'aborted',
         });
     });
 
     it('reports an aborted result for the "Aborted by user" message', () => {
         expect(classifyAttemptRetryStatus(new Error('Aborted by user'), false)).toMatchObject({
             aborted: true,
-            failureStatus: 'aborted',
+            shouldRetry: false,
         });
     });
 
@@ -29,7 +28,6 @@ describe('classifyAttemptRetryStatus', () => {
         expect(classifyAttemptRetryStatus(new Error('Failed to fetch'), false)).toMatchObject({
             shouldRetry: false,
             hardFailover: true,
-            failureStatus: 'hard-failover',
         });
     });
 
@@ -38,14 +36,12 @@ describe('classifyAttemptRetryStatus', () => {
         expect(classifyAttemptRetryStatus(retryable, false)).toMatchObject({
             shouldRetry: true,
             hardFailover: false,
-            failureStatus: 'failed',
         });
 
         const clientError = { status: 400, message: 'bad request' };
         expect(classifyAttemptRetryStatus(clientError, false)).toMatchObject({
             shouldRetry: false,
             hardFailover: false,
-            failureStatus: 'failed',
         });
     });
 });
@@ -73,24 +69,20 @@ describe('isHardNetworkError', () => {
 
 describe('shouldSwitchToRepairPrompt', () => {
     const base = {
-        attemptResult: { shouldRetry: true, failureStatus: 'empty' },
+        attemptResult: { status: 'rejected' },
         attempt: 0,
         maxRetries: 3,
         repairPrompt: 'repair',
     };
 
-    it('is true when every condition holds and the status is a validation failure', () => {
+    it('is true when every condition holds and the attempt was a rejected output', () => {
         expect(shouldSwitchToRepairPrompt(base)).toBe(true);
     });
 
     it.each([
         ['no repair prompt', { repairPrompt: '' }],
         ['attempt at max retries', { attempt: 3 }],
-        ['result not retryable', { attemptResult: { shouldRetry: false, failureStatus: 'empty' } }],
-        [
-            'non-validation status',
-            { attemptResult: { shouldRetry: true, failureStatus: 'failed' } },
-        ],
+        ['result not a rejected output', { attemptResult: { status: 'failed', retryable: true } }],
     ])('is false when %s', (_label, override) => {
         expect(shouldSwitchToRepairPrompt({ ...base, ...override })).toBe(false);
     });
@@ -98,23 +90,28 @@ describe('shouldSwitchToRepairPrompt', () => {
 
 describe('getRetryStopReason', () => {
     it('returns hard-failover when the attempt hard-failed', () => {
-        expect(getRetryStopReason({ hardFailover: true, shouldRetry: true }, 0, 3)).toBe(
-            'hard-failover',
-        );
+        expect(getRetryStopReason({ status: 'hard-failover' }, 0, 3)).toBe('hard-failover');
     });
 
     it('returns non-retryable when the result is not retryable', () => {
-        expect(getRetryStopReason({ hardFailover: false, shouldRetry: false }, 0, 3)).toBe(
+        expect(getRetryStopReason({ status: 'failed', retryable: false }, 0, 3)).toBe(
             'non-retryable',
         );
+        expect(getRetryStopReason({ status: 'guard-stopped' }, 0, 3)).toBe('non-retryable');
     });
 
     it('returns retries-exhausted at the retry ceiling and primary-probe-failed when maxRetries is 0', () => {
-        expect(getRetryStopReason({ shouldRetry: true }, 3, 3)).toBe('retries-exhausted');
-        expect(getRetryStopReason({ shouldRetry: true }, 0, 0)).toBe('primary-probe-failed');
+        expect(getRetryStopReason({ status: 'failed', retryable: true }, 3, 3)).toBe(
+            'retries-exhausted',
+        );
+        expect(getRetryStopReason({ status: 'rejected' }, 3, 3)).toBe('retries-exhausted');
+        expect(getRetryStopReason({ status: 'failed', retryable: true }, 0, 0)).toBe(
+            'primary-probe-failed',
+        );
     });
 
     it('returns "" while retries remain', () => {
-        expect(getRetryStopReason({ shouldRetry: true }, 1, 3)).toBe('');
+        expect(getRetryStopReason({ status: 'failed', retryable: true }, 1, 3)).toBe('');
+        expect(getRetryStopReason({ status: 'rejected' }, 1, 3)).toBe('');
     });
 });
