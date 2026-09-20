@@ -1,4 +1,8 @@
-import { defaultSettings } from '../foundation/constants.js';
+import { defaultSettings, UI_MODES } from '../foundation/constants.js';
+import {
+    getLayer0SummaryRepairCeiling,
+    getLayer0SummaryTokenBounds,
+} from './layer0-compression.js';
 import { providers } from './connectionutil.js';
 
 const HEALTH_BUCKETS = Object.freeze({
@@ -33,7 +37,9 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @property {'layer0' | 'l1plus'} healthBucket - Primary retry health bucket for this call family
  * @property {CallProfileRoute[]} routes - Ordered failover series; the request runner walks it in order
  * @property {boolean} compression - Whether the prompt carries runtime compression constraints
- * @property {boolean} sizeGuard - Whether Layer 0 output size validation applies
+ * @property {{ target: number, min: number, max: number, repairCeiling: number } | null} sizeGuard - Frozen Layer 0 output-size band; null when the family validates no size
+ * @property {number | null} easyContextLimit - Frozen Easy Summarizer Context cap; null when the guard does not apply
+ * @property {boolean} stripChineseIdeographs - Whether the CN ideograph policy strips Han-heavy output
  * @property {boolean} promotionConstraints - Whether the prompt carries the Layer 1+ promotion constraint block
  */
 
@@ -43,6 +49,29 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @typedef {object} CallProfileRoute
  * @property {ExtensionSettings} connection - Provider-facing connection settings for this hop
  * @property {number} timeoutMs - Attempt timeout in milliseconds, hard fallback applied
+ */
+
+/**
+ * Resolver input for one summarizer call: the call category plus the
+ * provenance the dispatch constructors build. Downstream, the request path
+ * consumes the resolved CallProfile (src/core/call-profile.js) and never
+ * reads `kind`.
+ * @typedef {object} SummarizerCallMetadata
+ * @property {'layer0' | 'promotion' | 'regenerate' | 'auditor' | string} [kind] - Call category
+ * @property {[number, number]} [sourceRange] - Source chat index range
+ * @property {import('./chatutils.js').PassageRegexStats} [regexStats] - Passage regex stats
+ * @property {number} [sourceTokensBefore] - Source text size before summarization
+ * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
+ * @property {number} [layerIndex] - Source layer for promotion calls
+ * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
+ * @property {number} [memoryTokensBefore] - Source memory size before promotion
+ * @property {boolean} [memoryTokensBeforeEstimated] - Whether memoryTokensBefore was estimated
+ * @property {number} [overflowLayerIndex] - Layer that exceeded promotion limits
+ * @property {number} [overflowMemoryCount] - Memory count in the overflowing layer
+ * @property {number} [overflowMemoryLimit] - Configured memory count limit for the layer
+ * @property {number} [overflowTokens] - Token count in the overflowing layer
+ * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
+ * @property {{ reason?: string, outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback of this dispatch
  */
 
 /**
@@ -77,7 +106,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * inside buildSummarizerPipelineInput; the returned profile is the only thing
  * the request path consumes.
  * @param {ExtensionSettings} settings - Effective settings captured for this dispatch
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [call] - Call category plus the provenance the constructors build
+ * @param {SummarizerCallMetadata} [call] - Call category plus the provenance the constructors build
  * @returns {CallProfile}
  */
 export function resolveCallProfile(settings, call = {}) {
@@ -97,11 +126,41 @@ export function resolveCallProfile(settings, call = {}) {
             healthBucket: isPromotion ? HEALTH_BUCKETS.l1plus : HEALTH_BUCKETS.layer0,
             routes: resolveRouteSeries(settings, call.kind),
             compression: isLayer0Family || isPromotion,
-            sizeGuard: isLayer0Family,
+            sizeGuard: isLayer0Family ? buildLayer0SizeGuard(settings) : null,
+            easyContextLimit: resolveEasyContextLimit(settings),
+            stripChineseIdeographs: Boolean(settings.stripChineseIdeographs),
             promotionConstraints: isPromotion,
         },
         provenance: buildProvenance(call),
     };
+}
+
+/**
+ * Freeze the Layer 0 output-size band: bounds and the narrow repair ceiling
+ * resolve together with the guard at dispatch, so retries never re-read the
+ * live setting (ADR-0023).
+ * @param {ExtensionSettings} settings
+ * @returns {{ target: number, min: number, max: number, repairCeiling: number }}
+ */
+function buildLayer0SizeGuard(settings) {
+    return {
+        ...getLayer0SummaryTokenBounds(settings),
+        repairCeiling: getLayer0SummaryRepairCeiling(settings),
+    };
+}
+
+/**
+ * Freeze the Easy Summarizer Context cap: outside Easy mode, or with a
+ * malformed cap, the guard is unset. Evaluated once per dispatch.
+ * @param {ExtensionSettings} settings
+ * @returns {number | null}
+ */
+function resolveEasyContextLimit(settings) {
+    if (settings.uiMode !== UI_MODES.EASY) {
+        return null;
+    }
+    const limit = Number(settings.advancedModelContext);
+    return Number.isFinite(limit) && limit > 0 ? limit : null;
 }
 
 /**
@@ -127,7 +186,7 @@ function resolveSystemPrompt(settings, kind) {
 
 /**
  * @param {ExtensionSettings} settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} call
+ * @param {SummarizerCallMetadata} call
  * @returns {string}
  */
 function resolveUserPromptTemplate(settings, call) {
@@ -176,7 +235,7 @@ function resolveRouteTimeoutMs(configuredSeconds, isPromotion) {
 /**
  * One label switch serves usage lines, prompt logs, and the Easy context
  * guard; no per-consumer label variants exist.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} call
+ * @param {SummarizerCallMetadata} call
  * @returns {string}
  */
 function buildCallLabel(call) {
@@ -193,7 +252,7 @@ function buildCallLabel(call) {
 }
 
 /**
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} call
+ * @param {SummarizerCallMetadata} call
  * @returns {CallProvenance}
  */
 function buildProvenance(call) {
@@ -490,7 +549,7 @@ function formatCount(count, singular) {
 }
 
 /**
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} call
+ * @param {SummarizerCallMetadata} call
  * @returns {string}
  */
 function formatPromotionLabel(call) {

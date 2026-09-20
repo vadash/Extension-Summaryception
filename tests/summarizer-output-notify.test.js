@@ -21,7 +21,6 @@ describe('summarizer output notify events', () => {
         const settings = makeSummarySettings({ stripChineseIdeographs: true });
         const result = await processSummarizerResponse(
             '这是一段用于测试的中文摘要文本',
-            settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
             recorder,
         );

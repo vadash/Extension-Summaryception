@@ -63,6 +63,7 @@
 - Timeouts on uncancellable adapters are non-retryable; adapters declare `cancellable`.
 - Map all adapter failures through one shared error wrapper. Do not rebuild status or retryable per provider.
 - Build the request series context once at entry and thread it down. Per-route fallback flags and retry budgets stay per-route.
+- Attempt-path modules never read settings; the resolved Call Profile is the call's frozen policy (ADR-0023).
 
 ## Run Control
 

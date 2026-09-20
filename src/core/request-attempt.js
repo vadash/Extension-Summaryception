@@ -1,4 +1,4 @@
-import { NOTIFY_EVENTS, UI_MODES } from '../foundation/constants.js';
+import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import {
     debug,
     error as logError,
@@ -40,15 +40,12 @@ export function appendRepairFeedback(prompt, repairFeedback) {
 /**
  * Run one summarizer request attempt through guard, send, and result processing.
  * @param {object} params - Attempt inputs for the route state machine.
- * @param {ExtensionSettings} params.settings - Active settings.
  * @param {string} params.systemPrompt - Fully substituted system prompt.
  * @param {string} params.prompt - Fully substituted user prompt.
  * @param {AbortSignal} params.signal - Abort signal for the request.
  * @param {number} params.attempt - Zero-based attempt index.
  * @param {import('./call-profile.js').CallProfile} params.profile - Call profile resolved at dispatch.
  * @param {ExtensionSettings} params.connection - Resolved connection settings for this route.
- * @param {boolean} [params.layer0Repair] - Whether this attempt re-runs a rejected Layer 0 output.
- * @param {string} [params.repairFeedback] - Diagnostics appended to the repair prompt.
  * @param {import('./notify.js').NotifyAdapter} params.notify - Notify adapter for mid-run notices.
  * @param {string} params.routeLabel - Route label for structured logs.
  * @param {number} params.maxRetries - Retry budget for this route.
@@ -71,8 +68,8 @@ export async function runSingleAttempt(params) {
     return await processAttemptResult({ ...params, rawResult });
 }
 
-async function getEasyContextGuardFailure({ settings, systemPrompt, prompt, profile, notify }) {
-    const guard = await checkEasyContextGuard(settings, systemPrompt, prompt, profile);
+async function getEasyContextGuardFailure({ systemPrompt, prompt, profile, notify }) {
+    const guard = await checkEasyContextGuard(profile, systemPrompt, prompt);
     if (guard.ok) {
         return null;
     }
@@ -108,15 +105,8 @@ async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, ti
     }
 }
 
-async function processAttemptResult({
-    rawResult,
-    settings,
-    systemPrompt,
-    prompt,
-    profile,
-    notify,
-}) {
-    const processed = await processSummarizerResponse(rawResult, settings, profile, notify);
+async function processAttemptResult({ rawResult, systemPrompt, prompt, profile, notify }) {
+    const processed = await processSummarizerResponse(rawResult, profile, notify);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
         return {
@@ -364,19 +354,14 @@ export async function notifyRouteCycleFailedAndWait({ healthBucket, signal, noti
 }
 
 /**
- * @param {ExtensionSettings} settings
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @param {string} systemPrompt
  * @param {string} prompt - Fully substituted user prompt
- * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {Promise<{ ok: true } | { ok: false, limit: number, tokens: { count: number, estimated: boolean }, label: string }>}
  */
-async function checkEasyContextGuard(settings, systemPrompt, prompt, profile) {
-    if (settings.uiMode !== UI_MODES.EASY) {
-        return { ok: true };
-    }
-
-    const limit = Number(settings.advancedModelContext);
-    if (!Number.isFinite(limit) || limit <= 0) {
+async function checkEasyContextGuard(profile, systemPrompt, prompt) {
+    const limit = profile.policy.easyContextLimit;
+    if (limit === null) {
         return { ok: true };
     }
 

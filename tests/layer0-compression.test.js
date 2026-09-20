@@ -186,7 +186,6 @@ describe('validateLayer0OutputSize', () => {
 
         const result = await validateLayer0OutputSize(
             output,
-            defaultSettings,
             resolveCallProfile(defaultSettings, { kind: 'layer0' }),
         );
 
@@ -204,7 +203,6 @@ describe('validateLayer0OutputSize', () => {
 
         const result = await validateLayer0OutputSize(
             output,
-            defaultSettings,
             resolveCallProfile(defaultSettings, { kind: 'layer0' }),
         );
 
@@ -219,7 +217,6 @@ describe('validateLayer0OutputSize', () => {
 
         const result = await validateLayer0OutputSize(
             '[NARRATIVE]\nAny narrative-only draft',
-            defaultSettings,
             resolveCallProfile(defaultSettings, { kind: 'promotion' }),
         );
 

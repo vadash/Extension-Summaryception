@@ -37,13 +37,11 @@ describe('request attempt notify events', () => {
     });
 
     function makeAttemptParams(overrides = {}) {
-        const settings = makeSummarySettings();
         return {
-            settings,
             systemPrompt: 'system',
             prompt: 'prompt',
             signal: new AbortController().signal,
-            profile: resolveCallProfile(settings, { kind: 'layer0' }),
+            profile: resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }),
             attempt: 0,
             maxRetries: RETRY_CONFIG.maxRetries,
             routeLabel: 'primary',
@@ -57,7 +55,10 @@ describe('request attempt notify events', () => {
         const recorder = makeNotifyRecorder();
         const params = makeAttemptParams({
             notify: recorder,
-            settings: makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
+            profile: resolveCallProfile(
+                makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
+                { kind: 'layer0' },
+            ),
             prompt: 'x'.repeat(4000),
         });
 

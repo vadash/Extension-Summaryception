@@ -4,32 +4,6 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
 // Usage recording and token-range formatting live here only. The per-call
 // human label is resolved once into the CallProfile (src/core/call-profile.js);
 // do not re-derive label switches per caller.
-/**
- * @typedef {import('./chatutils.js').PassageRegexStats} PassageRegexStats
- */
-
-/**
- * Resolver input for one summarizer call: the call category plus the
- * provenance the dispatch constructors build. Downstream, the request path
- * consumes the resolved CallProfile (src/core/call-profile.js) and never
- * reads `kind`.
- * @typedef {object} SummarizerCallMetadata
- * @property {'layer0' | 'promotion' | 'regenerate' | 'auditor' | string} [kind] - Call category
- * @property {[number, number]} [sourceRange] - Source chat index range
- * @property {PassageRegexStats} [regexStats] - Passage regex stats
- * @property {number} [sourceTokensBefore] - Source text size before summarization
- * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
- * @property {number} [layerIndex] - Source layer for promotion calls
- * @property {number} [mergedSnippetCount] - Snippets merged for promotion calls
- * @property {number} [memoryTokensBefore] - Source memory size before promotion
- * @property {boolean} [memoryTokensBeforeEstimated] - Whether memoryTokensBefore was estimated
- * @property {number} [overflowLayerIndex] - Layer that exceeded promotion limits
- * @property {number} [overflowMemoryCount] - Memory count in the overflowing layer
- * @property {number} [overflowMemoryLimit] - Configured memory count limit for the layer
- * @property {number} [overflowTokens] - Token count in the overflowing layer
- * @property {number} [overflowTokenQuota] - Token quota for the overflowing layer
- * @property {{ reason?: string, outputTokens?: number, targetTokens?: number, hardMaxTokens?: number, requiredMaxTokens?: number, sourceTokens?: number, rejectedSummary?: string, diagnostics?: object }} [promotionRepair] - Promotion repair feedback of this dispatch
- */
 
 /**
  * @typedef {object} SummarizerTokenUsage

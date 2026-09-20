@@ -36,7 +36,7 @@ Code: `drainPromotionOverflow` (src/core/summarizer-promotion.js)
 
 **Regeneration**:
 Rebuilding one Layer 0 Snippet from its source turns through a new summarizer request.
-Code: `metadata.kind: 'regenerate'` (src/core/summarizer-usage.js)
+Code: `metadata.kind: 'regenerate'` (src/core/call-profile.js)
 _Avoid_: Redo, re-summarize
 
 **Ghosting**:
@@ -103,10 +103,14 @@ The bare, unwrapped memory text handed to the summarizer as context: full anchor
 Code: `buildMemoryBody` (src/core/memory-injection.js)
 _Avoid_: memory injection, chronology text
 
+**Call Metadata**:
+The resolver's input for one summarizer call: the call category plus the verbatim provenance the dispatch constructors build. Consumed once by `resolveCallProfile`; the request path never reads the call category.
+Code: `SummarizerCallMetadata` (src/core/call-profile.js)
+_Avoid_: Raw metadata
+
 **Call Profile**:
-The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category.
+The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, the frozen Easy Summarizer Context cap, the frozen CN ideograph policy, the frozen Layer 0 size band, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category or live settings.
 Code: `resolveCallProfile` (src/core/call-profile.js)
-_Avoid_: Call metadata
 
 **Route Plan**:
 The plan for one summarization cycle: the selected route, readiness reason, commit mode, and the batch and partition schedule.

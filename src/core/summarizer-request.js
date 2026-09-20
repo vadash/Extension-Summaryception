@@ -33,7 +33,7 @@ export function abortAllRequests() {
  * @param {object} request
  * @param {string} request.storyTxt - Story text to summarize
  * @param {string} request.contextStr - Continuity context text
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} [request.metadata] - Resolver input: call category plus provenance
+ * @param {import('./call-profile.js').SummarizerCallMetadata} [request.metadata] - Resolver input: call category plus provenance
  * @param {import('./notify.js').NotifyAdapter} [request.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
  * @param {AbortSignal} [request.signal] - Optional external abort signal; aborting it aborts this request
  * @returns {Promise<import('./run-outcome.js').RunOutcome>} `completed` carries the summary text and the resolved profile

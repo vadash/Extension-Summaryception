@@ -104,27 +104,25 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
 /**
  * Validate exact Layer 0 output size after structural validation.
  * @param {string} text - Cleaned summarizer output
- * @param {Partial<ExtensionSettings>} settings - Active settings
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {Promise<{ valid: true, error: null, repairFeedback: '' } | { valid: false, error: Error & { retryable?: boolean }, repairFeedback: string, diagnostics: object }>}
  */
-export async function validateLayer0OutputSize(text, settings, profile) {
-    if (!profile?.policy?.sizeGuard) {
+export async function validateLayer0OutputSize(text, profile) {
+    const guard = profile?.policy?.sizeGuard;
+    if (!guard) {
         return { valid: true, error: null, repairFeedback: '' };
     }
 
     const narrative = extractLayer0Narrative(text);
-    const bounds = getLayer0SummaryTokenBounds(settings);
     const [outputTokens, narrativeTokens] = await Promise.all([
         countTextTokens(text),
         countTextTokens(narrative),
     ]);
 
-    const narrativeRepairCeiling = getLayer0SummaryRepairCeiling(settings);
     const diagnostics = buildLayer0SizeDiagnostics({
         text,
-        bounds,
-        narrativeRepairCeiling,
+        bounds: guard,
+        narrativeRepairCeiling: guard.repairCeiling,
         provenance: profile.provenance,
         outputTokens: outputTokens.count,
         narrative,
@@ -133,14 +131,14 @@ export async function validateLayer0OutputSize(text, settings, profile) {
 
     if (diagnostics.violations.length > 0) {
         return rejectLayer0Size(diagnostics, {
-            targetTokens: getLayer0SummaryTokenTarget(settings),
+            targetTokens: guard.target,
             layer: 'l0',
         });
     }
 
-    if (narrativeTokens.count > bounds.max && narrativeTokens.count <= narrativeRepairCeiling) {
+    if (narrativeTokens.count > guard.max && narrativeTokens.count <= guard.repairCeiling) {
         debug(
-            `Accepted Layer 0 narrative within repair grace: ${narrativeTokens.count} tokens (prompt maximum ${bounds.max}, repair ceiling ${narrativeRepairCeiling})`,
+            `Accepted Layer 0 narrative within repair grace: ${narrativeTokens.count} tokens (prompt maximum ${guard.max}, repair ceiling ${guard.repairCeiling})`,
         );
     }
 
@@ -296,8 +294,13 @@ export function appendLayer0PromptConstraints(prompt, settings, profile) {
         return appendPromotionPromptConstraints(prompt, settings, profile.provenance);
     }
 
+    const sizeGuard = profile.policy.sizeGuard;
+    if (!sizeGuard) {
+        return prompt;
+    }
+
     const insert = [
-        buildLayer0BudgetHint({ targetTokens: getLayer0SummaryTokenTarget(settings) }),
+        buildLayer0BudgetHint({ targetTokens: sizeGuard.target }),
         buildLayer0SourceRangeLine(profile.provenance),
     ]
         .filter(Boolean)
@@ -321,7 +324,7 @@ function buildLayer0SourceRangeLine(metadata = {}) {
  * Add Layer 1+ promotion-specific consolidation constraints.
  * @param {string} prompt
  * @param {Partial<ExtensionSettings>} settings
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata
+ * @param {import('./call-profile.js').SummarizerCallMetadata} metadata
  * @returns {string}
  */
 function appendPromotionPromptConstraints(prompt, settings, metadata = {}) {

@@ -60,11 +60,11 @@ function cleanSummarizerOutput(raw) {
 /**
  * Strip or reject Han-heavy summarizer output when enabled.
  * @param {string} cleanedResult - Output after standard artifact cleanup
- * @param {Partial<ExtensionSettings>} settings - Active settings
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null, percent: string | null }}
  */
-function applyChineseOutputPolicy(cleanedResult, settings = {}) {
-    if (!settings.stripChineseIdeographs) {
+function applyChineseOutputPolicy(cleanedResult, profile) {
+    if (!profile?.policy?.stripChineseIdeographs) {
         return { text: cleanedResult, error: null, percent: null };
     }
 
@@ -193,19 +193,13 @@ function rejectIntegrity(reason) {
 /**
  * Clean and validate a raw provider response.
  * @param {string} rawResult - Raw provider output
- * @param {ExtensionSettings} settings - Active settings
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for the language-mix rejection; defaults to the silent adapter
  * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>} Rejected attempts keep the cleaned LLM output in `text` for the attempt log; only `empty` has none.
  */
-export async function processSummarizerResponse(
-    rawResult,
-    settings,
-    profile,
-    notify = silentAdapter,
-) {
+export async function processSummarizerResponse(rawResult, profile, notify = silentAdapter) {
     const cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
-    const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, settings);
+    const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, profile);
 
     if (chinesePolicyResult.error) {
         notifyLanguageMixRejection(chinesePolicyResult.percent, notify);
@@ -237,7 +231,7 @@ export async function processSummarizerResponse(
         };
     }
 
-    const sizeResult = await validateLayer0OutputSize(chinesePolicyResult.text, settings, profile);
+    const sizeResult = await validateLayer0OutputSize(chinesePolicyResult.text, profile);
     if (!sizeResult.valid) {
         warn(sizeResult.error.message);
         return {

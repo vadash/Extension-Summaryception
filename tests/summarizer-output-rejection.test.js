@@ -18,7 +18,6 @@ describe('summarizer output rejection payloads', () => {
         const raw = 'The party rested at the inn before the crossing.';
         const result = await processSummarizerResponse(
             raw,
-            settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
 
@@ -31,7 +30,6 @@ describe('summarizer output rejection payloads', () => {
         const settings = makeSummarySettings({ stripChineseIdeographs: true });
         const result = await processSummarizerResponse(
             '这是一段用于测试的中文摘要文本',
-            settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
 
@@ -43,7 +41,6 @@ describe('summarizer output rejection payloads', () => {
         const settings = makeSummarySettings();
         const result = await processSummarizerResponse(
             '   \n  ',
-            settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
 

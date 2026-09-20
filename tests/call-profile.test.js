@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultSettings } from '../src/foundation/constants.js';
+import { defaultSettings, UI_MODES } from '../src/foundation/constants.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { makeSummarySettings } from './test-helpers.js';
 
@@ -319,16 +319,67 @@ describe('resolveCallProfile guard flags', () => {
         ['regenerate', true, true],
         ['promotion', true, false],
         ['auditor', false, false],
-    ])('sets compression=%s and sizeGuard flags for %s', (kind, compression, sizeGuard) => {
-        const policy = resolveCallProfile(makeSummarySettings(), { kind }).policy;
+    ])('resolves compression and the frozen size band for %s', (kind, compression, guarded) => {
+        const policy = resolveCallProfile(makeSummarySettings({ layer0SummaryTokenTarget: 300 }), {
+            kind,
+        }).policy;
         expect(policy.compression).toBe(compression);
-        expect(policy.sizeGuard).toBe(sizeGuard);
+        if (guarded) {
+            expect(policy.sizeGuard).toEqual({
+                target: 300,
+                min: 50,
+                max: 450,
+                repairCeiling: 495,
+            });
+        } else {
+            expect(policy.sizeGuard).toBeNull();
+        }
     });
 
-    it('leaves flags off for uncategorized calls', () => {
+    it('leaves compression and the size band unset for uncategorized calls', () => {
         const policy = resolveCallProfile(makeSummarySettings(), {}).policy;
         expect(policy.compression).toBe(false);
-        expect(policy.sizeGuard).toBe(false);
+        expect(policy.sizeGuard).toBeNull();
+    });
+
+    it('freezes the Easy context limit only for Easy mode with a positive finite cap', () => {
+        const easy = resolveCallProfile(
+            makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 4000 }),
+            { kind: 'layer0' },
+        ).policy;
+        expect(easy.easyContextLimit).toBe(4000);
+
+        const advanced = resolveCallProfile(
+            makeSummarySettings({ uiMode: UI_MODES.ADVANCED, advancedModelContext: 4000 }),
+            { kind: 'layer0' },
+        ).policy;
+        expect(advanced.easyContextLimit).toBeNull();
+
+        const off = resolveCallProfile(
+            makeSummarySettings({ uiMode: UI_MODES.OFF, advancedModelContext: 4000 }),
+            { kind: 'layer0' },
+        ).policy;
+        expect(off.easyContextLimit).toBeNull();
+    });
+
+    it('leaves the Easy context limit unset for malformed caps', () => {
+        for (const cap of [0, -5, 'abc']) {
+            const policy = resolveCallProfile(
+                makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: cap }),
+                { kind: 'layer0' },
+            ).policy;
+            expect(policy.easyContextLimit).toBeNull();
+        }
+    });
+
+    it('carries the CN ideograph policy verbatim', () => {
+        const on = resolveCallProfile(makeSummarySettings({ stripChineseIdeographs: true }), {
+            kind: 'layer0',
+        }).policy;
+        expect(on.stripChineseIdeographs).toBe(true);
+
+        const off = resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }).policy;
+        expect(off.stripChineseIdeographs).toBe(false);
     });
 });
 

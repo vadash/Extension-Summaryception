@@ -12,6 +12,7 @@ vi.mock('../src/core/request-attempt.js', () => attemptMocks);
 import { RequestRunner } from '../src/core/request-runner.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
+import { UI_MODES } from '../src/foundation/constants.js';
 import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
 
 describe('RequestRunner.run outcomes', () => {
@@ -25,7 +26,6 @@ describe('RequestRunner.run outcomes', () => {
     function makeRequest({ signal, notify, settings, profile } = {}) {
         const resolvedSettings = settings ?? makeSummarySettings();
         return {
-            settings: resolvedSettings,
             systemPrompt: 'system',
             prompt: 'prompt',
             repairPrompt: 'repair',
@@ -50,6 +50,39 @@ describe('RequestRunner.run outcomes', () => {
         expect(outcome.text).toBe('THE SUMMARY');
         expect(outcome.profile).toBe(request.profile);
         expect(attemptMocks.runSingleAttempt).toHaveBeenCalledOnce();
+    });
+
+    it('retries consume the profile frozen at dispatch, not live settings', async () => {
+        const settings = makeSummarySettings({ layer0SummaryTokenTarget: 300 });
+        const request = makeRequest({ settings });
+        attemptMocks.runSingleAttempt.mockImplementationOnce(() => {
+            // A mid-run settings edit must not reach an in-flight call's retries (ADR-0023).
+            settings.uiMode = UI_MODES.EASY;
+            settings.advancedModelContext = 10;
+            settings.layer0SummaryTokenTarget = 999;
+            return Promise.resolve({
+                success: false,
+                error: new Error('timeout'),
+                aborted: false,
+                shouldRetry: true,
+                hardFailover: false,
+            });
+        });
+        attemptMocks.runSingleAttempt.mockResolvedValueOnce({
+            success: true,
+            result: 'THE SUMMARY',
+            error: undefined,
+            cleanedResult: 'THE SUMMARY',
+        });
+
+        const outcome = await new RequestRunner().run(request);
+
+        expect(outcome.status).toBe('completed');
+        expect(attemptMocks.runSingleAttempt).toHaveBeenCalledTimes(2);
+        const retryParams = attemptMocks.runSingleAttempt.mock.calls[1][0];
+        expect(retryParams.profile).toBe(request.profile);
+        expect(retryParams.profile.policy.easyContextLimit).toBeNull();
+        expect(retryParams.profile.policy.sizeGuard.target).toBe(300);
     });
 
     it('returns aborted for an already-aborted signal without attempting', async () => {

@@ -34,10 +34,9 @@ describe('attempt timeout retryability vs cancellation capability', () => {
         }
     });
 
-    function makeAttemptParams(overrides = {}) {
-        const settings = overrides.settings ?? makeSummarySettings();
+    function makeAttemptParams({ settings: settingsOverride, ...overrides } = {}) {
+        const settings = settingsOverride ?? makeSummarySettings();
         return {
-            settings,
             systemPrompt: 'system',
             prompt: 'prompt',
             signal: new AbortController().signal,

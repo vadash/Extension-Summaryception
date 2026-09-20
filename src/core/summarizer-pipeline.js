@@ -9,7 +9,7 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  * @typedef {object} SummarizerPipelineInputRequest
  * @property {string} storyTxt - The story text to summarize
  * @property {string} contextStr - The accumulated context string
- * @property {import('./summarizer-usage.js').SummarizerCallMetadata} [metadata] - Resolver input: call category plus provenance
+ * @property {import('./call-profile.js').SummarizerCallMetadata} [metadata] - Resolver input: call category plus provenance
  * @property {ExtensionSettings} [settings] - Effective settings override
  */
 
@@ -18,7 +18,7 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  * returned profile is frozen policy: the runner consumes it instead of
  * re-deriving per-attempt decisions from the live settings.
  * @param {SummarizerPipelineInputRequest} request
- * @returns {Promise<{ settings: ExtensionSettings, prompt: string, repairPrompt: string, profile: import('./call-profile.js').CallProfile }>}
+ * @returns {Promise<{ prompt: string, repairPrompt: string, profile: import('./call-profile.js').CallProfile }>}
  */
 export async function buildSummarizerPipelineInput({
     storyTxt,
@@ -46,7 +46,6 @@ export async function buildSummarizerPipelineInput({
         : '';
 
     return {
-        settings,
         prompt,
         repairPrompt,
         profile,
@@ -91,9 +90,9 @@ export async function recordSuccessfulSummarizerUsage({ systemPrompt, prompt, su
 
 /**
  * Add usage-only details that should not affect prompt labels or routing.
- * @param {import('./summarizer-usage.js').SummarizerCallMetadata} metadata - Call metadata
+ * @param {import('./call-profile.js').SummarizerCallMetadata} metadata - Call metadata
  * @param {string} storyTxt - Source text being summarized
- * @returns {Promise<import('./summarizer-usage.js').SummarizerCallMetadata>}
+ * @returns {Promise<import('./call-profile.js').SummarizerCallMetadata>}
  */
 async function buildUsageMetadata(metadata = {}, storyTxt = '') {
     let usageMetadata = metadata;

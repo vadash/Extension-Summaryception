@@ -78,7 +78,6 @@ export class RequestRunner {
     /**
      * Run retry attempts until success, abort, non-retryable error, or exhaustion.
      * @param {object} p
-     * @param {ExtensionSettings} p.settings
      * @param {string} p.prompt - Fully substituted user prompt
      * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
      * @param {AbortSignal} p.signal - Abort signal
@@ -86,10 +85,9 @@ export class RequestRunner {
      * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
      * @returns {Promise<import('./run-outcome.js').RunOutcome>} Structured outcome; `completed` carries the summary text and the resolved profile.
      */
-    async run({ settings, prompt, repairPrompt, signal, profile, notify = silentAdapter }) {
+    async run({ prompt, repairPrompt, signal, profile, notify = silentAdapter }) {
         // Shared, read-only context for every route cycle and attempt of this request.
         const series = {
-            settings,
             prompt,
             repairPrompt,
             signal,
@@ -301,7 +299,6 @@ export class RequestRunner {
             ...attemptState,
             prompt: promptContext.prompt,
             connection: attemptState.route.connection,
-            layer0Repair: attemptState.useRepairPrompt,
             timeoutMs: attemptState.route.timeoutMs,
         });
     }
@@ -313,31 +310,19 @@ export class RequestRunner {
      * @returns {Promise<{ success: boolean, result: string, error: Error, aborted: boolean, shouldRetry: boolean, hardFailover: boolean, failureStatus?: string, repairFeedback?: string }>}
      */
     async executeAttempt(series, attemptState) {
-        const {
-            prompt,
-            attempt,
-            connection,
-            layer0Repair,
-            repairFeedback,
-            routeLabel,
-            maxRetries,
-            timeoutMs,
-        } = attemptState;
+        const { prompt, attempt, connection, routeLabel, maxRetries, timeoutMs } = attemptState;
         trace(`  ${routeLabel} attempt ${attempt} starting...`);
         const startedAt = Date.now();
         const logState = createAttemptLogState();
 
         try {
             const result = await runSingleAttempt({
-                settings: series.settings,
                 systemPrompt: series.profile.policy.systemPrompt,
                 prompt,
                 signal: series.signal,
                 attempt,
                 profile: series.profile,
                 connection,
-                layer0Repair,
-                repairFeedback,
                 notify: series.notify,
                 routeLabel,
                 maxRetries,
