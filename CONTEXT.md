@@ -93,6 +93,16 @@ How raw chat converts into summaries. Either Balanced or Prefix Cache.
 Code: `MEMORY_MODES` (src/foundation/constants.js)
 _Avoid_: Append Only
 
+**Memory Injection**:
+The read model of what ships in the prompt slot: the chronology in compact-anchor form, wrapped in the injection template, with its token cost. The same module builds and measures it, so the preview and the injected prompt are the same string.
+Code: `buildInjection` / `measureInjection` (src/core/memory-injection.js)
+_Avoid_: summary block, injection preview
+
+**Memory Body**:
+The bare, unwrapped memory text handed to the summarizer as context: full anchors, one section per layer, no injection template.
+Code: `buildMemoryBody` (src/core/memory-injection.js)
+_Avoid_: memory injection, chronology text
+
 **Call Profile**:
 The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category.
 Code: `resolveCallProfile` (src/core/call-profile.js)

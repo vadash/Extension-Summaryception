@@ -1,7 +1,7 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/state.js';
-import { getEffectiveMemoryUsage } from './memory-budget.js';
+import { buildInjection, measureInjection } from './memory-injection.js';
 import { getLayer0SummaryTokenTarget } from './layer0-compression.js';
 import {
     buildHypotheticalLayersAfterPromotion,
@@ -216,14 +216,14 @@ async function validatePromotionCompressesMemory({
     settings,
 }) {
     const store = getChatStore();
-    const memoryTokensBefore = await getEffectiveMemoryUsage(store.layers, settings);
+    const memoryTokensBefore = await measureInjection(buildInjection(store.layers, settings));
     const nextLayers = buildHypotheticalLayersAfterPromotion(
         store.layers,
         layerIndex,
         mergeCount,
         promotedSnippet,
     );
-    const memoryTokensAfter = await getEffectiveMemoryUsage(nextLayers, settings);
+    const memoryTokensAfter = await measureInjection(buildInjection(nextLayers, settings));
     if (memoryTokensAfter.total.count < memoryTokensBefore.total.count) {
         return { valid: true };
     }

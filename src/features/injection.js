@@ -8,19 +8,8 @@ import {
 import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
-import { buildEffectiveMemoryText } from '../core/memory-budget.js';
+import { buildInjection } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
-
-// ─── Core: Assemble Full Summary Block ──────────────────────────────
-
-/**
- * @returns {string} The assembled summary block, or '' if no snippets exist
- */
-export function assembleSummaryBlock() {
-    const s = getEffectiveSettings();
-    const store = getChatStore();
-    return buildEffectiveMemoryText(store.layers, s);
-}
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
@@ -138,7 +127,7 @@ function buildEnabledMemoryText(settings = getEffectiveSettings()) {
     if (!settings.enabled) {
         return '';
     }
-    return assembleSummaryBlock() || '';
+    return buildInjection(getChatStore().layers, settings).text;
 }
 
 function mapMemoryPosition(position) {

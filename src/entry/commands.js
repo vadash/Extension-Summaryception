@@ -2,7 +2,7 @@ import { layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { getChat, getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
 import { getChatStore, getCurrentSummarizedBoundary } from '../foundation/state.js';
-import { assembleSummaryBlock } from '../features/injection.js';
+import { buildInjection } from '../core/memory-injection.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';
 
 /**
@@ -54,7 +54,7 @@ export function registerSlashCommands() {
             SlashCommand.fromProps({
                 name: 'sc-preview',
                 callback: () => {
-                    return assembleSummaryBlock() || '(No summaries yet)';
+                    return buildInjection(getChatStore().layers).text || '(No summaries yet)';
                 },
                 helpString: 'Preview the summary block that would be injected',
             }),

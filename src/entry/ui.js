@@ -15,12 +15,11 @@ import {
 } from '../foundation/state.js';
 import { countGhostedMessages } from '../core/ghosting.js';
 import { isBusy } from '../core/summarizer-queue.js';
-import { countTextTokens, formatCompactTokenCount } from '../core/token-count.js';
+import { formatCompactTokenCount } from '../core/token-count.js';
 
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { estimateContextPreview } from '../core/token-budget.js';
-import { getEffectiveMemoryUsage } from '../core/memory-budget.js';
-import { assembleSummaryBlock } from '../features/injection.js';
+import { buildInjection, measureInjection } from '../core/memory-injection.js';
 import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
 import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
@@ -64,12 +63,15 @@ export async function updateUI() {
             ghostedCount,
             metrics,
         };
+        const memoryInjection = buildInjection(store.layers, effectiveSettings);
+        const memoryUsage = await measureInjection(memoryInjection);
+
         await renderStatusOverview('sc_status', 'enabled', overview);
         await renderStatusOverview('sc_easy_status', 'mode', overview);
-        await renderBudgetStatus(effectiveSettings, store, work);
-        await renderMemoryBudget(effectiveSettings, store, 'easy_memory');
+        await renderBudgetStatus(effectiveSettings, work, memoryUsage);
+        await renderMemoryBudget(effectiveSettings, memoryUsage, 'easy_memory');
         renderLayerStats(effectiveSettings, store, ghostedCount);
-        await renderPreview();
+        await renderPreview(memoryInjection, memoryUsage);
         updateSnippetBrowser();
     } catch (e) {
         warn('updateUI error:', e);
@@ -175,10 +177,10 @@ function syncMemoryModeControls(s) {
     $('.sc-cache-mode-row').toggle(isPrefixCache);
 }
 
-async function renderBudgetStatus(s, store, work) {
+async function renderBudgetStatus(s, work, memoryUsage) {
     await renderVerbatimBudget(s, work);
     await renderTriggerGauge(s, work);
-    await renderMemoryBudget(s, store);
+    await renderMemoryBudget(s, memoryUsage);
 }
 
 /**
@@ -250,15 +252,12 @@ async function renderTriggerGauge(s, work) {
     });
 }
 
-async function renderMemoryBudget(s, store, prefix = 'memory') {
-    await renderBudgetCard(prefix, async () => {
-        const usage = await getEffectiveMemoryUsage(store.layers, s);
-        return {
-            budget: s.memoryTokenBudget,
-            verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
-            layers: orderMemoryBudgetParts(usage.parts),
-        };
-    });
+async function renderMemoryBudget(s, usage, prefix = 'memory') {
+    await renderBudgetCard(prefix, () => ({
+        budget: s.memoryTokenBudget,
+        verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
+        layers: orderMemoryBudgetParts(usage.parts),
+    }));
 }
 
 function orderMemoryBudgetParts(parts) {
@@ -363,19 +362,15 @@ function renderLayerStats(s, store, ghostedCount) {
 }
 
 /**
- * Build and render the injection preview textarea and token count.
- * @returns {Promise<void>}
+ * Render the injection preview textarea and the token count of the very same
+ * text that was measured for the budget bar.
+ * @param {import('../core/memory-injection.js').MemoryInjection} injection
+ * @param {import('../core/memory-injection.js').MemoryInjectionUsage} usage
+ * @returns {void}
  */
-async function renderPreview() {
-    const preview = assembleSummaryBlock();
-    $('#sc_preview').val(preview || '(empty - no summaries yet)');
-    if (!preview) {
-        $('#sc_preview_token_count').text('0 tokens');
-        return;
-    }
-
-    const tokens = await countTextTokens(preview);
+function renderPreview(injection, usage) {
+    $('#sc_preview').val(injection.text || '(empty - no summaries yet)');
     $('#sc_preview_token_count').text(
-        `${formatBudgetTokenLabel(tokens.count, tokens.estimated)} tokens`,
+        `${formatBudgetTokenLabel(usage.total.count, usage.total.estimated)} tokens`,
     );
 }

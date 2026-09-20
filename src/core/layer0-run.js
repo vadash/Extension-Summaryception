@@ -11,7 +11,7 @@ import { buildSnippetMetadataFromText } from './snippet-metadata.js';
 import { commitWhenSafe } from './summarizer-commit.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { isSummarizerOutputSafe } from './summarizer-output.js';
-import { buildMemoryInjection } from './memory-injection.js';
+import { buildMemoryBody } from './memory-injection.js';
 import { formatTokenValue } from './token-count.js';
 import { SUMMARY_COMMIT_MODES } from './summarization-routes.js';
 import {
@@ -459,7 +459,7 @@ function buildPendingLayer0Context(layers, pendingSnippets) {
         workingLayers[0] = [];
     }
     workingLayers[0].push(...pendingSnippets);
-    return buildMemoryInjection(workingLayers) || '(none yet)';
+    return buildMemoryBody(workingLayers) || '(none yet)';
 }
 
 /**

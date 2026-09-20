@@ -1,6 +1,6 @@
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { applyRegexToMessage } from './regex-proxy.js';
-import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
+import { buildMemoryBody } from './memory-injection.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
@@ -315,10 +315,9 @@ function buildPassageResult(accumulator) {
  */
 export function buildFullContext(downToLayer = 0) {
     const store = getChatStore();
-    const injectionParts = buildMemoryInjectionParts(getLayersAtOrAbove(store.layers, downToLayer));
-    // Summarizer context is the raw memory body, never template-wrapped, so no
-    // injectionTemplate is supplied. '(none yet)' stands in when empty.
-    return renderInjectionTemplate(injectionParts, {}, { emptyFallback: '(none yet)' });
+    // Summarizer context is the raw memory body, never template-wrapped.
+    // '(none yet)' stands in when empty.
+    return buildMemoryBody(getLayersAtOrAbove(store.layers, downToLayer)) || '(none yet)';
 }
 
 function getLayersAtOrAbove(layers, downToLayer) {
