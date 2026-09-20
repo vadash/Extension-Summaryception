@@ -5,11 +5,11 @@
  * silent no-ops, mirroring the notify silent adapter.
  */
 
-/** @type {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateUI: () => void, updatePreview: () => void } | null} */
+/** @type {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void } | null} */
 let effects = null;
 
 /**
- * @param {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateUI: () => void, updatePreview: () => void }} port
+ * @param {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void }} port
  * @returns {void}
  */
 export function initRefreshPort(port) {
@@ -27,6 +27,7 @@ function fire(effect) {
  * @returns {void}
  */
 export function refreshUi() {
+    fire(effects?.updateContinuityMarker);
     fire(effects?.updateUI);
 }
 
@@ -37,6 +38,7 @@ export function refreshUi() {
 export function refreshFull() {
     fire(effects?.updateInjection);
     fire(effects?.updateContinuityInjection);
+    fire(effects?.updateContinuityMarker);
     fire(effects?.updateUI);
 }
 
@@ -47,5 +49,6 @@ export function refreshFull() {
 export function refreshPreview() {
     fire(effects?.updateInjection);
     fire(effects?.updateContinuityInjection);
+    fire(effects?.updateContinuityMarker);
     fire(effects?.updatePreview);
 }

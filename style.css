@@ -911,3 +911,13 @@
     .sc-snippet { grid-template-columns: minmax(0, 1fr) auto auto; }
     .sc-snippet-meta { grid-column: 1 / -1; max-width: none; }
 }
+
+/* Continuity Mark (glossary: Continuity Mark / Live Mark) on chat messages. */
+.mes.sc_continuity_marked .name_text::after {
+    content: ' \2713';
+    color: var(--okGreen70a, rgba(0, 100, 0, 0.7));
+}
+.mes.sc_continuity_live .name_text::after {
+    content: ' \2713 \25CF';
+    color: var(--okGreen70a, rgba(0, 100, 0, 0.7));
+}

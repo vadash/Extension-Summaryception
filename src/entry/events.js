@@ -22,6 +22,7 @@ import {
 } from '../core/summarizer-commit.js';
 import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
+import { updateContinuityMarker } from './continuity-marker.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
 import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
 
@@ -227,6 +228,7 @@ export function onGenerationStarted(...args) {
             beginRerollTail(args[0]);
             if (discardRegeneratedCheckpoint(args[0])) {
                 updateContinuityInjection();
+                updateContinuityMarker();
             }
         },
     });

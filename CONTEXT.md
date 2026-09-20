@@ -189,6 +189,16 @@ _Avoid_: roleplay state, sync state
 The per-message copy of the Continuity State an audit commits into the audited reply's message extra. The newest assistant message carrying a checkpoint is the live Continuity State; a newer audit overwrites the payload in place. A swipe or regenerate that replaces the chat's last message drops that reply's checkpoint at generation start, so the rerolled answer is unaudited until the next audit re-covers it; a regenerate over a trailing user turn replaces nothing and keeps it.
 _Avoid_: snapshot, state backup
 
+**Continuity Mark**:
+The indicator the extension adds to the chat view of every assistant reply whose message extra carries a Continuity Checkpoint payload. The reply holding the live checkpoint carries a second, distinct mark.
+Code: `updateContinuityMarker` (src/entry/continuity-marker.js)
+_Avoid_: continuity badge, audit checkmark
+
+**Live Mark**:
+The second, distinct Continuity Mark on the reply holding the live Continuity Checkpoint, the newest payload message. The Live Mark implies the base Continuity Mark.
+Code: `deriveContinuityMarks` (src/entry/continuity-marker.js)
+_Avoid_: current checkpoint badge, anchor dot
+
 **Continuity Coverage**:
 The one read model of the chat for the Continuity Engine: the live Continuity Checkpoint, the un-audited replies after it, the Catch-up Window, the Turn Count, the staleness verdict, and the Continuity Block's prompt placement. The Auditor's lifecycle and the block injection both consume it, so coverage derives in one place instead of twice.
 Code: `deriveContinuityCoverage` (src/core/continuity-coverage.js)

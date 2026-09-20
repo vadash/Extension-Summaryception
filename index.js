@@ -28,6 +28,7 @@ import {
     updateInjection,
 } from './src/features/injection.js';
 import { updateContinuityInjection } from './src/features/continuity-injection.js';
+import { updateContinuityMarker } from './src/entry/continuity-marker.js';
 import {
     bindPromptFreezeRecoveryEvents,
     onAppReady,
@@ -80,6 +81,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
                 },
             });
         },
+        updateContinuityMarker,
         updateUI,
         updatePreview: syncLLMContextPreview,
     });
