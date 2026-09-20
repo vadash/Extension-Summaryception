@@ -56,25 +56,27 @@ In SillyTavern:
 
 Start with Easy mode unless you already know what you want to tune.
 
-Set Fast Summarizer to your normal API or a SillyTavern Connection Profile. This model handles raw chat to Layer 0 summaries, so it should be cheap, fast, and good enough at extracting facts.
+Set Fast Summarizer to your normal API or a SillyTavern Connection Profile. This model turns raw chat into Layer 0 summaries, so it should be cheap, fast, and good enough at extracting facts.
 
-Smart Deep Memory is optional. Use it when you want Layer 1+ merges to use a stronger model than the raw-chat summarizer.
+Smart Deep Memory is optional. Point it at a stronger model if you want Layer 1+ merges to read better than what the raw-chat summarizer produces.
 
-Then pick a memory mode. The provider's cache rules decide whether the fancy options save money or merely make the prompt fatter.
+Then pick a memory mode. Your provider's cache rules decide whether Prefix Cache saves you money or just makes the prompt fatter.
 
-### Default
+### Balanced
 
-Use this unless you have a good reason not to. Default keeps recent chat near the 22k verbatim target and summarizes overflow as it arrives. The goal is simple: keep the model inside a useful context range without relying on provider caching.
+The one to pick unless you have a reason not to. Balanced keeps recent chat near the 22k verbatim budget and summarizes overflow into a 6k queued range as it arrives. The goal is simple: keep the model inside a useful context range without relying on provider caching.
 
 This mode works everywhere and keeps context size fairly steady. If cached input is not much cheaper than normal input, stop here. You are done.
 
 ### Prefix Cache
 
-Use Prefix Cache with the normal prompt caches offered by most providers. It lets live chat span 36k — 20k verbatim plus a 16k queued range — so more of each request can stay cached.
+Use Prefix Cache with the normal prompt caches most providers offer. It holds a 36k live span: 20k verbatim plus a 16k queued range, so more of each request can stay cached.
 
-Suppose the next request keeps the same start but changes the tail. A normal prefix cache can still reuse that unchanged start. Your usual lorebooks work normally; no migration or special outlet is needed.
+Suppose the next request keeps the same start but changes the tail. A prefix cache can still reuse that unchanged start. Your usual lorebooks work normally; no migration or special outlet is needed.
 
-Pick this mode when cached input is cheaper and your provider supports that kind of partial prefix reuse. The tradeoff is a larger prompt. A summary flush also gives the provider a new prefix to cache.
+Pick this mode when cached input is cheaper and your provider supports partial prefix reuse. The tradeoff is a larger prompt, and a summary flush also hands the provider a new prefix to cache.
+
+One more knob matters here and only here. The cache TTL decides when Prefix Cache considers the provider cache expired: once the chat has sat idle longer than the TTL (default 30 minutes), loading it triggers a stale-cache suggestion to Force Summarize first. The next message pays full input price either way, so summarizing first avoids paying for the same tokens twice.
 
 The defaults are intentionally conservative: 22k recent verbatim tokens, 10k injected memory, 280-token Layer 0 targets, and promotion after old memories stack up.
 
@@ -115,7 +117,7 @@ There are three routes:
 - Merge for deeper Layer 1+ promotion work.
 - Fallback for retryable failures after the primary route gives up.
 
-OpenAI-compatible local endpoints may need SillyTavern's CORS proxy. After v20 we dont use preset for summarization tasks so it doesnt matter what you linked to connection.
+OpenAI-compatible local endpoints may need SillyTavern's CORS proxy. Since v20, summarization tasks do not use presets, so it does not matter what your connection is linked to.
 
 ## Continuity Auditor
 
@@ -140,7 +142,10 @@ The live checkpoint is injected into the chat itself, near the newest messages, 
 <active_continuity>
 [SCENE & POSITIONING]
 Location: Old mill - upstairs loft
-Contact: Mira sitting on the windowsill, Dave by the door
+Environment: rain against the shutters, one lantern lit
+Physics: Mira sitting on the windowsill, feet off the floor
+Contact: Dave by the door, arms crossed
+Clothing: Mira barefoot, coat still wet
 
 [RELATIONSHIP GATES]
 Mira & Dave: BOND +6 (Sparks: 2, Grudge: 0); Gate: handhold
@@ -150,10 +155,11 @@ Mira & Dave: BOND +6 (Sparks: 2, Grudge: 0); Gate: handhold
 
 [ACTIVE AGENDAS & THREADS]
 - Mira: find out who paid the mercs (Step 2/5: active)
+- Dave: quiet about the second key
 </active_continuity>
 ```
 
-Empty sections are dropped. Replies that have not been audited yet are covered by the last checkpoint, and the block says so until the Auditor catches up.
+This is the real renderer's output shape: only non-empty sections appear, secret `[S]` notes get their own section, and ordinary GM notes render under agendas as active threads. Replies that have not been audited yet are covered by the last checkpoint, and the block says so until the Auditor catches up.
 
 ### The green check mark
 
@@ -161,7 +167,7 @@ Every audited reply gets a green ✓ after the character name in chat. The newes
 
 ### How it works with narrative memory
 
-The layers summarize the story. The Auditor tracks the state. One knows what happened, the other knows what is true right now, and they share nothing at runtime: separate routes, separate prompt. If you use the freaky presets, their reasoning blocks already treat `<active_continuity>` as game-state ground truth.
+The layers summarize the story. The Auditor tracks the state. One knows what happened, the other knows what is true right now, and they share nothing at runtime: separate routes, separate prompt.
 
 ### Preset
 
@@ -183,7 +189,7 @@ If something looks off, use Clear or `/sc-clear`. That removes Summaryception's 
 
 ## Presets
 
-For default and prefix cache any preset works. I like this one https://rentry.org/freaky-frankenstein-presets 
+For default and prefix cache any preset works. I like this one https://rentry.org/freaky-frankenstein-presets
 
 ## Version history
 
@@ -222,4 +228,4 @@ Rules:
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE).
+AGPL-3.0-or-later. See [LICENSE](LICENSE).
