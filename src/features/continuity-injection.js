@@ -7,7 +7,6 @@ import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { trace, warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/state.js';
-import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 
 const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
 
@@ -84,10 +83,6 @@ export function formatContinuityBlock(state) {
  */
 export function updateContinuityInjection() {
     try {
-        if (isPromptMutationFrozen()) {
-            trace('Continuity slot skipped: prompt mutation frozen, keeping previous');
-            return;
-        }
         const settings = getEffectiveSettings();
         const chat = getChat();
         const live = findLiveCheckpoint(chat);

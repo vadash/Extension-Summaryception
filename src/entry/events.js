@@ -2,7 +2,7 @@ import { getChat, isDryRunEvent } from '../foundation/context.js';
 import { isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
-import { refreshFull, refreshUi } from '../foundation/refresh.js';
+import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
 import {
     isAuditorTriggerMessage,
@@ -20,7 +20,6 @@ import {
     resetPromptMutationGuard,
 } from '../core/summarizer-commit.js';
 import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
-import { updateInjection } from '../features/injection.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
 import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
@@ -219,11 +218,16 @@ export function onGenerationStarted(...args) {
         return;
     }
     // A reroll replaces the last reply; its own checkpoint must leave the
-    // read model before the freeze locks the slot content in.
-    if (discardRegeneratedCheckpoint(args[0])) {
-        updateContinuityInjection();
-    }
-    beginForegroundGeneration();
+    // read model before the freeze locks the slot content in. The hook is
+    // the gate's pre-freeze window, so the drop and the slot refresh land
+    // even when a stale-heal is still in flight.
+    beginForegroundGeneration({
+        beforeFreeze: () => {
+            if (discardRegeneratedCheckpoint(args[0])) {
+                updateContinuityInjection();
+            }
+        },
+    });
     pauseMemoryToastForGeneration();
     refreshUi();
 }
@@ -301,8 +305,7 @@ async function reconcileLoadedChatState() {
     if (ensureChatScIds(chat)) {
         await persistChatState();
     }
-    updateInjection();
-    updateContinuityInjection();
+    refreshPreview();
     await syncGhosting();
 }
 

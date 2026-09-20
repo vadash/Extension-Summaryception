@@ -14,7 +14,7 @@ import { initRefreshPort, refreshUi } from './src/foundation/refresh.js';
 import { getSettings } from './src/foundation/state.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { requestSummarization, setNotify, summarizerQueue } from './src/core/summarizer-queue.js';
-import { initCommitCallbacks } from './src/core/summarizer-commit.js';
+import { initCommitCallbacks, runPromptEffect } from './src/core/summarizer-commit.js';
 import { withUsageRun } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
 import { syncLLMContextPreview, updateUI } from './src/entry/ui.js';
@@ -60,8 +60,26 @@ import { registerSlashCommands } from './src/entry/commands.js';
     const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun };
     const pauseLatchDeps = { queue: summarizerQueue };
     initRefreshPort({
-        updateInjection,
-        updateContinuityInjection,
+        // Every prompt-affecting effect enters through the Foreground Gate
+        // (ADR-0016); mid-generation requests queue until the freeze lifts.
+        updateInjection: () => {
+            void runPromptEffect({
+                kind: 'injection-refresh',
+                apply: () => {
+                    updateInjection();
+                    return true;
+                },
+            });
+        },
+        updateContinuityInjection: () => {
+            void runPromptEffect({
+                kind: 'continuity-refresh',
+                apply: () => {
+                    updateContinuityInjection();
+                    return true;
+                },
+            });
+        },
         updateUI,
         updatePreview: syncLLMContextPreview,
     });

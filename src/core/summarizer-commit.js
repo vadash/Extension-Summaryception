@@ -1,5 +1,9 @@
 import { debug, info, trace, warn } from '../foundation/logger.js';
-import { getStreamingProcessor, isSendButtonInStopMode } from '../foundation/context.js';
+import {
+    getStreamingProcessor,
+    isGeneratingFlagSet,
+    isSendButtonInStopMode,
+} from '../foundation/context.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
 /** @typedef {'applied' | 'queued'} PromptEffectResult */
@@ -97,10 +101,17 @@ export function canStartPromptMutation(epoch) {
 }
 
 /**
- * Freeze prompt-affecting mutations after reasserting the committed injection.
+ * Freeze prompt-affecting mutations after the beforeFreeze hook runs and the
+ * committed injection is reasserted. The hook is the one gate-sanctioned
+ * window for pre-freeze prompt writes (ADR-0016): it runs while the gate is
+ * still open, before the freeze locks slot content.
+ * @param {{ beforeFreeze?: () => void }} [options]
  * @returns {void}
  */
-export function beginForegroundGeneration() {
+export function beginForegroundGeneration({ beforeFreeze } = {}) {
+    if (beforeFreeze) {
+        beforeFreeze();
+    }
     reassertCommittedInjectionIfOpen();
     foregroundFrozen = true;
     foregroundFreezeStartedAt = Date.now();
@@ -283,7 +294,7 @@ function isForegroundGenerationActive() {
         // it — after hideStopButton has already emitted GENERATION_ENDED. The
         // stop-button probe alone reads "idle" during that teardown window
         // and false-heals the freeze the end handler is releasing.
-        if (globalThis.document?.body?.dataset?.generating === 'true') {
+        if (isGeneratingFlagSet()) {
             return true;
         }
         return isSendButtonInStopMode();

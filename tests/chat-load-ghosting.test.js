@@ -1,9 +1,18 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { onAppReady } from '../src/entry/events.js';
 import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
+import { initRefreshPort } from '../src/foundation/refresh.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
+import { updateInjection } from '../src/features/injection.js';
+import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { makeMessage, makeSummaryStore, installSummaryContext } from './test-helpers.js';
+
+// The composition root registers the renderers into the Refresh Port; these
+// tests pin the same wiring so reconcile's refreshPreview reaches them.
+beforeEach(() => {
+    initRefreshPort({ updateInjection, updateContinuityInjection });
+});
 
 /**
  * Chat-load seam: onAppReady() runs the serialized ownership sync over the

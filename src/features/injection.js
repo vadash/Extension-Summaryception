@@ -9,7 +9,6 @@ import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildEffectiveMemoryText } from '../core/memory-budget.js';
-import { isPromptMutationFrozen } from '../core/summarizer-commit.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 
 // ─── Core: Assemble Full Summary Block ──────────────────────────────
@@ -38,10 +37,6 @@ export const MEMORY_MACRO_NAME = 'summaryception_memory';
  */
 export function updateInjection({ logMemoryStatus = false } = {}) {
     try {
-        if (isPromptMutationFrozen()) {
-            return;
-        }
-
         const store = getChatStore();
         const settings = getEffectiveSettings();
         const nextInjection = buildDirectInjectionText(settings);

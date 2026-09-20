@@ -9,7 +9,7 @@ import {
     runManual,
 } from '../core/summarizer-engine.js';
 import { isBusy, stopSummarization } from '../core/summarizer-queue.js';
-import { updateInjection } from '../features/injection.js';
+import { refreshPreview } from '../foundation/refresh.js';
 import { updateUI } from './ui.js';
 import {
     clearManualProgressToast,
@@ -84,7 +84,7 @@ async function runManualSummarization($button, idleHtml, { run, report, notify }
     }
     if (outcome !== undefined) {
         report(outcome);
-        updateInjection();
+        refreshPreview();
         reloadAfterManualRun(outcome);
     }
 }

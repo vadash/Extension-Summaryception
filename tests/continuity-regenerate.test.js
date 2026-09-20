@@ -7,12 +7,24 @@ vi.mock('../src/core/summarizer-request.js', () => ({
     isRequestLive: vi.fn(() => false),
 }));
 
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
+import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
 import { findLiveCheckpoint } from '../src/foundation/continuity.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
+
+const continuityWrites = vi.hoisted(() => ({ frozenAtWrite: [] }));
+vi.mock('../src/features/continuity-injection.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        updateContinuityInjection: () => {
+            continuityWrites.frozenAtWrite.push(isPromptMutationFrozen());
+            actual.updateContinuityInjection();
+        },
+    };
+});
 
 // Continuity State as of exchange 1's settled audit: checkpoint on a1, one
 // spark, no notes, no scene location yet.
@@ -56,6 +68,7 @@ const draftTwoAudit = () =>
 afterEach(() => {
     vi.resetModules();
     callSummarizer.mockReset();
+    continuityWrites.frozenAtWrite.length = 0;
     resetCommitStateForTests();
     delete globalThis.SillyTavern;
 });
@@ -145,6 +158,12 @@ describe('continuity injection across reroll', () => {
         });
 
         onGenerationStarted('regenerate', {}, false);
+
+        // The hook write must land inside the gate's pre-freeze window (the
+        // write itself records the gate state); once the generation start
+        // returns, the freeze is on.
+        expect(continuityWrites.frozenAtWrite).toEqual([false]);
+        expect(isPromptMutationFrozen()).toBe(true);
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
         expect(findLiveCheckpoint(chat).index).toBe(1);

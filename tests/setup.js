@@ -53,6 +53,7 @@ const foundationMocks = vi.hoisted(() => {
         getEventTypes: vi.fn(),
         getStreamingProcessor: vi.fn(),
         isSendButtonInStopMode: vi.fn(),
+        isGeneratingFlagSet: vi.fn(),
     };
 
     const logger = {
@@ -154,6 +155,9 @@ const foundationMocks = vi.hoisted(() => {
             () => getContext().streamingProcessor || null,
         );
         context.isSendButtonInStopMode.mockImplementation(() => false);
+        context.isGeneratingFlagSet.mockImplementation(
+            () => globalThis.document?.body?.dataset?.generating === 'true',
+        );
     }
 
     function isDebugEnabled() {

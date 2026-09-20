@@ -3,6 +3,7 @@ import {
     beginForegroundGeneration,
     commitWhenSafe,
     endForegroundGeneration,
+    isPromptMutationFrozen,
     promptWorkGate,
     queuePromptEffect,
     resetCommitStateForTests,
@@ -45,6 +46,27 @@ describe('promptWorkGate', () => {
         queuePromptEffect({ kind: 'gate test effect', apply: () => true });
 
         await expect(promptWorkGate('gate test')).resolves.toBe('blocked');
+    });
+
+    it('runs the beforeFreeze hook before the freeze locks prompt mutations', async () => {
+        installSummaryContext({ chat: [] });
+        const applied = vi.fn(() => true);
+        let hookFrozenState = null;
+
+        beginForegroundGeneration({
+            beforeFreeze: () => {
+                hookFrozenState = isPromptMutationFrozen();
+                queuePromptEffect({ kind: 'hook queued effect', apply: applied });
+            },
+        });
+
+        expect(hookFrozenState).toBe(false);
+        expect(isPromptMutationFrozen()).toBe(true);
+        // The effect the hook queued stays behind the freeze it preceded.
+        await expect(promptWorkGate('gate test')).resolves.toBe('blocked');
+
+        await endForegroundGeneration();
+        expect(applied).toHaveBeenCalledTimes(1);
     });
 
     it('recovers a stale freeze inside the ask and reopens the gate', async () => {

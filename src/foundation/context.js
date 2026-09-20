@@ -249,6 +249,16 @@ export function getStreamingProcessor() {
 }
 
 /**
+ * Read the host body[data-generating] liveness flag. ST keeps the flag set
+ * past GENERATION_ENDED until activateSendButtons clears it, so a true here
+ * means the teardown window is still running.
+ * @returns {boolean}
+ */
+export function isGeneratingFlagSet() {
+    return globalThis.document?.body?.dataset?.generating === 'true';
+}
+
+/**
  * @returns {boolean}
  */
 export function isSendButtonInStopMode() {

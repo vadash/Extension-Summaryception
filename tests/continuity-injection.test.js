@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    resetCommitStateForTests,
-    beginForegroundGeneration,
-    initCommitCallbacks,
-} from '../src/core/summarizer-commit.js';
 import { createDefaultContinuity } from '../src/foundation/continuity.js';
 import {
     EXTENSION_PROMPT_POSITIONS,
@@ -132,7 +127,6 @@ describe('formatContinuityBlock', () => {
 
 describe('updateContinuityInjection', () => {
     afterEach(() => {
-        resetCommitStateForTests();
         vi.restoreAllMocks();
     });
 
@@ -339,19 +333,22 @@ describe('updateContinuityInjection', () => {
         );
     });
 
-    it('skips prompt mutation while the foreground freeze is active', () => {
+    it('writes the slot as a plain renderer; the gate owns freeze decisions', () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+        ];
+        attachCheckpoint(chat, 'a1', makeContinuity());
         const setExtensionPrompt = installContext({
             settings: { continuityEnabled: true },
+            chat,
         });
-        initCommitCallbacks({
-            updateInjection: vi.fn(),
-            reassertInjection: vi.fn(),
-            requeue: vi.fn(),
-        });
-        beginForegroundGeneration();
 
         updateContinuityInjection();
 
-        expect(setExtensionPrompt).not.toHaveBeenCalled();
+        expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
+        expect(setExtensionPrompt.mock.calls[0][0]).toBe('summaryception_continuity');
+        expect(setExtensionPrompt.mock.calls[0][1]).toContain('<active_continuity>');
     });
 });

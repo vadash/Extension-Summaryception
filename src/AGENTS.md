@@ -78,6 +78,8 @@
 - Manual run callbacks and the abort signal pass as an explicit argument. Never carry them on the task object.
 - A manual run needs a numeric target boundary. Reject the run when the route plan omits it.
 - Automatic work must not mutate the prompt during generation.
+- Every prompt mutation crosses the Foreground Gate; renderers render, they never self-check the freeze.
+- Pre-freeze prompt steps cross beginForegroundGeneration's beforeFreeze hook; entry sequencing enforces no ordering.
 - Loaded-chat reconciliation runs at the app-ready signal: normalize keys, update injection, re-apply ghosting.
 - Chat-changed re-runs reconciliation when the store still holds the empty default.
 - Recover stale prompt freezes at the start of an automatic cycle.
