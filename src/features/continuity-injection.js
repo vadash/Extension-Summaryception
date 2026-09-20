@@ -1,8 +1,4 @@
-import {
-    findLiveCheckpoint,
-    listAssistantIndicesAfter,
-    resolveGate,
-} from '../foundation/continuity.js';
+import { findLiveCheckpoint, listAssistantIndicesAfter } from '../core/continuity-state.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { trace, warn } from '../foundation/logger.js';
@@ -12,6 +8,28 @@ const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
 
 // Derived-staleness marker for an un-audited tail; emitted verbatim, "N-1" is literal.
 const STALE_CONTINUITY_MARKER = '<!-- active_continuity: cached from turn N-1 -->';
+
+const GATE_LADDER = Object.freeze([
+    { minBond: 12, gate: 'intimacy' },
+    { minBond: 8, gate: 'kiss' },
+    { minBond: 5, gate: 'handhold' },
+    { minBond: 2, gate: 'hug' },
+]);
+
+/**
+ * Bond-to-gate ladder computed at injection time; the Auditor never emits gate
+ * text.
+ * @param {number} bond
+ * @returns {string | null} Gate name, or null below the first rung.
+ */
+function resolveGate(bond) {
+    for (const rung of GATE_LADDER) {
+        if (bond >= rung.minBond) {
+            return rung.gate;
+        }
+    }
+    return null;
+}
 
 function formatBondLine(pair, { bond, sparks, grudge }) {
     const gate = resolveGate(bond);

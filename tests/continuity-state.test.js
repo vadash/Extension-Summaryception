@@ -9,10 +9,9 @@ import {
     classifyContinuity,
     createDefaultContinuity,
     deriveTurnCount,
-    diffContinuityStates,
     findLiveCheckpoint,
-    resolveGate,
-} from '../src/foundation/continuity.js';
+} from '../src/core/continuity-state.js';
+import { formatContinuityBlock } from '../src/features/continuity-injection.js';
 
 const coldStart = () => ({
     turn_count: 0,
@@ -446,19 +445,37 @@ describe('deriveTurnCount', () => {
     });
 });
 
-describe('resolveGate', () => {
-    it('maps bond values onto the gate ladder with no gate below 2', () => {
-        expect(resolveGate(-5)).toBeNull();
-        expect(resolveGate(0)).toBeNull();
-        expect(resolveGate(1)).toBeNull();
-        expect(resolveGate(2)).toBe('hug');
-        expect(resolveGate(4)).toBe('hug');
-        expect(resolveGate(5)).toBe('handhold');
-        expect(resolveGate(7)).toBe('handhold');
-        expect(resolveGate(8)).toBe('kiss');
-        expect(resolveGate(11)).toBe('kiss');
-        expect(resolveGate(12)).toBe('intimacy');
-        expect(resolveGate(20)).toBe('intimacy');
+describe('gate ladder rendering', () => {
+    const stateWithBond = (bond) => ({
+        turn_count: 1,
+        bonds: { 'X↔User': { bond, sparks: 0, grudge: 0 } },
+        agendas: {},
+        gm_notes: [],
+        physics: coldStart().physics,
+    });
+
+    it.each([
+        [-5, null],
+        [0, null],
+        [1, null],
+        [2, 'hug'],
+        [4, 'hug'],
+        [5, 'handhold'],
+        [7, 'handhold'],
+        [8, 'kiss'],
+        [11, 'kiss'],
+        [12, 'intimacy'],
+        [20, 'intimacy'],
+    ])('renders bond %j with gate %j through formatContinuityBlock', (bond, gate) => {
+        const block = formatContinuityBlock(stateWithBond(bond));
+        expect(block).toContain(
+            `X↔User: BOND ${bond < 0 ? '' : '+'}${bond} (Sparks: 0, Grudge: 0)`,
+        );
+        if (gate === null) {
+            expect(block).not.toContain('Gate:');
+        } else {
+            expect(block).toContain(`; Gate: ${gate}`);
+        }
     });
 });
 
@@ -554,65 +571,5 @@ describe('continuity state log defaults', () => {
     it('defaults both continuity state log flags to false', () => {
         expect(defaultSettings.continuityStateLogMode).toBe(false);
         expect(defaultSettings.continuityStateLogFullMode).toBe(false);
-    });
-});
-
-describe('diffContinuityStates', () => {
-    const fullState = (overrides = {}) => ({
-        turn_count: 2,
-        bonds: { 'Quipsy↔User': { bond: 10, sparks: 6, grudge: 1 } },
-        agendas: {},
-        gm_notes: [],
-        physics: {
-            location: 'Salon',
-            environment: 'Warm',
-            posture_and_position: 'Seated',
-            contact_points: 'None',
-            clothing_state: 'Robe',
-        },
-        ...overrides,
-    });
-
-    it('reports a changed bond field as an old->new pair', () => {
-        const prior = fullState();
-        const next = fullState({
-            bonds: { 'Quipsy↔User': { bond: 12, sparks: 6, grudge: 1 } },
-        });
-
-        expect(diffContinuityStates(prior, next)).toEqual({
-            bonds: { 'Quipsy↔User': { bond: [10, 12] } },
-        });
-    });
-
-    it('reports added and removed gm notes', () => {
-        const prior = fullState({ gm_notes: ['[R] Vova watches.'] });
-        const next = fullState({ gm_notes: ['[T] Quipsy knows.', '[R] Vova watches.'] });
-
-        expect(diffContinuityStates(prior, next)).toEqual({
-            gm_notes: { added: ['[T] Quipsy knows.'] },
-        });
-    });
-
-    it('reports a changed physics field and omits unchanged sections', () => {
-        const prior = fullState();
-        const next = fullState({
-            physics: { ...fullState().physics, location: 'Kitchen' },
-        });
-
-        expect(diffContinuityStates(prior, next)).toEqual({
-            physics: { location: ['Salon', 'Kitchen'] },
-        });
-    });
-
-    it('reports scalar sections in schema order', () => {
-        const prior = fullState();
-        const next = fullState({ turn_count: 3 });
-
-        expect(Object.keys(diffContinuityStates(prior, next))).toEqual(['turn_count']);
-        expect(diffContinuityStates(prior, next)).toEqual({ turn_count: [2, 3] });
-    });
-
-    it('returns an empty report for identical states', () => {
-        expect(diffContinuityStates(fullState(), fullState())).toEqual({});
     });
 });

@@ -3,11 +3,11 @@ import {
     applyPairFlags,
     createDefaultContinuity,
     deriveTurnCount,
-    diffContinuityStates,
     findLiveCheckpoint,
     isRecord,
     listAssistantIndicesAfter,
-} from '../foundation/continuity.js';
+} from './continuity-state.js';
+import { diffContinuityStates } from './continuity-diff.js';
 import { getChat, getGroupId, getName1 } from '../foundation/context.js';
 import {
     isContinuityStateLogEnabled,

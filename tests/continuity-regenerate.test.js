@@ -9,7 +9,7 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 
 import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { runAuditorExtraction } from '../src/core/continuity-runner.js';
-import { findLiveCheckpoint } from '../src/foundation/continuity.js';
+import { findLiveCheckpoint } from '../src/core/continuity-state.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';

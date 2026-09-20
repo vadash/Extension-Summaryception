@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createDefaultContinuity } from '../src/foundation/continuity.js';
+import { createDefaultContinuity } from '../src/core/continuity-state.js';
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
