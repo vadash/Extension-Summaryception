@@ -16,6 +16,7 @@ const CONTEXT_MODULE = resolve(FOUNDATION_DIR, 'context.js');
  */
 const HOST_FREE_MODULES = [
     resolve(FOUNDATION_DIR, 'objects.js'),
+    resolve(FOUNDATION_DIR, 'settings-normalizer.js'),
     resolve(SRC_DIR, 'core/snippet-provenance.js'),
 ];
 

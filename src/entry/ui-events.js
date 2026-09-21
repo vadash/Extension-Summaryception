@@ -11,13 +11,15 @@ import { clampInteger } from '../foundation/numeric.js';
 import { selectOff, setComplexity, setEnabled } from '../foundation/operation-mode.js';
 import { refreshFull, refreshPreview } from '../foundation/refresh.js';
 import {
-    deriveAdvancedEngineTuning,
-    enforceRetentionInvariants,
     getSettings,
     resetSettingsToDefaults,
     saveSettings,
     getChatStore,
 } from '../foundation/state.js';
+import {
+    deriveAdvancedEngineTuning,
+    enforceRetentionInvariants,
+} from '../foundation/settings-normalizer.js';
 import { requestSummarization } from '../core/summarizer-queue.js';
 import { clearSummaryceptionMemory, importSummaryceptionMemory } from '../features/memory.js';
 import { updateUI } from './ui.js';

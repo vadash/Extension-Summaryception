@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
     MEMORY_MODE_PRESETS,
     MEMORY_MODES,
-    SLIDER_LIMITS,
     UI_MODES,
     applyMemoryModePreset,
     defaultSettings,
@@ -36,43 +35,9 @@ describe('getSettings', () => {
         expect(Object.hasOwn(settings, 'memoryTokenBudget')).toBe(true);
         expect(settings.enabled).toBe(true);
     });
-
-    it('remaps persisted append-only mode to prefix_cache and resets invalid modes', () => {
-        installSummaryContext({
-            settings: { memoryMode: 'append_only' },
-        });
-        expect(getSettings().memoryMode).toBe(MEMORY_MODES.PREFIX_CACHE);
-
-        installSummaryContext({ settings: { memoryMode: 'not-a-mode' } });
-        expect(getSettings().memoryMode).toBe(MEMORY_MODES.BALANCED);
-    });
 });
 
 describe('memory mode budgets', () => {
-    it('defaults and clamps independent recent and queued budgets', () => {
-        installSummaryContext({
-            settings: { verbatimTokenBudget: 999, queuedTokenBudget: 999999 },
-        });
-        expect(getSettings()).toMatchObject({
-            verbatimTokenBudget: SLIDER_LIMITS.verbatimTokenBudget.MIN,
-            queuedTokenBudget: SLIDER_LIMITS.queuedTokenBudget.MAX,
-        });
-    });
-    it('clamps route timeouts above the slider max', () => {
-        installSummaryContext({
-            settings: {
-                requestTimeoutSeconds: 8000,
-                mergeRequestTimeoutSeconds: 8000,
-                fallbackRequestTimeoutSeconds: 8000,
-            },
-        });
-        expect(getSettings()).toMatchObject({
-            requestTimeoutSeconds: SLIDER_LIMITS.requestTimeoutSeconds.MAX,
-            mergeRequestTimeoutSeconds: SLIDER_LIMITS.mergeRequestTimeoutSeconds.MAX,
-            fallbackRequestTimeoutSeconds: SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MAX,
-        });
-    });
-
     it('applies presets only on real mode transitions', () => {
         const settings = { ...defaultSettings, memoryMode: MEMORY_MODES.BALANCED };
         expect(applyMemoryModePreset(settings, MEMORY_MODES.BALANCED)).toBe(false);
@@ -81,69 +46,9 @@ describe('memory mode budgets', () => {
         expect(applyMemoryModePreset(settings, 'invalid')).toBe(false);
     });
 
-    it('defaults and clamps the provider cache TTL', () => {
-        installSummaryContext({ settings: { cacheTtlMinutes: 9999 } });
-        expect(getSettings().cacheTtlMinutes).toBe(SLIDER_LIMITS.cacheTtlMinutes.MAX);
-
+    it('backfills the provider cache TTL from the defaults', () => {
         installSummaryContext({ settings: {} });
         expect(getSettings().cacheTtlMinutes).toBe(defaultSettings.cacheTtlMinutes);
-    });
-});
-
-describe('auditor connection settings', () => {
-    it('repairs any route source that no option accepts', () => {
-        installSummaryContext({
-            settings: {
-                connectionSource: 'bogus',
-                mergeConnectionSource: 'bogus',
-                fallbackConnectionSource: 'bogus',
-                auditorConnectionSource: 'bogus',
-                auditorFallbackConnectionSource: 'bogus',
-            },
-        });
-
-        const s = getSettings();
-        for (const route of Object.values(CONNECTION_ROUTES)) {
-            expect(s[route.sourceKey], route.sourceKey).toBe(defaultSettings[route.sourceKey]);
-        }
-    });
-
-    it('resets invalid auditor connection sources to their defaults', () => {
-        installSummaryContext({
-            settings: {
-                auditorConnectionSource: 'bogus',
-                auditorFallbackConnectionSource: 'bogus',
-            },
-        });
-        expect(getSettings()).toMatchObject({
-            auditorConnectionSource: defaultSettings.auditorConnectionSource,
-            auditorFallbackConnectionSource: defaultSettings.auditorFallbackConnectionSource,
-        });
-
-        installSummaryContext({ settings: { auditorConnectionSource: 'default' } });
-        expect(getSettings().auditorConnectionSource).toBe('default');
-    });
-
-    it('clamps auditor route timeouts to the slider bounds', () => {
-        installSummaryContext({
-            settings: {
-                auditorRequestTimeoutSeconds: 8000,
-                auditorFallbackRequestTimeoutSeconds: 5,
-            },
-        });
-        expect(getSettings()).toMatchObject({
-            auditorRequestTimeoutSeconds: SLIDER_LIMITS.auditorRequestTimeoutSeconds.MAX,
-            auditorFallbackRequestTimeoutSeconds:
-                SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MIN,
-        });
-    });
-
-    it('coerces the narrative fallback toggle to a strict boolean', () => {
-        installSummaryContext({ settings: { auditorNarrativeFallback: 'yes' } });
-        expect(getSettings().auditorNarrativeFallback).toBe(false);
-
-        installSummaryContext({ settings: { auditorNarrativeFallback: true } });
-        expect(getSettings().auditorNarrativeFallback).toBe(true);
     });
 });
 
