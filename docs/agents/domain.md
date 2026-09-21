@@ -5,7 +5,7 @@ How skills consume this repo's domain documentation, and how an ADR gets written
 ## Before exploring, read
 
 - **`CONTEXT.md`** at the repo root.
-- **`docs/adr/`**: the ADRs that touch the area you're about to work in.
+- **`docs/adr/`**: the ADRs that touch the area you're about to work in. `docs/adr/README.md` lists retired numbers, whose files are gone.
 
 If either is missing, proceed silently; don't flag its absence.
 
@@ -22,6 +22,8 @@ If your output contradicts an existing ADR, surface it rather than silently over
 
 Offer one only when all three hold: the decision is hard to reverse, it is surprising without context, and it was a real trade-off. A refactor that only moves code between modules fails the first two; that belongs in the commit message, not in `docs/adr/`.
 
-Keep it to a title and one to three sentences. Add `Decision`, `Considered Options`, or `Consequences` only when a section carries something the paragraph cannot, and list only the alternatives a future reader would plausibly propose again. Record supersession as `status: superseded by ADR-NNNN` frontmatter, never as a prose banner.
+Keep it to a title and one to three sentences. Add `Decision`, `Considered Options`, or `Consequences` only when a section carries something the paragraph cannot, and list only the alternatives a future reader would plausibly propose again.
+
+Record supersession as `status: superseded by ADR-NNNN` frontmatter when the file stays. When the successor restates the decision whole, retire the file instead: delete it and move its number and title into the retired table in `docs/adr/README.md`. A retired number is spent for good, and nothing cites it except the row that records it.
 
 This restates `ADR-FORMAT.md` (the domain-modeling skill), and ADR-0025 records the decision. `tests/adr-shape.test.js` enforces the mechanical half.
