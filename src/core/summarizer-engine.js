@@ -2,13 +2,13 @@ import { getChat } from '../foundation/context.js';
 import { sleep } from '../foundation/retry.js';
 import {
     getChatStore,
-    getCurrentSummarizedBoundary,
     getEffectiveSettings,
     getSettings,
     saveSettings,
 } from '../foundation/state.js';
 import { debug, info, trace, warn } from '../foundation/logger.js';
 import { runLayer0 } from './layer0-run.js';
+import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { drainPromotionOverflow } from './summarizer-promotion.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { promptWorkGate } from './summarizer-commit.js';

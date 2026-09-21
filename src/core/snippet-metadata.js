@@ -1,10 +1,10 @@
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
-import { collectSnippetSourceIds } from '../foundation/state.js';
 import {
     LEADING_NARRATIVE_HEADER_RE,
     normalizeStructuralHeaderLines,
 } from './structural-headers.js';
+import { collectSnippetSourceIds } from './snippet-provenance.js';
 
 const UNKNOWN_TIME = 'unknown';
 const COMPACT_CURRENT_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{2})(?:\s+[a-z]{3})?$/i;

@@ -7,12 +7,12 @@ import {
 } from '../foundation/message-identity.js';
 import {
     bumpSummaryStoreMutationEpoch,
-    collectSnippetSourceIds,
     getChatStore,
     getEffectiveSettings,
 } from '../foundation/state.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
+import { collectSnippetSourceIds } from './snippet-provenance.js';
 import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
 
 // Message hiding (ghosting via native /hide and /unhide)

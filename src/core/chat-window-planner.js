@@ -1,4 +1,4 @@
-import { getCurrentSummarizedBoundary } from '../foundation/state.js';
+import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { countedChatMessages, toAssistantTurn } from './chatutils.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';

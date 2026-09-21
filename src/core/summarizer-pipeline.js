@@ -1,5 +1,6 @@
+import { getName1 } from '../foundation/context.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
-import { getEffectiveSettings, getPlayerName } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/state.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { resolveCallProfile } from './call-profile.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
@@ -138,7 +139,7 @@ function hasSourceTokenMetadata(metadata = {}) {
 function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, profile }) {
     // replaceAll on purpose: every placeholder occurrence is replaced; user templates may repeat one.
     const prompt = template
-        .replaceAll('{{player_name}}', getPlayerName())
+        .replaceAll('{{player_name}}', getName1())
         .replaceAll('{{context_str}}', contextStr || '(none yet)')
         .replaceAll('{{story_txt}}', storyTxt);
     return appendLayer0PromptConstraints(prompt, settings, profile);

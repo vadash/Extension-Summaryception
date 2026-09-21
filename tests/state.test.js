@@ -10,22 +10,14 @@ import {
 } from '../src/foundation/constants.js';
 import {
     bumpSummaryStoreMutationEpoch,
-    collectSnippetSourceIds,
     getChatStore,
-    getCurrentSummarizedBoundary,
     getEffectiveSettings,
-    getPlayerName,
     getSettings,
     getSummaryStoreMutationEpoch,
     resetSettingsToDefaults,
 } from '../src/foundation/state.js';
 import { CONNECTION_ROUTES } from '../src/foundation/connection-routes.js';
-import {
-    installSummaryContext,
-    installSillyTavernStub,
-    makeMessages,
-    makeSummaryStore,
-} from './test-helpers.js';
+import { installSummaryContext, installSillyTavernStub } from './test-helpers.js';
 
 describe('getSettings', () => {
     it('returns a settings object and reuses the same reference on subsequent calls', () => {
@@ -212,69 +204,6 @@ describe('summary store mutation epoch', () => {
     it('normalizes a bad epoch value to 0 without throwing', () => {
         expect(getSummaryStoreMutationEpoch({ mutationEpoch: 'bad' })).toBe(0);
         expect(getSummaryStoreMutationEpoch(undefined)).toBe(0);
-    });
-});
-
-describe('collectSnippetSourceIds', () => {
-    it('flattens provenance across all layers, deduping in first-seen order', () => {
-        const layers = [
-            [
-                { text: 'a', sourceMessageIds: ['m-2', 'm-1'] },
-                { text: 'b', sourceMessageIds: ['m-1', 'm-3'] },
-            ],
-            [{ text: 'c', sourceMessageIds: ['m-3', 'm-4'] }],
-            [],
-        ];
-        expect(collectSnippetSourceIds(layers)).toEqual(['m-2', 'm-1', 'm-3', 'm-4']);
-    });
-
-    it('skips non-string and blank ids and dedupes on the raw value', () => {
-        const layers = [[{ text: 'a', sourceMessageIds: ['', '   ', 7, null, ' m-1 ', ' m-1 '] }]];
-        expect(collectSnippetSourceIds(layers)).toEqual([' m-1 ']);
-    });
-
-    it('reads only the requested layer when layerIndex is given', () => {
-        const layers = [
-            [{ text: 'a', sourceMessageIds: ['m-1'] }],
-            [{ text: 'b', sourceMessageIds: ['m-2', 'm-1'] }],
-        ];
-        expect(collectSnippetSourceIds(layers, { layerIndex: 0 })).toEqual(['m-1']);
-        expect(collectSnippetSourceIds(layers, { layerIndex: 1 })).toEqual(['m-2', 'm-1']);
-    });
-
-    it('tolerates missing layers and snippets without provenance', () => {
-        expect(collectSnippetSourceIds(undefined)).toEqual([]);
-        expect(collectSnippetSourceIds([[{ text: 'no ids' }], null], { layerIndex: 1 })).toEqual(
-            [],
-        );
-    });
-});
-
-describe('getCurrentSummarizedBoundary', () => {
-    it('returns -1 when no Layer 0 source ID resolves', () => {
-        expect(getCurrentSummarizedBoundary(makeMessages(2), makeSummaryStore())).toBe(-1);
-    });
-
-    it('tracks surviving source IDs after a live message deletion shifts indices', () => {
-        const chat = makeMessages(5);
-        const store = makeSummaryStore({
-            layers: [[{ text: 'summary', sourceMessageIds: ['message-1', 'message-4'] }]],
-        });
-
-        expect(getCurrentSummarizedBoundary(chat, store)).toBe(4);
-        chat.splice(2, 1);
-        expect(getCurrentSummarizedBoundary(chat, store)).toBe(3);
-    });
-});
-
-describe('getPlayerName', () => {
-    it('returns name1 from the installed context', () => {
-        expect(getPlayerName()).toBe('Player1');
-    });
-
-    it('falls back to "User" when name1 is absent', () => {
-        delete globalThis.SillyTavern.getContext().name1;
-        expect(getPlayerName()).toBe('User');
     });
 });
 

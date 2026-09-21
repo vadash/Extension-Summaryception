@@ -2,7 +2,7 @@
  * Rewrite final chat-completion request roles without touching persisted chat state.
  */
 
-import { isPlainObject } from '../foundation/state.js';
+import { isPlainObject } from '../foundation/objects.js';
 import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 

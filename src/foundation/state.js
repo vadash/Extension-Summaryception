@@ -20,11 +20,10 @@ import {
 import {
     getChatMetadata,
     getExtensionSettings,
-    getName1,
     saveMetadata,
     saveSettingsDebounced,
 } from './context.js';
-import { resolveScIdsToIndices } from './message-identity.js';
+import { isPlainObject, normalizeStringArray } from './objects.js';
 import { clampInteger, clampToStep } from './numeric.js';
 import {
     CONNECTION_ROUTES,
@@ -204,43 +203,6 @@ export function getSummaryStoreMutationEpoch(store) {
 export function bumpSummaryStoreMutationEpoch(store) {
     store.mutationEpoch = getSummaryStoreMutationEpoch(store) + 1;
     return store.mutationEpoch;
-}
-
-/**
- * Deduplicates across layers, keeping first-seen order. Ids are compared
- * and kept raw (never trimmed); non-string and blank ids are skipped.
- * @param {Array<Array<SummaryceptionSnippet>> | null | undefined} layers
- * @param {{ layerIndex?: number }} [options] - Read only this layer when given.
- * @returns {string[]}
- */
-export function collectSnippetSourceIds(layers, { layerIndex } = {}) {
-    const sources = layerIndex === undefined ? layers || [] : [layers?.[layerIndex] || []];
-    const ids = [];
-    const seen = new Set();
-    for (const layer of sources) {
-        for (const snippet of layer || []) {
-            for (const id of snippet?.sourceMessageIds || []) {
-                if (typeof id !== 'string' || id.trim() === '' || seen.has(id)) {
-                    continue;
-                }
-                seen.add(id);
-                ids.push(id);
-            }
-        }
-    }
-    return ids;
-}
-
-/**
- * Resolve the highest current chat index owned by a Layer 0 snippet.
- * @param {ChatMessage[]} chat
- * @param {SummaryceptionStore} store
- * @returns {number}
- */
-export function getCurrentSummarizedBoundary(chat, store) {
-    const sourceMessageIds = collectSnippetSourceIds(store?.layers, { layerIndex: 0 });
-    const indices = resolveScIdsToIndices(chat, sourceMessageIds);
-    return indices.length > 0 ? indices[indices.length - 1] : -1;
 }
 
 /**
@@ -574,39 +536,6 @@ function normalizeSnippet(snippet) {
 
 /**
  * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-export function isPlainObject(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        return false;
-    }
-    const proto = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
-}
-
-/**
- * Normalize a stable message ID array.
- * @param {unknown} values
- * @returns {string[]}
- */
-function normalizeStringArray(values) {
-    if (!Array.isArray(values)) {
-        return [];
-    }
-    const result = [];
-    const seen = new Set();
-    for (const value of values) {
-        if (typeof value !== 'string' || value.trim() === '' || seen.has(value)) {
-            continue;
-        }
-        seen.add(value);
-        result.push(value);
-    }
-    return result;
-}
-
-/**
- * @param {unknown} value
  * @returns {number}
  */
 function normalizeMutationEpoch(value) {
@@ -614,11 +543,4 @@ function normalizeMutationEpoch(value) {
         return 0;
     }
     return Math.max(0, value);
-}
-
-/**
- * @returns {string} The player name from ST context, or 'User' as fallback
- */
-export function getPlayerName() {
-    return getName1();
 }

@@ -9,8 +9,10 @@ const layer0Mocks = vi.hoisted(() => ({
 }));
 const stateMocks = vi.hoisted(() => ({
     getChatStore: vi.fn(() => ({})),
-    getCurrentSummarizedBoundary: vi.fn(),
     getEffectiveSettings: vi.fn(() => ({})),
+}));
+const provenanceMocks = vi.hoisted(() => ({
+    getCurrentSummarizedBoundary: vi.fn(),
 }));
 
 vi.mock('../src/core/summarization-routes.js', async (importOriginal) => ({
@@ -19,6 +21,10 @@ vi.mock('../src/core/summarization-routes.js', async (importOriginal) => ({
 }));
 vi.mock('../src/core/layer0-run.js', () => layer0Mocks);
 vi.mock('../src/foundation/state.js', () => stateMocks);
+vi.mock('../src/core/snippet-provenance.js', async (importOriginal) => ({
+    ...(await importOriginal()),
+    ...provenanceMocks,
+}));
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     drainPromotionOverflow: vi.fn(async () => ({ status: 'completed', attempts: 0 })),
 }));
@@ -89,7 +95,7 @@ describe('manual run progress callbacks', () => {
         boundary = 0;
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
-        stateMocks.getCurrentSummarizedBoundary.mockImplementation(() => boundary);
+        provenanceMocks.getCurrentSummarizedBoundary.mockImplementation(() => boundary);
         // One commit moves the boundary to the target, so the plan turns unready and the run ends after one batch.
         layer0Mocks.runLayer0.mockImplementation(async () => {
             boundary = TARGET_INDEX;
@@ -180,7 +186,7 @@ describe('manual run work gate', () => {
         installSummaryContext({ chat: [] });
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
-        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch fails without moving the summarized boundary.
         layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
@@ -206,7 +212,7 @@ describe('manual run pre-run outcomes', () => {
         installSummaryContext({ chat: [] });
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
-        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
 
@@ -236,7 +242,7 @@ describe('manual run failure limit', () => {
         installSummaryContext({ chat: [] });
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
-        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch commit fails without moving the summarized boundary.
         layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
@@ -275,7 +281,7 @@ describe('manual run gate outcome', () => {
         installSummaryContext({ chat: [] });
         stateMocks.getChatStore.mockReturnValue({});
         stateMocks.getEffectiveSettings.mockReturnValue({});
-        stateMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
+        provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
 
