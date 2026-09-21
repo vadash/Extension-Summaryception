@@ -1,4 +1,5 @@
-import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { buildMemoryBody } from './memory-injection.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';

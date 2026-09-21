@@ -1,6 +1,6 @@
 import { TOAST_TITLE, layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { refreshUi } from '../foundation/refresh.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { getSnippetDisplayMeta } from '../core/snippet-metadata.js';
 import {
     deleteSnippetAt,

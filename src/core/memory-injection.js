@@ -1,4 +1,4 @@
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import {
     formatAnchoredSnippetNarrative,
     formatCompactSnippetAnchor,

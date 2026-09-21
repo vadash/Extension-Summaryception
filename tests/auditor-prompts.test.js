@@ -12,7 +12,7 @@ import {
     DEFAULT_AUDITOR_SYSTEM_PROMPT,
     DEFAULT_AUDITOR_USER_PROMPT,
 } from '../src/foundation/prompt-constants.js';
-import { getSettings } from '../src/foundation/state.js';
+import { getSettings } from '../src/foundation/settings.js';
 import { installSummaryContext } from './test-helpers.js';
 
 describe('default auditor prompts', () => {

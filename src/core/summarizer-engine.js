@@ -1,11 +1,7 @@
 import { getChat } from '../foundation/context.js';
 import { sleep } from '../foundation/retry.js';
-import {
-    getChatStore,
-    getEffectiveSettings,
-    getSettings,
-    saveSettings,
-} from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings, getSettings, saveSettings } from '../foundation/settings.js';
 import { debug, info, trace, warn } from '../foundation/logger.js';
 import { runLayer0 } from './layer0-run.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';

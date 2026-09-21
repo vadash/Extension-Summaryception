@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PROMPT_PRESETS, defaultSettings } from '../src/foundation/constants.js';
 import { bindPromptProfiles } from '../src/entry/ui-prompts.js';
-import { getSettings } from '../src/foundation/state.js';
+import { getSettings } from '../src/foundation/settings.js';
 import { createJQueryHarness, installSummaryContext } from './test-helpers.js';
 
 describe('prompt profile bindings', () => {

@@ -5,6 +5,6 @@ Every connection route — the Layer 0 route, the Layer 1+ merge override, the f
 ## Considered Options
 
 - **Discovering routes from key prefixes** — a naming convention doing a declaration's job: a prefixed key that is not a route setting leaks into the connection settings object, and the Auditor routes had to bypass the mechanism entirely.
-- **Letting `settings.html` be the declaration** — markup is unreadable to `foundation/state.js` and the Call Profile, so the normalizer would keep a second copy.
+- **Letting `settings.html` be the declaration** — markup is unreadable to `foundation/settings.js` and the Call Profile, so the normalizer would keep a second copy.
 - **One module per route family** — five modules each holding a slice of one decision, which is the shape being replaced.
 - **Folding the provider adapters in too** — rejected: the default and profile adapters genuinely vary, so that capability seam stays where it is.

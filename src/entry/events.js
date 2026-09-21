@@ -1,7 +1,8 @@
 import { getChat, isDryRunEvent } from '../foundation/context.js';
 import { isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
-import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
 import {

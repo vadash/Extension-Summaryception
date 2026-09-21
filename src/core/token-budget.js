@@ -120,7 +120,7 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 
 /**
  * Estimate the injected-context sizes shown by the settings preview panel.
- * @param {ReturnType<typeof import('../foundation/state.js').getSettings>} settings
+ * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
  * @returns {{ rawChatMin: number, rawChatMax: number, mainMin: number, mainMax: number, l0Typical: number, l0Max: number, l1Total: number }}
  */
 export function estimateContextPreview(settings) {

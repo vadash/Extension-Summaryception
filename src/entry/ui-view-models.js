@@ -83,7 +83,7 @@ export function formatBudgetTokenLabel(count, estimated = false) {
 
 /**
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
- * @param {ReturnType<import('../foundation/state.js').getEffectiveSettings>} s
+ * @param {ReturnType<import('../foundation/settings.js').getEffectiveSettings>} s
  * @returns {{ queuedTokens: number, queuedEstimated: boolean, triggerTokens: number, label: string }}
  */
 export function buildTriggerGaugeModel(work, s) {

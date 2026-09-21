@@ -1,5 +1,5 @@
 import { error } from '../foundation/logger.js';
-import { bumpSummaryStoreMutationEpoch, saveChatStore } from '../foundation/state.js';
+import { bumpSummaryStoreMutationEpoch, saveChatStore } from '../foundation/chat-store.js';
 import { persistChatState } from './persist-state.js';
 import { clearAllGhosting, syncGhosting } from './ghosting.js';
 import { updateCommittedInjection } from './summarizer-commit.js';

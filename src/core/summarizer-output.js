@@ -1,6 +1,6 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { validateLayer0OutputSize, validateLayer0Structure } from './layer0-compression.js';
 import { silentAdapter } from './notify.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';

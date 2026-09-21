@@ -329,7 +329,7 @@ describe('auditor prompt routing', () => {
 
 describe('settings normalization', () => {
     it('defaults continuityEnabled to false and coerces garbage to false', async () => {
-        const { getSettings } = await import('../src/foundation/state.js');
+        const { getSettings } = await import('../src/foundation/settings.js');
         const ctx = installSoloChat({ settings: { continuityEnabled: undefined } });
         expect(getSettings().continuityEnabled).toBe(false);
 

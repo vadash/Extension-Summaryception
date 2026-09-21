@@ -1,4 +1,4 @@
-import { getSummaryStoreMutationEpoch } from '../foundation/state.js';
+import { getSummaryStoreMutationEpoch } from '../foundation/chat-store.js';
 
 /**
  * Get a best-effort stable identity for the active chat.

@@ -1,6 +1,6 @@
 import { getName1 } from '../foundation/context.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { resolveCallProfile } from './call-profile.js';
 import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';

@@ -1,7 +1,7 @@
 import { layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { getChat, getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
 import { clearSummaryceptionMemory } from '../features/memory.js';

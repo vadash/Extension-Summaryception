@@ -7,7 +7,7 @@ import {
     readLines,
 } from '../src/entry/ui-bind.js';
 import { initConnectionUI, syncConnectionPanels } from '../src/entry/ui-connection.js';
-import { getSettings } from '../src/foundation/state.js';
+import { getSettings } from '../src/foundation/settings.js';
 import { buildTriggerGaugeModel } from '../src/entry/ui-view-models.js';
 import { createJQueryHarness, installSummaryContext } from './test-helpers.js';
 

@@ -1,6 +1,6 @@
 import { SLIDER_LIMITS } from '../foundation/constants.js';
 import { clampToStep } from '../foundation/numeric.js';
-import { getSettings, saveSettings } from '../foundation/state.js';
+import { getSettings, saveSettings } from '../foundation/settings.js';
 import { formatCompactTokenCount } from '../core/token-count.js';
 
 export const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setting]';

@@ -7,7 +7,7 @@ import {
 } from '../foundation/connection-routes.js';
 import { populateProfileDropdown } from '../core/connectionutil.js';
 import { refreshFull } from '../foundation/refresh.js';
-import { getSettings } from '../foundation/state.js';
+import { getSettings } from '../foundation/settings.js';
 import { bindDataSettingElements, bindElementSetting, readString } from './ui-bind.js';
 
 /**

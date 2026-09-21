@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { installSummaryContext } = await import('./test-helpers.js');
-const { getSettings } = await import('../src/foundation/state.js');
+const { getSettings } = await import('../src/foundation/settings.js');
 const { pauseAutoSummarization, resumeAutoSummarization } =
     await import('../src/core/summarizer-engine.js');
 

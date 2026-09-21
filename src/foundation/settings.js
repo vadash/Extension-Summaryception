@@ -12,21 +12,16 @@ import {
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     defaultSettings,
 } from './constants.js';
-import {
-    getChatMetadata,
-    getExtensionSettings,
-    saveMetadata,
-    saveSettingsDebounced,
-} from './context.js';
-import { isPlainObject, normalizeStringArray } from './objects.js';
+import { getExtensionSettings, saveSettingsDebounced } from './context.js';
+import { isPlainObject } from './objects.js';
 import { getAllRouteSettingKeys } from './connection-routes.js';
 import { normalizeSettings } from './settings-normalizer.js';
 import { readOperationMode, repairOperationMode } from './operation-mode.js';
 
 /**
- * The host-facing half of extension state: the settings object and the chat
- * store as the SillyTavern context holds them, plus the defaults reset. The
- * repair passes this module calls are host-free (settings-normalizer.js).
+ * Extension settings as the SillyTavern context holds them: the load-time
+ * backfill and repair, the Effective Settings projection, and the defaults
+ * reset. The repair itself is host-free (settings-normalizer.js).
  */
 
 /**
@@ -150,106 +145,4 @@ export function resetSettingsToDefaults() {
 
     // Debug output deliberately re-enables on reset so F12 diagnostics stay available.
     s.debugMode = true;
-}
-
-/**
- * @returns {SummaryceptionStore}
- */
-export function getChatStore() {
-    const chatMetadata = getChatMetadata();
-    if (!isPlainObject(chatMetadata[MODULE_NAME])) {
-        chatMetadata[MODULE_NAME] = createDefaultChatStore();
-    }
-    return normalizeChatStore(chatMetadata[MODULE_NAME]);
-}
-
-/**
- *
- */
-export async function saveChatStore() {
-    getChatStore();
-    await saveMetadata();
-}
-
-/**
- * @param {SummaryceptionStore} store
- * @returns {number}
- */
-export function getSummaryStoreMutationEpoch(store) {
-    return normalizeMutationEpoch(store?.mutationEpoch);
-}
-
-/**
- * Advance the summary-store mutation epoch after any store mutation.
- * @param {SummaryceptionStore} store
- * @returns {number}
- */
-export function bumpSummaryStoreMutationEpoch(store) {
-    store.mutationEpoch = getSummaryStoreMutationEpoch(store) + 1;
-    return store.mutationEpoch;
-}
-
-/**
- * Normalize persisted chat metadata in place.
- * @param {SummaryceptionStore} store
- * @returns {SummaryceptionStore}
- */
-function normalizeChatStore(store) {
-    store.layers = normalizeLayers(store.layers);
-    store.ghostedMessageIds = normalizeStringArray(store.ghostedMessageIds);
-    store.mutationEpoch = normalizeMutationEpoch(store.mutationEpoch);
-    return /** @type {SummaryceptionStore} */ (store);
-}
-
-/**
- * Normalize layer arrays and drop malformed snippets.
- * @param {unknown} layers
- * @returns {Array<Array<SummaryceptionSnippet>>}
- */
-function normalizeLayers(layers) {
-    if (!Array.isArray(layers)) {
-        return [];
-    }
-    return layers.map((layer) => {
-        if (!Array.isArray(layer)) {
-            return [];
-        }
-        return layer.filter(isValidSnippet).map(normalizeSnippet);
-    });
-}
-
-function createDefaultChatStore() {
-    return {
-        layers: [],
-        ghostedMessageIds: [],
-        mutationEpoch: 0,
-    };
-}
-
-/**
- * @param {unknown} snippet
- * @returns {snippet is SummaryceptionSnippet}
- */
-export function isValidSnippet(snippet) {
-    return (
-        isPlainObject(snippet) &&
-        typeof snippet.text === 'string' &&
-        normalizeStringArray(snippet.sourceMessageIds).length > 0
-    );
-}
-
-function normalizeSnippet(snippet) {
-    snippet.sourceMessageIds = normalizeStringArray(snippet.sourceMessageIds);
-    return snippet;
-}
-
-/**
- * @param {unknown} value
- * @returns {number}
- */
-function normalizeMutationEpoch(value) {
-    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
-        return 0;
-    }
-    return Math.max(0, value);
 }

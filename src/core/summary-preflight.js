@@ -1,6 +1,6 @@
 import { getChat } from '../foundation/context.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { persistChatState } from './persist-state.js';
 
 /**

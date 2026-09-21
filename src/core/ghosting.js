@@ -5,11 +5,8 @@ import {
     rangesFromSortedIndices,
     resolveScIdsToIndices,
 } from '../foundation/message-identity.js';
-import {
-    bumpSummaryStoreMutationEpoch,
-    getChatStore,
-    getEffectiveSettings,
-} from '../foundation/state.js';
+import { bumpSummaryStoreMutationEpoch, getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';

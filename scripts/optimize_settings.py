@@ -79,7 +79,7 @@ SEARCH_STEP = 2000
 # of coherent recent context, otherwise the model loses the thread of the scene.
 MIN_TURNS_VISIBLE = 12
 
-# Cache mode hardcodes this (src/foundation/state.js)
+# Cache mode's retention preset owns this (src/foundation/constants.js)
 CACHE_FORCED_VERBATIM = 32000
 
 # Default app settings (do NOT change; used as reference baseline)

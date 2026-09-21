@@ -11,7 +11,7 @@
 import { LOG_PREFIX } from './src/foundation/constants.js';
 import { getContext } from './src/foundation/context.js';
 import { initRefreshPort, refreshUi } from './src/foundation/refresh.js';
-import { getSettings } from './src/foundation/state.js';
+import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { requestSummarization, setNotify, summarizerQueue } from './src/core/summarizer-queue.js';
 import { initCommitCallbacks, runPromptEffect } from './src/core/summarizer-commit.js';

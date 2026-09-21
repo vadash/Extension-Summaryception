@@ -1,6 +1,6 @@
 import { saveChat } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
-import { saveChatStore } from '../foundation/state.js';
+import { saveChatStore } from '../foundation/chat-store.js';
 
 const CHAT_SAVE_DEBOUNCE_MS = 1500;
 

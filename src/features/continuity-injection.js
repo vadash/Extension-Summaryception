@@ -2,7 +2,7 @@ import { deriveContinuityCoverage } from '../core/continuity-coverage.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { trace, warn } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 
 const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
 

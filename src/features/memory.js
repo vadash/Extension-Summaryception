@@ -2,7 +2,7 @@ import { MODULE_NAME } from '../foundation/constants.js';
 import { getChat, getChatMetadata, saveChat, saveMetadata } from '../foundation/context.js';
 import { error, info } from '../foundation/logger.js';
 import { refreshUi } from '../foundation/refresh.js';
-import { getChatStore, isValidSnippet } from '../foundation/state.js';
+import { getChatStore, isValidSnippet } from '../foundation/chat-store.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 
 // ─── Memory Clear Workflow ───────────────────────────────────────────

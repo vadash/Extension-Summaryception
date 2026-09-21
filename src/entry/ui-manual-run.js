@@ -1,6 +1,6 @@
 import { MEMORY_MODES, TOAST_TITLE } from '../foundation/constants.js';
 import { error } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import {
     describeManualRun,
     ELASTIC_STRATEGIES,

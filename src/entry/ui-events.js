@@ -10,12 +10,8 @@ import { error, warn } from '../foundation/logger.js';
 import { clampInteger } from '../foundation/numeric.js';
 import { selectOff, setComplexity, setEnabled } from '../foundation/operation-mode.js';
 import { refreshFull, refreshPreview } from '../foundation/refresh.js';
-import {
-    getSettings,
-    resetSettingsToDefaults,
-    saveSettings,
-    getChatStore,
-} from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getSettings, resetSettingsToDefaults, saveSettings } from '../foundation/settings.js';
 import {
     deriveAdvancedEngineTuning,
     enforceRetentionInvariants,

@@ -1,5 +1,6 @@
 import { getContext } from '../foundation/context.js';
-import { getEffectiveSettings, getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug } from '../foundation/logger.js';
 import { buildFullContext } from './chatutils.js';
 import { generateValidatedPromotion } from './promotion-candidate.js';

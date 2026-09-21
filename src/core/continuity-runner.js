@@ -15,7 +15,8 @@ import {
 } from '../foundation/logger.js';
 import { listNonEmptyLayers, LOG_PREFIX } from '../foundation/constants.js';
 import { refreshPreview } from '../foundation/refresh.js';
-import { getChatStore, getEffectiveSettings, saveChatStore } from '../foundation/state.js';
+import { getChatStore, saveChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { silentAdapter } from './notify.js';
 import { callSummarizer } from './summarizer-request.js';
 

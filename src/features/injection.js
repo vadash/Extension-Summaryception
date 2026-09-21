@@ -6,7 +6,8 @@ import {
     MODULE_NAME,
 } from '../foundation/constants.js';
 import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
-import { getChatStore, getEffectiveSettings } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';

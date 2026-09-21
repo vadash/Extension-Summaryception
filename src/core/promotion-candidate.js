@@ -1,6 +1,6 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { buildInjection, measureInjection } from './memory-injection.js';
 import { getLayer0SummaryTokenTarget } from './layer0-compression.js';
 import {

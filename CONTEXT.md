@@ -4,14 +4,19 @@ Browser-only SillyTavern extension for recursive layered summarization. Summariz
 
 ## Language
 
+**Chat Store**:
+The per-chat summary store as chat metadata holds it (ADR-0002): the layers, the Ghosting ownership, and the Mutation Epoch, with the repair a persisted store needs on read.
+Code: `getChatStore` (src/foundation/chat-store.js)
+_Avoid_: chat state, metadata store
+
 **Layer**:
 A container of summary snippets at one summarization depth. Layer 0 holds direct narrative summaries; deeper layers hold merged older snippets.
-Code: `store.layers` (src/foundation/state.js)
+Code: `store.layers` (src/foundation/chat-store.js)
 _Avoid_: Tier, level
 
 **Snippet**:
 One summary text unit inside a layer, owned by the store and carrying stable message-identifier provenance.
-Code: `SummaryceptionSnippet` (src/foundation/state.js)
+Code: `SummaryceptionSnippet` (src/foundation/chat-store.js)
 
 **Snippet Commit**:
 The single point every Snippet mutation passes through: apply the change, sync Ghosting ownership, bump the Mutation Epoch, persist. Any failing step restores the pre-commit store state.
@@ -72,7 +77,7 @@ _Avoid_: output sanitization, response post-processing
 
 **Mutation Epoch**:
 A counter bumped on every summary store mutation, including Ghosting ownership. Consumers use it to detect stale derived data.
-Code: `getSummaryStoreMutationEpoch` (src/foundation/state.js)
+Code: `getSummaryStoreMutationEpoch` (src/foundation/chat-store.js)
 
 **Operation Mode**:
 Whether the extension is On or Off. On gates all runtime behavior: automatic cycles, manual runs, prompt injection, and the Continuity Engine. Off is the only state that disables runtime behavior, and turning Off never discards a stored configuration value.
@@ -81,12 +86,17 @@ _Avoid_: enabled flag, power state
 
 **Complexity Mode**:
 Which panel the settings UI shows: Easy or Advanced. Independent of Operation Mode, so the panel stays visible and editable while the extension is Off, and the selected Complexity Mode is remembered across an Off period.
-Code: `configMode` (src/foundation/state.js); panel flags from `buildEnabledContentModel` (src/entry/ui-view-models.js)
+Code: `configMode` (src/foundation/settings.js); panel flags from `buildEnabledContentModel` (src/entry/ui-view-models.js)
 _Avoid_: view mode, UI level
 
 **Effective Settings**:
 Runtime settings with the Operation Mode Off resolved to `enabled: false`. Runtime behavior reads these, never raw settings.
-Code: `getEffectiveSettings` (src/foundation/state.js)
+Code: `getEffectiveSettings` (src/foundation/settings.js)
+
+**Settings Normalization**:
+The read-time pass that repairs a stored settings object to a legal one: memory placement and route sources, the role mask, the retention budgets, the per-route timeouts, the Continuity toggles, and the prompt profiles. It runs on a plain object with no host access and reports whether anything changed, which is what the load path persists on.
+Code: `normalizeSettings` (src/foundation/settings-normalizer.js)
+_Avoid_: settings repair, config validation
 
 **Memory Mode**:
 How raw chat converts into summaries. Either Balanced or Prefix Cache.
@@ -184,7 +194,7 @@ _Avoid_: Stop guard, renderer freeze check
 
 **Prompt Profile**:
 One preset select plus prompt textarea pair, joined by a `(presetKey, settingKey)` binding. Picking a preset fills the textarea; editing the textarea flips the profile to `custom`.
-Code: `bindPromptProfiles` (src/entry/ui-prompts.js); defaults reset via `resetSettingsToDefaults` (src/foundation/state.js)
+Code: `bindPromptProfiles` (src/entry/ui-prompts.js); defaults reset via `resetSettingsToDefaults` (src/foundation/settings.js)
 _Avoid_: prompt field, preset pair
 
 **View Model**:

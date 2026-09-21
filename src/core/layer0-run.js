@@ -1,7 +1,7 @@
 import { BATCH_PROGRESS } from '../foundation/constants.js';
 import { getContext, getChat } from '../foundation/context.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
 import { repairGhostingForRange } from './ghosting.js';

@@ -8,16 +8,18 @@ import {
     defaultSettings,
 } from '../src/foundation/constants.js';
 import {
-    bumpSummaryStoreMutationEpoch,
-    getChatStore,
     getEffectiveSettings,
     getSettings,
-    getSummaryStoreMutationEpoch,
     resetSettingsToDefaults,
-} from '../src/foundation/state.js';
+} from '../src/foundation/settings.js';
 import { CONNECTION_ROUTES } from '../src/foundation/connection-routes.js';
 import { installSummaryContext, installSillyTavernStub } from './test-helpers.js';
 
+/**
+ * Extension settings as the host holds them: the load path's backfill, the
+ * Effective Settings projection, and the defaults reset. The repair passes
+ * these reach are covered host-free in tests/settings-normalizer.test.js.
+ */
 describe('getSettings', () => {
     it('returns a settings object and reuses the same reference on subsequent calls', () => {
         const first = getSettings();
@@ -35,20 +37,20 @@ describe('getSettings', () => {
         expect(Object.hasOwn(settings, 'memoryTokenBudget')).toBe(true);
         expect(settings.enabled).toBe(true);
     });
+
+    it('backfills the provider cache TTL from the defaults', () => {
+        installSummaryContext({ settings: {} });
+        expect(getSettings().cacheTtlMinutes).toBe(defaultSettings.cacheTtlMinutes);
+    });
 });
 
-describe('memory mode budgets', () => {
+describe('memory mode transitions', () => {
     it('applies presets only on real mode transitions', () => {
         const settings = { ...defaultSettings, memoryMode: MEMORY_MODES.BALANCED };
         expect(applyMemoryModePreset(settings, MEMORY_MODES.BALANCED)).toBe(false);
         expect(applyMemoryModePreset(settings, MEMORY_MODES.PREFIX_CACHE)).toBe(true);
         expect(settings).toMatchObject(MEMORY_MODE_PRESETS[MEMORY_MODES.PREFIX_CACHE]);
         expect(applyMemoryModePreset(settings, 'invalid')).toBe(false);
-    });
-
-    it('backfills the provider cache TTL from the defaults', () => {
-        installSummaryContext({ settings: {} });
-        expect(getSettings().cacheTtlMinutes).toBe(defaultSettings.cacheTtlMinutes);
     });
 });
 
@@ -66,49 +68,6 @@ describe('getEffectiveSettings', () => {
     it('returns the same settings reference in ADVANCED mode', () => {
         installSummaryContext({ settings: { uiMode: UI_MODES.ADVANCED } });
         expect(getEffectiveSettings()).toBe(getSettings());
-    });
-});
-
-describe('getChatStore', () => {
-    it('creates a normalized default store on a fresh context', () => {
-        const store = getChatStore();
-        expect(store).toMatchObject({ layers: [], ghostedMessageIds: [], mutationEpoch: 0 });
-    });
-
-    it('normalizes UUID arrays and rejects source-less snippets', () => {
-        installSummaryContext({
-            metadata: {
-                summaryception: {
-                    layers: [
-                        [
-                            { text: 'valid', sourceMessageIds: ['a', '', 'a', 'b'] },
-                            { text: 'source-less' },
-                        ],
-                    ],
-                    ghostedMessageIds: ['b', '', 'b', 'a'],
-                    mutationEpoch: NaN,
-                },
-            },
-        });
-
-        const store = getChatStore();
-        expect(store.layers).toEqual([[{ text: 'valid', sourceMessageIds: ['a', 'b'] }]]);
-        expect(store.ghostedMessageIds).toEqual(['b', 'a']);
-        expect(store.mutationEpoch).toBe(0);
-    });
-});
-
-describe('summary store mutation epoch', () => {
-    it('counts up from a normalized baseline on each bump', () => {
-        const store = getChatStore();
-        expect(bumpSummaryStoreMutationEpoch(store)).toBe(1);
-        expect(store.mutationEpoch).toBe(1);
-        expect(bumpSummaryStoreMutationEpoch(store)).toBe(2);
-    });
-
-    it('normalizes a bad epoch value to 0 without throwing', () => {
-        expect(getSummaryStoreMutationEpoch({ mutationEpoch: 'bad' })).toBe(0);
-        expect(getSummaryStoreMutationEpoch(undefined)).toBe(0);
     });
 });
 

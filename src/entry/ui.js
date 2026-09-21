@@ -7,7 +7,8 @@ import {
 import { getChat } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
 import { readOperationMode } from '../foundation/operation-mode.js';
-import { getEffectiveSettings, getSettings, getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getEffectiveSettings, getSettings } from '../foundation/settings.js';
 import { countGhostedMessages } from '../core/ghosting.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
 import { isBusy } from '../core/summarizer-queue.js';

@@ -9,7 +9,7 @@ vi.mock('../src/core/request-runner.js', () => ({
         }
     },
 }));
-vi.mock('../src/foundation/state.js', () => ({
+vi.mock('../src/foundation/settings.js', () => ({
     getEffectiveSettings: vi.fn(() => ({})),
 }));
 vi.mock('../src/core/summarizer-pipeline.js', async () => {

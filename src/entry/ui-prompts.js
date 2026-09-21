@@ -10,7 +10,7 @@ import {
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     defaultSettings,
 } from '../foundation/constants.js';
-import { getSettings, saveSettings } from '../foundation/state.js';
+import { getSettings, saveSettings } from '../foundation/settings.js';
 
 // PROMPT_SETTING_KEYS owns the (presetKey, settingKey) pairs. This map adds
 // the UI selectors and preset tables, keyed by presetKey.

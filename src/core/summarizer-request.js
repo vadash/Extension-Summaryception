@@ -1,5 +1,5 @@
 import { debug, trace } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/state.js';
+import { getEffectiveSettings } from '../foundation/settings.js';
 import { silentAdapter } from './notify.js';
 import { RequestRunner } from './request-runner.js';
 import { buildSummarizerPipelineInput, traceSummarizerInputTokens } from './summarizer-pipeline.js';

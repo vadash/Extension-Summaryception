@@ -7,9 +7,11 @@ const routeMocks = vi.hoisted(() => ({
 const layer0Mocks = vi.hoisted(() => ({
     runLayer0: vi.fn(),
 }));
-const stateMocks = vi.hoisted(() => ({
-    getChatStore: vi.fn(() => ({})),
+const settingsMocks = vi.hoisted(() => ({
     getEffectiveSettings: vi.fn(() => ({})),
+}));
+const chatStoreMocks = vi.hoisted(() => ({
+    getChatStore: vi.fn(() => ({})),
 }));
 const provenanceMocks = vi.hoisted(() => ({
     getCurrentSummarizedBoundary: vi.fn(),
@@ -20,7 +22,8 @@ vi.mock('../src/core/summarization-routes.js', async (importOriginal) => ({
     ...routeMocks,
 }));
 vi.mock('../src/core/layer0-run.js', () => layer0Mocks);
-vi.mock('../src/foundation/state.js', () => stateMocks);
+vi.mock('../src/foundation/settings.js', () => settingsMocks);
+vi.mock('../src/foundation/chat-store.js', () => chatStoreMocks);
 vi.mock('../src/core/snippet-provenance.js', async (importOriginal) => ({
     ...(await importOriginal()),
     ...provenanceMocks,
@@ -93,8 +96,8 @@ describe('manual run progress callbacks', () => {
         resetCommitStateForTests();
         installSummaryContext({ chat: [] });
         boundary = 0;
-        stateMocks.getChatStore.mockReturnValue({});
-        stateMocks.getEffectiveSettings.mockReturnValue({});
+        chatStoreMocks.getChatStore.mockReturnValue({});
+        settingsMocks.getEffectiveSettings.mockReturnValue({});
         provenanceMocks.getCurrentSummarizedBoundary.mockImplementation(() => boundary);
         // One commit moves the boundary to the target, so the plan turns unready and the run ends after one batch.
         layer0Mocks.runLayer0.mockImplementation(async () => {
@@ -184,8 +187,8 @@ describe('manual run work gate', () => {
         vi.clearAllMocks();
         resetCommitStateForTests();
         installSummaryContext({ chat: [] });
-        stateMocks.getChatStore.mockReturnValue({});
-        stateMocks.getEffectiveSettings.mockReturnValue({});
+        chatStoreMocks.getChatStore.mockReturnValue({});
+        settingsMocks.getEffectiveSettings.mockReturnValue({});
         provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch fails without moving the summarized boundary.
         layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
@@ -210,8 +213,8 @@ describe('manual run pre-run outcomes', () => {
         vi.clearAllMocks();
         resetCommitStateForTests();
         installSummaryContext({ chat: [] });
-        stateMocks.getChatStore.mockReturnValue({});
-        stateMocks.getEffectiveSettings.mockReturnValue({});
+        chatStoreMocks.getChatStore.mockReturnValue({});
+        settingsMocks.getEffectiveSettings.mockReturnValue({});
         provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });
@@ -240,8 +243,8 @@ describe('manual run failure limit', () => {
         vi.clearAllMocks();
         resetCommitStateForTests();
         installSummaryContext({ chat: [] });
-        stateMocks.getChatStore.mockReturnValue({});
-        stateMocks.getEffectiveSettings.mockReturnValue({});
+        chatStoreMocks.getChatStore.mockReturnValue({});
+        settingsMocks.getEffectiveSettings.mockReturnValue({});
         provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         // Every batch commit fails without moving the summarized boundary.
         layer0Mocks.runLayer0.mockResolvedValue({ status: 'failed' });
@@ -279,8 +282,8 @@ describe('manual run gate outcome', () => {
         vi.clearAllMocks();
         resetCommitStateForTests();
         installSummaryContext({ chat: [] });
-        stateMocks.getChatStore.mockReturnValue({});
-        stateMocks.getEffectiveSettings.mockReturnValue({});
+        chatStoreMocks.getChatStore.mockReturnValue({});
+        settingsMocks.getEffectiveSettings.mockReturnValue({});
         provenanceMocks.getCurrentSummarizedBoundary.mockReturnValue(0);
         routeMocks.buildForceSummaryRoutePlan.mockResolvedValue(forceRoutePlan());
     });

@@ -1,6 +1,6 @@
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
-import { getChatStore } from '../foundation/state.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { validateSummarizerOutputIntegrity } from '../core/summarizer-output.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
