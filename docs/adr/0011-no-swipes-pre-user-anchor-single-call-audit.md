@@ -1,8 +1,7 @@
+---
+status: superseded by ADR-0017
+---
+
 # No swipes, pre-user anchor bound, single-call audit
 
-> Superseded by ADR-0017 (2026-09-20) via ADR-0014. Removed swipe semantics from the trigger
-> set, made the audit a single LLM call, and bounded the read model with a
-> pre-user anchor. The no-swipe trigger filter and single-call audit stand
-> (restated in ADR-0014); the pre-user anchor bound was removed after a live
-> failure nulled the read model exactly when the injection refreshed —
-> latest-payload-wins replaced it.
+The trigger set dropped swipe semantics, the audit became one LLM call, and the read model was bounded by a pre-user anchor. ADR-0017 keeps the no-swipe trigger filter and the single-call audit; the pre-user anchor bound was removed after a live failure nulled the read model exactly when the injection refreshed.

@@ -20,6 +20,7 @@
 - Decisions: `docs/adr/`
 - Conditional source guidance: `src/AGENTS.md`
 - Conditional test guidance: `tests/AGENTS.md`
+- Writing an ADR: the shape and the criteria for offering one are in `docs/agents/domain.md` (ADR-0025)
 
 ## Agent skills
 

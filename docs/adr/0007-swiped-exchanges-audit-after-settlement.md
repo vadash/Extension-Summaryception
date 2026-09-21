@@ -1,7 +1,7 @@
+---
+status: superseded by ADR-0017
+---
+
 # Swiped Exchanges audit after settlement, not at swipe time
 
-> Superseded by ADR-0017 (2026-09-20) via ADR-0014. Decided that swipe, continue, and regenerate
-> never dispatch the Auditor; coverage rewound one Exchange instead
-> (`rewindContinuityAnchor`) with a `continuityRevert` snapshot restore. The
-> audits-fire-on-settled-replies-only rule is restated in ADR-0014; the rewind
-> bookkeeping is gone — invalidation is overwrite plus the generation-start drop.
+Swipe, continue, and regenerate never dispatched the Auditor; coverage rewound one Exchange (`rewindContinuityAnchor`) with a `continuityRevert` snapshot restore. ADR-0017 restates the surviving rule — audits fire on settled replies only — and the rewind bookkeeping is gone: invalidation is overwrite plus the generation-start drop.

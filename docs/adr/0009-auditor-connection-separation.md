@@ -1,4 +1,4 @@
-# 0009 — Auditor gets its own connection chain
+# Auditor gets its own connection chain
 
 The Auditor previously shared the Layer 0 summarizer connection and its fallback route. The Auditor now has its own primary and fallback connection pair (defaults inherit Layer 0 / disabled, so nothing changes until a user separates them) plus an opt-in narrative failover: when both Auditor routes fail and the checkbox is on, the full Narrative Chain (Layer 0 primary + its fallback) runs before the fail-safe freeze.
 
