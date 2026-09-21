@@ -319,3 +319,26 @@ function normalizeTokenCount(count) {
     }
     return Math.max(0, Math.ceil(count));
 }
+
+/**
+ * Drop the cached per-message token counts. The cache self-heals on a text
+ * length mismatch, so this is a removal of Extension Chat Data (ADR-0027)
+ * rather than a correctness fix; the tokenizer rebuilds each entry on the
+ * next count.
+ * @param {ChatMessage[] | unknown} chat
+ * @returns {void}
+ */
+export function removeMessageTokenCaches(chat) {
+    if (!Array.isArray(chat)) {
+        return;
+    }
+    for (const message of chat) {
+        if (!message || typeof message !== 'object') {
+            continue;
+        }
+        const target = /** @type {{ extra?: Record<string, unknown> }} */ (message);
+        if (target.extra && typeof target.extra === 'object') {
+            delete target.extra[MESSAGE_TOKEN_CACHE_KEY];
+        }
+    }
+}

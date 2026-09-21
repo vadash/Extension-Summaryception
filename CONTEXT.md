@@ -269,3 +269,13 @@ _Avoid_: spark spend, bond payout
 The naming rule for Continuity State keys: copy each character's name exactly as the character card spells it (Latin spelling, never inflected prose forms); the player is always `User`, pair keys are `Name↔User`.
 Code: `USER_PAIR_PATTERN` (src/core/continuity-state.js); rule text in the Auditor default prompt
 _Avoid_: name normalization
+
+**Extension Chat Data**:
+Everything Summaryception writes into a chat: the Chat Store in chat metadata, the stable message identifiers, the message token cache, and the Continuity Checkpoints. Each shape is removed by the module that writes it; nothing identifies it by a key-name convention.
+Code: `clearChatData` (src/core/chat-data.js)
+_Avoid_: extension extras, sc_ keys
+
+**Clear**:
+The user-confirmed destructive workflow that removes all Extension Chat Data from a chat and unhides its messages, leaving the chat as if the extension had never run.
+Code: `clearChatData` (src/core/chat-data.js); `#sc_clear_memory`, `/sc-clear`
+_Avoid_: wipe, purge

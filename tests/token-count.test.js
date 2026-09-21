@@ -8,6 +8,7 @@ import {
     formatCompactTokenCount,
     formatTokenCount,
     formatTokenValue,
+    removeMessageTokenCaches,
 } from '../src/core/token-count.js';
 import { installSummaryContext, makeMessage } from './test-helpers.js';
 
@@ -170,5 +171,37 @@ describe('countMessageTokens', () => {
         await countMessageTokens(message, 'hello', 'hello');
         await countMessageTokens(message, 'raw line', 'final line');
         expect(getTokenCountAsync).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe('removeMessageTokenCaches', () => {
+    it('drops the cache entry from every message and keeps the rest of the extras', () => {
+        const first = makeMessage();
+        const second = makeMessage();
+        first.extra = {
+            sc_token_count: { textLength: 5, rawTokens: 5, finalTokens: 5 },
+            api: 'keep',
+        };
+        second.extra = { sc_token_count: { textLength: 7, rawTokens: 7, finalTokens: 7 } };
+
+        removeMessageTokenCaches([first, null, second]);
+
+        expect(first.extra).toEqual({ api: 'keep' });
+        expect(second.extra).toEqual({});
+        expect(() => removeMessageTokenCaches('not-chat')).not.toThrow();
+    });
+
+    it('lets the tokenizer rebuild the entry on the next count', async () => {
+        installSummaryContext({
+            getTokenCountAsync: vi.fn(async (text) => String(text).length),
+        });
+        const message = makeMessage();
+        await countMessageTokens(message, 'hello', 'hello');
+
+        removeMessageTokenCaches([message]);
+        expect(message.extra.sc_token_count).toBeUndefined();
+
+        await countMessageTokens(message, 'hello', 'hello');
+        expect(message.extra.sc_token_count).toBeTruthy();
     });
 });

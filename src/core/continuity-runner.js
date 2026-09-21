@@ -67,6 +67,29 @@ export function discardRegeneratedCheckpoint(generationType) {
 }
 
 /**
+ * Drop every Continuity Checkpoint in the chat. Payload presence is the
+ * Continuity State (ADR-0017), so a chat that keeps its payloads keeps a live
+ * state, its Continuity Marks, and its injected block; Clear removes them with
+ * the rest of Extension Chat Data (ADR-0027).
+ * @param {ChatMessage[] | unknown} chat
+ * @returns {void}
+ */
+export function removeContinuityCheckpoints(chat) {
+    if (!Array.isArray(chat)) {
+        return;
+    }
+    for (const message of chat) {
+        if (!message || typeof message !== 'object') {
+            continue;
+        }
+        const target = /** @type {{ extra?: { summaryception_continuity?: unknown } }} */ (message);
+        if (target.extra && typeof target.extra === 'object') {
+            delete target.extra.summaryception_continuity;
+        }
+    }
+}
+
+/**
  * Run one Continuity Auditor lifecycle (issue #28): gate, dispatch one
  * combined extraction call over the summarizer router, validate once with
  * classifyContinuity, apply the JS flags rulebook, and overwrite

@@ -9,7 +9,11 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 }));
 
 import { buildSummarizerPipelineInput } from '../src/core/summarizer-pipeline.js';
-import { isAuditorTriggerMessage, runAuditorExtraction } from '../src/core/continuity-runner.js';
+import {
+    isAuditorTriggerMessage,
+    removeContinuityCheckpoints,
+    runAuditorExtraction,
+} from '../src/core/continuity-runner.js';
 import { defaultSettings } from '../src/foundation/constants.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
@@ -430,5 +434,24 @@ describe('continuity state audit log', () => {
 
         expect(console.groupCollapsed).not.toHaveBeenCalled();
         expect(console.log).not.toHaveBeenCalled();
+    });
+});
+
+describe('removeContinuityCheckpoints', () => {
+    it('drops every checkpoint payload and keeps unrelated extras', () => {
+        const chat = soloChat();
+        attachCheckpoint(chat[1], priorState());
+        attachCheckpoint(chat[3], priorState());
+        chat[0].extra.reasoning = 'keep';
+
+        removeContinuityCheckpoints(chat);
+
+        expect(chat[1].extra.summaryception_continuity).toBeUndefined();
+        expect(chat[3].extra.summaryception_continuity).toBeUndefined();
+        expect(chat[0].extra).toEqual({ reasoning: 'keep' });
+    });
+
+    it('ignores non-chat inputs', () => {
+        expect(() => removeContinuityCheckpoints('not-chat')).not.toThrow();
     });
 });

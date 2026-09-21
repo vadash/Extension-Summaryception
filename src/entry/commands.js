@@ -2,9 +2,9 @@ import { layerLabel, listNonEmptyLayers } from '../foundation/constants.js';
 import { getChat, getSlashCommand, getSlashCommandParser } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
 import { getChatStore } from '../foundation/chat-store.js';
+import { clearChatData } from '../core/chat-data.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
-import { clearSummaryceptionMemory } from '../features/memory.js';
 
 /**
  *
@@ -44,7 +44,7 @@ export function registerSlashCommands() {
             SlashCommand.fromProps({
                 name: 'sc-clear',
                 callback: async () => {
-                    await clearSummaryceptionMemory({ updateUi: true });
+                    await clearChatData();
                     return 'Summaryception memory cleared and messages unghosted.';
                 },
                 helpString: 'Clear all Summaryception memory and unghost messages for this chat',

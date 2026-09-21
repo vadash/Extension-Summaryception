@@ -16,8 +16,9 @@ import {
     deriveAdvancedEngineTuning,
     enforceRetentionInvariants,
 } from '../foundation/settings-normalizer.js';
+import { clearChatData } from '../core/chat-data.js';
 import { requestSummarization } from '../core/summarizer-queue.js';
-import { clearSummaryceptionMemory, importSummaryceptionMemory } from '../features/memory.js';
+import { importSummaryceptionMemory } from '../features/memory.js';
 import { updateUI } from './ui.js';
 import {
     SETTING_SLIDER_SELECTOR,
@@ -28,7 +29,7 @@ import {
     readString,
     syncRoleMaskModeControl,
 } from './ui-bind.js';
-import { bindManualRunControls, reloadPage } from './ui-manual-run.js';
+import { bindManualRunControls } from './ui-manual-run.js';
 import { bindPromptProfiles } from './ui-prompts.js';
 
 /**
@@ -294,13 +295,10 @@ function bindClickHandlers(notify) {
         }
 
         try {
-            await clearSummaryceptionMemory({ updateUi: true });
-            toastr.success(
-                'Memory cleared & messages unghosted. Reloading chat context.',
-                TOAST_TITLE,
-                { timeOut: 2000 },
-            );
-            reloadPage();
+            await clearChatData();
+            toastr.success('Memory cleared & messages unghosted.', TOAST_TITLE, {
+                timeOut: 2000,
+            });
         } catch (e) {
             error('Clear memory failed:', e);
             toastr.error(

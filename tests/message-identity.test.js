@@ -6,6 +6,7 @@ import {
     ensureMessageScId,
     getMessageIndexByScId,
     rangesFromSortedIndices,
+    removeMessageIdentities,
     resolveScIdsToIndices,
 } from '../src/foundation/message-identity.js';
 import { makeMessage } from './test-helpers.js';
@@ -82,5 +83,30 @@ describe('message identity', () => {
         } finally {
             globalThis.crypto.randomUUID = nativeRandomUUID;
         }
+    });
+});
+
+describe('removeMessageIdentities', () => {
+    it('drops the identifier from every message and ignores non-messages', () => {
+        const chat = [
+            makeMessage({ scId: 'message-1' }),
+            null,
+            makeMessage({ scId: 'message-2' }),
+            'not-a-message',
+        ];
+
+        removeMessageIdentities(chat);
+
+        expect(Object.hasOwn(chat[0], 'sc_id')).toBe(false);
+        expect(Object.hasOwn(chat[2], 'sc_id')).toBe(false);
+        expect(() => removeMessageIdentities('not-chat')).not.toThrow();
+    });
+
+    it('leaves a wiped chat ready for reconciliation to re-mint identifiers', () => {
+        const chat = [makeMessage({ scId: 'message-1' })];
+        removeMessageIdentities(chat);
+
+        expect(ensureChatScIds(chat)).toBe(true);
+        expect(typeof chat[0].sc_id).toBe('string');
     });
 });
