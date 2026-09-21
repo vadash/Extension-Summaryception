@@ -9,7 +9,6 @@ import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js
 import { persistChatState } from './persist-state.js';
 import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromText } from './snippet-metadata.js';
-import { commitWhenSafe } from './summarizer-commit.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { isSummarizerOutputSafe } from './summarizer-output.js';
 import { buildPassageNameCensus } from './refusal-guard.js';
@@ -27,13 +26,14 @@ import {
  * route selects a single Passage or the cache-friendly route selects many
  * (CONTEXT.md, Layer 0 Run).
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
- * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter threaded from the engine; a run without one stays silent.
+ * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the engine; a run without one stays silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the commit and the Ghosting repair cross.
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-export async function runLayer0(routePlan, notify) {
+export async function runLayer0(routePlan, notify, gate) {
     const progress = createBatchProgress(notify);
     try {
-        return await runPassages(routePlan, notify, progress);
+        return await runPassages(routePlan, notify, progress, gate);
     } catch (err) {
         trace('  CAUGHT EXCEPTION:', {
             ...serializeError(err),
@@ -49,9 +49,10 @@ export async function runLayer0(routePlan, notify) {
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
  * @param {import('./notify.js').NotifyAdapter | undefined} notify
  * @param {BatchProgressOwner} progress
+ * @param {import('./foreground-gate.js').ForegroundGate} gate
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-async function runPassages(routePlan, notify, progress) {
+async function runPassages(routePlan, notify, progress, gate) {
     const chat = getChat();
     if (ensureChatScIds(chat)) {
         await persistChatState({ chatSave: 'deferred' });
@@ -65,7 +66,7 @@ async function runPassages(routePlan, notify, progress) {
     const passages = resolvePassages(routePlan, { boundary, batch });
 
     if (passages.length === 0) {
-        await repairGhosting(turns, boundary, notify);
+        await repairGhosting(turns, boundary, notify, gate);
         return { status: 'idle' };
     }
     if (passages.length === 1) {
@@ -114,10 +115,10 @@ async function runPassages(routePlan, notify, progress) {
 
     const commit = await commitLayer0({
         kind: commitKindFor(routePlan),
-        snapshot: snapshots[0],
         entries,
         notify,
         progress,
+        gate,
     });
     if (commit === 'queued') {
         return { status: 'blocked', completed: snapshots.length };
@@ -184,18 +185,17 @@ function resolvePassages(routePlan, { boundary, batch }) {
  * handle outlives the run that opened it.
  * @param {object} p
  * @param {string} p.kind
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} p.snapshot
- * @param {{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet, profile: import('./call-profile.js').CallProfile}[]} p.entries
+ * @param {{snapshot: import('./summarizer-snapshot.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet, profile: import('./call-profile.js').CallProfile}[]} p.entries
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @param {BatchProgressOwner} p.progress
- * @returns {Promise<import('./summarizer-commit.js').CommitResult>}
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate
+ * @returns {Promise<import('./foreground-gate.js').CommitResult>}
  */
-async function commitLayer0({ kind, snapshot, entries, notify, progress }) {
-    return await commitWhenSafe({
+async function commitLayer0({ kind, entries, notify, progress, gate }) {
+    return await gate.commitWhenSafe({
         kind,
-        snapshot,
         apply: async () => {
-            const committed = await commitLayer0Snippets({ entries, notify });
+            const committed = await commitLayer0Snippets({ entries, notify, gate });
             progress.settle(committed ? BATCH_PROGRESS.UPDATED : BATCH_PROGRESS.FAILED);
             return committed;
         },
@@ -217,15 +217,16 @@ function commitKindFor(routePlan) {
  * @param {import('./chatutils.js').AssistantTurn[]} turns
  * @param {number} boundaryIndex
  * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded to ghosting progress events
+ * @param {import('./foreground-gate.js').ForegroundGate} gate
  * @returns {Promise<void>}
  */
-async function repairGhosting(turns, boundaryIndex, notify) {
+async function repairGhosting(turns, boundaryIndex, notify, gate) {
     info('All planned turns are already summarized; repairing ghosting...');
     const turnsToGhost = turns.filter((turn) => turn.index <= boundaryIndex);
     if (turnsToGhost.length > 0) {
         const first = turnsToGhost[0].index;
         const last = turnsToGhost[turnsToGhost.length - 1].index;
-        await repairGhostingForRange(first, last, { chatSave: 'deferred', notify });
+        await repairGhostingForRange(first, last, { chatSave: 'deferred', notify, gate });
     }
     await persistChatState({ chatSave: 'deferred' });
 }
@@ -296,7 +297,7 @@ function createBatchProgress(notify) {
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @param {BatchProgressOwner} p.progress - Shared batch progress owner for this run
  * @param {number} p.total
- * @returns {Promise<{status: 'completed', snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, summary: string, profile: import('./call-profile.js').CallProfile} | {status: 'idle' | 'aborted' | 'failed'}>}
+ * @returns {Promise<{status: 'completed', snapshot: import('./summarizer-snapshot.js').SummarizationJobSnapshot, summary: string, profile: import('./call-profile.js').CallProfile} | {status: 'idle' | 'aborted' | 'failed'}>}
  */
 async function runPassage({ chat, store, passage, contextText, notify, progress, total }) {
     const snapshot = await captureLayer0Snapshot({
@@ -347,7 +348,7 @@ async function runPassage({ chat, store, passage, contextText, notify, progress,
 }
 
 /**
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
+ * @param {import('./summarizer-snapshot.js').SummarizationJobSnapshot} snapshot
  * @returns {void}
  */
 function tracePassageTokens(snapshot) {
@@ -374,7 +375,7 @@ function tracePassageTokens(snapshot) {
  * @param {number} p.passageStart
  * @param {number} p.endIdx
  * @param {string} [p.contextText]
- * @returns {Promise<import('./summarizer-commit.js').SummarizationJobSnapshot>}
+ * @returns {Promise<import('./summarizer-snapshot.js').SummarizationJobSnapshot>}
  */
 async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contextText }) {
     const ctx = getContext();
@@ -405,11 +406,12 @@ async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contex
  * the chat array when post-mutation persistence fails. Every entry is
  * re-validated here so no caller can skip the checks.
  * @param {object} p
- * @param {{snapshot: import('./summarizer-commit.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet, profile: import('./call-profile.js').CallProfile}[]} p.entries - Snapshot, prebuilt snippet, and dispatch profile triples.
+ * @param {{snapshot: import('./summarizer-snapshot.js').SummarizationJobSnapshot, snippet: SummaryceptionSnippet, profile: import('./call-profile.js').CallProfile}[]} p.entries - Snapshot, prebuilt snippet, and dispatch profile triples.
  * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter threaded to ghosting
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate - Foreground Gate the Ghosting step defers a hide through.
  * @returns {Promise<boolean>}
  */
-async function commitLayer0Snippets({ entries, notify }) {
+async function commitLayer0Snippets({ entries, notify, gate }) {
     if (
         entries.length === 0 ||
         !entries.every(
@@ -435,6 +437,7 @@ async function commitLayer0Snippets({ entries, notify }) {
         {
             chatSave: 'deferred',
             notify,
+            gate,
             onRollback: () => {
                 chat.splice(0, chat.length, ...chatRollbackPoint);
                 debug('Layer 0 commit rolled back: post-save persistence failed.');
@@ -467,7 +470,7 @@ function buildPendingLayer0Context(layers, pendingSnippets) {
 
 /**
  * Revalidate the active chat and store before committing an LLM result.
- * @param {import('./summarizer-commit.js').SummarizationJobSnapshot} snapshot
+ * @param {import('./summarizer-snapshot.js').SummarizationJobSnapshot} snapshot
  * @returns {boolean}
  */
 function isLayer0SnapshotValid(snapshot) {

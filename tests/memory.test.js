@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { importSummaryceptionMemory } from '../src/features/memory.js';
-import { installSummaryContext, makeNotifyRecorder, makeSummaryStore } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeForegroundGate,
+    makeNotifyRecorder,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+const gate = makeForegroundGate().gate;
 
 describe('importSummaryceptionMemory', () => {
     const validLayers = [
@@ -26,7 +33,7 @@ describe('importSummaryceptionMemory', () => {
 
         const result = await importSummaryceptionMemory(
             { layers: validLayers, ghostedMessageIds: ['a-1'] },
-            { notify },
+            { notify, gate },
         );
 
         expect(result).toEqual({ status: 'imported', count: 3 });
@@ -40,7 +47,10 @@ describe('importSummaryceptionMemory', () => {
         const store = installStore({ layers: [sentinel], ghostedMessageIds: ['keep-1'] });
         const notify = makeNotifyRecorder();
 
-        const result = await importSummaryceptionMemory({ ghostedMessageIds: [] }, { notify });
+        const result = await importSummaryceptionMemory(
+            { ghostedMessageIds: [] },
+            { notify, gate },
+        );
 
         expect(result).toEqual({ status: 'invalid' });
         expect(store.layers).toEqual([sentinel]);
@@ -52,7 +62,7 @@ describe('importSummaryceptionMemory', () => {
         const store = installStore({ layers: [sentinel], ghostedMessageIds: ['keep-1'] });
         const notify = makeNotifyRecorder();
 
-        const result = await importSummaryceptionMemory({ layers: validLayers }, { notify });
+        const result = await importSummaryceptionMemory({ layers: validLayers }, { notify, gate });
 
         expect(result).toEqual({ status: 'invalid' });
         expect(store.layers).toEqual([sentinel]);
@@ -66,7 +76,7 @@ describe('importSummaryceptionMemory', () => {
 
         const result = await importSummaryceptionMemory(
             { layers: [[{ text: 'no provenance' }]], ghostedMessageIds: [] },
-            { notify },
+            { notify, gate },
         );
 
         expect(result).toEqual({ status: 'invalid' });
@@ -84,7 +94,7 @@ describe('importSummaryceptionMemory', () => {
 
         const result = await importSummaryceptionMemory(
             { layers: validLayers, ghostedMessageIds: ['a-1'] },
-            { notify },
+            { notify, gate },
         );
 
         expect(result).toEqual({ status: 'failed', cause: failure });

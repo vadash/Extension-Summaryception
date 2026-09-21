@@ -5,11 +5,11 @@
  * silent no-ops, mirroring the notify silent adapter.
  */
 
-/** @type {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void } | null} */
+/** @type {{ updateInjection: (options?: object) => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void } | null} */
 let effects = null;
 
 /**
- * @param {{ updateInjection: () => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void }} port
+ * @param {{ updateInjection: (options?: object) => void, updateContinuityInjection?: () => void, updateContinuityMarker?: () => void, updateUI: () => void, updatePreview: () => void }} port
  * @returns {void}
  */
 export function initRefreshPort(port) {
@@ -51,4 +51,18 @@ export function refreshPreview() {
     fire(effects?.updateContinuityInjection);
     fire(effects?.updateContinuityMarker);
     fire(effects?.updatePreview);
+}
+
+/**
+ * Update the committed injection alone, carrying the caller's options. The
+ * Snippet Commit seam re-syncs the injection through this effect, so the
+ * refresh crosses the Foreground Gate like every other prompt write.
+ * @param {object} [options]
+ * @returns {void}
+ */
+export function refreshInjection(options = {}) {
+    const effect = effects?.updateInjection;
+    if (typeof effect === 'function') {
+        effect(options);
+    }
 }

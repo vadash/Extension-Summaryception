@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { prepareSummaryCycle } from '../src/core/summary-preflight.js';
 import { runElasticAutoCycle } from '../src/core/summarizer-engine.js';
-import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeForegroundGate,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+const gate = makeForegroundGate().gate;
 
 describe('summary preflight', () => {
     afterEach(() => {
@@ -53,7 +60,7 @@ describe('summary preflight', () => {
         installSummaryContext({ chat, saveChat, reloadCurrentChat });
         const queue = { setPhase: vi.fn() };
 
-        await expect(runElasticAutoCycle(queue)).resolves.toEqual({ status: 'idle' });
+        await expect(runElasticAutoCycle(queue, { gate })).resolves.toEqual({ status: 'idle' });
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'wi-id', 'assistant-id']);
         expect(saveChat).not.toHaveBeenCalled();

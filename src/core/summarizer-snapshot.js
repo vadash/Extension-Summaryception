@@ -1,6 +1,20 @@
 import { getSummaryStoreMutationEpoch } from '../foundation/chat-store.js';
 
 /**
+ * The captured basis one summarization job revalidates before it commits.
+ * @typedef {object} SummarizationJobSnapshot
+ * @property {string} chatId - Best-effort stable chat identity.
+ * @property {ChatMessage[]} chatRef - Chat array reference captured before the request.
+ * @property {[number, number]} sourceRange - Transient source chat index range.
+ * @property {string[]} sourceMessageIds - Stable IDs for the captured source messages.
+ * @property {string} sourceFingerprint - Hash of the source range, rechecked before commit.
+ * @property {number} summaryStoreEpoch - Summary-layer mutation epoch.
+ * @property {string} passageText - Raw passage text captured for the job.
+ * @property {import('./chatutils.js').PassageRegexStats} passageStats - Regex stats of the captured passage.
+ * @property {string} contextText - Continuity context text captured for the job.
+ */
+
+/**
  * Get a best-effort stable identity for the active chat.
  * @param {object} ctx
  * @returns {string}

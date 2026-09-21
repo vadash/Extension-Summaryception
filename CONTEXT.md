@@ -208,8 +208,8 @@ A user-triggered summarization run through the Engine Gate, driven by one strate
 Code: `runManual` (src/core/summarizer-engine.js)
 
 **Foreground Gate**:
-The one protocol every prompt mutation crosses. The gate owns the freeze boundary and decides whether a prompt-affecting effect runs now, queues until the freeze lifts, or requeues as stale. Pre-freeze steps (a reroll's checkpoint drop and slot refresh) enter through the gate's `beforeFreeze` hook, not entry sequencing; the renderers render and never self-check the freeze. The Engine Gate decides when to summarize; the Foreground Gate decides when prompt mutations are safe.
-Code: `beginForegroundGeneration`, `runPromptEffect`, `promptWorkGate` (src/core/summarizer-commit.js)
+The one protocol every prompt mutation crosses. The gate owns the freeze boundary and decides whether prompt-affecting work runs now, queues until the freeze lifts, or re-runs when it lifts; re-running — an effect that reports it could not finish, a commit that reports itself stale — is the gate's job, never the caller's. Pre-freeze steps (a reroll's checkpoint drop and slot refresh) enter through the gate's `beforeFreeze` hook, not entry sequencing; the renderers render and never self-check the freeze. One instance exists, built at the composition root. The Engine Gate decides when to summarize; the Foreground Gate decides when prompt mutations are safe.
+Code: `createForegroundGate` (src/core/foreground-gate.js); `beginGeneration` / `endGeneration` / `commitWhenSafe` / `runEffect` / `promptWorkGate` / `heal` / `isFrozen` / `reset`
 _Avoid_: Stop guard, renderer freeze check
 
 **Prompt Profile**:

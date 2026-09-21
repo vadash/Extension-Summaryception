@@ -1,8 +1,8 @@
 import { error } from '../foundation/logger.js';
 import { bumpSummaryStoreMutationEpoch, saveChatStore } from '../foundation/chat-store.js';
+import { refreshInjection } from '../foundation/refresh.js';
 import { persistChatState } from './persist-state.js';
 import { clearAllGhosting, syncGhosting } from './ghosting.js';
-import { updateCommittedInjection } from './summarizer-commit.js';
 
 /**
  * Snippet Commit seam: the one transaction for every Summaryception snippet
@@ -16,11 +16,12 @@ import { updateCommittedInjection } from './summarizer-commit.js';
  * @param {'sync'|'none'|'clear'} [opts.ghost] - Ghost ownership step: full syncGhosting, skip, or clearAllGhosting. Defaults to 'sync'.
  * @param {'none'|'immediate'|'deferred'} [opts.chatSave] - Chat-file save mode on persist. Defaults to 'none'.
  * @param {import('./notify.js').NotifyAdapter} [opts.notify] - Passed through to the Ghosting steps.
+ * @param {import('./foreground-gate.js').ForegroundGate} [opts.gate] - Foreground Gate the Ghosting step defers a hide through; required unless the ghost step is 'none' or 'clear'.
  * @param {() => void} [opts.onRollback] - Extra restoration (e.g. chat array) after store rollback.
  * @returns {Promise<{ epoch: number }>} Throws after rollback when any step fails.
  */
 export async function commitSnippetMutation(store, mutate, opts = {}) {
-    const { ghost = 'sync', chatSave = 'none', notify, onRollback } = opts;
+    const { ghost = 'sync', chatSave = 'none', notify, onRollback, gate } = opts;
 
     // The rollback point is one level deep. In-place snippet field edits must
     // roll back, so snippets are shallow-copied with their id arrays duplicated.
@@ -38,7 +39,12 @@ export async function commitSnippetMutation(store, mutate, opts = {}) {
     try {
         mutate();
         if (ghost === 'sync') {
-            await syncGhosting({ notify });
+            if (!gate) {
+                throw new Error(
+                    'commitSnippetMutation needs a Foreground Gate to sync Ghosting ownership.',
+                );
+            }
+            await syncGhosting({ notify, gate });
         } else if (ghost === 'clear') {
             await clearAllGhosting();
         }
@@ -48,7 +54,7 @@ export async function commitSnippetMutation(store, mutate, opts = {}) {
         } else {
             await persistChatState({ chatSave });
         }
-        await updateCommittedInjection({ logMemoryStatus: true });
+        refreshInjection({ logMemoryStatus: true });
         return { epoch: store.mutationEpoch };
     } catch (err) {
         store.layers = rollbackPoint.layers;

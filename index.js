@@ -14,10 +14,15 @@ import { saveChatStore } from './src/foundation/chat-store.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
 import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
-import { requestSummarization, setNotify, summarizerQueue } from './src/core/summarizer-queue.js';
+import {
+    requestSummarization,
+    setForegroundGate,
+    setNotify,
+    summarizerQueue,
+} from './src/core/summarizer-queue.js';
 import { callSummarizer } from './src/core/summarizer-request.js';
 import { createContinuityAuditor } from './src/core/continuity-audit.js';
-import { initCommitCallbacks, runPromptEffect } from './src/core/summarizer-commit.js';
+import { createForegroundGate } from './src/core/foreground-gate.js';
 import { withUsageRun } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
 import { syncLLMContextPreview, updateUI } from './src/entry/ui.js';
@@ -52,16 +57,16 @@ import { registerSlashCommands } from './src/entry/commands.js';
     }
 
     getSettings();
-    initCommitCallbacks({
-        updateInjection,
+    const gate = createForegroundGate({
         reassertInjection: reassertInjectionSnapshot,
         requeue: () => {
             void requestSummarization();
         },
     });
+    setForegroundGate(gate);
     const notify = createToastrNotifyAdapter();
     setNotify(notify);
-    const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun };
+    const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun, gate };
     const pauseLatchDeps = { queue: summarizerQueue };
     const continuityAuditor = createContinuityAuditor({
         dispatch: callSummarizer,
@@ -72,17 +77,17 @@ import { registerSlashCommands } from './src/entry/commands.js';
     initRefreshPort({
         // Every prompt-affecting effect enters through the Foreground Gate
         // (ADR-0016); mid-generation requests queue until the freeze lifts.
-        updateInjection: () => {
-            void runPromptEffect({
+        updateInjection: (options) => {
+            void gate.runEffect({
                 kind: 'injection-refresh',
                 apply: () => {
-                    updateInjection();
+                    updateInjection(options);
                     return true;
                 },
             });
         },
         updateContinuityInjection: () => {
-            void runPromptEffect({
+            void gate.runEffect({
                 kind: 'continuity-refresh',
                 apply: () => {
                     updateContinuityInjection();
@@ -94,7 +99,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
         updateUI,
         updatePreview: syncLLMContextPreview,
     });
-    initSnippetBrowser(notify);
+    initSnippetBrowser(notify, gate);
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',
@@ -104,8 +109,8 @@ import { registerSlashCommands } from './src/entry/commands.js';
     $('#extensions_settings2').append(html);
 
     initSettingsHelp();
-    bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps);
-    bindPromptFreezeRecoveryEvents();
+    bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps, gate);
+    bindPromptFreezeRecoveryEvents({ gate });
     initSettingsTabs();
     initConnectionUI();
     await registerSummaryceptionMemoryMacro();
@@ -117,16 +122,16 @@ import { registerSlashCommands } from './src/entry/commands.js';
             auditor: continuityAuditor,
         }),
     );
-    eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
-    eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);
+    eventSource.on(eventTypes.CHAT_CHANGED, () => onChatChanged({ gate }));
+    eventSource.on(eventTypes.GENERATION_STARTED, (...args) => onGenerationStarted(args, { gate }));
     if (eventTypes.GENERATE_AFTER_DATA) {
         eventSource.on(eventTypes.GENERATE_AFTER_DATA, onGenerateAfterData);
     }
     if (eventTypes.GENERATION_ENDED) {
-        eventSource.on(eventTypes.GENERATION_ENDED, onGenerationEnded);
+        eventSource.on(eventTypes.GENERATION_ENDED, () => onGenerationEnded({ gate }));
     }
     if (eventTypes.GENERATION_STOPPED) {
-        eventSource.on(eventTypes.GENERATION_STOPPED, onGenerationEnded);
+        eventSource.on(eventTypes.GENERATION_STOPPED, () => onGenerationEnded({ gate }));
     }
     if (eventTypes.CHAT_COMPLETION_PROMPT_READY) {
         eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady);
@@ -134,7 +139,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     registerSlashCommands();
 
     eventSource.on(eventTypes.APP_READY, async () => {
-        await onAppReady();
+        await onAppReady({ gate });
         console.log(LOG_PREFIX, 'loaded. Connection Settings available');
     });
 })();

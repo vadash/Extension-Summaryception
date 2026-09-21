@@ -1,17 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { onAppReady } from '../src/entry/events.js';
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { initRefreshPort } from '../src/foundation/refresh.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
 import { updateInjection } from '../src/features/injection.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
-import { makeMessage, makeSummaryStore, installSummaryContext } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeForegroundGate,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
 
 // The composition root registers the renderers into the Refresh Port; these
 // tests pin the same wiring so reconcile's refreshPreview reaches them.
 beforeEach(() => {
     initRefreshPort({ updateInjection, updateContinuityInjection });
+    gate = makeForegroundGate().gate;
 });
 
 /**
@@ -22,7 +30,7 @@ beforeEach(() => {
  */
 describe('Ghosting ownership sync across chat load', () => {
     function installLoadedChat({ chat, store }) {
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         const calls = [];
         const saves = { chat: 0, metadata: 0 };
         const runtime = installSummaryContext({
@@ -47,7 +55,7 @@ describe('Ghosting ownership sync across chat load', () => {
         const store = makeSummaryStore();
         const { calls, saves, runtime } = installLoadedChat({ chat, store });
 
-        await onAppReady();
+        await onAppReady({ gate });
 
         expect(calls).toEqual([]);
         expect(chat[0]).toMatchObject({ is_system: true, is_hidden: true });
@@ -66,7 +74,7 @@ describe('Ghosting ownership sync across chat load', () => {
         });
         const { calls, runtime } = installLoadedChat({ chat, store });
 
-        await onAppReady();
+        await onAppReady({ gate });
 
         expect(calls).toEqual(['/hide 1']);
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([
@@ -78,7 +86,7 @@ describe('Ghosting ownership sync across chat load', () => {
 
 describe('Continuity slot re-render across chat load', () => {
     afterEach(() => {
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
     });
 
     function makeLoadedContinuity(overrides = {}) {
@@ -108,9 +116,9 @@ describe('Continuity slot re-render across chat load', () => {
             settings: { continuityEnabled: true },
             setExtensionPrompt,
         });
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
 
-        await onAppReady();
+        await onAppReady({ gate });
 
         const continuityCall = setExtensionPrompt.mock.calls.find(
             ([name]) => name === 'summaryception_continuity',
@@ -136,9 +144,9 @@ describe('Continuity slot re-render across chat load', () => {
             settings: { continuityEnabled: true },
             setExtensionPrompt,
         });
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
 
-        await onAppReady();
+        await onAppReady({ gate });
 
         expect(setExtensionPrompt).toHaveBeenCalledWith(
             'summaryception_continuity',

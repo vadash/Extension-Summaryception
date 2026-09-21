@@ -1,55 +1,44 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-    beginForegroundGeneration,
-    commitWhenSafe,
-    initCommitCallbacks,
-    recoverStalePromptFreeze,
-    resetCommitStateForTests,
-    updateCommittedInjection,
-} from '../src/core/summarizer-commit.js';
-import { installSummaryContext } from './test-helpers.js';
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+import { describe, expect, it, vi } from 'vitest';
+import { installSummaryContext, makeForegroundGate } from './test-helpers.js';
 
 describe('stale freeze heal flush', () => {
-    afterEach(() => {
-        resetCommitStateForTests();
-        vi.restoreAllMocks();
-    });
-
     // Reproduces the user report: a summary commit queues behind an active
     // foreground generation, and the stale-freeze heal flushes it at generation
-    // end. The commit's prompt effects (injection update, ghosting) must apply
-    // during that same flush instead of staying queued forever.
-    it('applies prompt effects queued by the heal flush and settles', async () => {
+    // end. The commit's own prompt effect must land instead of staying queued
+    // forever, and the heal must settle.
+    it('holds prompt effects a mid-flush generation freezes and settles', async () => {
         installSummaryContext({ chat: [] });
-        const updateInjection = vi.fn();
-        initCommitCallbacks({
-            updateInjection,
-            reassertInjection: vi.fn(),
-            requeue: vi.fn(),
-        });
-        beginForegroundGeneration();
+        let clock = 5000;
+        const { gate } = makeForegroundGate({ now: () => clock });
+        const applied = vi.fn(() => true);
+
+        gate.beginGeneration();
         await expect(
-            commitWhenSafe({
+            gate.commitWhenSafe({
                 kind: 'heal repro commit',
-                // Mirrors commitSnippetMutation, whose apply runs
-                // updateCommittedInjection after real async steps (ghosting
-                // commands, persistence). The boundary is load-bearing. The
-                // heal assigns staleRecoveryPromise only after its synchronous
-                // prefix suspends, and the deferral happens in the continuation.
+                // Mirrors commitSnippetMutation, whose apply runs a prompt
+                // effect after real async steps (ghosting commands,
+                // persistence). The boundary is load-bearing: the heal assigns
+                // staleRecoveryPromise only after its synchronous prefix
+                // suspends, and the deferral happens in the continuation.
                 apply: async () => {
                     await Promise.resolve();
-                    await updateCommittedInjection();
-                    return true;
+                    // A generation starting mid-flush re-freezes the gate; the
+                    // effect is held rather than requeued against an open gate,
+                    // which is what would spin the flusher forever.
+                    gate.beginGeneration();
+                    return await gate.runEffect({
+                        kind: 'heal repro effect',
+                        apply: () => applied(),
+                    });
                 },
             }),
         ).resolves.toBe('queued');
 
-        await sleep(1100);
+        clock += 1100; // past the heartbeat grace; no host generation is running
 
         let healSettled = false;
-        const heal = recoverStalePromptFreeze('heal repro').then((verdict) => {
+        const heal = gate.heal('heal repro').then((verdict) => {
             healSettled = true;
             return verdict;
         });
@@ -80,11 +69,16 @@ describe('stale freeze heal flush', () => {
                 }),
             ]);
             expect(verdict).toBe(true);
-            expect(updateInjection).toHaveBeenCalledTimes(1);
+            expect(applied).not.toHaveBeenCalled();
+
+            // The freeze the mid-flush generation set is the one the gate re-runs
+            // the held effect under.
+            await gate.endGeneration();
+            expect(applied).toHaveBeenCalledTimes(1);
         } finally {
             if (!healSettled) {
                 // Refreeze so a spinning flush loop exits and the worker survives.
-                beginForegroundGeneration();
+                gate.beginGeneration();
             }
             await heal.catch(() => {});
         }
@@ -99,21 +93,19 @@ describe('stale freeze heal flush', () => {
     // to release itself.
     it('keeps the freeze during the GENERATION_ENDED teardown window', async () => {
         installSummaryContext({ chat: [] });
-        initCommitCallbacks({
-            updateInjection: vi.fn(),
-            reassertInjection: vi.fn(),
-            requeue: vi.fn(),
-        });
+        let clock = 5000;
+        const { gate } = makeForegroundGate({ now: () => clock });
 
-        beginForegroundGeneration();
+        gate.beginGeneration();
 
         // End-teardown state at emit time: stream finished, stop button
         // hidden (no stubbed DOM elements), body[data-generating] still set.
         const previousDocument = globalThis.document;
         globalThis.document = { body: { dataset: { generating: 'true' } } };
         try {
-            await sleep(1100);
-            await expect(recoverStalePromptFreeze('prompt mutation check')).resolves.toBe(false);
+            clock += 1100;
+            await expect(gate.heal('prompt mutation check')).resolves.toBe(false);
+            expect(gate.isFrozen()).toBe(true);
         } finally {
             globalThis.document = previousDocument;
         }

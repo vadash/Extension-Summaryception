@@ -15,13 +15,6 @@ import {
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
-import {
-    beginForegroundGeneration,
-    endForegroundGeneration,
-    isPromptMutationFrozen,
-    recoverStalePromptFreeze,
-    resetPromptMutationGuard,
-} from '../core/summarizer-commit.js';
 import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
 import { updateContinuityMarker } from './continuity-marker.js';
@@ -189,39 +182,42 @@ function gatherAuditInputs(notify) {
 
 /**
  * Reconciles the loaded chat before any automatic cycle can read it.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
  * @returns {void}
  */
-export function onChatChanged() {
+export function onChatChanged({ gate }) {
     trace('Chat changed.');
-    recoverPromptFreeze('chat change');
-    scheduleLoadedChatReconciliation();
+    recoverPromptFreeze('chat change', gate);
+    scheduleLoadedChatReconciliation(gate);
 }
 
 /**
  * Reconcile persisted Summaryception state after app load.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
  * @returns {Promise<void>}
  */
-export async function onAppReady() {
-    resetPromptMutationGuard();
-    await runSerializedReconciliation();
+export async function onAppReady({ gate }) {
+    gate.reset();
+    await runSerializedReconciliation(gate);
 }
 
 /**
  * Bind browser lifecycle cleanup for prompt mutation freezes.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
  * @returns {void}
  */
-export function bindPromptFreezeRecoveryEvents() {
+export function bindPromptFreezeRecoveryEvents({ gate }) {
     const win = globalThis.window;
     if (promptFreezeRecoveryBound || !win || typeof win.addEventListener !== 'function') {
         return;
     }
 
-    win.addEventListener('beforeunload', onBeforeUnload);
-    win.addEventListener('focus', onWindowFocus);
+    win.addEventListener('beforeunload', () => recoverPromptFreeze('page unload', gate));
+    win.addEventListener('focus', () => recoverPromptFreeze('window focus', gate));
 
     const doc = globalThis.document;
     if (doc && typeof doc.addEventListener === 'function') {
-        doc.addEventListener('visibilitychange', onVisibilityChange);
+        doc.addEventListener('visibilitychange', () => onVisibilityChange(gate));
     }
 
     promptFreezeRecoveryBound = true;
@@ -229,9 +225,11 @@ export function bindPromptFreezeRecoveryEvents() {
 
 /**
  * Freezes prompt mutations for host generations; dry runs and own requests are excluded.
+ * @param {unknown[]} args - GENERATION_STARTED event arguments.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
  * @returns {void}
  */
-export function onGenerationStarted(...args) {
+export function onGenerationStarted(args, { gate }) {
     if (isDryRunEvent(args[1], args[2])) {
         trace('Ignoring generation start from SillyTavern dry run.');
         return;
@@ -244,7 +242,7 @@ export function onGenerationStarted(...args) {
     // read model and the prompt view must exclude that reply before the freeze
     // locks the slot content in. The hook is the gate's pre-freeze window, so
     // both land even when a stale-heal is still in flight.
-    beginForegroundGeneration({
+    gate.beginGeneration({
         beforeFreeze: () => {
             const chat = getChat();
             beginRerollTail(args[0], chat);
@@ -260,11 +258,12 @@ export function onGenerationStarted(...args) {
 
 /**
  * Unfreezes prompt mutations after a host generation ends.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
  * @returns {void}
  */
-export function onGenerationEnded() {
+export function onGenerationEnded({ gate }) {
     const hasActiveSummaryRequest = isRequestLive();
-    const hasFrozenMutations = isPromptMutationFrozen();
+    const hasFrozenMutations = gate.isFrozen();
 
     if (hasActiveSummaryRequest && !hasFrozenMutations) {
         trace('Ignoring generation end from active Summaryception request.');
@@ -274,7 +273,7 @@ export function onGenerationEnded() {
     endRerollTail();
     void (async () => {
         try {
-            await endForegroundGeneration();
+            await gate.endGeneration();
             await flushPendingChatSave();
             await requestSummarization();
         } finally {
@@ -305,62 +304,68 @@ export function onGenerateAfterData(generateData, dryRun) {
     }
 }
 
-function onBeforeUnload() {
-    recoverPromptFreeze('page unload');
-}
-
-function onWindowFocus() {
-    recoverPromptFreeze('window focus');
-}
-
-function onVisibilityChange() {
+/**
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ * @returns {void}
+ */
+function onVisibilityChange(gate) {
     const doc = globalThis.document;
     if (!doc || doc.visibilityState === 'visible' || doc.hidden === false) {
-        recoverPromptFreeze('tab visible');
+        recoverPromptFreeze('tab visible', gate);
     }
 }
 
-function recoverPromptFreeze(reason) {
-    void recoverStalePromptFreeze(reason, { refreshUi }).catch((error) => {
+/**
+ * @param {string} reason
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ * @returns {void}
+ */
+function recoverPromptFreeze(reason, gate) {
+    void gate.heal(reason, { refreshUi }).catch((error) => {
         warn('Error while recovering foreground generation freeze:', error);
     });
 }
 
-/** Normalize message IDs, refresh injection, then restore missing ghost flags. */
-async function reconcileLoadedChatState() {
+/**
+ * Normalize message IDs, refresh injection, then restore missing ghost flags.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ */
+async function reconcileLoadedChatState(gate) {
     const chat = getChat();
     if (ensureChatScIds(chat)) {
         await persistChatState();
     }
     refreshPreview();
-    await syncGhosting();
+    await syncGhosting({ gate });
 }
 
 /**
  * Debounce loaded-chat reconciliation after chat save/load bursts.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
  * @returns {void}
  */
-function scheduleLoadedChatReconciliation() {
+function scheduleLoadedChatReconciliation(gate) {
     if (reconcileTimer) {
         clearTimeout(reconcileTimer);
     }
     reconcileTimer = setTimeout(() => {
         reconcileTimer = null;
-        void runSerializedReconciliation();
+        void runSerializedReconciliation(gate);
     }, 100);
 }
 
 /**
  * Run loaded-chat reconciliation serially, coalescing queued requests.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
  * @returns {Promise<void>}
  */
-async function runSerializedReconciliation() {
+async function runSerializedReconciliation(gate) {
     if (reconcilePromise) {
         reconcileQueued = true;
         return await reconcilePromise;
     }
 
-    reconcilePromise = drainReconciliationQueue();
+    reconcilePromise = drainReconciliationQueue(gate);
     try {
         await reconcilePromise;
     } finally {
@@ -370,12 +375,13 @@ async function runSerializedReconciliation() {
 
 /**
  * Drain one or more coalesced reconciliation requests.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate
  * @returns {Promise<void>}
  */
-async function drainReconciliationQueue() {
+async function drainReconciliationQueue(gate) {
     do {
         reconcileQueued = false;
-        await reconcileLoadedChatState();
+        await reconcileLoadedChatState(gate);
         refreshUi();
     } while (reconcileQueued);
     await checkStaleCacheAdvice();

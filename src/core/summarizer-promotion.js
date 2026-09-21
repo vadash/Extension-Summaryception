@@ -10,7 +10,6 @@ import {
     formatAnchoredSnippetNarrative,
 } from './snippet-metadata.js';
 import { commitSnippetMutation } from './snippet-commit.js';
-import { commitWhenSafe, promptWorkGate } from './summarizer-commit.js';
 import { buildSnapshotBasis, isSnapshotStoreCurrent } from './summarizer-snapshot.js';
 import { countTextTokens } from './token-count.js';
 
@@ -18,11 +17,12 @@ import { countTextTokens } from './token-count.js';
  * Attempt one promotion for the plan's over-limit candidate.
  * @param {object} plan - Promotion plan from buildPromotionPlan.
  * @param {ExtensionSettings} s - Effective settings.
- * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter threaded from the drain; runs without one stay silent.
+ * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the drain; runs without one stay silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the merge commit crosses.
  * @returns {Promise<boolean>} Whether the promotion merged and committed.
  */
-async function attemptPromotion(plan, s, notify) {
-    return await mergeLayerSnippets({ plan, candidate: plan.candidate, s, notify });
+async function attemptPromotion(plan, s, notify, gate) {
+    return await mergeLayerSnippets({ plan, candidate: plan.candidate, s, notify, gate });
 }
 
 /**
@@ -32,9 +32,10 @@ async function attemptPromotion(plan, s, notify) {
  * @param {{ layerIndex: number, quota: number, tokens: number, count: number }} p.candidate - Over-limit layer from the plan.
  * @param {ExtensionSettings} p.s
  * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter; runs without one stay silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate - Foreground Gate the merge commit crosses.
  * @returns {Promise<boolean>}
  */
-async function mergeLayerSnippets({ plan, candidate, s, notify }) {
+async function mergeLayerSnippets({ plan, candidate, s, notify, gate }) {
     const outcome = await prepareLayerPromotion({
         layerIndex: candidate.layerIndex,
         settings: s,
@@ -57,6 +58,7 @@ async function mergeLayerSnippets({ plan, candidate, s, notify }) {
         prepared: outcome.prepared,
         snapshot: outcome.snapshot,
         promotedSnippet,
+        gate,
     });
 }
 
@@ -138,10 +140,9 @@ async function prepareLayerPromotion({
     };
 }
 
-async function commitValidatedPromotion({ prepared, snapshot, promotedSnippet }) {
-    const result = await commitWhenSafe({
+async function commitValidatedPromotion({ prepared, snapshot, promotedSnippet, gate }) {
+    const result = await gate.commitWhenSafe({
         kind: 'promotion-merge',
-        snapshot,
         apply: async () =>
             applyMergePromotion({
                 snapshot,
@@ -211,12 +212,13 @@ async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
  * Repeatedly promotes the shallowest over-limit layer until layers fit, the
  * retention floor refuses the candidate, the Foreground Gate blocks, or
  * consecutive failed promotions reach `maxConsecutiveFailures`.
- * @param {object} [options]
+ * @param {object} options
  * @param {number} [options.maxConsecutiveFailures] - Consecutive failed promotions tolerated before stopping.
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter threaded from the engine; runs without one stay silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} options.gate - Foreground Gate the drain asks before and after every attempt.
  * @returns {Promise<{status: 'completed', attempts: number} | {status: 'blocked', attempts: number} | {status: 'failed', attempts: number}>} Run status and the number of promotions attempted.
  */
-export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity, notify } = {}) {
+export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity, notify, gate }) {
     const s = getEffectiveSettings();
     let failures = 0;
     let attempts = 0;
@@ -225,12 +227,12 @@ export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity
         if (!plan.candidate || plan.retentionFloorViolated) {
             return { status: 'completed', attempts };
         }
-        if ((await promptWorkGate('promotion drain')) === 'blocked') {
+        if ((await gate.promptWorkGate('promotion drain')) === 'blocked') {
             return { status: 'blocked', attempts };
         }
-        const promoted = await attemptPromotion(plan, s, notify);
+        const promoted = await attemptPromotion(plan, s, notify, gate);
         attempts++;
-        if ((await promptWorkGate('promotion drain')) === 'blocked') {
+        if ((await gate.promptWorkGate('promotion drain')) === 'blocked') {
             return { status: 'blocked', attempts };
         }
         if (promoted) {

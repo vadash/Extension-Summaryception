@@ -1,4 +1,5 @@
 import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { createForegroundGate } from '../src/core/foreground-gate.js';
 import { vi } from 'vitest';
 
 /**
@@ -8,6 +9,19 @@ import { vi } from 'vitest';
  */
 
 let nextMessageId = 0;
+
+/**
+ * Build one Foreground Gate for a test, with recorded collaborators and an
+ * injectable clock so the freeze grace window stays deterministic.
+ * @param {{ now?: () => number }} [overrides]
+ * @returns {{ gate: import('../src/core/foreground-gate.js').ForegroundGate, reassertInjection: import('vitest').Mock, requeue: import('vitest').Mock }}
+ */
+export function makeForegroundGate({ now } = {}) {
+    const reassertInjection = vi.fn();
+    const requeue = vi.fn();
+    const gate = createForegroundGate({ reassertInjection, requeue, ...(now ? { now } : {}) });
+    return { gate, reassertInjection, requeue };
+}
 
 export function makeMessage(options = {}) {
     const {

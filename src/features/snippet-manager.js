@@ -62,9 +62,10 @@ export function isRegenerationCandidate(layerIndex, snippetIndex) {
  * @param {number} layerIndex
  * @param {number} snippetIndex
  * @param {string} text
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} options
  * @returns {Promise<{ status: 'updated' | 'missing' | 'empty' | 'unchanged' }>}
  */
-export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
+export async function updateSnippetTextAt(layerIndex, snippetIndex, text, options) {
     const store = getChatStore();
     const snippet = getSnippetAt(store, layerIndex, snippetIndex);
     if (!snippet) {
@@ -79,12 +80,16 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
         return { status: 'unchanged' };
     }
 
-    await commitSnippetMutation(store, () => {
-        snippet.text = newText;
-        if (layerIndex === 0) {
-            Object.assign(snippet, buildSnippetMetadataFromText(newText));
-        }
-    });
+    await commitSnippetMutation(
+        store,
+        () => {
+            snippet.text = newText;
+            if (layerIndex === 0) {
+                Object.assign(snippet, buildSnippetMetadataFromText(newText));
+            }
+        },
+        { gate: options.gate },
+    );
     return { status: 'updated' };
 }
 
@@ -92,28 +97,34 @@ export async function updateSnippetTextAt(layerIndex, snippetIndex, text) {
  * Deletion also repairs any Layer 0 ghosting ownership.
  * @param {number} layerIndex
  * @param {number} snippetIndex
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} options
  * @returns {Promise<{ status: 'deleted', layerIndex: number } | { status: 'missing' }>}
  */
-export async function deleteSnippetAt(layerIndex, snippetIndex) {
+export async function deleteSnippetAt(layerIndex, snippetIndex, options) {
     const store = getChatStore();
     const layer = store.layers[layerIndex];
     if (!layer || !layer[snippetIndex]) {
         return { status: 'missing' };
     }
 
-    await commitSnippetMutation(store, () => {
-        layer.splice(snippetIndex, 1);
-    });
+    await commitSnippetMutation(
+        store,
+        () => {
+            layer.splice(snippetIndex, 1);
+        },
+        { gate: options.gate },
+    );
     return { status: 'deleted', layerIndex };
 }
 
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @param {import('../core/notify.js').NotifyAdapter} [notify] - Adapter for regeneration notices; absent runs stay silent.
+ * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate }} options - Regeneration notices and the Foreground Gate the commit crosses.
  * @returns {Promise<RegenerateSnippetResult>}
  */
-export async function regenerateSnippetAt(layerIndex, snippetIndex, notify) {
+export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
+    const { notify, gate } = options;
     const target = resolveRegenerationTarget(getChatStore(), getChat(), {
         layerIndex,
         snippetIndex,
@@ -125,7 +136,7 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, notify) {
     const run = beginRun('regeneration');
     try {
         return await withUsageRun('snippet regeneration', async () => {
-            return await regenerateSnippetWithTarget(target, notify);
+            return await regenerateSnippetWithTarget(target, notify, gate);
         });
     } finally {
         run.end();
@@ -134,10 +145,11 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, notify) {
 
 /**
  * @param {RegenerationTarget} target
- * @param {import('../core/notify.js').NotifyAdapter} [notify] - Adapter for regeneration notices.
+ * @param {import('../core/notify.js').NotifyAdapter | undefined} notify - Adapter for regeneration notices.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate the commit crosses.
  * @returns {Promise<RegenerationRunResult>}
  */
-async function regenerateSnippetWithTarget(target, notify) {
+async function regenerateSnippetWithTarget(target, notify, gate) {
     const chat = getChat();
     const [rangeStart, rangeEnd] = target.range;
     const passage = await buildPassageFromRangeWithStats(chat, rangeStart, rangeEnd);
@@ -170,12 +182,16 @@ async function regenerateSnippetWithTarget(target, notify) {
         return { status: 'failed' };
     }
 
-    await commitSnippetMutation(getChatStore(), () => {
-        target.snippet.text = newSummary;
-        target.snippet.timestamp = Date.now();
-        target.snippet.regenerated = true;
-        Object.assign(target.snippet, buildSnippetMetadataFromText(newSummary));
-    });
+    await commitSnippetMutation(
+        getChatStore(),
+        () => {
+            target.snippet.text = newSummary;
+            target.snippet.timestamp = Date.now();
+            target.snippet.regenerated = true;
+            Object.assign(target.snippet, buildSnippetMetadataFromText(newSummary));
+        },
+        { gate },
+    );
     return { status: 'regenerated', range: target.range };
 }
 

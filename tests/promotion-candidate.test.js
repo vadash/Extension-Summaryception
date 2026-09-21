@@ -5,7 +5,6 @@ vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
 
 import { generateValidatedPromotion } from '../src/core/promotion-candidate.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
 import {
     installSummaryContext,
@@ -77,7 +76,6 @@ describe('generateValidatedPromotion', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         callSummarizer.mockReset();
-        resetCommitStateForTests();
         delete globalThis.toastr;
     });
 

@@ -14,14 +14,19 @@ import { showBusySummaryToast } from './ui-dialogs.js';
 import { ensureChild } from './ui-dom.js';
 
 let notifyAdapter = null;
+/** @type {import('../core/foreground-gate.js').ForegroundGate | null} */
+let foregroundGate = null;
 
 /**
- * Core receives the notify adapter only through this call; it serves only snippet regeneration notices.
+ * Core receives the notify adapter and the Foreground Gate only through this
+ * call; they serve the snippet write paths a browser action triggers.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter distributed to core calls.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate every snippet commit crosses.
  * @returns {void}
  */
-export function initSnippetBrowser(notify) {
+export function initSnippetBrowser(notify, gate) {
     notifyAdapter = notify;
+    foregroundGate = gate;
 }
 
 /**
@@ -357,6 +362,11 @@ async function commitSnippetEdit(textarea, position) {
         position.layerIdx,
         position.snippetIdx,
         textarea.val(),
+        {
+            gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (
+                foregroundGate
+            ),
+        },
     );
     if (result.status === 'updated') {
         toastr.success('Snippet updated', TOAST_TITLE, {
@@ -407,7 +417,9 @@ async function onSnippetDeleteClick() {
         return;
     }
 
-    const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx);
+    const result = await deleteSnippetAt(position.layerIdx, position.snippetIdx, {
+        gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (foregroundGate),
+    });
     if (result.status === 'deleted') {
         refreshUi();
         toastr.info(`Snippet removed from Layer ${result.layerIndex}`, TOAST_TITLE);
@@ -431,11 +443,12 @@ function handleRegenerationTargetStatus(target) {
 async function runSnippetRegeneration(btn, position) {
     btn.prop('disabled', true).removeClass('fa-rotate-right').addClass('fa-spinner fa-spin');
     try {
-        const result = await regenerateSnippetAt(
-            position.layerIdx,
-            position.snippetIdx,
-            notifyAdapter,
-        );
+        const result = await regenerateSnippetAt(position.layerIdx, position.snippetIdx, {
+            notify: notifyAdapter ?? undefined,
+            gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (
+                foregroundGate
+            ),
+        });
         handleRegenerationResult(result);
     } finally {
         btn.prop('disabled', false).removeClass('fa-spinner fa-spin').addClass('fa-rotate-right');

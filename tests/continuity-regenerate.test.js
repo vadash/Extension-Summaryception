@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const callSummarizer = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/summarizer-request.js', () => ({
@@ -7,7 +7,6 @@ vi.mock('../src/core/summarizer-request.js', () => ({
     isRequestLive: vi.fn(() => false),
 }));
 
-import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import { createContinuityAuditor } from '../src/core/continuity-audit.js';
 import { getName1 } from '../src/foundation/context.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
@@ -19,7 +18,19 @@ import {
 } from '../src/core/continuity-coverage.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
-import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeForegroundGate,
+    makeMessage,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
+
+beforeEach(() => {
+    gate = makeForegroundGate().gate;
+});
 
 const continuityWrites = vi.hoisted(() => ({ frozenAtWrite: [] }));
 vi.mock('../src/features/continuity-injection.js', async (importOriginal) => {
@@ -27,7 +38,7 @@ vi.mock('../src/features/continuity-injection.js', async (importOriginal) => {
     return {
         ...actual,
         updateContinuityInjection: () => {
-            continuityWrites.frozenAtWrite.push(isPromptMutationFrozen());
+            continuityWrites.frozenAtWrite.push(gate.isFrozen());
             actual.updateContinuityInjection();
         },
     };
@@ -101,7 +112,6 @@ afterEach(() => {
     callSummarizer.mockReset();
     continuityWrites.frozenAtWrite.length = 0;
     endRerollTail();
-    resetCommitStateForTests();
     delete globalThis.SillyTavern;
 });
 
@@ -191,13 +201,13 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted('regenerate', {}, false);
+        onGenerationStarted(['regenerate', {}, false], { gate });
 
         // The hook write must land inside the gate's pre-freeze window (the
         // write itself records the gate state); once the generation start
         // returns, the freeze is on.
         expect(continuityWrites.frozenAtWrite).toEqual([false]);
-        expect(isPromptMutationFrozen()).toBe(true);
+        expect(gate.isFrozen()).toBe(true);
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
@@ -235,7 +245,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted('regenerate', {}, false);
+        onGenerationStarted(['regenerate', {}, false], { gate });
 
         expect(chat[1].extra.summaryception_continuity).toBeDefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
@@ -258,7 +268,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted('swipe', {}, false);
+        onGenerationStarted(['swipe', {}, false], { gate });
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
@@ -272,7 +282,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted('normal', {}, false);
+        onGenerationStarted(['normal', {}, false], { gate });
 
         expect(chat[3].extra.summaryception_continuity).toBeDefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(3);

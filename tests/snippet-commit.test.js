@@ -6,13 +6,22 @@ const ghostingMocks = vi.hoisted(() => ({
 }));
 vi.mock('../src/core/ghosting.js', () => ghostingMocks);
 
-const commitMocks = vi.hoisted(() => ({
-    updateCommittedInjection: vi.fn(async () => 'applied'),
+const refreshMocks = vi.hoisted(() => ({
+    refreshInjection: vi.fn(),
 }));
-vi.mock('../src/core/summarizer-commit.js', () => commitMocks);
+vi.mock('../src/foundation/refresh.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, refreshInjection: refreshMocks.refreshInjection };
+});
 
-const { installSummaryContext, makeMessage, makeNotifyRecorder, makeSummaryStore } =
-    await import('./test-helpers.js');
+const {
+    installSummaryContext,
+    makeForegroundGate,
+    makeMessage,
+    makeNotifyRecorder,
+    makeSummaryStore,
+} = await import('./test-helpers.js');
+const gate = makeForegroundGate().gate;
 const { commitSnippetMutation } = await import('../src/core/snippet-commit.js');
 
 describe('commitSnippetMutation', () => {
@@ -46,18 +55,22 @@ describe('commitSnippetMutation', () => {
         const { saveMetadata, saveChat } = installCommitContext({ store });
         let mutated = false;
 
-        const result = await commitSnippetMutation(store, () => {
-            store.layers[0][0].text = 'new text';
-            mutated = true;
-        });
+        const result = await commitSnippetMutation(
+            store,
+            () => {
+                store.layers[0][0].text = 'new text';
+                mutated = true;
+            },
+            { gate },
+        );
 
         expect(mutated).toBe(true);
         expect(store.layers[0][0].text).toBe('new text');
         expect(result).toEqual({ epoch: 4 });
         expect(store.mutationEpoch).toBe(4);
         expect(ghostingMocks.syncGhosting).toHaveBeenCalledTimes(1);
-        expect(commitMocks.updateCommittedInjection).toHaveBeenCalledTimes(1);
-        expect(commitMocks.updateCommittedInjection).toHaveBeenCalledWith({
+        expect(refreshMocks.refreshInjection).toHaveBeenCalledTimes(1);
+        expect(refreshMocks.refreshInjection).toHaveBeenCalledWith({
             logMemoryStatus: true,
         });
         expect(saveMetadata).toHaveBeenCalled();
@@ -68,7 +81,7 @@ describe('commitSnippetMutation', () => {
         const store = makeStore();
         installCommitContext({ store });
 
-        await commitSnippetMutation(store, () => {}, { ghost: 'none' });
+        await commitSnippetMutation(store, () => {}, { ghost: 'none', gate });
 
         expect(ghostingMocks.syncGhosting).not.toHaveBeenCalled();
         expect(ghostingMocks.clearAllGhosting).not.toHaveBeenCalled();
@@ -79,7 +92,7 @@ describe('commitSnippetMutation', () => {
         const store = makeStore();
         installCommitContext({ store });
 
-        await commitSnippetMutation(store, () => {}, { ghost: 'clear' });
+        await commitSnippetMutation(store, () => {}, { ghost: 'clear', gate });
 
         expect(ghostingMocks.clearAllGhosting).toHaveBeenCalledTimes(1);
         expect(ghostingMocks.syncGhosting).not.toHaveBeenCalled();
@@ -91,9 +104,9 @@ describe('commitSnippetMutation', () => {
         installCommitContext({ store });
         const notify = makeNotifyRecorder();
 
-        await commitSnippetMutation(store, () => {}, { notify });
+        await commitSnippetMutation(store, () => {}, { notify, gate });
 
-        expect(ghostingMocks.syncGhosting).toHaveBeenCalledWith({ notify });
+        expect(ghostingMocks.syncGhosting).toHaveBeenCalledWith({ notify, gate });
     });
 
     it('restores the store, runs onRollback, re-saves, and rethrows when persistence fails', async () => {
@@ -116,6 +129,7 @@ describe('commitSnippetMutation', () => {
                     chat.push(makeMessage({ scId: 'sc-9', mes: 'extra' }));
                 },
                 {
+                    gate,
                     onRollback: () => {
                         rollbackRan = true;
                         chat.splice(0, chat.length, ...chatRollbackPoint);
@@ -137,7 +151,7 @@ describe('commitSnippetMutation', () => {
         const store = makeStore();
         const { saveMetadata, saveChat } = installCommitContext({ store });
 
-        await commitSnippetMutation(store, () => {}, { chatSave: 'immediate' });
+        await commitSnippetMutation(store, () => {}, { chatSave: 'immediate', gate });
 
         expect(saveMetadata).toHaveBeenCalled();
         expect(saveChat).toHaveBeenCalledTimes(1);
@@ -147,7 +161,7 @@ describe('commitSnippetMutation', () => {
         const store = makeStore();
         const { saveChat } = installCommitContext({ store });
 
-        await commitSnippetMutation(store, () => {}, { chatSave: 'deferred' });
+        await commitSnippetMutation(store, () => {}, { chatSave: 'deferred', gate });
 
         expect(saveChat).not.toHaveBeenCalled();
     });

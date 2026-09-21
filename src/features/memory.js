@@ -23,10 +23,10 @@ function validateImportPayload(data) {
  * rather than a fault. Every outcome arrives as a structured status for the
  * entry layer to notice.
  * @param {any} data - Parsed JSON payload
- * @param {{ notify?: import('../core/notify.js').NotifyAdapter }} [opts]
+ * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate }} options - Import notices and the Foreground Gate the commit crosses.
  * @returns {Promise<{ status: 'imported', count: number } | { status: 'invalid' } | { status: 'failed', cause: unknown }>}
  */
-export async function importSummaryceptionMemory(data, { notify } = {}) {
+export async function importSummaryceptionMemory(data, { notify, gate }) {
     if (!validateImportPayload(data)) {
         return { status: 'invalid' };
     }
@@ -38,7 +38,7 @@ export async function importSummaryceptionMemory(data, { notify } = {}) {
             () => {
                 store.layers = data.layers;
             },
-            { notify, chatSave: 'immediate' },
+            { notify, gate, chatSave: 'immediate' },
         );
         refreshUi();
         const count = store.layers.reduce((sum, layer) => sum + (layer?.length || 0), 0);

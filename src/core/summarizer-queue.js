@@ -263,12 +263,35 @@ function isQueuePhase(phase) {
 /** @type {import('./notify.js').NotifyAdapter} */
 let notifyAdapter = silentAdapter;
 
+/** @type {import('./foreground-gate.js').ForegroundGate | null} */
+let foregroundGate = null;
+
+/**
+ * Register the Foreground Gate the automatic cycle crosses. The composition
+ * root installs it once; a cycle that runs without one is a wiring fault, not
+ * a reason to mutate the prompt unguarded.
+ * @param {import('./foreground-gate.js').ForegroundGate} gate
+ * @returns {void}
+ */
+export function setForegroundGate(gate) {
+    foregroundGate = gate;
+}
+
 /**
  * The one summarizer queue instance, built from static core imports.
  * @type {SummarizerQueue}
  */
 export const summarizerQueue = new SummarizerQueue({
-    drainOneCycle: (queue) => runElasticAutoCycle(queue, { refreshUi, notify: notifyAdapter }),
+    drainOneCycle: (queue) => {
+        if (!foregroundGate) {
+            throw new Error('Foreground Gate is not wired: the composition root installs it once.');
+        }
+        return runElasticAutoCycle(queue, {
+            refreshUi,
+            notify: notifyAdapter,
+            gate: foregroundGate,
+        });
+    },
     abortAllRequests,
     isRequestLive: isSummarizerRequestLive,
     refreshUi,

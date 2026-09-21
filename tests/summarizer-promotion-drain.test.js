@@ -1,22 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const callSummarizer = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
 
-import {
-    beginForegroundGeneration,
-    resetCommitStateForTests,
-} from '../src/core/summarizer-commit.js';
 import { drainPromotionOverflow } from '../src/core/summarizer-promotion.js';
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
 import {
     installBrowserRuntimeStub,
     installOverflowingStore,
     installSummaryContext,
+    makeForegroundGate,
     makeNotifyRecorder,
     makeSummarySettings,
     makeSummaryStore,
 } from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
+
+beforeEach(() => {
+    gate = makeForegroundGate().gate;
+});
 
 /**
  * drainPromotionOverflow is the single owner of overflow clearing. Tests
@@ -26,7 +30,6 @@ describe('drainPromotionOverflow', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         callSummarizer.mockReset();
-        resetCommitStateForTests();
         delete globalThis.toastr;
     });
     function installSettledStore() {
@@ -39,7 +42,7 @@ describe('drainPromotionOverflow', () => {
     it('returns completed with zero attempts when no layer overflows', async () => {
         installSettledStore();
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
             status: 'completed',
             attempts: 0,
         });
@@ -59,7 +62,7 @@ describe('drainPromotionOverflow', () => {
             settings: makeSummarySettings({ memoryTokenBudget: 10000, snippetsPerLayer: 20 }),
         });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
             status: 'completed',
             attempts: 0,
         });
@@ -71,7 +74,7 @@ describe('drainPromotionOverflow', () => {
         installOverflowingStore();
         callSummarizer.mockResolvedValue({ status: 'failed' });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
             status: 'failed',
             attempts: 1,
         });
@@ -83,7 +86,7 @@ describe('drainPromotionOverflow', () => {
         installOverflowingStore();
         callSummarizer.mockResolvedValue({ status: 'failed' });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
             status: 'failed',
             attempts: 3,
         });
@@ -93,9 +96,9 @@ describe('drainPromotionOverflow', () => {
 
     it('reports blocked before the first attempt when the stop guard trips', async () => {
         installOverflowingStore();
-        beginForegroundGeneration();
+        gate.beginGeneration();
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
             status: 'blocked',
             attempts: 0,
         });
@@ -106,11 +109,11 @@ describe('drainPromotionOverflow', () => {
     it('reports blocked after an attempt when the stop guard trips mid-drain', async () => {
         installOverflowingStore();
         callSummarizer.mockImplementation(async () => {
-            beginForegroundGeneration();
+            gate.beginGeneration();
             return { status: 'failed' };
         });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3 })).resolves.toEqual({
+        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
             status: 'blocked',
             attempts: 1,
         });
@@ -125,7 +128,7 @@ describe('drainPromotionOverflow', () => {
         callSummarizer.mockResolvedValue({ status: 'failed' });
 
         await expect(
-            drainPromotionOverflow({ maxConsecutiveFailures: 1, notify: recorder }),
+            drainPromotionOverflow({ maxConsecutiveFailures: 1, notify: recorder, gate }),
         ).resolves.toEqual({
             status: 'failed',
             attempts: 1,

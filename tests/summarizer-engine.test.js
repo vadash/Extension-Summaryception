@@ -39,13 +39,16 @@ vi.mock('../src/core/summary-preflight.js', () => ({
     prepareSummaryCycle: vi.fn(async () => ({ chat: [], store: {} })),
 }));
 
-import {
-    beginForegroundGeneration,
-    resetCommitStateForTests,
-} from '../src/core/summarizer-commit.js';
 import { ELASTIC_STRATEGIES, runManual } from '../src/core/summarizer-engine.js';
 import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
-import { installSummaryContext } from './test-helpers.js';
+import { installSummaryContext, makeForegroundGate } from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
+
+beforeEach(() => {
+    gate = makeForegroundGate().gate;
+});
 
 const TARGET_INDEX = 5;
 let boundary = 0;
@@ -61,6 +64,7 @@ function makeDeps({ stopAfterFirstBatch = false } = {}) {
         runToken,
         refreshUi: vi.fn(),
         withUsageRun: vi.fn(async (_label, work) => await work()),
+        gate,
     };
     if (stopAfterFirstBatch) {
         runToken.isStopped.mockImplementation(() => layer0Mocks.runLayer0.mock.calls.length >= 1);
@@ -93,7 +97,7 @@ describe('manual run progress callbacks', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         installSummaryContext({ chat: [] });
         boundary = 0;
         chatStoreMocks.getChatStore.mockReturnValue({});
@@ -185,7 +189,7 @@ describe('manual run progress callbacks', () => {
 describe('manual run work gate', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         installSummaryContext({ chat: [] });
         chatStoreMocks.getChatStore.mockReturnValue({});
         settingsMocks.getEffectiveSettings.mockReturnValue({});
@@ -211,7 +215,7 @@ describe('manual run work gate', () => {
 describe('manual run pre-run outcomes', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         installSummaryContext({ chat: [] });
         chatStoreMocks.getChatStore.mockReturnValue({});
         settingsMocks.getEffectiveSettings.mockReturnValue({});
@@ -229,7 +233,7 @@ describe('manual run pre-run outcomes', () => {
     });
 
     it('reports blocked with no batches when the gate closed before the run', async () => {
-        beginForegroundGeneration();
+        gate.beginGeneration();
 
         const outcome = await runManual(makeDeps(), ELASTIC_STRATEGIES.FORCE, {});
 
@@ -241,7 +245,7 @@ describe('manual run pre-run outcomes', () => {
 describe('manual run failure limit', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         installSummaryContext({ chat: [] });
         chatStoreMocks.getChatStore.mockReturnValue({});
         settingsMocks.getEffectiveSettings.mockReturnValue({});
@@ -280,7 +284,7 @@ describe('manual run failure limit', () => {
 describe('manual run gate outcome', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        resetCommitStateForTests();
+        gate = makeForegroundGate().gate;
         installSummaryContext({ chat: [] });
         chatStoreMocks.getChatStore.mockReturnValue({});
         settingsMocks.getEffectiveSettings.mockReturnValue({});

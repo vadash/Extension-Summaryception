@@ -49,12 +49,12 @@ function saveAndRefreshUi() {
  * @param {import('../core/summarizer-engine.js').PauseLatchDeps} pauseLatchDeps - Engine deps for the pause latch.
  * @returns {void}
  */
-export function bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps) {
+export function bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps, gate) {
     bindModeHandlers();
     bindToggleHandlers();
     bindSliderHandlers();
     bindTextareaHandlers();
-    bindClickHandlers(notify);
+    bindClickHandlers(notify, gate);
     bindManualRunControls({ notify, manualRunnerDeps, pauseLatchDeps });
     bindPromptProfiles();
 }
@@ -225,7 +225,7 @@ function bindTextareaHandlers() {
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
  * @returns {void}
  */
-function triggerImport(notify) {
+function triggerImport(notify, gate) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -238,7 +238,7 @@ function triggerImport(notify) {
         try {
             const text = await file.text();
             const data = JSON.parse(text);
-            const outcome = await importSummaryceptionMemory(data, { notify });
+            const outcome = await importSummaryceptionMemory(data, { notify, gate });
             if (outcome.status === 'invalid') {
                 toastr.error('Invalid file format.');
                 return;
@@ -288,7 +288,7 @@ function onResetDefaults() {
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
  * @returns {void}
  */
-function bindClickHandlers(notify) {
+function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_clear_memory', async function () {
         if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) {
             return;
@@ -323,7 +323,7 @@ function bindClickHandlers(notify) {
         toastr.success('Memory exported', TOAST_TITLE);
     });
 
-    $(document).on('click', '#sc_import', () => triggerImport(notify));
+    $(document).on('click', '#sc_import', () => triggerImport(notify, gate));
 
     $(document).on('click', '#sc_reset_defaults', onResetDefaults);
 

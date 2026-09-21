@@ -18,10 +18,13 @@ import {
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
     installSummaryContext,
+    makeForegroundGate,
     makeMessage,
     makeSummarySettings,
     makeSummaryStore,
 } from './test-helpers.js';
+
+const gate = makeForegroundGate().gate;
 
 /**
  * Completed regeneration outcome carrying the profile the real request layer
@@ -62,7 +65,7 @@ describe('updateSnippetTextAt', () => {
     it('returns the updated status after an applied edit', async () => {
         installReadySnippet();
 
-        await expect(updateSnippetTextAt(0, 0, 'new text')).resolves.toEqual({
+        await expect(updateSnippetTextAt(0, 0, 'new text', { gate })).resolves.toEqual({
             status: 'updated',
         });
     });
@@ -112,7 +115,7 @@ describe('snippet regeneration request outcomes', () => {
             ),
         );
 
-        await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -129,7 +132,7 @@ describe('snippet regeneration request outcomes', () => {
             completedRegeneration('A headerless regeneration paragraph.'),
         );
 
-        await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({ status: 'failed' });
+        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'failed' });
 
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);
@@ -139,7 +142,7 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({ status: 'aborted' });
 
-        await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({ status: 'aborted' });
+        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'aborted' });
 
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);
@@ -149,7 +152,7 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({ status: 'blocked' });
 
-        await expect(regenerateSnippetAt(0, 0)).resolves.toEqual({ status: 'blocked' });
+        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'blocked' });
 
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);

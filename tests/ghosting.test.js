@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
     clearAllGhosting,
@@ -6,14 +6,21 @@ import {
     ghostMessagesInRange,
     syncGhosting,
 } from '../src/core/ghosting.js';
-import { resetCommitStateForTests } from '../src/core/summarizer-commit.js';
 import {
+    installSummaryContext,
+    makeForegroundGate,
     makeMessage,
     makeMessages,
     makeNotifyRecorder,
     makeSummaryStore,
-    installSummaryContext,
 } from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
+
+beforeEach(() => {
+    gate = makeForegroundGate().gate;
+});
 
 /**
  * Gap-hide contract: text-less messages inside the summarized range (images,
@@ -47,7 +54,6 @@ describe('hide non-text messages in summarized range', () => {
     }
 
     async function runWith({ hideNonTextMessages }) {
-        resetCommitStateForTests();
         const calls = [];
         installSummaryContext({
             chat: buildChat(),
@@ -57,7 +63,7 @@ describe('hide non-text messages in summarized range', () => {
                 calls.push(String(command));
             },
         });
-        await syncGhosting();
+        await syncGhosting({ gate });
         return calls;
     }
 
@@ -91,7 +97,6 @@ describe('hide non-text messages in summarized range', () => {
     });
 
     it('repairs only contiguous surviving UUID ranges and ignores a missing ID', async () => {
-        resetCommitStateForTests();
         const calls = [];
         const chat = Array.from({ length: 11 }, (_value, index) =>
             makeMessage({ mes: `turn ${index}`, scId: `message-${index}` }),
@@ -123,7 +128,7 @@ describe('hide non-text messages in summarized range', () => {
             executeSlashCommandsWithOptions: async (command) => calls.push(String(command)),
         });
 
-        await syncGhosting();
+        await syncGhosting({ gate });
 
         expect(calls).toEqual(['/hide 1-5', '/hide 7-10']);
     });
@@ -135,11 +140,10 @@ describe('hide non-text messages in summarized range', () => {
  */
 describe('ghosting notify adapter events', () => {
     it('emits structured hide progress events for manual range ghosting', async () => {
-        resetCommitStateForTests();
         const recorder = makeNotifyRecorder();
         installSummaryContext({ chat: makeMessages(4) });
 
-        await ghostMessagesInRange(0, 3, { showProgress: true, notify: recorder });
+        await ghostMessagesInRange(0, 3, { showProgress: true, notify: recorder, gate });
 
         const progress = recorder.events.filter((event) => event.type === 'progress');
         expect(progress).toHaveLength(1);
@@ -154,11 +158,10 @@ describe('ghosting notify adapter events', () => {
     });
 
     it('opens no progress handle for background ghosting even with an injected adapter', async () => {
-        resetCommitStateForTests();
         const recorder = makeNotifyRecorder();
         installSummaryContext({ chat: makeMessages(4) });
 
-        await ghostMessagesInRange(0, 3, { notify: recorder });
+        await ghostMessagesInRange(0, 3, { notify: recorder, gate });
 
         expect(recorder.events.filter((event) => event.type === 'progress')).toHaveLength(0);
         expect(recorder.events.filter((event) => event.type === 'update')).toHaveLength(0);
@@ -173,7 +176,6 @@ describe('ghosting notify adapter events', () => {
  */
 describe('syncGhosting ownership sync', () => {
     function installWith(chat, store) {
-        resetCommitStateForTests();
         const calls = [];
         const runtime = installSummaryContext({
             chat,
@@ -194,7 +196,7 @@ describe('syncGhosting ownership sync', () => {
         });
         const { calls, runtime } = installWith(chat, store);
 
-        const outcome = await syncGhosting();
+        const outcome = await syncGhosting({ gate });
 
         expect(calls).toEqual(['/unhide 1']);
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual(['message-0']);
@@ -216,7 +218,7 @@ describe('syncGhosting ownership sync', () => {
         });
         const { calls, runtime } = installWith(chat, store);
 
-        const outcome = await syncGhosting();
+        const outcome = await syncGhosting({ gate });
 
         expect(calls).toEqual(['/unhide 2', '/hide 3']);
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([
@@ -235,7 +237,7 @@ describe('syncGhosting ownership sync', () => {
         });
         const { calls, runtime } = installWith(chat, store);
 
-        const outcome = await syncGhosting();
+        const outcome = await syncGhosting({ gate });
 
         expect(calls).toEqual([]);
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([
@@ -247,7 +249,6 @@ describe('syncGhosting ownership sync', () => {
 
     it('emits no notify events for a background sync with nothing to do', async () => {
         const recorder = makeNotifyRecorder();
-        resetCommitStateForTests();
         installSummaryContext({
             chat: [makeMessage({ scId: 'message-0', isHidden: true })],
             metadata: {
@@ -258,7 +259,7 @@ describe('syncGhosting ownership sync', () => {
             },
         });
 
-        await syncGhosting({ notify: recorder });
+        await syncGhosting({ notify: recorder, gate });
 
         expect(recorder.events).toEqual([]);
     });
@@ -269,7 +270,6 @@ describe('syncGhosting ownership sync', () => {
  */
 describe('clearAllGhosting', () => {
     it('unhides the full chat range and wipes ownership', async () => {
-        resetCommitStateForTests();
         const calls = [];
         const runtime = installSummaryContext({
             chat: makeMessages(3),
@@ -289,7 +289,6 @@ describe('clearAllGhosting', () => {
     });
 
     it('skips the slash command for an empty chat but still wipes ownership', async () => {
-        resetCommitStateForTests();
         const calls = [];
         const runtime = installSummaryContext({
             chat: [],
@@ -308,7 +307,6 @@ describe('clearAllGhosting', () => {
 
 describe('countGhostedMessages', () => {
     it('counts owned ids that still resolve in the chat', () => {
-        resetCommitStateForTests();
         installSummaryContext({
             chat: makeMessages(3),
             metadata: {
@@ -338,7 +336,6 @@ describe('countGhostedMessages', () => {
  */
 describe('ghosting mutation epoch', () => {
     it('bumps the epoch when ownership sync picks up changed provenance', async () => {
-        resetCommitStateForTests();
         const runtime = installSummaryContext({
             chat: [makeMessage({ scId: 'message-0', isHidden: true })],
             metadata: {
@@ -350,7 +347,7 @@ describe('ghosting mutation epoch', () => {
             },
         });
 
-        await syncGhosting();
+        await syncGhosting({ gate });
 
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([
             'message-0',
@@ -360,7 +357,6 @@ describe('ghosting mutation epoch', () => {
     });
 
     it('does not bump the epoch when ownership already matches provenance', async () => {
-        resetCommitStateForTests();
         const runtime = installSummaryContext({
             chat: [makeMessage({ scId: 'message-0', isHidden: true })],
             metadata: {
@@ -372,16 +368,15 @@ describe('ghosting mutation epoch', () => {
             },
         });
 
-        await syncGhosting();
+        await syncGhosting({ gate });
 
         expect(runtime.chatMetadata.summaryception.mutationEpoch).toBe(2);
     });
 
     it('bumps the epoch when range ghosting takes ownership', async () => {
-        resetCommitStateForTests();
         const runtime = installSummaryContext({ chat: makeMessages(2) });
 
-        await ghostMessagesInRange(0, 1);
+        await ghostMessagesInRange(0, 1, { gate });
 
         expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([
             'message-0',
@@ -391,7 +386,6 @@ describe('ghosting mutation epoch', () => {
     });
 
     it('bumps the epoch when clearing releases owned ids', async () => {
-        resetCommitStateForTests();
         const runtime = installSummaryContext({
             chat: makeMessages(1),
             metadata: {
@@ -409,7 +403,6 @@ describe('ghosting mutation epoch', () => {
     });
 
     it('does not bump the epoch when clearing an already-empty ownership list', async () => {
-        resetCommitStateForTests();
         const runtime = installSummaryContext({
             chat: makeMessages(1),
             metadata: { summaryception: makeSummaryStore({ mutationEpoch: 2 }) },

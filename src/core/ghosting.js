@@ -10,7 +10,6 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';
-import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './summarizer-commit.js';
 
 // Message hiding (ghosting via native /hide and /unhide)
 
@@ -20,16 +19,17 @@ import { canStartPromptMutation, queuePromptEffect, runPromptEffect } from './su
  * @property {string} [kind] - Prompt-effect queue label.
  * @property {'immediate' | 'deferred'} [chatSave] - Chat-file persistence mode.
  * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress events. When absent, the work runs silent.
+ * @property {import('./foreground-gate.js').ForegroundGate} gate - The Foreground Gate every hide crosses; a hide requested mid-generation is deferred through it.
  */
 
 /**
  * Ensure all Summaryception-eligible messages in a range are ghosted.
  * @param {number} startIdx - Start index in chat
  * @param {number} endIdx - End index in chat
- * @param {GhostRangeOptions} [options]
+ * @param {GhostRangeOptions} options
  * @returns {Promise<void>}
  */
-export async function repairGhostingForRange(startIdx, endIdx, options = {}) {
+export async function repairGhostingForRange(startIdx, endIdx, options) {
     await ghostMessagesInRange(startIdx, endIdx, { kind: 'ghost-repair', ...options });
 }
 
@@ -58,10 +58,10 @@ function setGhostedMessageIds(store, nextIds) {
  * longer referenced by any layer are released through the unhide path.
  * Ownership ends up exactly the desired set. Desired ids whose messages no
  * longer resolve stay owned but inert.
- * @param {GhostRangeOptions} [options] - Carries the notify adapter. Without one, the work runs silent.
+ * @param {GhostRangeOptions} options - Carries the notify adapter and the Foreground Gate. Without a notify adapter, the work runs silent.
  * @returns {Promise<{ hidden: number, unhidden: number }>} Messages covered by the applied hide and release ranges.
  */
-export async function syncGhosting(options = {}) {
+export async function syncGhosting(options) {
     const chat = getChat();
     const store = getChatStore();
     const desired = collectSnippetSourceIds(store.layers);
@@ -79,7 +79,10 @@ export async function syncGhosting(options = {}) {
         if (collectHideRanges(chat, store, range).length === 0) {
             continue;
         }
-        await repairGhostingForRange(range[0], range[1], { notify: options.notify });
+        await repairGhostingForRange(range[0], range[1], {
+            notify: options.notify,
+            gate: options.gate,
+        });
         hidden += getRangeSize(range);
     }
 
@@ -90,7 +93,7 @@ export async function syncGhosting(options = {}) {
 /**
  * Unhide every message in the chat through the host full-range command and
  * wipe Summaryception ghost ownership.
- * @param {GhostRangeOptions} [_options] - Reserved option bag kept for parity with the other Ghosting entry points.
+ * @param {object} [_options] - Reserved option bag kept for parity with the other Ghosting entry points; Clear releases ownership without a gate.
  * @returns {Promise<void>}
  */
 export async function clearAllGhosting(_options = {}) {
@@ -119,26 +122,27 @@ export function countGhostedMessages() {
  * @internal
  * @param {number} startIdx
  * @param {number} endIdx
- * @param {GhostRangeOptions} [options]
+ * @param {GhostRangeOptions} options
  * @returns {Promise<void>}
  */
-export async function ghostMessagesInRange(startIdx, endIdx, options = {}) {
-    await runPromptEffect({
+export async function ghostMessagesInRange(startIdx, endIdx, options) {
+    await options.gate.runEffect({
         kind: getGhostEffectKind(startIdx, endIdx, options),
-        apply: async ({ epoch }) =>
-            await ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options),
+        apply: async (ctx) => await ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options),
     });
 }
 
 /**
- * Apply deferred range ghosting while the prompt guard remains open.
+ * Apply range ghosting while the prompt guard remains open. Reporting false
+ * hands the range back to the gate, which re-runs this effect once the freeze
+ * lifts; a re-run recomputes the outstanding work, so a partial pass is safe.
  * @param {number} startIdx
  * @param {number} endIdx
- * @param {number} epoch
+ * @param {import('./foreground-gate.js').PromptEffectContext} ctx
  * @param {GhostRangeOptions} options
- * @returns {Promise<boolean>} True when the range finished or needed no work. False when remaining work moved to the deferred queue.
+ * @returns {Promise<boolean>} True when the range finished or needed no work.
  */
-async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
+async function ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options) {
     const chat = getChat();
     const range = normalizeRange(startIdx, endIdx, chat.length);
 
@@ -157,20 +161,20 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
     let processed = 0;
 
     for (const hideRange of ranges) {
-        if (!canStartPromptMutation(epoch)) {
-            return queueRemainingGhosting(hideRange[0], range[1], options, progress);
+        if (!ctx.canContinue()) {
+            return deferRemainingGhosting(hideRange[0], range[1], options, progress);
         }
 
         const applied = await applyHideRange({
             chat,
             store,
             range: hideRange,
-            epoch,
+            canContinue: ctx.canContinue,
             chatSave: options.chatSave || 'immediate',
         });
 
         if (!applied) {
-            return queueRemainingGhosting(hideRange[0], range[1], options, progress);
+            return deferRemainingGhosting(hideRange[0], range[1], options, progress);
         }
 
         processed += getRangeSize(hideRange);
@@ -191,15 +195,15 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options) {
  * @param {ChatMessage[]} p.chat
  * @param {SummaryceptionStore} p.store
  * @param {[number, number]} p.range
- * @param {number} p.epoch
+ * @param {() => boolean} p.canContinue - Whether a generation replaced the one this hide started against.
  * @param {'immediate' | 'deferred'} p.chatSave
  * @returns {Promise<boolean>}
  */
-async function applyHideRange({ chat, store, range, epoch, chatSave }) {
+async function applyHideRange({ chat, store, range, canContinue, chatSave }) {
     markGhostedRange(chat, store, range);
     await persistChatState({ chatSave });
 
-    if (!canStartPromptMutation(epoch)) {
+    if (!canContinue()) {
         return false;
     }
 
@@ -210,34 +214,19 @@ async function applyHideRange({ chat, store, range, epoch, chatSave }) {
 }
 
 /**
- * Queue the remaining ghosting work after a prompt mutation freeze.
+ * Hand the rest of a range back to the gate after a prompt mutation freeze.
  * @param {number} nextStart
  * @param {number} endIdx
  * @param {GhostRangeOptions} options
  * @param {unknown} progress
- * @returns {boolean} Always false; the remaining work is queued for later.
+ * @returns {boolean} Always false; the gate re-runs the effect once the freeze lifts.
  */
-function queueRemainingGhosting(nextStart, endIdx, options, progress) {
+function deferRemainingGhosting(nextStart, endIdx, options, progress) {
+    debug(`Ghosting ${nextStart}-${endIdx} deferred; foreground generation is active.`);
     if (progress) {
         options.notify?.clear(progress);
     }
-    queueGhostRange(nextStart, endIdx, options);
     return false;
-}
-
-/**
- * @param {number} startIdx
- * @param {number} endIdx
- * @param {GhostRangeOptions} options
- * @returns {void}
- */
-function queueGhostRange(startIdx, endIdx, options) {
-    debug(`Ghosting ${startIdx}-${endIdx} deferred; foreground generation is active.`);
-    queuePromptEffect({
-        kind: getGhostEffectKind(startIdx, endIdx, options),
-        apply: async ({ epoch }) =>
-            await ghostMessagesInRangeEffect(startIdx, endIdx, epoch, options),
-    });
 }
 
 /**

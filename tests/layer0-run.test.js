@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const callSummarizer = vi.hoisted(() => vi.fn());
 vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
@@ -7,17 +7,20 @@ import { runLayer0 } from '../src/core/layer0-run.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
 import {
-    beginForegroundGeneration,
-    endForegroundGeneration,
-    resetCommitStateForTests,
-} from '../src/core/summarizer-commit.js';
-import {
     installSummaryContext,
+    makeForegroundGate,
     makeMessage,
     makeNotifyRecorder,
     makeSummarySettings,
     makeSummaryStore,
 } from './test-helpers.js';
+
+/** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
+let gate;
+
+beforeEach(() => {
+    gate = makeForegroundGate().gate;
+});
 
 /** Minimal valid summary passage returned by the stubbed request layer. */
 const VALID_SUMMARY =
@@ -78,11 +81,10 @@ describe('Layer 0 run — one Passage', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         callSummarizer.mockReset();
-        resetCommitStateForTests();
     });
 
     function runOnePassage(recorder) {
-        return runLayer0(onePassagePlan(), recorder);
+        return runLayer0(onePassagePlan(), recorder, gate);
     }
 
     it('commits one Passage and reports completed', async () => {
@@ -150,7 +152,7 @@ describe('Layer 0 run — one Passage', () => {
         callSummarizer.mockImplementation(async ({ metadata: dispatchMetadata }) =>
             completedOutcome(dispatchMetadata),
         );
-        beginForegroundGeneration();
+        gate.beginGeneration();
 
         await expect(runOnePassage(recorder)).resolves.toEqual({ status: 'blocked', completed: 1 });
 
@@ -158,7 +160,7 @@ describe('Layer 0 run — one Passage', () => {
         expect(clearEvents(recorder)).toHaveLength(0);
         expect(metadata.summaryception.layers[0]).toEqual([]);
 
-        await endForegroundGeneration();
+        await gate.endGeneration();
 
         const clears = clearEvents(recorder);
         expect(clears).toHaveLength(1);
@@ -193,7 +195,7 @@ describe('Layer 0 run — one Passage', () => {
         };
         installSummaryContext({ chat, metadata });
 
-        await expect(runLayer0(onePassagePlan(), makeNotifyRecorder())).resolves.toEqual({
+        await expect(runLayer0(onePassagePlan(), makeNotifyRecorder(), gate)).resolves.toEqual({
             status: 'idle',
         });
 
@@ -306,7 +308,6 @@ describe('Layer 0 run — atomic Passages', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         callSummarizer.mockReset();
-        resetCommitStateForTests();
     });
 
     function buildAtomicChat() {
@@ -332,7 +333,7 @@ describe('Layer 0 run — atomic Passages', () => {
             )
             .mockImplementationOnce(async () => ({ status: 'aborted' }));
 
-        await expect(runLayer0(atomicPlan(twoPartitions), recorder)).resolves.toEqual({
+        await expect(runLayer0(atomicPlan(twoPartitions), recorder, gate)).resolves.toEqual({
             status: 'aborted',
             completed: 1,
         });
@@ -364,7 +365,7 @@ describe('Layer 0 run — atomic Passages', () => {
             completedOutcome(dispatchMetadata),
         );
 
-        await expect(runLayer0(atomicPlan(twoPartitions), recorder)).resolves.toEqual({
+        await expect(runLayer0(atomicPlan(twoPartitions), recorder, gate)).resolves.toEqual({
             status: 'failed',
             completed: 1,
             failed: 1,
@@ -388,7 +389,7 @@ describe('Layer 0 run — atomic Passages', () => {
         // leaves behind.
         const partitions = [partition(1, 1), partition(3, 9)];
 
-        await expect(runLayer0(atomicPlan(partitions), recorder)).resolves.toEqual({
+        await expect(runLayer0(atomicPlan(partitions), recorder, gate)).resolves.toEqual({
             status: 'failed',
         });
 
@@ -409,7 +410,7 @@ describe('Layer 0 run — atomic Passages', () => {
             return completedOutcome(dispatchMetadata);
         });
 
-        await expect(runLayer0(atomicPlan(twoPartitions), recorder)).resolves.toEqual({
+        await expect(runLayer0(atomicPlan(twoPartitions), recorder, gate)).resolves.toEqual({
             status: 'aborted',
             completed: 1,
         });
@@ -430,7 +431,9 @@ describe('Layer 0 run — atomic Passages', () => {
             return completedOutcome(dispatchMetadata);
         });
 
-        await expect(runLayer0(atomicPlan(twoPartitions), makeNotifyRecorder())).resolves.toEqual({
+        await expect(
+            runLayer0(atomicPlan(twoPartitions), makeNotifyRecorder(), gate),
+        ).resolves.toEqual({
             status: 'aborted',
             completed: 1,
         });
@@ -457,7 +460,7 @@ describe('Layer 0 run — atomic Passages', () => {
             completedOutcome(dispatchMetadata),
         );
 
-        await expect(runLayer0(atomicPlan([partition(1, 1)]), undefined)).resolves.toEqual({
+        await expect(runLayer0(atomicPlan([partition(1, 1)]), undefined, gate)).resolves.toEqual({
             status: 'failed',
         });
 
