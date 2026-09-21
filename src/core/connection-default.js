@@ -13,9 +13,6 @@ export const DefaultProvider = {
     async generate({ settings, systemPrompt, userPrompt }) {
         return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
     },
-    displayName(_settings) {
-        return 'Default (Main API)';
-    },
 };
 
 /**

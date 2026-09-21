@@ -26,6 +26,11 @@ import {
 } from './context.js';
 import { resolveScIdsToIndices } from './message-identity.js';
 import { clampInteger, clampToStep } from './numeric.js';
+import {
+    CONNECTION_ROUTES,
+    getAllRouteSettingKeys,
+    getRouteTimeoutLimits,
+} from './connection-routes.js';
 import { readOperationMode, repairOperationMode } from './operation-mode.js';
 
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
@@ -87,9 +92,9 @@ export function saveSettings() {
 
 /**
  * Keys a defaults reset never touches: the selected memory/UI/config modes and
- * the Operation Mode gate they project, every connection/merge/fallback/auditor
- * route setting including per-route timeouts, and debugMode (re-enabled
- * explicitly after the reset loop).
+ * the Operation Mode gate they project, every Connection Route setting (all
+ * four keys of every route, derived from the route catalogue), and debugMode
+ * (re-enabled explicitly after the reset loop).
  * @type {Set<string>}
  */
 const RESET_PRESERVED_KEYS = new Set([
@@ -97,25 +102,7 @@ const RESET_PRESERVED_KEYS = new Set([
     'uiMode',
     'configMode',
     'enabled',
-    'connectionSource',
-    'connectionProfileId',
-    'requestTimeoutSeconds',
-    'mergeConnectionSource',
-    'mergeConnectionProfileId',
-    'mergeSummarizerResponseLength',
-    'mergeRequestTimeoutSeconds',
-    'fallbackConnectionSource',
-    'fallbackConnectionProfileId',
-    'fallbackSummarizerResponseLength',
-    'fallbackRequestTimeoutSeconds',
-    'auditorConnectionSource',
-    'auditorConnectionProfileId',
-    'auditorSummarizerResponseLength',
-    'auditorRequestTimeoutSeconds',
-    'auditorFallbackConnectionSource',
-    'auditorFallbackConnectionProfileId',
-    'auditorFallbackSummarizerResponseLength',
-    'auditorFallbackRequestTimeoutSeconds',
+    ...getAllRouteSettingKeys(),
     'debugMode',
 ]);
 
@@ -274,6 +261,7 @@ function normalizeChatStore(store) {
  * @returns {boolean} Whether settings were changed.
  */
 function normalizeMemorySettings(settings) {
+    const settingsRecord = asSettingsRecord(settings);
     let changed = false;
     if (settings.memoryMode === 'append_only') {
         settings.memoryMode = MEMORY_MODES.PREFIX_CACHE;
@@ -284,26 +272,11 @@ function normalizeMemorySettings(settings) {
         settings.memoryMode = defaultSettings.memoryMode;
         changed = true;
     }
-    if (!isSettingValue(['default', 'profile'], settings.connectionSource)) {
-        settings.connectionSource = defaultSettings.connectionSource;
-        changed = true;
-    }
-    if (!isSettingValue(['inherit', 'profile'], settings.mergeConnectionSource)) {
-        settings.mergeConnectionSource = defaultSettings.mergeConnectionSource;
-        changed = true;
-    }
-    if (!isSettingValue(['inherit', 'default', 'profile'], settings.auditorConnectionSource)) {
-        settings.auditorConnectionSource = defaultSettings.auditorConnectionSource;
-        changed = true;
-    }
-    if (
-        !isSettingValue(
-            ['disabled', 'default', 'profile'],
-            settings.auditorFallbackConnectionSource,
-        )
-    ) {
-        settings.auditorFallbackConnectionSource = defaultSettings.auditorFallbackConnectionSource;
-        changed = true;
+    for (const route of Object.values(CONNECTION_ROUTES)) {
+        if (!isSettingValue(route.sourceOptions, settingsRecord[route.sourceKey])) {
+            settingsRecord[route.sourceKey] = route.defaultSource;
+            changed = true;
+        }
     }
     if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
@@ -349,6 +322,17 @@ function normalizeRoleMaskSettings(settings, hadMode) {
  */
 function isSettingValue(values, value) {
     return values.includes(String(value));
+}
+
+/**
+ * Reach a settings object through a string key. Normalizers driven by the
+ * route catalogue read and write keys the catalogue names, so they index
+ * dynamically instead of restating each key.
+ * @param {ExtensionSettings} settings
+ * @returns {Record<string, any>}
+ */
+function asSettingsRecord(settings) {
+    return /** @type {Record<string, any>} */ (/** @type {unknown} */ (settings));
 }
 
 /**
@@ -463,42 +447,22 @@ export function enforceRetentionInvariants(settings) {
 }
 
 /**
- * Clamp the five per-route request timeouts (in seconds) to the slider
- * bounds: Layer 0, L1+ merge, fallback, and the two Auditor routes.
+ * Clamp each Connection Route's per-attempt request timeout (in seconds) to
+ * its declared slider bounds.
  * @param {ExtensionSettings} settings
  * @returns {void}
  */
 function normalizeRequestTimeouts(settings) {
-    settings.requestTimeoutSeconds = clampToStep(
-        settings.requestTimeoutSeconds,
-        SLIDER_LIMITS.requestTimeoutSeconds.MIN,
-        SLIDER_LIMITS.requestTimeoutSeconds.MAX,
-        SLIDER_LIMITS.requestTimeoutSeconds.STEP,
-    );
-    settings.mergeRequestTimeoutSeconds = clampToStep(
-        settings.mergeRequestTimeoutSeconds,
-        SLIDER_LIMITS.mergeRequestTimeoutSeconds.MIN,
-        SLIDER_LIMITS.mergeRequestTimeoutSeconds.MAX,
-        SLIDER_LIMITS.mergeRequestTimeoutSeconds.STEP,
-    );
-    settings.fallbackRequestTimeoutSeconds = clampToStep(
-        settings.fallbackRequestTimeoutSeconds,
-        SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MIN,
-        SLIDER_LIMITS.fallbackRequestTimeoutSeconds.MAX,
-        SLIDER_LIMITS.fallbackRequestTimeoutSeconds.STEP,
-    );
-    settings.auditorRequestTimeoutSeconds = clampToStep(
-        settings.auditorRequestTimeoutSeconds,
-        SLIDER_LIMITS.auditorRequestTimeoutSeconds.MIN,
-        SLIDER_LIMITS.auditorRequestTimeoutSeconds.MAX,
-        SLIDER_LIMITS.auditorRequestTimeoutSeconds.STEP,
-    );
-    settings.auditorFallbackRequestTimeoutSeconds = clampToStep(
-        settings.auditorFallbackRequestTimeoutSeconds,
-        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MIN,
-        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MAX,
-        SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.STEP,
-    );
+    const settingsRecord = asSettingsRecord(settings);
+    for (const route of Object.values(CONNECTION_ROUTES)) {
+        const { MIN, MAX, STEP } = getRouteTimeoutLimits(route);
+        settingsRecord[route.timeoutKey] = clampToStep(
+            settingsRecord[route.timeoutKey],
+            MIN,
+            MAX,
+            STEP,
+        );
+    }
 }
 
 function deriveEasySourceCap(contextTokens) {

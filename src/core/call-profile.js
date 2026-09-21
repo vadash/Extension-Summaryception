@@ -1,9 +1,16 @@
 import { defaultSettings, UI_MODES } from '../foundation/constants.js';
 import {
+    AUDITOR_CHAIN,
+    CONNECTION_ROUTES,
+    NARRATIVE_CHAIN,
+    PROVIDER_SETTING_KEYS,
+    isProviderRouteSource,
+    resolveRouteSource,
+} from '../foundation/connection-routes.js';
+import {
     getLayer0SummaryRepairCeiling,
     getLayer0SummaryTokenBounds,
 } from './layer0-compression.js';
-import { providers } from './connectionutil.js';
 
 const HEALTH_BUCKETS = Object.freeze({
     layer0: 'layer0',
@@ -17,10 +24,6 @@ const HARD_FALLBACK_TIMEOUT_MS = Object.freeze({
     promotion: 90000,
 });
 
-const ROUTE_SETTING_DEFAULTS = Object.freeze({
-    summarizerResponseLength: 0,
-    connectionProfileId: '',
-});
 const ROUTE_IDENTITY_KEYS = Object.freeze({
     profile: ['connectionProfileId'],
 });
@@ -283,9 +286,9 @@ function buildProvenance(call) {
 
 /**
  * Resolve the ordered failover series for one call. Non-auditor families run
- * the Narrative Chain (Layer 0 primary, plus its fallback when configured).
- * A separated Auditor (ADR-0009) prepends its own hops and optionally appends
- * the Narrative Chain as the last-resort failover.
+ * the Narrative Chain; a separated Auditor (ADR-0009) runs its own hops and
+ * optionally appends the Narrative Chain as the last-resort failover. Both
+ * chain shapes come from the route catalogue (ADR-0026).
  * @param {ExtensionSettings} settings
  * @param {string} [kind]
  * @returns {CallProfileRoute[]}
@@ -305,23 +308,54 @@ function resolveRouteSeries(settings, kind) {
  * @returns {CallProfileRoute[]}
  */
 function resolveNarrativeRouteSeries(settings, isPromotion) {
-    const series = [
-        {
-            connection: resolvePrimaryConnection(settings, isPromotion),
-            timeoutMs: resolveRouteTimeoutMs(
-                isPromotion ? settings.mergeRequestTimeoutSeconds : settings.requestTimeoutSeconds,
-                isPromotion,
-            ),
-        },
-    ];
-    const fallbackConnection = resolveFallbackConnection(settings, isPromotion);
-    if (fallbackConnection) {
-        series.push({
-            connection: fallbackConnection,
-            timeoutMs: resolveRouteTimeoutMs(settings.fallbackRequestTimeoutSeconds, isPromotion),
-        });
+    const primary = resolveNarrativePrimaryHop(settings, isPromotion);
+    const fallback = resolveNarrativeFallbackHop(settings, isPromotion, primary);
+    return fallback ? [primary, fallback] : [primary];
+}
+
+/**
+ * The Narrative Chain's primary hop. A promotion call runs the merge route:
+ * that route always supplies the hop's timeout key, and replaces the
+ * connection only when its source names a provider. Every other call runs the
+ * Layer 0 route on the live settings object itself.
+ * @param {ExtensionSettings} settings
+ * @param {boolean} isPromotion
+ * @returns {CallProfileRoute}
+ */
+function resolveNarrativePrimaryHop(settings, isPromotion) {
+    const inheritedRoute = CONNECTION_ROUTES[NARRATIVE_CHAIN.primary];
+    const overrideRoute = isPromotion ? CONNECTION_ROUTES[NARRATIVE_CHAIN.promotionOverride] : null;
+    const timeoutRoute = overrideRoute || inheritedRoute;
+    const overridden =
+        overrideRoute !== null &&
+        isProviderRouteSource(overrideRoute, resolveRouteSource(settings, overrideRoute));
+    return {
+        connection: overridden ? buildRouteConnection(settings, overrideRoute) : settings,
+        timeoutMs: resolveRouteTimeoutMs(settings[timeoutRoute.timeoutKey], isPromotion),
+    };
+}
+
+/**
+ * The Narrative Chain's fallback hop, absent when the route is off or already
+ * runs the same connection as the primary hop.
+ * @param {ExtensionSettings} settings
+ * @param {boolean} isPromotion
+ * @param {CallProfileRoute} primary
+ * @returns {CallProfileRoute | null}
+ */
+function resolveNarrativeFallbackHop(settings, isPromotion, primary) {
+    const route = CONNECTION_ROUTES[NARRATIVE_CHAIN.fallback];
+    if (!isProviderRouteSource(route, resolveRouteSource(settings, route))) {
+        return null;
     }
-    return series;
+    const connection = buildRouteConnection(settings, route);
+    if (isSameConnectionRoute(primary.connection, connection)) {
+        return null;
+    }
+    return {
+        connection,
+        timeoutMs: resolveRouteTimeoutMs(settings[route.timeoutKey], isPromotion),
+    };
 }
 
 /**
@@ -332,170 +366,50 @@ function resolveNarrativeRouteSeries(settings, isPromotion) {
  * @returns {CallProfileRoute[]}
  */
 function resolveAuditorRouteSeries(settings) {
-    if (!isSeparatedRouteSource(settings.auditorConnectionSource)) {
+    const primaryRoute = CONNECTION_ROUTES[AUDITOR_CHAIN.primary];
+    if (!isProviderRouteSource(primaryRoute, resolveRouteSource(settings, primaryRoute))) {
         return resolveNarrativeRouteSeries(settings, false);
     }
-    const primary = {
-        connection: buildAuditorRouteConnection(
-            settings,
-            settings.auditorConnectionSource,
-            settings.auditorConnectionProfileId,
-            settings.auditorSummarizerResponseLength,
-        ),
-        timeoutMs: resolveRouteTimeoutMs(settings.auditorRequestTimeoutSeconds, false),
-    };
-    const series = [primary];
+    const primaryConnection = buildRouteConnection(settings, primaryRoute);
+    const series = [
+        {
+            connection: primaryConnection,
+            timeoutMs: resolveRouteTimeoutMs(settings[primaryRoute.timeoutKey], false),
+        },
+    ];
 
-    const fallbackSource = settings.auditorFallbackConnectionSource;
-    if (isConfiguredRouteSource(fallbackSource)) {
-        const fallback = {
-            connection: buildAuditorRouteConnection(
-                settings,
-                fallbackSource,
-                settings.auditorFallbackConnectionProfileId,
-                settings.auditorFallbackSummarizerResponseLength,
-            ),
-            timeoutMs: resolveRouteTimeoutMs(settings.auditorFallbackRequestTimeoutSeconds, false),
-        };
-        if (!isSameConnectionRoute(primary.connection, fallback.connection)) {
-            series.push(fallback);
+    const fallbackRoute = CONNECTION_ROUTES[AUDITOR_CHAIN.fallback];
+    if (isProviderRouteSource(fallbackRoute, resolveRouteSource(settings, fallbackRoute))) {
+        const fallbackConnection = buildRouteConnection(settings, fallbackRoute);
+        if (!isSameConnectionRoute(primaryConnection, fallbackConnection)) {
+            series.push({
+                connection: fallbackConnection,
+                timeoutMs: resolveRouteTimeoutMs(settings[fallbackRoute.timeoutKey], false),
+            });
         }
     }
 
-    if (settings.auditorNarrativeFallback) {
+    if (settings[AUDITOR_CHAIN.narrativeFailoverKey]) {
         series.push(...resolveNarrativeRouteSeries(settings, false));
     }
     return series;
 }
 
 /**
- * Check whether the source separates this route from the Narrative Chain at all.
- * @param {unknown} source
- * @returns {boolean}
- */
-function isSeparatedRouteSource(source) {
-    return source === 'default' || source === 'profile';
-}
-
-/**
- * Check whether the source names a usable provider, mirroring the fallback
- * configuration rule.
- * @param {string} source
- * @returns {boolean}
- */
-function isConfiguredRouteSource(source) {
-    return Boolean(source && source !== 'disabled' && providers[source]);
-}
-
-/**
- * Build the provider-facing connection settings for one Auditor route. Shared
- * fields such as URLs and API keys stay inherited; the route contributes its
- * source, profile id, and response length.
+ * Build the provider-facing connection settings for one route. Shared fields
+ * such as URLs and API keys stay inherited; the route contributes its source,
+ * profile id, and response-length cap.
  * @param {ExtensionSettings} settings
- * @param {string} source
- * @param {string} profileId
- * @param {number} responseLength
+ * @param {import('../foundation/connection-routes.js').ConnectionRoute} route
  * @returns {ExtensionSettings}
  */
-function buildAuditorRouteConnection(settings, source, profileId, responseLength) {
+function buildRouteConnection(settings, route) {
     return {
         ...settings,
-        ...ROUTE_SETTING_DEFAULTS,
-        connectionSource: source,
-        connectionProfileId: profileId || ROUTE_SETTING_DEFAULTS.connectionProfileId,
-        summarizerResponseLength: responseLength || ROUTE_SETTING_DEFAULTS.summarizerResponseLength,
+        [PROVIDER_SETTING_KEYS.source]: resolveRouteSource(settings, route),
+        [PROVIDER_SETTING_KEYS.profile]: String(settings[route.profileKey] || ''),
+        [PROVIDER_SETTING_KEYS.responseLength]: Number(settings[route.responseLengthKey] || 0),
     };
-}
-
-/**
- * Resolve the primary connection for one call; the promotion merge route is
- * folded into the primary decision here.
- * @param {ExtensionSettings} settings
- * @param {boolean} isPromotion
- * @returns {ExtensionSettings}
- */
-function resolvePrimaryConnection(settings, isPromotion) {
-    if (!isPromotion || !shouldUseMergeConnection(settings)) {
-        return settings;
-    }
-    return extractRouteSettings(settings, 'merge');
-}
-
-/**
- * Resolve the fallback connection for one call, if configured and distinct.
- * @param {ExtensionSettings} settings
- * @param {boolean} isPromotion
- * @returns {ExtensionSettings | null}
- */
-function resolveFallbackConnection(settings, isPromotion) {
-    if (!shouldUseFallbackConnection(settings)) {
-        return null;
-    }
-    const primary = resolvePrimaryConnection(settings, isPromotion);
-    const fallback = extractRouteSettings(settings, 'fallback');
-    return isSameConnectionRoute(primary, fallback) ? null : fallback;
-}
-
-/**
- * Check whether the Layer 1+ override is configured.
- * @param {ExtensionSettings} settings
- * @returns {boolean}
- */
-function shouldUseMergeConnection(settings) {
-    return Boolean(settings.mergeConnectionSource && settings.mergeConnectionSource !== 'inherit');
-}
-
-/**
- * Check whether fallback routing is configured with a known provider.
- * @param {ExtensionSettings} settings
- * @returns {boolean}
- */
-function shouldUseFallbackConnection(settings) {
-    return isConfiguredRouteSource(settings.fallbackConnectionSource);
-}
-
-/**
- * Resolve prefixed route override fields onto the provider-facing setting names.
- * Shared fields without route-specific prefixes, such as URLs and API keys, stay inherited.
- * @param {ExtensionSettings} settings
- * @param {string} prefix
- * @returns {ExtensionSettings}
- */
-function extractRouteSettings(settings, prefix) {
-    const routeSettings = { ...settings, ...ROUTE_SETTING_DEFAULTS };
-    const prefixLength = prefix.length;
-
-    for (const key of Object.keys(settings)) {
-        if (!key.startsWith(prefix) || key.length === prefixLength) {
-            continue;
-        }
-
-        const mappedKey = lowerFirst(key.slice(prefixLength));
-        routeSettings[mappedKey] = getRouteSettingValue(mappedKey, settings[key]);
-    }
-
-    return routeSettings;
-}
-
-/**
- * Preserve existing route defaults for known override-only fields.
- * @param {string} key
- * @param {unknown} value
- * @returns {unknown}
- */
-function getRouteSettingValue(key, value) {
-    if (Object.hasOwn(ROUTE_SETTING_DEFAULTS, key) && !value) {
-        return ROUTE_SETTING_DEFAULTS[key];
-    }
-    return value;
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function lowerFirst(value) {
-    return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 /**

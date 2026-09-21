@@ -112,6 +112,16 @@ _Avoid_: Raw metadata
 The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, the frozen Easy Summarizer Context cap, the frozen CN ideograph policy, the frozen Layer 0 size band, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category or live settings.
 Code: `resolveCallProfile` (src/core/call-profile.js)
 
+**Connection Route**:
+One named connection target a summarizer call can run on, with its own source, profile, response length, and timeout settings. The set is the Layer 0 route, the Layer 1+ merge override, the fallback route, and the Auditor's primary and fallback routes.
+Code: src/foundation/connection-routes.js
+_Avoid_: connection card, provider, backend
+
+**Connection Route Catalogue**:
+The one declaration of the Connection Route set: each route's setting keys, the source options it accepts, the provider sources among them, the unset default, and the ordered hops each chain runs. Settings normalization, reset preservation, the Call Profile resolver, and the settings UI derive their route facts from it.
+Code: src/foundation/connection-routes.js
+_Avoid_: route registry, connection config
+
 **Route Plan**:
 The plan for one summarization cycle: the selected route, readiness reason, commit mode, and the batch and partition schedule.
 The new summary / deeper merge / fallback trio is the connection routes, not this.

@@ -19,6 +19,7 @@ import {
     getSummaryStoreMutationEpoch,
     resetSettingsToDefaults,
 } from '../src/foundation/state.js';
+import { CONNECTION_ROUTES, getAllRouteSettingKeys } from '../src/foundation/connection-routes.js';
 import {
     installSummaryContext,
     installSillyTavernStub,
@@ -98,6 +99,23 @@ describe('memory mode budgets', () => {
 });
 
 describe('auditor connection settings', () => {
+    it('repairs any route source that no option accepts', () => {
+        installSummaryContext({
+            settings: {
+                connectionSource: 'bogus',
+                mergeConnectionSource: 'bogus',
+                fallbackConnectionSource: 'bogus',
+                auditorConnectionSource: 'bogus',
+                auditorFallbackConnectionSource: 'bogus',
+            },
+        });
+
+        const s = getSettings();
+        for (const route of Object.values(CONNECTION_ROUTES)) {
+            expect(s[route.sourceKey], route.sourceKey).toBe(defaultSettings[route.sourceKey]);
+        }
+    });
+
     it('resets invalid auditor connection sources to their defaults', () => {
         installSummaryContext({
             settings: {
@@ -321,6 +339,27 @@ describe('resetSettingsToDefaults', () => {
             auditorNarrativeFallback: defaultSettings.auditorNarrativeFallback,
         });
     });
+    it('preserves every Connection Route key, the Layer 0 response length included', () => {
+        const s = settingsFor();
+        const edited = {};
+        for (const route of Object.values(CONNECTION_ROUTES)) {
+            edited[route.sourceKey] = route.sourceOptions.find(
+                (option) => option !== route.defaultSource,
+            );
+            edited[route.profileKey] = `profile-${route.id}`;
+            edited[route.responseLengthKey] = 777;
+            edited[route.timeoutKey] = 120;
+        }
+        Object.assign(s, edited);
+
+        resetSettingsToDefaults();
+
+        for (const [key, value] of Object.entries(edited)) {
+            expect(s[key], key).toBe(value);
+        }
+        expect(getAllRouteSettingKeys()).toHaveLength(Object.keys(CONNECTION_ROUTES).length * 4);
+    });
+
     it('resets plain keys to defaults and re-enables debug mode', () => {
         const s = settingsFor();
         s.injectionTemplate = 'edited';

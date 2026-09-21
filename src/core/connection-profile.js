@@ -18,9 +18,6 @@ export const ProfileProvider = {
             signal,
         });
     },
-    displayName(settings) {
-        return `Profile: ${settings.connectionProfileId || '(none)'}`;
-    },
 };
 
 /**
