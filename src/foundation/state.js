@@ -329,10 +329,10 @@ function isSettingValue(values, value) {
  * route catalogue read and write keys the catalogue names, so they index
  * dynamically instead of restating each key.
  * @param {ExtensionSettings} settings
- * @returns {Record<string, any>}
+ * @returns {Record<string, unknown>}
  */
 function asSettingsRecord(settings) {
-    return /** @type {Record<string, any>} */ (/** @type {unknown} */ (settings));
+    return /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings));
 }
 
 /**

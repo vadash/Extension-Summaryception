@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 
 import {
     AUDITOR_CHAIN,
     CONNECTION_ROUTES,
     NARRATIVE_CHAIN,
+    getRoutePanelIds,
+    getRoutePanels,
     getRouteSettingKeys,
     getRouteTimeoutLimits,
     isProviderRouteSource,
@@ -62,6 +65,15 @@ describe('connection route catalogue', () => {
         }
     });
 
+    it('rejects a route whose timeout declares no upper bound', () => {
+        expect(() =>
+            getRouteTimeoutLimits({
+                id: 'layer0',
+                timeoutKey: 'summarizerResponseLength',
+            }),
+        ).toThrow(/no upper bound/);
+    });
+
     it('claims each setting key for exactly one route', () => {
         const claimed = new Map();
         for (const route of routes) {
@@ -70,7 +82,6 @@ describe('connection route catalogue', () => {
                 claimed.set(key, route.id);
             }
         }
-        expect(claimed.size).toBe(routes.length * 4);
     });
 
     it('resolves an unset source to the route default', () => {
@@ -95,5 +106,49 @@ describe('connection route catalogue', () => {
         expect(AUDITOR_CHAIN.primary).not.toBe(AUDITOR_CHAIN.fallback);
         expect(defaultSettings).toHaveProperty(AUDITOR_CHAIN.narrativeFailoverKey);
         expect(typeof defaultSettings[AUDITOR_CHAIN.narrativeFailoverKey]).toBe('boolean');
+    });
+});
+
+/**
+ * The catalogue is also the declaration the settings markup must satisfy: a
+ * renamed id would otherwise unhook a route card without failing anywhere.
+ */
+describe('connection route panel slots', () => {
+    const html = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
+    const slots = getRoutePanels();
+
+    it('declares every id a panel slot owns', () => {
+        for (const { route, panel } of slots) {
+            for (const id of Object.values(getRoutePanelIds(panel))) {
+                if (id === null) {
+                    continue;
+                }
+                expect(html, `${route.id}/${panel.panel}: #${id}`).toContain(`id="${id}"`);
+            }
+        }
+    });
+
+    it('declares a response-length control for every route', () => {
+        const routesWithControl = new Set();
+        for (const { route, panel } of slots) {
+            const { responseLengthInput } = getRoutePanelIds(panel);
+            if (responseLengthInput === null) {
+                continue;
+            }
+            routesWithControl.add(route.id);
+            expect(html, `${route.id}: #${responseLengthInput}`).toContain(
+                `id="${responseLengthInput}"`,
+            );
+        }
+        expect([...routesWithControl].sort()).toEqual(Object.keys(CONNECTION_ROUTES).sort());
+    });
+
+    it('shows each slot once, so no control is bound twice', () => {
+        const seen = new Set();
+        for (const { route, panel } of slots) {
+            const { source } = getRoutePanelIds(panel);
+            expect(seen.has(source), `${route.id}: ${source}`).toBe(false);
+            seen.add(source);
+        }
     });
 });

@@ -13,6 +13,19 @@ import { SLIDER_LIMITS } from './constants.js';
  */
 
 /**
+ * One panel surface a route appears in. Selector ids derive from `prefix`:
+ * `${prefix}_connection_source`, `${prefix}_connection_profile`, and
+ * `${prefix}_profile_settings`, plus `${prefix}_response_length_row` and
+ * `${prefix}_timeout_row` where the panel has them.
+ * @typedef {object} ConnectionRoutePanel
+ * @property {'easy' | 'advanced'} panel - Which settings panel shows this slot.
+ * @property {string} prefix - DOM id prefix for the slot's selectors.
+ * @property {string} [controlPrefix] - Prefix of the slot's `data-sc-setting` response-length input, when the panel has one.
+ * @property {boolean} hasResponseLengthRow - Whether the panel hides and shows a response-length row.
+ * @property {boolean} hasTimeoutRow - Whether the panel hides and shows a timeout row.
+ */
+
+/**
  * One connection route's declaration.
  * @typedef {object} ConnectionRoute
  * @property {ConnectionRouteId} id - This route's id, the key it is declared under.
@@ -23,6 +36,7 @@ import { SLIDER_LIMITS } from './constants.js';
  * @property {ReadonlyArray<string>} sourceOptions - Every value the route's source key may hold.
  * @property {ReadonlyArray<string>} providerSources - The options among them that name a registered provider.
  * @property {string} defaultSource - Source an unset or malformed source key repairs to.
+ * @property {ReadonlyArray<ConnectionRoutePanel>} panels - Every panel surface this route appears in.
  */
 
 /**
@@ -51,6 +65,21 @@ export const CONNECTION_ROUTES = Object.freeze({
         sourceOptions: Object.freeze(['default', 'profile']),
         providerSources: Object.freeze(['default', 'profile']),
         defaultSource: 'default',
+        panels: Object.freeze([
+            Object.freeze({
+                panel: 'advanced',
+                prefix: 'summaryception',
+                controlPrefix: 'sc',
+                hasResponseLengthRow: false,
+                hasTimeoutRow: false,
+            }),
+            Object.freeze({
+                panel: 'easy',
+                prefix: 'sc_easy',
+                hasResponseLengthRow: false,
+                hasTimeoutRow: false,
+            }),
+        ]),
     }),
     merge: Object.freeze({
         id: 'merge',
@@ -61,6 +90,22 @@ export const CONNECTION_ROUTES = Object.freeze({
         sourceOptions: Object.freeze(['inherit', 'profile']),
         providerSources: Object.freeze(['profile']),
         defaultSource: 'inherit',
+        panels: Object.freeze([
+            Object.freeze({
+                panel: 'advanced',
+                prefix: 'summaryception_merge',
+                controlPrefix: 'sc_merge',
+                hasResponseLengthRow: true,
+                // Merge keeps a plain timeout row: the markup declares no row to hide.
+                hasTimeoutRow: false,
+            }),
+            Object.freeze({
+                panel: 'easy',
+                prefix: 'sc_easy_merge',
+                hasResponseLengthRow: false,
+                hasTimeoutRow: false,
+            }),
+        ]),
     }),
     fallback: Object.freeze({
         id: 'fallback',
@@ -71,6 +116,16 @@ export const CONNECTION_ROUTES = Object.freeze({
         sourceOptions: Object.freeze(['disabled', 'default', 'profile']),
         providerSources: Object.freeze(['default', 'profile']),
         defaultSource: 'disabled',
+        panels: Object.freeze([
+            Object.freeze({
+                panel: 'advanced',
+                prefix: 'summaryception_fallback',
+                controlPrefix: 'sc_fallback',
+                hasResponseLengthRow: true,
+                // Same as merge: the markup declares no timeout row to hide.
+                hasTimeoutRow: false,
+            }),
+        ]),
     }),
     auditor: Object.freeze({
         id: 'auditor',
@@ -81,6 +136,15 @@ export const CONNECTION_ROUTES = Object.freeze({
         sourceOptions: Object.freeze(['inherit', 'default', 'profile']),
         providerSources: Object.freeze(['default', 'profile']),
         defaultSource: 'inherit',
+        panels: Object.freeze([
+            Object.freeze({
+                panel: 'advanced',
+                prefix: 'summaryception_auditor',
+                controlPrefix: 'sc_auditor',
+                hasResponseLengthRow: true,
+                hasTimeoutRow: true,
+            }),
+        ]),
     }),
     auditorFallback: Object.freeze({
         id: 'auditorFallback',
@@ -91,6 +155,15 @@ export const CONNECTION_ROUTES = Object.freeze({
         sourceOptions: Object.freeze(['disabled', 'default', 'profile']),
         providerSources: Object.freeze(['default', 'profile']),
         defaultSource: 'disabled',
+        panels: Object.freeze([
+            Object.freeze({
+                panel: 'advanced',
+                prefix: 'summaryception_auditor_fallback',
+                controlPrefix: 'sc_auditor_fallback',
+                hasResponseLengthRow: true,
+                hasTimeoutRow: true,
+            }),
+        ]),
     }),
 });
 
@@ -155,6 +228,38 @@ export function resolveRouteSource(settings, route) {
  */
 export function isProviderRouteSource(route, source) {
     return route.providerSources.includes(String(source));
+}
+
+/**
+ * Every (route, panel) slot the settings markup declares, in declaration order.
+ * @returns {Array<{ route: ConnectionRoute, panel: ConnectionRoutePanel }>}
+ */
+export function getRoutePanels() {
+    return Object.values(CONNECTION_ROUTES).flatMap((route) =>
+        route.panels.map((panel) => ({ route, panel })),
+    );
+}
+
+/**
+ * The DOM ids one panel slot owns. Bare ids (no selector syntax) so the entry
+ * bindings and the markup contract test read one derivation; a row or control
+ * the slot does not have is null rather than a selector that matches nothing.
+ * @param {ConnectionRoutePanel} panel
+ * @returns {{ source: string, profile: string, profilePanel: string, responseLengthRow: string | null, timeoutRow: string | null, responseLengthInput: string | null }}
+ */
+export function getRoutePanelIds(panel) {
+    return {
+        source: `${panel.prefix}_connection_source`,
+        profile: `${panel.prefix}_connection_profile`,
+        profilePanel: `${panel.prefix}_profile_settings`,
+        responseLengthRow: panel.hasResponseLengthRow
+            ? `${panel.prefix}_response_length_row`
+            : null,
+        timeoutRow: panel.hasTimeoutRow ? `${panel.prefix}_timeout_row` : null,
+        responseLengthInput: panel.controlPrefix
+            ? `${panel.controlPrefix}_summarizer_response_length`
+            : null,
+    };
 }
 
 /**

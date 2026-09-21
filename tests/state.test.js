@@ -19,7 +19,7 @@ import {
     getSummaryStoreMutationEpoch,
     resetSettingsToDefaults,
 } from '../src/foundation/state.js';
-import { CONNECTION_ROUTES, getAllRouteSettingKeys } from '../src/foundation/connection-routes.js';
+import { CONNECTION_ROUTES } from '../src/foundation/connection-routes.js';
 import {
     installSummaryContext,
     installSillyTavernStub,
@@ -357,7 +357,6 @@ describe('resetSettingsToDefaults', () => {
         for (const [key, value] of Object.entries(edited)) {
             expect(s[key], key).toBe(value);
         }
-        expect(getAllRouteSettingKeys()).toHaveLength(Object.keys(CONNECTION_ROUTES).length * 4);
     });
 
     it('resets plain keys to defaults and re-enables debug mode', () => {

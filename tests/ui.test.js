@@ -6,11 +6,7 @@ import {
     bindSliderSettingPairs,
     readLines,
 } from '../src/entry/ui-bind.js';
-import {
-    initConnectionUI,
-    updateAuditorConnectionSubPanels,
-    updateAuditorFallbackConnectionSubPanels,
-} from '../src/entry/ui-connection.js';
+import { initConnectionUI, syncConnectionPanels } from '../src/entry/ui-connection.js';
 import { getSettings } from '../src/foundation/state.js';
 import { buildTriggerGaugeModel } from '../src/entry/ui-view-models.js';
 import { createJQueryHarness, installSummaryContext } from './test-helpers.js';
@@ -183,7 +179,7 @@ describe('data-attr setting binding engine', () => {
     });
 });
 
-describe('auditor connection routes', () => {
+describe('connection route panels', () => {
     const AUDITOR_ATTRS = {
         '#summaryception_auditor_connection_source': {
             'data-sc-setting': 'auditorConnectionSource',
@@ -255,7 +251,7 @@ describe('auditor connection routes', () => {
         const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
         globalThis.$ = dom.$;
 
-        updateAuditorConnectionSubPanels('inherit');
+        syncConnectionPanels(getSettings());
 
         expect(dom.element('#summaryception_auditor_response_length_row').isVisible()).toBe(false);
         expect(dom.element('#summaryception_auditor_timeout_row').isVisible()).toBe(false);
@@ -267,8 +263,10 @@ describe('auditor connection routes', () => {
     it('shows the auditor rows once separated and the profile panel only for profiles', () => {
         const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
         globalThis.$ = dom.$;
+        const settings = getSettings();
 
-        updateAuditorConnectionSubPanels('default');
+        settings.auditorConnectionSource = 'default';
+        syncConnectionPanels(settings);
 
         expect(dom.element('#summaryception_auditor_response_length_row').isVisible()).toBe(true);
         expect(dom.element('#summaryception_auditor_timeout_row').isVisible()).toBe(true);
@@ -276,7 +274,8 @@ describe('auditor connection routes', () => {
         expect(dom.element('#summaryception_auditor_fallback_section').isVisible()).toBe(true);
         expect(dom.element('#sc_auditor_narrative_fallback_row').isVisible()).toBe(true);
 
-        updateAuditorConnectionSubPanels('profile');
+        settings.auditorConnectionSource = 'profile';
+        syncConnectionPanels(settings);
 
         expect(dom.element('#summaryception_auditor_profile_settings').isVisible()).toBe(true);
     });
@@ -284,8 +283,10 @@ describe('auditor connection routes', () => {
     it('hides the Auditor fallback extras while the fallback route is disabled', () => {
         const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
         globalThis.$ = dom.$;
+        const settings = getSettings();
+        settings.auditorConnectionSource = 'profile';
 
-        updateAuditorFallbackConnectionSubPanels('disabled');
+        syncConnectionPanels(settings);
 
         expect(
             dom.element('#summaryception_auditor_fallback_response_length_row').isVisible(),
@@ -295,7 +296,8 @@ describe('auditor connection routes', () => {
             false,
         );
 
-        updateAuditorFallbackConnectionSubPanels('profile');
+        settings.auditorFallbackConnectionSource = 'profile';
+        syncConnectionPanels(settings);
 
         expect(
             dom.element('#summaryception_auditor_fallback_response_length_row').isVisible(),
