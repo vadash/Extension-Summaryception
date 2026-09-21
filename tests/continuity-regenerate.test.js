@@ -8,7 +8,10 @@ vi.mock('../src/core/summarizer-request.js', () => ({
 }));
 
 import { isPromptMutationFrozen, resetCommitStateForTests } from '../src/core/summarizer-commit.js';
-import { runAuditorExtraction } from '../src/core/continuity-runner.js';
+import { createContinuityAuditor } from '../src/core/continuity-audit.js';
+import { getName1 } from '../src/foundation/context.js';
+import { getChatStore } from '../src/foundation/chat-store.js';
+import { getEffectiveSettings } from '../src/foundation/settings.js';
 import {
     deriveContinuityCoverage,
     endRerollTail,
@@ -54,6 +57,30 @@ const regenChat = () => [
     makeMessage({ scId: 'a2' }),
 ];
 
+/**
+ * One Continuity Audit wired to the installed host context, assembling the
+ * input the entry layer supplies.
+ * @param {ReturnType<typeof installSummaryContext>} ctx
+ * @returns {() => Promise<unknown>}
+ */
+function makeAudit(ctx) {
+    const auditor = createContinuityAuditor({
+        dispatch: callSummarizer,
+        saveChatStore: async () => {},
+        refreshPreview: () => {},
+        getChat: () => ctx.chat,
+    });
+    return () =>
+        auditor.audit({
+            chat: ctx.chat,
+            store: getChatStore(),
+            settings: getEffectiveSettings(),
+            hasGroup: false,
+            playerName: getName1(),
+            rerollTail: false,
+        });
+}
+
 const draftTwoAudit = () =>
     JSON.stringify({
         turn_count: 999,
@@ -82,18 +109,19 @@ describe('continuity coverage across regenerate', () => {
     it('drops the read model back to the prior checkpoint when the audited reply is deleted', async () => {
         const chat = regenChat();
         const setExtensionPrompt = vi.fn();
-        installSummaryContext({
+        const ctx = installSummaryContext({
             chat,
             setExtensionPrompt,
             metadata: { summaryception: makeSummaryStore() },
             settings: { continuityEnabled: true },
         });
+        const runAudit = makeAudit(ctx);
         chat[1].extra.summaryception_continuity = auditedExchangeOne();
 
         // Exchange 2's draft reply lands and is audited: the draft's thread,
         // scene location, and spark enter the state, checkpointed on a2.
         callSummarizer.mockResolvedValue({ status: 'completed', text: draftTwoAudit() });
-        await runAuditorExtraction();
+        await runAudit();
         expect(chat[3].extra.summaryception_continuity.gm_notes).toEqual(['[T] draft-two thread']);
 
         // Regenerate removes the audited reply. No rewind event fires: the
@@ -117,11 +145,12 @@ describe('continuity coverage across regenerate', () => {
 
     it('skips the audit when the newest reply already carries a checkpoint', async () => {
         const chat = regenChat();
-        installSummaryContext({
+        const ctx = installSummaryContext({
             chat,
             metadata: { summaryception: makeSummaryStore() },
             settings: { continuityEnabled: true },
         });
+        const runAudit = makeAudit(ctx);
         chat[1].extra.summaryception_continuity = auditedExchangeOne();
         // A regenerated reply kept its pre-regeneration payload: newest-wins
         // anchors coverage there and no unaudited exchange remains.
@@ -130,7 +159,7 @@ describe('continuity coverage across regenerate', () => {
             physics: { ...auditedExchangeOne().physics, location: 'Old Draft' },
         });
 
-        const outcome = await runAuditorExtraction();
+        const outcome = await runAudit();
 
         expect(outcome.status).toBe('idle');
         expect(callSummarizer).not.toHaveBeenCalled();

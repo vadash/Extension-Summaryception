@@ -31,6 +31,15 @@ describe('normalizeSettings', () => {
         expect(settings.verbatimTokenBudget).toBe(SLIDER_LIMITS.verbatimTokenBudget.MIN);
     });
 
+    it('coerces the Continuity toggles to strict booleans and reports the repair', () => {
+        const repaired = normalize({ continuityEnabled: 'yes' });
+        expect(repaired.settings.continuityEnabled).toBe(false);
+        expect(repaired.changed).toBe(true);
+
+        expect(normalize().settings.continuityEnabled).toBe(false);
+        expect(normalize({ continuityEnabled: true }).settings.continuityEnabled).toBe(true);
+    });
+
     it('remaps persisted append-only mode to prefix_cache and resets invalid modes', () => {
         expect(normalize({ memoryMode: 'append_only' }).settings.memoryMode).toBe(
             MEMORY_MODES.PREFIX_CACHE,

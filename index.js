@@ -9,11 +9,14 @@
  */
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
-import { getContext } from './src/foundation/context.js';
-import { initRefreshPort, refreshUi } from './src/foundation/refresh.js';
+import { getChat, getContext } from './src/foundation/context.js';
+import { saveChatStore } from './src/foundation/chat-store.js';
+import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
 import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { requestSummarization, setNotify, summarizerQueue } from './src/core/summarizer-queue.js';
+import { callSummarizer } from './src/core/summarizer-request.js';
+import { createContinuityAuditor } from './src/core/continuity-audit.js';
 import { initCommitCallbacks, runPromptEffect } from './src/core/summarizer-commit.js';
 import { withUsageRun } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
@@ -60,6 +63,12 @@ import { registerSlashCommands } from './src/entry/commands.js';
     setNotify(notify);
     const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun };
     const pauseLatchDeps = { queue: summarizerQueue };
+    const continuityAuditor = createContinuityAuditor({
+        dispatch: callSummarizer,
+        saveChatStore,
+        refreshPreview,
+        getChat,
+    });
     initRefreshPort({
         // Every prompt-affecting effect enters through the Foreground Gate
         // (ADR-0016); mid-generation requests queue until the freeze lifts.
@@ -102,7 +111,11 @@ import { registerSlashCommands } from './src/entry/commands.js';
     await registerSummaryceptionMemoryMacro();
 
     eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageIndex, type) =>
-        onMessageReceived(/** @type {number} */ (messageIndex), { notify, type }),
+        onMessageReceived(/** @type {number} */ (messageIndex), {
+            notify,
+            type,
+            auditor: continuityAuditor,
+        }),
     );
     eventSource.on(eventTypes.CHAT_CHANGED, onChatChanged);
     eventSource.on(eventTypes.GENERATION_STARTED, onGenerationStarted);

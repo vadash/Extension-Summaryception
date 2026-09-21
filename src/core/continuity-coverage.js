@@ -1,6 +1,10 @@
-import { getChat } from '../foundation/context.js';
 import { CATCHUP_WINDOW_EXCHANGES } from '../foundation/constants.js';
-import { deriveTurnCount, isAssistantMessage, isRecord } from './continuity-state.js';
+import {
+    findLiveCheckpoint,
+    isRerollTail,
+    listCheckpointIndices,
+} from './continuity-checkpoint.js';
+import { deriveTurnCount, isAssistantMessage } from './continuity-state.js';
 
 /**
  * Continuity Coverage: the one read model of the chat for the Continuity
@@ -19,38 +23,17 @@ import { deriveTurnCount, isAssistantMessage, isRecord } from './continuity-stat
  * @property {boolean} rerollTail - Whether the prompt view excluded the chat tail, which is why blockDepth can trail the un-audited reply count.
  */
 
-/** Host generation types that replace the chat's last message. */
-const REROLL_TYPES = new Set(['swipe', 'regenerate']);
-
 let rerollTailInFlight = false;
-
-/**
- * Whether the host reroll replaces the chat's last message. The host excludes
- * that message from the prompt chat: a swipe pops it (ST script.js coreChat.pop)
- * and a regenerate deletes it, while a regenerate over a trailing user turn
- * generates a new reply instead. A narrator or system tail diverges between the
- * two host types, so it stays out of scope here.
- * @param {unknown} generationType - ST GENERATION_STARTED type argument.
- * @param {ChatMessage[] | unknown} chat
- * @returns {boolean}
- */
-export function isRerollTail(generationType, chat) {
-    if (typeof generationType !== 'string' || !REROLL_TYPES.has(generationType)) {
-        return false;
-    }
-    const messages = Array.isArray(chat) ? chat : [];
-    const tail = messages[messages.length - 1];
-    return Boolean(tail) && !tail.is_user && !tail.is_system;
-}
 
 /**
  * Record the reroll for the generation that is starting. The flag must outlive
  * the generation-start hook: every render inside the generation window reads it.
  * @param {unknown} generationType - ST GENERATION_STARTED type argument.
+ * @param {ChatMessage[] | unknown} chat - The chat view the reroll replaces into.
  * @returns {boolean} Whether the prompt excludes the chat tail.
  */
-export function beginRerollTail(generationType) {
-    rerollTailInFlight = isRerollTail(generationType, getChat());
+export function beginRerollTail(generationType, chat) {
+    rerollTailInFlight = isRerollTail(generationType, chat);
     return rerollTailInFlight;
 }
 
@@ -111,15 +94,8 @@ export function deriveContinuityCoverage(chat, options = {}) {
  * @returns {ContinuityMarks}
  */
 export function deriveContinuityMarks(chat) {
-    const messages = Array.isArray(chat) ? chat : [];
-    const markedIndices = [];
-    for (let index = 0; index < messages.length; index++) {
-        const message = messages[index];
-        if (isAssistantMessage(message) && isRecord(message.extra?.summaryception_continuity)) {
-            markedIndices.push(index);
-        }
-    }
-    const checkpoint = findLiveCheckpoint(messages, -1);
+    const checkpoint = findLiveCheckpoint(chat, -1);
+    const markedIndices = listCheckpointIndices(chat);
     return { markedIndices, liveIndex: checkpoint ? checkpoint.index : null };
 }
 
@@ -161,34 +137,4 @@ function selectCatchUpWindow(messages, unauditedIndices) {
         }
     }
     return [...included].sort((a, b) => a - b);
-}
-
-/**
- * The newest message whose extra carries a Continuity State payload wins; no
- * hash, no chain, no anchor rule (ADR-0017). The excluded tail keeps its
- * payload but never anchors coverage: it describes the draft being replaced.
- * @param {ChatMessage[]} messages
- * @param {number} excludedIndex - Chat index excluded from the prompt, or -1.
- * @returns {{ state: SummaryceptionContinuityState, index: number } | null}
- */
-function findLiveCheckpoint(messages, excludedIndex) {
-    for (let index = messages.length - 1; index >= 0; index--) {
-        if (index === excludedIndex) {
-            continue;
-        }
-        const message = messages[index];
-        if (!isAssistantMessage(message)) {
-            continue;
-        }
-        const payload = message.extra?.summaryception_continuity;
-        if (isRecord(payload)) {
-            return {
-                state: /** @type {SummaryceptionContinuityState} */ (
-                    /** @type {unknown} */ (payload)
-                ),
-                index,
-            };
-        }
-    }
-    return null;
 }

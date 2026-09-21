@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveContinuityCoverage, isRerollTail } from '../src/core/continuity-coverage.js';
+import { deriveContinuityCoverage } from '../src/core/continuity-coverage.js';
 import { makeMessage } from './test-helpers.js';
 
 /**
@@ -166,17 +166,6 @@ describe('deriveContinuityCoverage', () => {
 });
 
 describe('reroll tail', () => {
-    const tailReply = () => [user('u1'), reply('a1')];
-    const trailingUser = () => [user('u1'), reply('a1'), user('u2')];
-
-    it('detects only the reroll types whose target is the chat tail', () => {
-        expect(isRerollTail('swipe', tailReply())).toBe(true);
-        expect(isRerollTail('regenerate', tailReply())).toBe(true);
-        expect(isRerollTail('normal', tailReply())).toBe(false);
-        expect(isRerollTail('regenerate', trailingUser())).toBe(false);
-        expect(isRerollTail('swipe', [])).toBe(false);
-    });
-
     it('takes the prompt view: the excluded tail is never the live checkpoint', () => {
         const chat = [
             user('u1'),

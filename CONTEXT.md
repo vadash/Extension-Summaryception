@@ -230,6 +230,11 @@ _Avoid_: sync mode, state engine
 The background extraction call that reads a finished turn and emits semantic event flags for the Continuity State. It runs one settled pass over its Connection Route — no second connection, no LLM repair call — and it never does arithmetic and never writes counters.
 _Avoid_: secondary model, extractor, auditor LLM
 
+**Continuity Audit**:
+The lifecycle that turns un-audited Exchanges into a committed Continuity Checkpoint: the gate, the single Auditor call, validation, the flags rulebook, the checkpoint write, and the persist that revalidates chat identity around the host save. It reads the chat, the Chat Store, and the effective settings through its arguments and its injected dependencies, and returns a Run Outcome at the summarizer-request level.
+Code: `createContinuityAuditor` / `isAuditorTriggerMessage` (src/core/continuity-audit.js)
+_Avoid_: audit runner, continuity job
+
 **Parse Recovery**:
 The deterministic waterfall that turns a malformed Auditor reply into a parseable Continuity State JSON before classification. Tiers run cheapest-first; structural completion outranks block extraction because completion preserves the whole draft. The tier that rescued the reply is reported to the audit log; a reply no tier rescues is a failed draft the Catch-up Window re-covers. Never applied to stored checkpoints, which are valid by construction.
 Code: `recoverContinuityJson` (src/core/parse-recovery.js)
@@ -241,6 +246,7 @@ _Avoid_: roleplay state, sync state
 
 **Continuity Checkpoint**:
 The per-message copy of the Continuity State an audit commits into the audited reply's message extra. The newest assistant message carrying a checkpoint is the live Continuity State; a newer audit overwrites the payload in place. A swipe or regenerate that replaces the chat's last message drops that reply's checkpoint at generation start, so the rerolled answer is unaudited until the next audit re-covers it; a regenerate over a trailing user turn replaces nothing and keeps it.
+Code: `attachCheckpoint` / `discardCheckpoint` / `removeCheckpoints` / `findLiveCheckpoint` (src/core/continuity-checkpoint.js)
 _Avoid_: snapshot, state backup
 
 **Continuity Mark**:

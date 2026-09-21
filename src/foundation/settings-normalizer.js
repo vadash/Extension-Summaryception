@@ -127,7 +127,7 @@ function asSettingsRecord(settings) {
 
 /**
  * Coerce the Continuity toggles to strict booleans; stored garbage reads as
- * off instead of tripping the runner gates.
+ * off instead of tripping the audit gates.
  * @param {ExtensionSettings} settings
  * @returns {boolean} Whether settings were changed.
  */

@@ -1,16 +1,17 @@
-import { getChat, isDryRunEvent } from '../foundation/context.js';
+import { getChat, getGroupId, getName1, isDryRunEvent } from '../foundation/context.js';
 import { isTraceEnabled, trace, warn } from '../foundation/logger.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js';
 import { syncGhosting } from '../core/ghosting.js';
+import { isAuditorTriggerMessage } from '../core/continuity-audit.js';
+import { discardCheckpoint } from '../core/continuity-checkpoint.js';
 import {
-    isAuditorTriggerMessage,
-    runAuditorExtraction,
-    discardRegeneratedCheckpoint,
-} from '../core/continuity-runner.js';
-import { beginRerollTail, endRerollTail } from '../core/continuity-coverage.js';
+    beginRerollTail,
+    endRerollTail,
+    isRerollTailInFlight,
+} from '../core/continuity-coverage.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -139,14 +140,15 @@ let promptFreezeRecoveryBound = false;
 /**
  * Debounces the automatic cycle so fast message streams queue one request.
  * A fresh or regenerated assistant reply also kicks off one Continuity
- * Auditor run; the runner owns every further gate.
+ * Audit; the audit owns every further gate.
  * @param {number} messageIndex
- * @param {object} [options]
+ * @param {object} options
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
  * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, the other types dispatch nothing
+ * @param {{ audit: (input: import('../core/continuity-audit.js').ContinuityAuditInput) => Promise<unknown> }} options.auditor - Continuity Audit built at the composition root
  * @returns {void}
  */
-export function onMessageReceived(messageIndex, { notify, type } = {}) {
+export function onMessageReceived(messageIndex, { notify, type, auditor }) {
     try {
         const chat = getChat();
         const msg = chat[messageIndex];
@@ -157,7 +159,7 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
                 refreshUi();
             }, 500);
             if (isAuditorTriggerMessage(msg, type)) {
-                void runAuditorExtraction({ notify }).catch((e) => {
+                void auditor.audit(gatherAuditInputs(notify)).catch((e) => {
                     warn('Continuity auditor run error:', e);
                 });
             }
@@ -165,6 +167,24 @@ export function onMessageReceived(messageIndex, { notify, type } = {}) {
     } catch (e) {
         warn('onMessageReceived error:', e);
     }
+}
+
+/**
+ * Read the host facts one Continuity Audit needs. Entry owns the host reads;
+ * the audit owns every gate past this point.
+ * @param {import('../core/notify.js').NotifyAdapter} [notify] - Notify adapter threaded to the dispatch call.
+ * @returns {import('../core/continuity-audit.js').ContinuityAuditInput}
+ */
+function gatherAuditInputs(notify) {
+    return {
+        chat: getChat(),
+        store: getChatStore(),
+        settings: getEffectiveSettings(),
+        hasGroup: Boolean(getGroupId()),
+        playerName: getName1(),
+        rerollTail: isRerollTailInFlight(),
+        notify,
+    };
 }
 
 /**
@@ -226,8 +246,9 @@ export function onGenerationStarted(...args) {
     // both land even when a stale-heal is still in flight.
     beginForegroundGeneration({
         beforeFreeze: () => {
-            beginRerollTail(args[0]);
-            if (discardRegeneratedCheckpoint(args[0])) {
+            const chat = getChat();
+            beginRerollTail(args[0], chat);
+            if (discardCheckpoint(chat, args[0])) {
                 updateContinuityInjection();
                 updateContinuityMarker();
             }
