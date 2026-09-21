@@ -203,21 +203,13 @@ describe('RequestRunner.run outcomes', () => {
         ]);
     });
 
-    it('walks the resolved route series in order on hard failover', async () => {
+    it('walks the inherited narrative chain for an inherit-sourced auditor on hard failover', async () => {
         connectionMocks.sendSummarizerRequest
-            .mockRejectedValueOnce(new Error('Failed to fetch'))
-            .mockRejectedValueOnce(new Error('Failed to fetch'))
             .mockRejectedValueOnce(new Error('Failed to fetch'))
             .mockResolvedValueOnce(VALID_SUMMARY);
 
         const settings = makeSummarySettings({
-            auditorConnectionSource: 'profile',
-            auditorConnectionProfileId: 'aud-1',
-            auditorRequestTimeoutSeconds: 31,
-            auditorFallbackConnectionSource: 'profile',
-            auditorFallbackConnectionProfileId: 'aud-2',
-            auditorFallbackRequestTimeoutSeconds: 32,
-            auditorNarrativeFallback: true,
+            auditorConnectionSource: 'inherit',
             requestTimeoutSeconds: 33,
             fallbackConnectionSource: 'profile',
             fallbackConnectionProfileId: 'backup',
@@ -230,15 +222,45 @@ describe('RequestRunner.run outcomes', () => {
         );
 
         expect(outcome.status).toBe('completed');
-        expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(4);
+        expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
+        const calls = connectionMocks.sendSummarizerRequest.mock.calls;
+        expect(calls[0][0].settings).toBe(settings);
+        expect(calls[1][0].settings.connectionProfileId).toBe('backup');
+        // Route timeouts are resolved by the Call Profile, not read live.
+        expect(profile.policy.routes.map((route) => route.timeoutMs)).toEqual([33000, 34000]);
+    });
+
+    it('runs a separated auditor as one hop with no failover', async () => {
+        vi.useFakeTimers();
+        connectionMocks.sendSummarizerRequest
+            .mockRejectedValueOnce(new Error('timeout'))
+            .mockResolvedValueOnce(VALID_SUMMARY);
+
+        const settings = makeSummarySettings({
+            auditorConnectionSource: 'profile',
+            auditorConnectionProfileId: 'aud-1',
+            auditorRequestTimeoutSeconds: 31,
+            // Removed route keys stay in old stored settings; they are dead.
+            auditorFallbackConnectionSource: 'profile',
+            auditorFallbackConnectionProfileId: 'aud-2',
+            auditorFallbackRequestTimeoutSeconds: 32,
+            auditorNarrativeFallback: true,
+        });
+        const profile = resolveCallProfile(settings, { kind: 'auditor' });
+
+        const pending = new RequestRunner().run(
+            makeRequest({ settings, profile, notify: makeNotifyRecorder() }),
+        );
+        await vi.runAllTimersAsync();
+        const outcome = await pending;
+
+        expect(outcome.status).toBe('completed');
+        expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
         const calls = connectionMocks.sendSummarizerRequest.mock.calls;
         expect(calls[0][0].settings.connectionProfileId).toBe('aud-1');
-        expect(calls[1][0].settings.connectionProfileId).toBe('aud-2');
-        expect(calls[2][0].settings).toBe(settings);
-        expect(calls[3][0].settings.connectionProfileId).toBe('backup');
-        // Route timeouts are resolved by the Call Profile, not read live.
-        expect(profile.policy.routes.map((route) => route.timeoutMs)).toEqual([
-            31000, 32000, 33000, 34000,
-        ]);
+        expect(calls[1][0].settings.connectionProfileId).toBe('aud-1');
+        // The single hop retries itself; there is no second connection to fail over to.
+        expect(profile.policy.routes).toHaveLength(1);
+        expect(profile.policy.routes.map((route) => route.timeoutMs)).toEqual([31000]);
     });
 });

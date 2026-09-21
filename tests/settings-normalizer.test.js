@@ -64,12 +64,9 @@ describe('normalizeSettings', () => {
     it('clamps auditor route timeouts to the slider bounds', () => {
         const { settings } = normalize({
             auditorRequestTimeoutSeconds: 8000,
-            auditorFallbackRequestTimeoutSeconds: 5,
         });
         expect(settings).toMatchObject({
             auditorRequestTimeoutSeconds: SLIDER_LIMITS.auditorRequestTimeoutSeconds.MAX,
-            auditorFallbackRequestTimeoutSeconds:
-                SLIDER_LIMITS.auditorFallbackRequestTimeoutSeconds.MIN,
         });
     });
 
@@ -96,25 +93,14 @@ describe('normalizeSettings', () => {
     it('resets invalid auditor connection sources to their defaults', () => {
         const { settings } = normalize({
             auditorConnectionSource: 'bogus',
-            auditorFallbackConnectionSource: 'bogus',
         });
         expect(settings).toMatchObject({
             auditorConnectionSource: defaultSettings.auditorConnectionSource,
-            auditorFallbackConnectionSource: defaultSettings.auditorFallbackConnectionSource,
         });
 
         expect(
             normalize({ auditorConnectionSource: 'default' }).settings.auditorConnectionSource,
         ).toBe('default');
-    });
-
-    it('coerces the narrative fallback toggle to a strict boolean', () => {
-        expect(
-            normalize({ auditorNarrativeFallback: 'yes' }).settings.auditorNarrativeFallback,
-        ).toBe(false);
-        expect(
-            normalize({ auditorNarrativeFallback: true }).settings.auditorNarrativeFallback,
-        ).toBe(true);
     });
 
     it('enforces the retention invariants after clamping', () => {

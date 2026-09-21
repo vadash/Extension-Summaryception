@@ -137,6 +137,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             if (isContinuityStateLogEnabled()) {
                 logContinuityAudit(`${LOG_PREFIX} [Continuity] audit - FAILED`, {
                     kind: 'failed',
+                    recovery_tier: audit.recoveryTier ?? undefined,
                 });
             }
             return { status: 'failed' };
@@ -190,7 +191,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
  * @param {SummaryceptionContinuityState} completed.priorState - The committed checkpoint state.
  * @param {number} completed.turnCount - Derived turn number of the audit.
  * @param {string | undefined} completed.scId - sc_id of the audited reply carrying the checkpoint.
- * @param {{ notesTruncated: number }} completed.audit - The validated audit the commit applied.
+ * @param {{ notesTruncated: number, recoveryTier: number | null }} completed.audit - The validated audit the commit applied.
  * @returns {void}
  */
 function logAuditCompletion({ priorSnapshot, priorState, turnCount, scId, audit }) {
@@ -202,18 +203,21 @@ function logAuditCompletion({ priorSnapshot, priorState, turnCount, scId, audit 
         `${LOG_PREFIX} [Continuity] audit - COMPLETED ` +
         `(turn ${turnCount}, audited ${auditedScId})`;
     const overBudget = audit.notesTruncated > 0 ? { notes_truncated: audit.notesTruncated } : {};
+    const recovered = audit.recoveryTier !== null ? { recovery_tier: audit.recoveryTier } : {};
     if (isContinuityStateLogFullEnabled()) {
         logContinuityAudit(title, {
             kind: 'success',
             turn_count: turnCount,
             audited_sc_id: auditedScId,
             ...overBudget,
+            ...recovered,
             state: priorState,
         });
     } else {
         logContinuityAudit(title, {
             kind: 'success',
             ...overBudget,
+            ...recovered,
             changes: diffContinuityStates(priorSnapshot, priorState),
         });
     }
@@ -229,7 +233,7 @@ function logAuditCompletion({ priorSnapshot, priorState, turnCount, scId, audit 
  * @param {string} contextStr
  * @param {object} deps
  * @param {import('./notify.js').NotifyAdapter} deps.notify
- * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number }}>}
+ * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number, recoveryTier: number | null }}>}
  */
 async function dispatchAuditRound(storyTxt, contextStr, { notify }) {
     const response = await callSummarizer({

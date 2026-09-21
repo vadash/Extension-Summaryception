@@ -142,12 +142,10 @@ export const SLIDER_LIMITS = Object.freeze({
     mergeRequestTimeoutSeconds: Object.freeze({ MIN: 60, MAX: 7200, STEP: 10 }),
     fallbackRequestTimeoutSeconds: Object.freeze({ MIN: 60, MAX: 7200, STEP: 10 }),
     auditorRequestTimeoutSeconds: Object.freeze({ MIN: 60, MAX: 7200, STEP: 10 }),
-    auditorFallbackRequestTimeoutSeconds: Object.freeze({ MIN: 60, MAX: 7200, STEP: 10 }),
     summarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     mergeSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     fallbackSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     auditorSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
-    auditorFallbackSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     customMemoryDepth: Object.freeze({ MIN: 0, MAX: 10000, STEP: 1 }),
 });
 
@@ -315,14 +313,6 @@ export const defaultSettings = Object.freeze({
     auditorSummarizerResponseLength: 0,
     auditorConnectionProfileId: '',
     auditorRequestTimeoutSeconds: 120, // auditor primary route, in seconds
-
-    auditorFallbackConnectionSource: 'disabled', // 'disabled' | 'default' | 'profile'
-    auditorFallbackSummarizerResponseLength: 0,
-    auditorFallbackConnectionProfileId: '',
-    auditorFallbackRequestTimeoutSeconds: 120, // auditor fallback route, in seconds
-
-    // When both Auditor routes fail, run the full Narrative Chain before the fail-safe freeze.
-    auditorNarrativeFallback: false,
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { clampInteger } from '../foundation/numeric.js';
 import { AUDITOR_NOTE_KIND_CAPS, AUDITOR_NOTE_TOTAL_CAP } from '../foundation/prompt-constants.js';
+import { recoverContinuityJson } from './parse-recovery.js';
 
 const BOND_BOUNDS = Object.freeze({ bond: [-5, 20], sparks: [0, 99], grudge: [0, 99] });
 const STEP_CEILING = 99;
@@ -227,17 +228,26 @@ function classifyBonds(source, state, sectionVerdicts) {
  * unknown pair key, or an unknown note tag produce a section verdict.
  * The returned flags mirror the raw per-pair bond payloads (record values
  * only) before numeric normalization, so the rulebook can read what the
- * Auditor actually said.
+ * Auditor actually said. A reply that needed Parse Recovery reports its tier
+ * for the audit log; section verdicts stay the only semantic gate, so a
+ * rescued draft commits when its sections classify clean (ADR-0009).
  * @param {string | unknown} raw - Raw JSON text or an already-parsed value.
- * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number }} notesTruncated counts the notes the budget dropped; it is not a verdict, because a verdict here would fail every audit at saturation (ADR-0029).
+ * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number, recoveryTier: number | null }} notesTruncated counts the notes the budget dropped; it is not a verdict, because a verdict here would fail every audit at saturation (ADR-0029). recoveryTier is the Parse Recovery tier that rescued the reply, or null for a clean tier-1 parse or a total parse failure.
  */
 export function classifyContinuity(raw) {
-    let parsed;
-    try {
-        parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch {
-        return { state: null, sectionVerdicts: ['parse'], flags: {}, notesTruncated: 0 };
+    const isString = typeof raw === 'string';
+    const recovery = isString ? recoverContinuityJson(raw) : null;
+    const parsed = isString ? (recovery !== null ? recovery.value : undefined) : raw;
+    if (parsed === undefined) {
+        return {
+            state: null,
+            sectionVerdicts: ['parse'],
+            flags: {},
+            notesTruncated: 0,
+            recoveryTier: null,
+        };
     }
+    const recoveryTier = recovery !== null && recovery.tier > 1 ? recovery.tier : null;
     const source = isRecord(parsed) ? parsed : {};
     const state = createDefaultContinuity();
     const sectionVerdicts = [];
@@ -275,7 +285,13 @@ export function classifyContinuity(raw) {
         sectionVerdicts.push('physics');
     }
 
-    return { state, sectionVerdicts, flags, notesTruncated };
+    return {
+        state,
+        sectionVerdicts,
+        flags,
+        notesTruncated,
+        recoveryTier,
+    };
 }
 
 /**

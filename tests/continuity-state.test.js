@@ -90,13 +90,59 @@ describe('classifyContinuity', () => {
         });
     });
 
-    it('verdicts parse and yields no state for unparseable JSON', () => {
-        expect(classifyContinuity('{"turn_count": 42,')).toEqual({
+    it('verdicts parse and yields no state for JSON no tier can rescue', () => {
+        expect(classifyContinuity('{,,}')).toEqual({
             state: null,
             sectionVerdicts: ['parse'],
             flags: {},
             notesTruncated: 0,
+            recoveryTier: null,
         });
+    });
+
+    it('recovers the max-tokens truncation at tier 4 and verdicts the missing sections', () => {
+        // The field scenario: a reply cut off mid-object keeps the sections
+        // it completed, and the dropped ones stay verdict-worthy so the
+        // checkpoint is never committed half-blind.
+        const { state, sectionVerdicts, recoveryTier } = classifyContinuity('{"turn_count": 42,');
+        expect(recoveryTier).toBe(4);
+        expect(state.turn_count).toBe(42);
+        expect([...sectionVerdicts].sort()).toEqual(['agendas', 'bonds', 'gm_notes', 'physics']);
+    });
+
+    it('verdicts parse for refusal prose that no tier can rescue', () => {
+        expect(classifyContinuity('I cannot summarize this.')).toEqual({
+            state: null,
+            sectionVerdicts: ['parse'],
+            flags: {},
+            notesTruncated: 0,
+            recoveryTier: null,
+        });
+    });
+
+    it('classifies a fenced draft cleanly and reports the recovery tier', () => {
+        const fenced = '```json\n' + validAuditorJson() + '\n```';
+        const { state, sectionVerdicts, recoveryTier } = classifyContinuity(fenced);
+        // Section verdicts stay the only semantic gate; the rescue itself is
+        // observable through recoveryTier, not through a verdict.
+        expect(sectionVerdicts).toEqual([]);
+        expect(recoveryTier).toBe(2);
+        expect(state.turn_count).toBe(42);
+    });
+
+    it('classifies prose-wrapped JSON with the recovery tier reported', () => {
+        const wrapped = 'Here is the state:\n' + validAuditorJson() + '\nDone.';
+        const { sectionVerdicts, recoveryTier } = classifyContinuity(wrapped);
+        expect(sectionVerdicts).toEqual([]);
+        expect(recoveryTier).toBe(2);
+    });
+
+    it('emits no recovery verdict for an already-parsed object', () => {
+        const { sectionVerdicts, recoveryTier } = classifyContinuity(
+            JSON.parse(validAuditorJson()),
+        );
+        expect(sectionVerdicts).toEqual([]);
+        expect(recoveryTier).toBeNull();
     });
 
     it('verdicts missing sections and keeps the parseable ones', () => {

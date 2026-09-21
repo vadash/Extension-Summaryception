@@ -133,7 +133,7 @@ function asSettingsRecord(settings) {
  */
 function normalizeContinuitySettings(settings) {
     let changed = false;
-    for (const key of ['continuityEnabled', 'auditorNarrativeFallback']) {
+    for (const key of ['continuityEnabled']) {
         const value = settings[key] === true;
         if (settings[key] !== value) {
             settings[key] = value;

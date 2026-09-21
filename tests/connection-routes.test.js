@@ -98,14 +98,12 @@ describe('connection route catalogue', () => {
             NARRATIVE_CHAIN.promotionOverride,
             NARRATIVE_CHAIN.fallback,
             AUDITOR_CHAIN.primary,
-            AUDITOR_CHAIN.fallback,
         ]) {
             expect(CONNECTION_ROUTES, id).toHaveProperty(id);
         }
         expect(NARRATIVE_CHAIN.primary).not.toBe(NARRATIVE_CHAIN.promotionOverride);
-        expect(AUDITOR_CHAIN.primary).not.toBe(AUDITOR_CHAIN.fallback);
-        expect(defaultSettings).toHaveProperty(AUDITOR_CHAIN.narrativeFailoverKey);
-        expect(typeof defaultSettings[AUDITOR_CHAIN.narrativeFailoverKey]).toBe('boolean');
+        // The Auditor chain is a single hop (ADR-0009 as amended).
+        expect(Object.keys(AUDITOR_CHAIN)).toEqual(['primary']);
     });
 });
 

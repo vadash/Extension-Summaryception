@@ -363,8 +363,8 @@ function resolveNarrativeFallbackHop(settings, isPromotion, primary) {
 
 /**
  * Resolve the Auditor series: inherit keeps the Narrative Chain identical to
- * a Layer 0 call; a separated Auditor runs its own primary and fallback hops
- * and, when auditorNarrativeFallback is on, the full Narrative Chain last.
+ * a Layer 0 call; a separated Auditor runs its single hop with no failover
+ * (ADR-0009) — the Catch-up Window recovers a missed audit.
  * @param {ExtensionSettings} settings
  * @returns {CallProfileRoute[]}
  */
@@ -373,29 +373,12 @@ function resolveAuditorRouteSeries(settings) {
     if (!isProviderRouteSource(primaryRoute, resolveRouteSource(settings, primaryRoute))) {
         return resolveNarrativeRouteSeries(settings, false);
     }
-    const primaryConnection = buildRouteConnection(settings, primaryRoute);
-    const series = [
+    return [
         {
-            connection: primaryConnection,
+            connection: buildRouteConnection(settings, primaryRoute),
             timeoutMs: resolveRouteTimeoutMs(settings[primaryRoute.timeoutKey], false),
         },
     ];
-
-    const fallbackRoute = CONNECTION_ROUTES[AUDITOR_CHAIN.fallback];
-    if (isProviderRouteSource(fallbackRoute, resolveRouteSource(settings, fallbackRoute))) {
-        const fallbackConnection = buildRouteConnection(settings, fallbackRoute);
-        if (!isSameConnectionRoute(primaryConnection, fallbackConnection)) {
-            series.push({
-                connection: fallbackConnection,
-                timeoutMs: resolveRouteTimeoutMs(settings[fallbackRoute.timeoutKey], false),
-            });
-        }
-    }
-
-    if (settings[AUDITOR_CHAIN.narrativeFailoverKey]) {
-        series.push(...resolveNarrativeRouteSeries(settings, false));
-    }
-    return series;
 }
 
 /**

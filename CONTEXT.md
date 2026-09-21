@@ -227,8 +227,13 @@ The opt-in subsystem that tracks live roleplay state outside the main generation
 _Avoid_: sync mode, state engine
 
 **Auditor**:
-The background extraction call that reads a finished turn and emits semantic event flags for the Continuity State. It never does arithmetic and never writes counters.
+The background extraction call that reads a finished turn and emits semantic event flags for the Continuity State. It runs one settled pass over its Connection Route — no second connection, no LLM repair call — and it never does arithmetic and never writes counters.
 _Avoid_: secondary model, extractor, auditor LLM
+
+**Parse Recovery**:
+The deterministic waterfall that turns a malformed Auditor reply into a parseable Continuity State JSON before classification. Tiers run cheapest-first; structural completion outranks block extraction because completion preserves the whole draft. The tier that rescued the reply is reported to the audit log; a reply no tier rescues is a failed draft the Catch-up Window re-covers. Never applied to stored checkpoints, which are valid by construction.
+Code: `recoverContinuityJson` (src/core/parse-recovery.js)
+_Avoid_: json repair, output sanitization
 
 **Continuity State**:
 The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for the chat. It exists to steer the main model: the Continuity Block is its only output, and the User never reads the state outside diagnostics.

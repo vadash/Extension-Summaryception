@@ -158,11 +158,6 @@ interface ExtensionSettings {
     auditorSummarizerResponseLength: number;
     auditorConnectionProfileId: string;
     auditorRequestTimeoutSeconds: number;
-    auditorFallbackConnectionSource: string;
-    auditorFallbackSummarizerResponseLength: number;
-    auditorFallbackConnectionProfileId: string;
-    auditorFallbackRequestTimeoutSeconds: number;
-    auditorNarrativeFallback: boolean;
 }
 
 interface GenerateRawMessage {

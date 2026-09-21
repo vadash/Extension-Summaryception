@@ -293,6 +293,24 @@ describe('runAuditorExtraction', () => {
         expect(ctx.chatMetadata.summaryception.mutationEpoch).toBe(0);
     });
 
+    it('commits a draft the Parse Recovery waterfall rescues', async () => {
+        const ctx = installSoloChat();
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: '```json\n' + auditorJson() + '\n```',
+        });
+
+        const outcome = await runAuditorExtraction();
+
+        // A rescue is a successful commit: the draft was syntactically
+        // damaged, not semantically empty. The next audit can still re-derive
+        // everything the waterfall preserved.
+        expect(outcome.status).toBe('completed');
+        const payload = checkpointOf(ctx, 'a3');
+        expect(payload.turn_count).toBe(3);
+        expect(payload.gm_notes).toEqual(['[T] Keep this thread']);
+    });
+
     it('writes nothing after an API failure', async () => {
         const ctx = installSoloChat();
         callSummarizer.mockResolvedValue({ status: 'failed', attempts: 4 });
@@ -455,6 +473,24 @@ describe('continuity state audit log', () => {
 
         expect(console.groupCollapsed).not.toHaveBeenCalled();
         expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it('reports the Parse Recovery tier in the completed audit log', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text:
+                '```json\n' +
+                auditorJson({ 'Quipsy↔User': { positive_interaction: true } }) +
+                '\n```',
+        });
+
+        await runAuditorExtraction();
+
+        const payload = JSON.parse(console.log.mock.calls[1][0]);
+        expect(payload.recovery_tier).toBe(2);
     });
 });
 

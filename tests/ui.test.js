@@ -187,27 +187,11 @@ describe('connection route panels', () => {
         '#summaryception_auditor_connection_profile': {
             'data-sc-setting': 'auditorConnectionProfileId',
         },
-        '#summaryception_auditor_fallback_connection_source': {
-            'data-sc-setting': 'auditorFallbackConnectionSource',
-        },
-        '#summaryception_auditor_fallback_connection_profile': {
-            'data-sc-setting': 'auditorFallbackConnectionProfileId',
-        },
         '#sc_auditor_summarizer_response_length': {
             type: 'number',
             'data-sc-setting': 'auditorSummarizerResponseLength',
             'data-sc-type': 'number',
             'data-sc-fallback': '0',
-        },
-        '#sc_auditor_fallback_summarizer_response_length': {
-            type: 'number',
-            'data-sc-setting': 'auditorFallbackSummarizerResponseLength',
-            'data-sc-type': 'number',
-            'data-sc-fallback': '0',
-        },
-        '#sc_auditor_narrative_fallback': {
-            type: 'checkbox',
-            'data-sc-setting': 'auditorNarrativeFallback',
         },
     };
 
@@ -218,7 +202,7 @@ describe('connection route panels', () => {
         delete globalThis.document;
     });
 
-    it('binds the auditor routes and syncs the inherited defaults at init', () => {
+    it('binds the auditor route and syncs the inherited defaults at init', () => {
         const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
         globalThis.$ = dom.$;
         globalThis.document = {};
@@ -227,27 +211,17 @@ describe('connection route panels', () => {
 
         expect(dom.element('#summaryception_auditor_response_length_row').isVisible()).toBe(false);
         expect(dom.element('#summaryception_auditor_timeout_row').isVisible()).toBe(false);
-        expect(dom.element('#summaryception_auditor_fallback_section').isVisible()).toBe(false);
-        expect(dom.element('#sc_auditor_narrative_fallback_row').isVisible()).toBe(false);
 
         dom.element('#summaryception_auditor_connection_source').val('profile');
         dom.trigger('change', '#summaryception_auditor_connection_source');
         expect(getSettings().auditorConnectionSource).toBe('profile');
 
-        dom.element('#summaryception_auditor_fallback_connection_source').val('default');
-        dom.trigger('change', '#summaryception_auditor_fallback_connection_source');
-        expect(getSettings().auditorFallbackConnectionSource).toBe('default');
-
         dom.element('#sc_auditor_summarizer_response_length').val('400');
         dom.trigger('input', '#sc_auditor_summarizer_response_length');
         expect(getSettings().auditorSummarizerResponseLength).toBe(400);
-
-        dom.element('#sc_auditor_narrative_fallback').prop('checked', true);
-        dom.trigger('input', '#sc_auditor_narrative_fallback');
-        expect(getSettings().auditorNarrativeFallback).toBe(true);
     });
 
-    it('hides the auditor extras while the Auditor inherits Layer 0', () => {
+    it('hides the auditor rows while the Auditor inherits Layer 0', () => {
         const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
         globalThis.$ = dom.$;
 
@@ -256,8 +230,6 @@ describe('connection route panels', () => {
         expect(dom.element('#summaryception_auditor_response_length_row').isVisible()).toBe(false);
         expect(dom.element('#summaryception_auditor_timeout_row').isVisible()).toBe(false);
         expect(dom.element('#summaryception_auditor_profile_settings').isVisible()).toBe(false);
-        expect(dom.element('#summaryception_auditor_fallback_section').isVisible()).toBe(false);
-        expect(dom.element('#sc_auditor_narrative_fallback_row').isVisible()).toBe(false);
     });
 
     it('shows the auditor rows once separated and the profile panel only for profiles', () => {
@@ -271,41 +243,11 @@ describe('connection route panels', () => {
         expect(dom.element('#summaryception_auditor_response_length_row').isVisible()).toBe(true);
         expect(dom.element('#summaryception_auditor_timeout_row').isVisible()).toBe(true);
         expect(dom.element('#summaryception_auditor_profile_settings').isVisible()).toBe(false);
-        expect(dom.element('#summaryception_auditor_fallback_section').isVisible()).toBe(true);
-        expect(dom.element('#sc_auditor_narrative_fallback_row').isVisible()).toBe(true);
 
         settings.auditorConnectionSource = 'profile';
         syncConnectionPanels(settings);
 
         expect(dom.element('#summaryception_auditor_profile_settings').isVisible()).toBe(true);
-    });
-
-    it('hides the Auditor fallback extras while the fallback route is disabled', () => {
-        const dom = createJQueryHarness({ attributes: AUDITOR_ATTRS });
-        globalThis.$ = dom.$;
-        const settings = getSettings();
-        settings.auditorConnectionSource = 'profile';
-
-        syncConnectionPanels(settings);
-
-        expect(
-            dom.element('#summaryception_auditor_fallback_response_length_row').isVisible(),
-        ).toBe(false);
-        expect(dom.element('#summaryception_auditor_fallback_timeout_row').isVisible()).toBe(false);
-        expect(dom.element('#summaryception_auditor_fallback_profile_settings').isVisible()).toBe(
-            false,
-        );
-
-        settings.auditorFallbackConnectionSource = 'profile';
-        syncConnectionPanels(settings);
-
-        expect(
-            dom.element('#summaryception_auditor_fallback_response_length_row').isVisible(),
-        ).toBe(true);
-        expect(dom.element('#summaryception_auditor_fallback_timeout_row').isVisible()).toBe(true);
-        expect(dom.element('#summaryception_auditor_fallback_profile_settings').isVisible()).toBe(
-            true,
-        );
     });
 });
 

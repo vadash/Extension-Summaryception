@@ -9,7 +9,7 @@ import { SLIDER_LIMITS } from './constants.js';
  */
 
 /**
- * @typedef {'layer0' | 'merge' | 'fallback' | 'auditor' | 'auditorFallback'} ConnectionRouteId
+ * @typedef {'layer0' | 'merge' | 'fallback' | 'auditor'} ConnectionRouteId
  */
 
 /**
@@ -146,25 +146,6 @@ export const CONNECTION_ROUTES = Object.freeze({
             }),
         ]),
     }),
-    auditorFallback: Object.freeze({
-        id: 'auditorFallback',
-        sourceKey: 'auditorFallbackConnectionSource',
-        profileKey: 'auditorFallbackConnectionProfileId',
-        responseLengthKey: 'auditorFallbackSummarizerResponseLength',
-        timeoutKey: 'auditorFallbackRequestTimeoutSeconds',
-        sourceOptions: Object.freeze(['disabled', 'default', 'profile']),
-        providerSources: Object.freeze(['default', 'profile']),
-        defaultSource: 'disabled',
-        panels: Object.freeze([
-            Object.freeze({
-                panel: 'advanced',
-                prefix: 'summaryception_auditor_fallback',
-                controlPrefix: 'sc_auditor_fallback',
-                hasResponseLengthRow: true,
-                hasTimeoutRow: true,
-            }),
-        ]),
-    }),
 });
 
 /**
@@ -181,14 +162,14 @@ export const NARRATIVE_CHAIN = Object.freeze({
 });
 
 /**
- * The Auditor's chain: its own primary and fallback pair, and the Narrative
- * Chain appended last when the failover setting is on.
- * @type {Readonly<{ primary: ConnectionRouteId, fallback: ConnectionRouteId, narrativeFailoverKey: keyof ExtensionSettings }>}
+ * The Auditor's chain: one hop on its own route (ADR-0009). An inherited
+ * Auditor runs the Narrative Chain exactly as a Layer 0 call would; a
+ * separated Auditor runs its single hop with no failover — the Catch-up
+ * Window, not a second connection, recovers a missed audit.
+ * @type {Readonly<{ primary: ConnectionRouteId }>}
  */
 export const AUDITOR_CHAIN = Object.freeze({
     primary: 'auditor',
-    fallback: 'auditorFallback',
-    narrativeFailoverKey: 'auditorNarrativeFallback',
 });
 
 /**

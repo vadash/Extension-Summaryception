@@ -540,16 +540,6 @@
                         <span class="fa-solid fa-user-shield"></span>
                         <span>Continuity Connections</span>
                     </summary>
-                    <div id="sc_auditor_narrative_fallback_row" class="sc-setting-row" style="display: none;">
-                        <label class="checkbox_label sc-toggle-row" for="sc_auditor_narrative_fallback">
-                            <span class="sc-toggle-icon fa-solid fa-timeline"></span>
-                            <span class="sc-toggle-copy">
-                                <span class="sc-toggle-title">Fall back to the Narrative Chain</span>
-                                <small class="sc-hint">If both Auditor routes fail, run the Narrative Chain instead.</small>
-                            </span>
-                            <input type="checkbox" id="sc_auditor_narrative_fallback" data-sc-setting="auditorNarrativeFallback" />
-                        </label>
-                    </div>
                     <div class="sc-connection-card">
                         <div class="sc-section-header">
                             <h4 class="sc-section-title">
@@ -599,54 +589,6 @@
                             <div class="sc-note">
                                 <span class="fa-solid fa-circle-info"></span>
                                 <small>Uses a saved SillyTavern Connection Profile only for Continuity Auditor calls.</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="summaryception_auditor_fallback_section" class="sc-connection-card" style="display: none;">
-                        <div class="sc-section-header">
-                            <h4 class="sc-section-title">
-                                <span class="fa-solid fa-shield-halved"></span>
-                                Continuity Auditor Fallback
-                            </h4>
-                        </div>
-                        <small class="sc-help-text">Optional failover after the Auditor primary route exhausts retryable errors.</small>
-                        <div class="sc-settings-grid sc-connection-grid">
-                            <div class="sc-setting-row">
-                                <label for="summaryception_auditor_fallback_connection_source">
-                                    <span>Auditor Fallback Source</span>
-                                </label>
-                                <select id="summaryception_auditor_fallback_connection_source" class="text_pole" data-sc-setting="auditorFallbackConnectionSource">
-                                    <option value="disabled">Disabled</option>
-                                    <option value="default">Default (Main API)</option>
-                                    <option value="profile">Connection Profile</option>
-                                </select>
-                            </div>
-                            <div id="summaryception_auditor_fallback_response_length_row" class="sc-setting-row" style="display: none;">
-                                <label for="sc_auditor_fallback_summarizer_response_length">
-                                    <span>Auditor Fallback Response Length</span>
-                                    <small>0 uses the selected provider default. Used by Default/Profile sources.</small>
-                                </label>
-                                <input id="sc_auditor_fallback_summarizer_response_length" type="number" class="text_pole" min="0" step="100" value="0" placeholder="0 = use provider default" data-sc-setting="auditorFallbackSummarizerResponseLength" data-sc-type="number" data-sc-fallback="0" />
-                            </div>
-                            <div id="summaryception_auditor_fallback_timeout_row" class="sc-setting-row" style="display: none;">
-                                <label for="sc_auditor_fallback_request_timeout">
-                                    <span>Auditor Fallback Request Timeout</span>
-                                    <small>Per-attempt timeout for the Auditor fallback route after the Auditor primary route fails.</small>
-                                </label>
-                                <div class="sc-slider-row">
-                                    <input type="range" id="sc_auditor_fallback_request_timeout" min="60" max="7200" step="10" data-sc-slider-setting="auditorFallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_fallback_request_timeout_val" />
-                                    <input id="sc_auditor_fallback_request_timeout_val" class="text_pole sc-val" type="text" inputmode="numeric" value="120" data-sc-slider-setting="auditorFallbackRequestTimeoutSeconds" data-sc-partner-input="#sc_auditor_fallback_request_timeout" />
-                                </div>
-                            </div>
-                        </div>
-                        <div id="summaryception_auditor_fallback_profile_settings" class="sc-sub-panel" style="display: none;">
-                            <div class="sc-setting-row">
-                                <label for="summaryception_auditor_fallback_connection_profile">
-                                    <span>Auditor Fallback Connection Profile</span>
-                                </label>
-                                <select id="summaryception_auditor_fallback_connection_profile" class="text_pole" data-sc-setting="auditorFallbackConnectionProfileId">
-                                    <option value="">-- Select a Profile --</option>
-                                </select>
                             </div>
                         </div>
                     </div>

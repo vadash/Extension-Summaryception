@@ -86,17 +86,6 @@ const CONNECTION_GROUPS = [
         sourceRisk: 'A stalled Auditor route leaves the continuity state stale until it recovers.',
         responseDefault: '0 uses the selected provider default.',
     },
-    {
-        key: 'auditor_fallback',
-        label: 'Auditor Fallback',
-        route: 'backup Continuity Auditor route used only after retryable Auditor primary failures.',
-        sourceId: 'summaryception_auditor_fallback_connection_source',
-        responseLengthId: 'sc_auditor_fallback_summarizer_response_length',
-        requestTimeoutId: 'sc_auditor_fallback_request_timeout',
-        profileId: 'summaryception_auditor_fallback_connection_profile',
-        sourceRisk: 'It is ignored if it matches the Auditor primary route.',
-        responseDefault: '0 uses the selected provider default.',
-    },
 ];
 
 const CONNECTION_ENTRY_BUILDERS = [
@@ -171,9 +160,6 @@ function profileHelp(group) {
 }
 
 function getConnectionSourceShort(group) {
-    if (group.key === 'auditor_fallback') {
-        return 'Backup route for Continuity Auditor audits after retryable primary failures.';
-    }
     if (group.key === 'auditor') {
         return 'Dedicated route for Continuity Auditor audit calls.';
     }
@@ -187,9 +173,6 @@ function getConnectionSourceShort(group) {
 }
 
 function getConnectionSourceWhen(group) {
-    if (group.key === 'auditor_fallback') {
-        return 'Only use it if you have a second working route for the Auditor. Leave it disabled otherwise.';
-    }
     if (group.key === 'auditor') {
         return 'Use it when the default route is not the best auditor, or when the Auditor keeps failing over.';
     }

@@ -33,7 +33,7 @@ const jsdocDefinedTypes = [
 
 export default [
     {
-        ignores: ['node_modules/**', 'dist/**', 'build/**', '.git/**'],
+        ignores: ['node_modules/**', 'dist/**', 'build/**', '.git/**', 'src/vendor/**'],
     },
     js.configs.recommended,
     prettierConfig,

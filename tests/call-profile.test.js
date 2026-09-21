@@ -212,14 +212,6 @@ describe('resolveCallProfile auditor route series', () => {
         expect(auditor[0].connection).toBe(settings);
     });
 
-    it('ignores the narrative failover checkbox while inheriting', () => {
-        const settings = makeSummarySettings({
-            ...narrativeFallbackSettings,
-            auditorNarrativeFallback: true,
-        });
-        expect(resolveCallProfile(settings, { kind: 'auditor' }).policy.routes).toHaveLength(2);
-    });
-
     it('builds a dedicated primary hop for the default source', () => {
         const settings = makeSummarySettings({
             auditorConnectionSource: 'default',
@@ -244,39 +236,9 @@ describe('resolveCallProfile auditor route series', () => {
         expect(routes[0].connection.connectionProfileId).toBe('aud-1');
     });
 
-    it('joins a configured distinct auditor fallback hop only', () => {
-        const settings = makeSummarySettings({
-            auditorConnectionSource: 'profile',
-            auditorConnectionProfileId: 'aud-1',
-            auditorFallbackConnectionSource: 'profile',
-            auditorFallbackConnectionProfileId: 'aud-2',
-            auditorFallbackRequestTimeoutSeconds: 65,
-        });
-        const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
-        expect(routes).toHaveLength(2);
-        expect(routes[1].connection.connectionProfileId).toBe('aud-2');
-        expect(routes[1].timeoutMs).toBe(65000);
-    });
-
-    it('drops the auditor fallback when disabled or the same route', () => {
-        const base = {
-            auditorConnectionSource: 'profile',
-            auditorConnectionProfileId: 'aud-1',
-            auditorFallbackConnectionSource: 'profile',
-            auditorFallbackConnectionProfileId: 'aud-1',
-        };
-        expect(
-            resolveCallProfile(makeSummarySettings(base), { kind: 'auditor' }).policy.routes,
-        ).toHaveLength(1);
-        expect(
-            resolveCallProfile(
-                makeSummarySettings({ ...base, auditorFallbackConnectionSource: 'disabled' }),
-                { kind: 'auditor' },
-            ).policy.routes,
-        ).toHaveLength(1);
-    });
-
-    it('appends the full narrative chain when the failover checkbox is on', () => {
+    it('runs a single hop and ignores removed fallback settings stored in old chats', () => {
+        // ADR-0009 as amended: no auditor fallback route and no narrative
+        // failover exist anymore; stored keys from earlier versions are dead.
         const settings = makeSummarySettings({
             auditorConnectionSource: 'profile',
             auditorConnectionProfileId: 'aud-1',
@@ -288,14 +250,9 @@ describe('resolveCallProfile auditor route series', () => {
             ...narrativeFallbackSettings,
         });
         const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
-        expect(routes).toHaveLength(4);
+        expect(routes).toHaveLength(1);
+        expect(routes[0].connection.connectionProfileId).toBe('aud-1');
         expect(routes[0].timeoutMs).toBe(31000);
-        expect(routes[1].connection.connectionProfileId).toBe('aud-2');
-        expect(routes[1].timeoutMs).toBe(32000);
-        expect(routes[2].connection).toBe(settings);
-        expect(routes[2].timeoutMs).toBe(30000);
-        expect(routes[3].connection.connectionProfileId).toBe('backup');
-        expect(routes[3].timeoutMs).toBe(50000);
     });
 
     it('applies the layer0 hard fallback to malformed auditor timeouts', () => {
@@ -303,13 +260,9 @@ describe('resolveCallProfile auditor route series', () => {
             auditorConnectionSource: 'profile',
             auditorConnectionProfileId: 'aud-1',
             auditorRequestTimeoutSeconds: 0,
-            auditorFallbackConnectionSource: 'profile',
-            auditorFallbackConnectionProfileId: 'aud-2',
-            auditorFallbackRequestTimeoutSeconds: Number.NaN,
         });
         const routes = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
         expect(routes[0].timeoutMs).toBe(120000);
-        expect(routes[1].timeoutMs).toBe(120000);
     });
 });
 

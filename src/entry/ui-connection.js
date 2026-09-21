@@ -11,18 +11,6 @@ import { getSettings } from '../foundation/settings.js';
 import { bindDataSettingElements, bindElementSetting, readString } from './ui-bind.js';
 
 /**
- * The Auditor's dependent UI: its fallback card and the narrative-failover row
- * exist only while the Auditor runs its own connection, so they follow the
- * Auditor route's separation instead of a slot of their own.
- */
-const AUDITOR_NARRATIVE_FALLBACK_ID = 'sc_auditor_narrative_fallback';
-
-const AUDITOR_DEPENDENT_SELECTORS = [
-    '#summaryception_auditor_fallback_section',
-    `#${AUDITOR_NARRATIVE_FALLBACK_ID}_row`,
-].join(', ');
-
-/**
  * @typedef {import('../foundation/connection-routes.js').ConnectionRoute} ConnectionRoute
  * @typedef {import('../foundation/connection-routes.js').ConnectionRoutePanel} ConnectionRoutePanel
  */
@@ -128,7 +116,6 @@ function buildConnectionInputSelector() {
     const selectors = getRoutePanels()
         .map(({ panel }) => routePanelSelectors(panel).responseLengthInput)
         .filter((selector) => selector !== null);
-    selectors.push(`#${AUDITOR_NARRATIVE_FALLBACK_ID}`);
     return selectors.join(', ');
 }
 
@@ -145,11 +132,6 @@ export function syncConnectionPanels(s) {
             syncRoutePanel(routePanelSelectors(panel), s[route.sourceKey], separated);
         }
     }
-
-    const auditor = CONNECTION_ROUTES.auditor;
-    $(AUDITOR_DEPENDENT_SELECTORS).toggle(
-        isProviderRouteSource(auditor, resolveRouteSource(s, auditor)),
-    );
 }
 
 /**

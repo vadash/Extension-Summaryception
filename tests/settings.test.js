@@ -97,11 +97,6 @@ describe('resetSettingsToDefaults', () => {
             auditorConnectionProfileId: 'auditor-1',
             auditorSummarizerResponseLength: 333,
             auditorRequestTimeoutSeconds: 130,
-            auditorFallbackConnectionSource: 'default',
-            auditorFallbackConnectionProfileId: 'auditor-2',
-            auditorFallbackSummarizerResponseLength: 444,
-            auditorFallbackRequestTimeoutSeconds: 150,
-            auditorNarrativeFallback: true,
         });
 
         resetSettingsToDefaults();
@@ -125,11 +120,6 @@ describe('resetSettingsToDefaults', () => {
             auditorConnectionProfileId: 'auditor-1',
             auditorSummarizerResponseLength: 333,
             auditorRequestTimeoutSeconds: 130,
-            auditorFallbackConnectionSource: 'default',
-            auditorFallbackConnectionProfileId: 'auditor-2',
-            auditorFallbackSummarizerResponseLength: 444,
-            auditorFallbackRequestTimeoutSeconds: 150,
-            auditorNarrativeFallback: defaultSettings.auditorNarrativeFallback,
         });
     });
     it('preserves every Connection Route key, the Layer 0 response length included', () => {

@@ -1,7 +1,7 @@
-# Auditor gets its own connection chain
+# Auditor gets its own connection, with one settled pass
 
-The Auditor previously shared the Layer 0 summarizer connection and its fallback route. The Auditor now has its own primary and fallback connection pair (defaults inherit Layer 0 / disabled, so nothing changes until a user separates them) plus an opt-in narrative failover: when both Auditor routes fail and the checkbox is on, the full Narrative Chain (Layer 0 primary + its fallback) runs before the fail-safe freeze.
+The Auditor previously shared the Layer 0 summarizer connection and its fallback route. It then gained a dedicated primary route (the default still inherits Layer 0, so nothing changes until a user separates it); it now runs exactly one settled pass over that route — no auditor fallback route, no narrative failover, and no LLM repair call. The removed `auditorFallback*` keys and the narrative-failover toggle are dead stored values, not migrated; an inherited Auditor still runs the Narrative Chain exactly as a Layer 0 call would, fallback hop included. The Catch-up Window re-covers whatever a failed pass leaves unaudited, and Parse Recovery rescues a syntactically broken reply programmatically before classification — recovery is code, never a second model call.
 
-Considered option: keep sharing. Rejected — continuity freshness and narrative quality have independent availability needs, and a dedicated Auditor model must not freeze the state stale just because it alone is down.
+Considered options: keep the two-hop Auditor chain and the failover toggle for resilience; add an LLM repair pass after a malformed draft. Rejected — the audit is background work whose gap self-heals within a turn or two, so a second connection (and a third LLM call) bought latency, cost, and settings surface for coverage the Catch-up Window already provides.
 
-Consequences: five uniform connection cards in two collapsible Models-tab groups; no new retry health bucket (the Auditor primary keeps the layer0-family retry behavior).
+Consequences: one uniform connection card for the Auditor in the Models tab; the standard same-route retry budget still applies (one logical call, quick retries included); Parse Recovery runs at classification time, and the `recovery_tier` line in the continuity state audit log is the only trace of a rescue.
