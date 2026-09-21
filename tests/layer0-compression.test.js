@@ -106,7 +106,7 @@ describe('appendLayer0PromptConstraints', () => {
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
         expect(result).toContain('<summaryception_source_budget>');
-        expect(result).toContain('[NARRATIVE]');
+        expect(result).toContain('<narrative>');
         expect(result).not.toContain('[STATE]');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
     });
@@ -157,7 +157,7 @@ describe('buildLayer0SizeRepairFeedback', () => {
         });
         expect(output).toContain('<summaryception_l0_repair_feedback>');
         expect(output).toContain('</summaryception_l0_repair_feedback>');
-        expect(output).toContain('[NARRATIVE]');
+        expect(output).toContain('<narrative>');
         // The repair ask is narrative-only now; no state section is mentioned.
         expect(output).not.toContain('[STATE]');
     });
@@ -170,7 +170,7 @@ describe('buildLayer0SizeRepairFeedback', () => {
         });
         // The synthesized narrative section carries no text, so it appears as a
         // rejection header line rather than a <rejected_narrative> body block.
-        expect(output).toContain('[NARRATIVE]: rejected.');
+        expect(output).toContain('<narrative>: rejected.');
     });
 });
 
@@ -178,8 +178,9 @@ describe('validateLayer0OutputSize', () => {
     it('accepts a narrative-only Layer 0 draft inside the configured size band', async () => {
         installSummaryContext({ getTokenCountAsync: async () => 100 });
         const output = [
-            '[NARRATIVE]',
+            '<narrative>',
             'Kaelen traded the map for safe passage and left before dawn.',
+            '</narrative>',
             '',
             'current_date_time: 2024-07-04 16 Thu',
         ].join('\n');
@@ -197,8 +198,9 @@ describe('validateLayer0OutputSize', () => {
     it('rejects an oversized Layer 0 draft with violations and non-empty repair feedback', async () => {
         installSummaryContext({ getTokenCountAsync: async () => 500 });
         const output = [
-            '[NARRATIVE]',
+            '<narrative>',
             'Kaelen argued with the ferryman about the fare and watched the storm roll in.',
+            '</narrative>',
         ].join('\n');
 
         const result = await validateLayer0OutputSize(
@@ -216,7 +218,7 @@ describe('validateLayer0OutputSize', () => {
         installSummaryContext({ getTokenCountAsync: async () => 500 });
 
         const result = await validateLayer0OutputSize(
-            '[NARRATIVE]\nAny narrative-only draft',
+            '<narrative>\nAny narrative-only draft\n</narrative>',
             resolveCallProfile(defaultSettings, { kind: 'promotion' }),
         );
 

@@ -887,7 +887,7 @@
                                     <div class="sc-row">
                                         <label for="sc_layer0_summary_token_target">
                                             <span>Narrative Target Size</span>
-                                            <small class="sc-hint">Target length for each new <code>[NARRATIVE]</code>.</small>
+                                            <small class="sc-hint">Target length for each new <code>&lt;narrative&gt;</code> envelope.</small>
                                         </label>
                                         <div class="sc-slider-row">
                                             <input type="range" id="sc_layer0_summary_token_target" min="80" max="700" step="10" data-sc-slider-setting="layer0SummaryTokenTarget" data-sc-partner-input="#sc_layer0_summary_token_target_val" />
@@ -1086,7 +1086,7 @@
                                 Variables: <code>{{player_name}}</code> <code>{{context_str}}</code> <code>{{story_txt}}</code>
                             </small>
                             <small class="sc-hint">
-                                Custom Layer 0 prompts must output a <code>[NARRATIVE]</code> section followed by a <code>current_date_time</code> line. Anything you leave out is gone, and newer verbatim chat overrides the compressed history.
+                                Custom Layer 0 prompts must output a <code>&lt;narrative&gt;</code> envelope followed by a <code>current_date_time</code> line. Anything you leave out is gone, and newer verbatim chat overrides the compressed history. If the model cannot comply, it must answer only <code>&lt;declined&gt;reason&lt;/declined&gt;</code>; the answer is rejected and retried, never stored.
                             </small>
                         </label>
                         <textarea id="sc_summarizer_user_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="10" data-sc-setting="summarizerUserPrompt"></textarea>

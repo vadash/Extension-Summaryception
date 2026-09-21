@@ -20,7 +20,8 @@ import {
 } from './test-helpers.js';
 
 /** Minimal valid summary passage returned by the stubbed request layer. */
-const VALID_SUMMARY = '[NARRATIVE]\nA concise summary.\n\ncurrent_date_time: 2024-07-04 16 Thu';
+const VALID_SUMMARY =
+    '<narrative>\nA concise summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu';
 
 /**
  * Completed outcome carrying the profile the real request layer resolves from

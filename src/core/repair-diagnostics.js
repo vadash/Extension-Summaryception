@@ -114,7 +114,7 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
             const cap = computeSentenceCap(sourceBudget.layer ?? 'l0', sourceBudget.targetTokens);
             if (actual > cap) {
                 lines.push(
-                    `Your [NARRATIVE] had ${actual} sentences; maximum ${cap}. Merge or drop the ${actual - cap} least-important.`,
+                    `Your <narrative> section had ${actual} sentences; maximum ${cap}. Merge or drop the ${actual - cap} least-important.`,
                 );
             }
         }

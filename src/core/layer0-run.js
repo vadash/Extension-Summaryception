@@ -12,6 +12,7 @@ import { buildSnippetMetadataFromText } from './snippet-metadata.js';
 import { commitWhenSafe } from './summarizer-commit.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { isSummarizerOutputSafe } from './summarizer-output.js';
+import { buildPassageNameCensus } from './refusal-guard.js';
 import { buildMemoryBody } from './memory-injection.js';
 import { formatTokenValue } from './token-count.js';
 import { SUMMARY_COMMIT_MODES } from './summarization-routes.js';
@@ -324,6 +325,7 @@ async function runPassage({ chat, store, passage, contextText, notify, progress,
                 kind: 'layer0',
                 sourceRange: snapshot.sourceRange,
                 regexStats: snapshot.passageStats,
+                passageNames: buildPassageNameCensus(snapshot.passageText).join(', '),
             },
             notify,
         });

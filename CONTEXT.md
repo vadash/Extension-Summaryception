@@ -70,10 +70,30 @@ Code: `AssistantTurn.index` (src/core/chatutils.js), `sc_id` (src/foundation/mes
 The recent chat range kept in model context without summarization.
 Code: `verbatimBudget` / `verbatimStartIdx` (src/core/chat-window-planner.js)
 
+**Output Envelope**:
+The `<narrative>…</narrative>` tag pair a Layer 0 or promotion response must wrap its prose in, followed only by the scene-time line. The close tag is the document-level contract: prose after it is rejectable, whatever the prose claims to be.
+Code: `validateLayer0Structure` (src/core/layer0-compression.js)
+_Avoid_: narrative header, [NARRATIVE] header
+
 **Output Hygiene**:
-The chain that turns a raw summarizer response into safe snippet text: cleanup, CN ideograph policy, integrity guard, Layer 0 size guard.
+The chain that turns a raw summarizer response into safe snippet text: cleanup, CN ideograph policy, integrity guard, Refusal Guard, Layer 0 size guard.
 Code: `processSummarizerResponse` (src/core/summarizer-output.js)
 _Avoid_: output sanitization, response post-processing
+
+**Refusal**:
+A summarizer response that declines the summarization task instead of performing it: a bare refusal, a deflection to other help, or a meta-description of the passage, regardless of whether it wears the output structure.
+Code: `validateSummarizerOutputIntegrity` (src/core/summarizer-output.js)
+_Avoid_: safety rejection, filtered output
+
+**Refusal Guard**:
+The deterministic Output Hygiene stage that classifies a Refusal: the Declined Marker, lexical refusal patterns, and the passage-shape signal. A classified Refusal is always a retryable rejection, never stored prose.
+Code: `validateSummarizerOutputIntegrity` (src/core/summarizer-output.js)
+_Avoid_: moderation, judge call
+
+**Declined Marker**:
+The `<declined>reason</declined>` tag a summarizer emits when it will not or cannot summarize, prompted as the sanctioned escape hatch. Code reads it as a confessed Refusal and retries without further analysis.
+Code: `validateSummarizerOutputIntegrity` (src/core/summarizer-output.js)
+_Avoid_: error marker, fail tag
 
 **Mutation Epoch**:
 A counter bumped on every summary store mutation, including Ghosting ownership. Consumers use it to detect stale derived data.

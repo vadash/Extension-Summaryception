@@ -84,7 +84,7 @@ export function buildLayer0BudgetHint({ targetTokens }) {
         '<summaryception_source_budget>',
         'Compress the source passage hard.',
         buildSizeTargetLine({
-            label: '[NARRATIVE]',
+            label: '<narrative>',
             verb: 'write',
             cap: sentenceCap,
             unit: 'sentences',

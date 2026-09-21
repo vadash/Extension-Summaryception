@@ -2,6 +2,7 @@ import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
+import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { validateSummarizerOutputIntegrity } from '../core/summarizer-output.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
@@ -151,6 +152,7 @@ async function regenerateSnippetWithTarget(target, notify) {
             kind: 'regenerate',
             sourceRange: target.range,
             regexStats: passage.stats,
+            passageNames: buildPassageNameCensus(passage.text).join(', '),
         },
         notify,
     });

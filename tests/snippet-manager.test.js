@@ -108,7 +108,7 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockImplementation(
             completedRegeneration(
-                '[NARRATIVE]\nA fresh summary.\n\ncurrent_date_time: 2024-07-04 16 Thu',
+                '<narrative>\nA fresh summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu',
             ),
         );
 

@@ -54,14 +54,14 @@ describe('computeSentenceCap', () => {
 
 describe('buildSizeTargetLine', () => {
     it('formats the minimal cap line without a verb or extra clause', () => {
-        expect(buildSizeTargetLine({ label: '[NARRATIVE]', cap: 7, unit: 'sentences' })).toBe(
-            '[NARRATIVE]: at most 7 sentences.',
+        expect(buildSizeTargetLine({ label: '<narrative>', cap: 7, unit: 'sentences' })).toBe(
+            '<narrative>: at most 7 sentences.',
         );
     });
 
     it('inserts a leading verb clause between the label and "at most"', () => {
         const result = buildSizeTargetLine({
-            label: '[NARRATIVE]',
+            label: '<narrative>',
             cap: 7,
             unit: 'sentences',
             verb: 'compress the passage into;',
@@ -70,12 +70,12 @@ describe('buildSizeTargetLine', () => {
         const verbIdx = result.indexOf('compress the passage into');
         const atMostIdx = result.indexOf('at most');
         expect(verbIdx).toBeLessThan(atMostIdx);
-        expect(result.startsWith('[NARRATIVE]')).toBe(true);
+        expect(result.startsWith('<narrative>')).toBe(true);
     });
 
     it('appends a trailing extra after the period', () => {
         const result = buildSizeTargetLine({
-            label: '[NARRATIVE]',
+            label: '<narrative>',
             cap: 7,
             unit: 'sentences',
             extra: 'Tail.',
@@ -111,7 +111,7 @@ describe('buildLayer0BudgetHint', () => {
         const result = buildLayer0BudgetHint({ targetTokens: 250 });
         expect(result).toContain('<summaryception_source_budget>');
         expect(result).toContain('</summaryception_source_budget>');
-        expect(result).toContain('[NARRATIVE]');
+        expect(result).toContain('<narrative>');
         expect(result).toContain('sentences');
         expect(result).not.toContain('[STATE]');
         // The model cannot count tokens, so none should appear in the hint.

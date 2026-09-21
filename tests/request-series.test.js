@@ -15,7 +15,8 @@ import { runRouteSeries } from '../src/core/request-series.js';
 import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
 
 /** Minimal valid summary passage accepted by the real Output Hygiene chain. */
-const VALID_SUMMARY = '[NARRATIVE]\nA concise summary.\n\ncurrent_date_time: 2024-07-04 16 Thu';
+const VALID_SUMMARY =
+    '<narrative>\nA concise summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu';
 
 /**
  * The Route Series is one Narrative Chain hop: repeated attempts over one

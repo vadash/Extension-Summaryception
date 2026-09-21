@@ -16,7 +16,8 @@
 ## Memory
 
 - Balanced and Prefix Cache are the only memory modes. Stored legacy Append Only normalizes to Prefix Cache on load.
-- Layer 0 converts turns outside the verbatim window into a `[NARRATIVE]` prose section plus a trailing `current_date_time` scene-time line.
+- Layer 0 converts turns outside the verbatim window into a `<narrative>` envelope plus a trailing `current_date_time` scene-time line.
+- A snippet stores the raw enveloped response; the reader strips the envelope or the legacy `[NARRATIVE]` header of snippets stored before it.
 - A promotion overflow drain stops after a fixed number of consecutive promotion failures. The failure counter resets on success.
 - One drain driver owns Promotion overflow clearing; commit applies one merge and never re-drains.
 - The drain asks the Foreground Gate before and after every attempt.
@@ -50,6 +51,7 @@
 - Dry runs may mark the payload or a separate argument.
 - A broken-prefix report includes the complete first changed block.
 - Keep structural header patterns in the shared header module. Do not define local copies.
+- The `<declined>` marker is the sanctioned refusal channel; the Refusal Guard classifies Refusals deterministically and a classified Refusal is a retryable rejection, never stored prose.
 
 ## Connection
 

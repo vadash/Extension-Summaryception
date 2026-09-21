@@ -63,6 +63,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @property {'layer0' | 'promotion' | 'regenerate' | 'auditor' | string} [kind] - Call category
  * @property {[number, number]} [sourceRange] - Source chat index range
  * @property {import('./chatutils.js').PassageRegexStats} [regexStats] - Passage regex stats
+ * @property {string} [passageNames] - Comma-joined census of the passage's recurring character names, for the Refusal Guard shape signal
  * @property {number} [sourceTokensBefore] - Source text size before summarization
  * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
  * @property {number} [layerIndex] - Source layer for promotion calls
@@ -83,6 +84,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @typedef {object} CallProvenance
  * @property {[number, number]} [sourceRange] - Source chat index range
  * @property {import('./chatutils.js').PassageRegexStats} [regexStats] - Passage regex stats
+ * @property {string} [passageNames] - Comma-joined census of the passage's recurring character names, for the Refusal Guard shape signal
  * @property {number} [sourceTokensBefore] - Source text size before summarization
  * @property {boolean} [sourceTokensBeforeEstimated] - Whether sourceTokensBefore was estimated
  * @property {number} [layerIndex] - Source layer for promotion calls
@@ -264,6 +266,7 @@ function buildProvenance(call) {
     for (const key of [
         'sourceRange',
         'regexStats',
+        'passageNames',
         'sourceTokensBefore',
         'sourceTokensBeforeEstimated',
         'layerIndex',

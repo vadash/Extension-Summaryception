@@ -28,7 +28,7 @@ describe('buildSystemPrompt', () => {
 
 describe('buildUserPrompt', () => {
     const inputBlocks = '<input>\nrecent turns here\n</input>';
-    const schemaBlock = 'emit [NARRATIVE] only';
+    const schemaBlock = 'emit <narrative> only';
     const taskRules = 'be durable';
 
     it('preserves block ordering and keeps the trigger as the final line', () => {

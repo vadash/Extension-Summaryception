@@ -48,10 +48,10 @@ export function buildUserPrompt({
 }
 
 export const EXECUTION_TRIGGER_L0 =
-    'Now output the [NARRATIVE] section and the current_date_time key line with no preamble, code fences, or commentary.';
+    'Now output the <narrative> envelope and the current_date_time key line with no preamble, code fences, or commentary.';
 
 export const EXECUTION_TRIGGER_PROMO =
-    'Now output exactly one [NARRATIVE] paragraph with no preamble, code fences, or commentary.';
+    'Now output exactly one <narrative> envelope with no preamble, code fences, or commentary.';
 
 export const EXECUTION_TRIGGER_AUDITOR =
     'Now output exactly one JSON state object with no preamble, code fences, or commentary.';

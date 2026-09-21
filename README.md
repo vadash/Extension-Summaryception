@@ -35,7 +35,7 @@ That sounds abstract until you hit a 2,000 message chat and the model still reme
 - Keeps a rolling verbatim window for recent chat.
 - Compresses older chat into Layer 0 memories.
 - Promotes older Layer 0 memories into deeper layers when the layer gets crowded.
-- Keeps each memory a single `[NARRATIVE]` prose section with a trailing `current_date_time` scene-time line.
+- Keeps each memory a single `<narrative>` envelope with a trailing `current_date_time` scene-time line.
 - Ghosts summarized messages with SillyTavern's `/hide`, so they stop reaching the model but remain readable in the UI.
 - Injects the assembled memory through SillyTavern extension prompts, or exposes it as `{{summaryception_memory}}` for custom prompt layouts.
 - Runs background summarization without mutating the prompt during an active generation.

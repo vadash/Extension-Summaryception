@@ -60,6 +60,15 @@ export const ANTI_RUN_ON_RULE =
  */
 const CORE_MOMENT_TYPES = 'firsts, shifts, breaks, and unpaid choices';
 
+/**
+ * The sanctioned refusal channel: the Declined Marker. A model that will not
+ * comply confesses in one parsable line instead of prose that wears the
+ * output structure; the Refusal Guard classifies it and the route retries.
+ */
+export const DECLINED_MARKER_RULE =
+    'If you will not or cannot summarize the passage, output only <declined>your reason</declined> and nothing else. ' +
+    'Never wrap the declined marker in the <narrative> envelope and never mix a refusal into the envelope prose.';
+
 export const LAYER0_DURABILITY_RULES =
     'Preserve each major durable beat once; shrink its wording, but never delete a beat the present situation depends on. ' +
     'Keep a moment when it is a first (first vulnerability, first touch, first broken rule), a shift (trust, power, attraction, or perception that changes and stays changed), a break (a mask drops or distance collapses), or a choice whose debt is still unpaid; dropping it would make a current emotion or relationship state incomprehensible. ' +
@@ -79,7 +88,7 @@ export const PROMOTION_MODERATE_MACRO_RULES =
  * mid-sentence in the narrative body, never as a date lead-in.
  */
 export const PROSE_DATE_FORMAT_RULE =
-    'In [NARRATIVE] prose, write dates in calendar form only: month name and day number, no year, no ISO syntax, no clock time. ' +
+    'Inside the <narrative> envelope, write dates in calendar form only: month name and day number, no year, no ISO syntax, no clock time. ' +
     'Write "On July 6" not "On July 6, 2024", not "On 2024-07-06", not "On July 6 at 19:00". ' +
     'The current year and exact hour live only in current_date_time; never duplicate them into prose. ' +
     'A clock time may appear once mid-sentence when it carries story weight (an alarm, a deadline, a shift boundary); never use it as a date lead-in.';
@@ -100,7 +109,7 @@ export const RECALL_REPEAT_INJECTION_TEMPLATE =
     DEFAULT_INJECTION_TEMPLATE + '\n\n---REPEATED FOR RECALL---\n\n' + DEFAULT_INJECTION_TEMPLATE;
 
 export const DEFAULT_SUMMARIZER_SYSTEM_PROMPT = buildSystemPrompt(
-    'Role: editorial narrative compressor. Distill the passage into one [NARRATIVE] paragraph, keeping ' +
+    'Role: editorial narrative compressor. Distill the passage into one <narrative> envelope, keeping ' +
         CORE_MOMENT_TYPES +
         ' while cutting excess tissue.',
     'No preamble, no commentary, no markdown code fences.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
@@ -118,10 +127,11 @@ const LAYER0_INPUT_BLOCKS = `<player_name>
 {{story_txt}}
 </passage_in_question>`;
 
-const LAYER0_SCHEMA_BLOCK = `Output exactly one section, followed by a current_date_time line:
+const LAYER0_SCHEMA_BLOCK = `Output exactly one <narrative> envelope, followed by a current_date_time line:
 
-[NARRATIVE]
-<one dense chronological prose paragraph covering the passage's events, actions, dialogue, outcomes, and its core emotional moments (${CORE_MOMENT_TYPES}). Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}>
+<narrative>
+One dense chronological prose paragraph covering the passage's events, actions, dialogue, outcomes, and its core emotional moments (${CORE_MOMENT_TYPES}). Do NOT include factual parameters like dates, inventory lists, or status flags here. ${ANTI_RUN_ON_RULE}
+</narrative>
 Resolve any relative time reference in the passage (tomorrow, today, in N days, next/bare weekday, this evening) against the known scene date and write the RESOLVED ABSOLUTE DATE inline in the prose instead of the relative word. Never leave a bare relative time word in the narrative.
 ${PROSE_DATE_FORMAT_RULE}
 ${LAYER0_DURABILITY_RULES}
@@ -129,7 +139,8 @@ ${LAYER0_DURABILITY_RULES}
 current_date_time: YYYY-MM-DD HH ddd
 Use 24-hour, hour-level precision only, e.g. 2024-07-04 16 Thu. Derive the ddd weekday from the ISO date (2024-07-04 = Thu); never reuse the prior scene time when the passage moves to a new date. Normalize from raw bracket headers or passage timestamps when present. Drop minutes instead of preserving them. If no explicit time appears in the passage, carry forward the prior current_date_time if known.`;
 
-const LAYER0_CRITICAL_RULES = `${ENGLISH_FIRST_LANGUAGE_RULE}
+const LAYER0_CRITICAL_RULES = `${DECLINED_MARKER_RULE}
+${ENGLISH_FIRST_LANGUAGE_RULE}
 ${LAYER0_DURABILITY_RULES}
 ${PROSE_DATE_FORMAT_RULE}
 ${ANTI_RUN_ON_RULE}`;
@@ -146,7 +157,8 @@ const PROMOTION_INPUT_BLOCKS = `<player_name>
 {{story_txt}}
 </narratives_to_consolidate>`;
 
-const PROMOTION_CRITICAL_RULES = `${ENGLISH_FIRST_LANGUAGE_RULE}
+const PROMOTION_CRITICAL_RULES = `${DECLINED_MARKER_RULE}
+${ENGLISH_FIRST_LANGUAGE_RULE}
 ${PROSE_DATE_FORMAT_RULE}
 ${ANTI_RUN_ON_RULE}`;
 
@@ -180,19 +192,19 @@ Do not include prose, bullets, tables, duplicate section headers, markdown, or c
 });
 
 export const DEFAULT_PROMOTION_SYSTEM_PROMPT = buildSystemPrompt(
-    'Role: editorial memory synthesizer. Fold older layers into one consolidated [NARRATIVE] paragraph that keeps the plot skeleton and core emotional moments while cutting excess tissue.',
+    'Role: editorial memory synthesizer. Fold older layers into one consolidated <narrative> envelope that keeps the plot skeleton and core emotional moments while cutting excess tissue.',
     'No preamble, no commentary, no markdown.\nNever use second-person pronouns in the output.\nWrite the output mainly in English; short non-English names, titles, and source-language phrases are allowed.',
 );
 
 export const DEFAULT_PROMOTION_USER_PROMPT = buildUserPrompt({
     inputBlocks: PROMOTION_INPUT_BLOCKS,
-    schemaBlock: `Output exactly one section:
+    schemaBlock: `Output exactly one <narrative> envelope:
 
-[NARRATIVE]
-One single prose paragraph containing AT MOST {{max_sentences_word}} ({{max_sentences}}) sentences total. Summarize major plot outcomes only.
-<one dense third-person chronological prose paragraph. Never use second-person. ${ANTI_RUN_ON_RULE}>`,
+<narrative>
+One single prose paragraph containing AT MOST {{max_sentences_word}} ({{max_sentences}}) sentences total. Summarize major plot outcomes only. One dense third-person chronological prose paragraph. Never use second-person. ${ANTI_RUN_ON_RULE}
+</narrative>`,
     taskRules: `### LENGTH CONTRACT (HARD LIMIT):
-The consolidated [NARRATIVE] must stay within the sentence cap given at the end of this prompt. This is a hard limit: if a draft runs long, delete whole beats rather than trimming wording. Overlong output is rejected and regenerated.
+The consolidated <narrative> must stay within the sentence cap given at the end of this prompt. This is a hard limit: if a draft runs long, delete whole beats rather than trimming wording. Overlong output is rejected and regenerated.
 ### LOSSY COMPRESSION:
 The input memories overlap heavily: each was written with the prior ones as context, so they restate the same relationships, rules, locations, and props. Treat that overlap as redundancy, not emphasis. Compress by deletion, not summarization-in-place:
 - State each relationship, rule, location, and prop exactly once, at the point it was established or last changed.
@@ -221,10 +233,11 @@ ${PROMOTION_MODERATE_MACRO_RULES}`,
 
 export const DEFAULT_PROMOTION_REPAIR_PROMPT = buildUserPrompt({
     inputBlocks: PROMOTION_INPUT_BLOCKS,
-    schemaBlock: `Output exactly one section:
+    schemaBlock: `Output exactly one <narrative> envelope:
 
-[NARRATIVE]
-<one dense third-person chronological prose paragraph. Never use second-person. ${ANTI_RUN_ON_RULE}>`,
+<narrative>
+One dense third-person chronological prose paragraph. Never use second-person. ${ANTI_RUN_ON_RULE}
+</narrative>`,
     taskRules: `Repair the previous Layer 1+ promotion draft. It failed the compression guard, so rewrite the same source memories more abstractly instead of adding detail.
 Keep only durable macro-level chronology, current position, relationship changes, core emotional moments, permanent rules, and open threads (unresolved hooks, debts, promises); revise threads in place and never silently drop one with residual consequences; do not output lists, markdown, commentary, or key-value syntax.
 Resolve every relative time word against the source snippets' scene-date anchors and emit absolute dates only; never leave a bare relative time word.`,

@@ -6,7 +6,7 @@ import {
     countSentences,
     formatRepairDiagnostics,
 } from './repair-diagnostics.js';
-import { NARRATIVE_HEADER_RE } from './structural-headers.js';
+import { parseNarrativeEnvelope } from './structural-headers.js';
 import {
     insertBeforeTrigger,
     EXECUTION_TRIGGER_L0,
@@ -27,6 +27,9 @@ import { countTextTokens } from './token-count.js';
 const MIN_LAYER0_TARGET_TOKENS = 80;
 const MIN_LAYER0_OUTPUT_TOKENS = 50;
 const MAX_LAYER0_TARGET_TOKENS = 700;
+
+/** After the close tag only whitespace or one scene-time key line is legal. */
+const SCENE_TIME_TAIL_LINE_RE = /^[^\S\r\n]*current_date_time[^\S\r\n]*[:=][^\S\r\n]*\S/i;
 
 /**
  * Normalize the configured Layer 0 summary target.
@@ -83,7 +86,7 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
             sections: [
                 {
                     id: 'narrative',
-                    label: '[NARRATIVE]',
+                    label: '<narrative>',
                     actualTokens: outputTokens ?? 0,
                     targetTokens: bounds?.target ?? 0,
                     hardMaxTokens: bounds?.max ?? 0,
@@ -96,7 +99,7 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
         rejectedSectionTagPrefix: 'rejected_',
         instructions: [
             'Aim for each section soft target, not merely its hard maximum. Rewrite only the rejected section or sections. Reproduce every preserved section exactly.',
-            'Output exactly one [NARRATIVE] section.',
+            'Output exactly one <narrative> envelope.',
         ],
     });
 }
@@ -177,7 +180,7 @@ function buildLayer0SizeDiagnostics({
         sections: [
             {
                 id: 'narrative',
-                label: '[NARRATIVE]',
+                label: '<narrative>',
                 actualTokens: narrativeTokenCount,
                 targetTokens: bounds.target,
                 hardMaxTokens: narrativeTooLong ? bounds.max : 0,
@@ -194,55 +197,44 @@ function buildLayer0SizeDiagnostics({
 }
 
 /**
- * Isolate the [NARRATIVE] body of a Layer 0 draft: everything after the
- * narrative header through the end of the output.
+ * Isolate the enveloped narrative body of a Layer 0 draft: the prose between
+ * the <narrative> open and close tags.
  * @param {string} text - Cleaned summarizer output
  * @returns {string}
  */
-function extractLayer0Narrative(text) {
-    const lines = String(text || '').split(/\r?\n/);
-    const narrativeIndex = lines.findIndex((line) => NARRATIVE_HEADER_RE.test(line));
-    return narrativeIndex === -1
-        ? ''
-        : lines
-              .slice(narrativeIndex + 1)
-              .join('\n')
-              .trim();
+export function extractLayer0Narrative(text) {
+    const envelope = parseNarrativeEnvelope(text);
+    return envelope ? envelope.body.trim() : '';
 }
 
 /**
- * Check the structural contract for a Layer 0 draft: exactly one [NARRATIVE]
- * header with a non-empty narrative body.
+ * Check the structural contract for a Layer 0 draft: one <narrative> envelope
+ * starting the output, a non-empty body between the tags, and after the close
+ * tag only whitespace or one trailing scene-time line. The close tag is the
+ * document-level contract: whatever prose follows it, the draft is rejected.
  * @param {string} text - Cleaned summarizer output
  * @returns {string} Empty string when valid; a short rejection reason otherwise
  */
 export function validateLayer0Structure(text) {
-    const lines = String(text || '').split(/\r?\n/);
-    const narrativeIndexes = findHeaderIndexes(lines, NARRATIVE_HEADER_RE);
-    if (narrativeIndexes.length === 0) {
-        return 'missing [NARRATIVE] header';
+    const envelope = parseNarrativeEnvelope(text);
+    if (!envelope) {
+        return 'missing <narrative> envelope';
     }
-    if (narrativeIndexes.length > 1) {
-        return 'duplicate [NARRATIVE] header';
+    if (envelope.tail.toLowerCase().includes('</narrative>')) {
+        return 'duplicate </narrative>';
     }
-    if (!hasNonEmptySection(lines, narrativeIndexes[0] + 1, lines.length)) {
-        return '[NARRATIVE] section is empty';
+    if (!envelope.body.trim()) {
+        return 'empty <narrative> body';
+    }
+    const tailLines = envelope.tail
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const sceneTimeLines = tailLines.filter((line) => SCENE_TIME_TAIL_LINE_RE.test(line));
+    if (tailLines.length !== sceneTimeLines.length || sceneTimeLines.length > 1) {
+        return 'prose after </narrative>';
     }
     return '';
-}
-
-function findHeaderIndexes(lines, headerRegex) {
-    const indexes = [];
-    for (let i = 0; i < lines.length; i++) {
-        if (headerRegex.test(lines[i])) {
-            indexes.push(i);
-        }
-    }
-    return indexes;
-}
-
-function hasNonEmptySection(lines, start, end) {
-    return lines.slice(start, end).some((line) => line.trim());
 }
 
 /**
@@ -334,7 +326,7 @@ function appendPromotionPromptConstraints(prompt, settings, metadata = {}) {
     const withSchemaCap = fillSentenceCapPlaceholders(prompt, sentenceCap);
 
     const targetLine = buildSizeTargetLine({
-        label: '[NARRATIVE]',
+        label: '<narrative>',
         verb: 'merge into',
         cap: sentenceCap,
         unit: 'sentences',
@@ -411,7 +403,7 @@ function buildPromotionRepairLine(metadata = {}, sliderTargetTokens) {
             sections: [
                 {
                     id: 'draft',
-                    label: '[NARRATIVE]',
+                    label: '<narrative>',
                     actualTokens: outputTokens,
                     targetTokens: Number(repair.targetTokens),
                     hardMaxTokens,

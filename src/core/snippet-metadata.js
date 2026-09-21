@@ -1,9 +1,6 @@
 import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
-import {
-    LEADING_NARRATIVE_HEADER_RE,
-    normalizeStructuralHeaderLines,
-} from './structural-headers.js';
+import { LEADING_NARRATIVE_HEADER_RE, parseNarrativeEnvelope } from './structural-headers.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';
 
 const UNKNOWN_TIME = 'unknown';
@@ -17,26 +14,53 @@ const SCENE_TIME_LINE_RE = /^[^\S\r\n]*current_date_time[^\S\r\n]*[:=][^\S\r\n]*
 
 /**
  * Parse a generated Layer 0 snippet into its narrative prose and scene time.
- * Narrative-only: a trailing `current_date_time:` key line is lifted out of
- * the prose and normalized; everything else stays narrative text.
+ * Narrative-only: the Output Envelope or a legacy [NARRATIVE] header comes
+ * off, and a trailing `current_date_time:` key line is lifted out of the prose
+ * and normalized; everything else stays narrative text.
  * @param {string} text
  * @returns {{ narrative: string, currentDateTime?: string }}
  */
 export function parseSnippet(text) {
-    const source = normalizeStructuralHeaderLines(text).trim();
+    const envelope = parseNarrativeEnvelope(text);
+    if (envelope) {
+        return {
+            narrative: stripTrailingSceneTime(envelope.body.trim()),
+            currentDateTime: readSceneTime(envelope.tail || envelope.body),
+        };
+    }
+    const source = String(text || '').trim();
     if (!source) {
         return { narrative: '', currentDateTime: undefined };
     }
     const body = source.replace(LEADING_NARRATIVE_HEADER_RE, '').trim();
-    const lines = body.split(/\r?\n/);
-    const sceneTimeMatch = SCENE_TIME_LINE_RE.exec(lines[lines.length - 1] || '');
-    if (!sceneTimeMatch) {
-        return { narrative: body, currentDateTime: undefined };
-    }
     return {
-        narrative: lines.slice(0, -1).join('\n').trimEnd(),
-        currentDateTime: normalizeCurrentDateTime(sceneTimeMatch[1].trim()),
+        narrative: stripTrailingSceneTime(body),
+        currentDateTime: readSceneTime(body),
     };
+}
+
+/**
+ * Split a trailing `current_date_time:` key line off narrative prose.
+ * @param {string} body - Narrative prose, wrapper already removed
+ * @returns {string} The prose without the trailing key line
+ */
+function stripTrailingSceneTime(body) {
+    const lines = String(body || '').split(/\r?\n/);
+    if (SCENE_TIME_LINE_RE.test(lines[lines.length - 1] || '')) {
+        return lines.slice(0, -1).join('\n').trimEnd();
+    }
+    return body;
+}
+
+/**
+ * Read the `current_date_time:` key line off the last line of a text span.
+ * @param {string} span - Tail after the envelope close tag, or the legacy body
+ * @returns {string | undefined} The normalized scene time, or undefined without a key line
+ */
+function readSceneTime(span) {
+    const lines = String(span || '').split(/\r?\n/);
+    const sceneTimeMatch = SCENE_TIME_LINE_RE.exec(lines[lines.length - 1] || '');
+    return sceneTimeMatch ? normalizeCurrentDateTime(sceneTimeMatch[1].trim()) : undefined;
 }
 
 /**

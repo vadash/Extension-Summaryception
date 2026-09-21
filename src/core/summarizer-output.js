@@ -2,7 +2,13 @@ import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { validateLayer0OutputSize, validateLayer0Structure } from './layer0-compression.js';
+import {
+    extractDeclinedReason,
+    findPassageShapeRefusal,
+    findRefusalPattern,
+} from './refusal-guard.js';
 import { silentAdapter } from './notify.js';
+import { parseNarrativeEnvelope } from './structural-headers.js';
 import { normalizeStructuralHeaderLines } from './structural-headers.js';
 import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token-budget.js';
 
@@ -86,30 +92,138 @@ function applyChineseOutputPolicy(cleanedResult, profile) {
 }
 
 /**
- * Validate cleaned summarizer output before it can be committed.
+ * Validate cleaned summarizer output before it can be committed: the Refusal
+ * Guard (declined marker, then the layer0-family envelope, lexical, and
+ * passage-shape checks) and the minimum-output rule for substantial sources.
  * @param {string} text - Cleaned summarizer output
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {{ valid: true, error: null } | { valid: false, error: Error & { retryable?: boolean } }}
  */
 export function validateSummarizerOutputIntegrity(text, profile) {
     const output = String(text || '').trim();
-    if (profile?.policy?.sizeGuard) {
-        const structuralError = validateLayer0Structure(output);
-        if (structuralError) {
-            return rejectIntegrity(structuralError);
-        }
+
+    // A confessed Refusal short-circuits every further analysis: the model
+    // said it declined, and the reason is the diagnosis.
+    const declined = declinedRejection(output);
+    if (declined) {
+        return rejectIntegrity(declined);
+    }
+
+    const policyRejection = compressionPolicyRejection(output, profile);
+    if (policyRejection) {
+        return rejectIntegrity(policyRejection);
     }
 
     const sourceTokens = getSourceTokenCount(profile?.provenance);
-    if (sourceTokens > SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD && isOutputTooShortForSource(output)) {
-        const stats = getApproximateOutputStats(output);
-        return rejectIntegrity(
-            `output too short for ${sourceTokens} source tokens ` +
-                `(${stats.tokens} tokens, ${stats.characters} characters)`,
-        );
+    const tooShort = tooShortRejection(output, sourceTokens);
+    if (tooShort) {
+        return rejectIntegrity(tooShort);
     }
 
     return { valid: true, error: null };
+}
+
+/**
+ * The Declined Marker verdict: a confessed Refusal carries the model's own
+ * reason as the diagnosis.
+ * @param {string} output - Cleaned summarizer output
+ * @returns {string} Empty string without a marker, the rejection reason otherwise
+ */
+function declinedRejection(output) {
+    const declinedReason = extractDeclinedReason(output);
+    if (declinedReason === null) {
+        return '';
+    }
+    return declinedReason
+        ? `declined the summarization task: ${declinedReason}`
+        : 'declined the summarization task';
+}
+
+/**
+ * The minimum-output rule for substantial sources.
+ * @param {string} output - Cleaned summarizer output
+ * @param {number} sourceTokens - Source token count from the call's provenance
+ * @returns {string} Empty string when the draft passes, the rejection reason otherwise
+ */
+function tooShortRejection(output, sourceTokens) {
+    if (sourceTokens <= SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD || !isOutputTooShortForSource(output)) {
+        return '';
+    }
+    const stats = getApproximateOutputStats(output);
+    return (
+        `output too short for ${sourceTokens} source tokens ` +
+        `(${stats.tokens} tokens, ${stats.characters} characters)`
+    );
+}
+
+/**
+ * The compression-call policy contract: envelope structure for the layer0
+ * family, the lexical refusal net for every compression call, and the
+ * passage-shape signal for the layer0 family on a substantial source.
+ * @param {string} output - Cleaned summarizer output
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
+ * @returns {string} Empty string when the draft passes, a rejection reason otherwise
+ */
+function compressionPolicyRejection(output, profile) {
+    if (profile?.policy?.sizeGuard) {
+        const structuralError = validateLayer0Structure(output);
+        if (structuralError) {
+            return structuralError;
+        }
+    }
+
+    // The lexical net runs for every compression call — Layer 0 family and
+    // promotion — scoped to the envelope body when one is present, else the
+    // whole output. In-story quoted dialogue lives inside the envelope, so it
+    // stays inert either way.
+    if (profile?.policy?.compression) {
+        const refusalKind = findRefusalPattern(narrativeBodyOf(output));
+        if (refusalKind) {
+            return `refusal pattern (${refusalKind}) in narrative body`;
+        }
+    }
+
+    if (profile?.policy?.sizeGuard) {
+        return findPassageShapeRejection(output, profile);
+    }
+    return '';
+}
+
+/**
+ * The narrative body of a compression call's output: inside the Output
+ * Envelope when one is present, else the whole text.
+ * @param {string} output - Cleaned summarizer output
+ * @returns {string}
+ */
+function narrativeBodyOf(output) {
+    const envelope = parseNarrativeEnvelope(output);
+    return envelope ? envelope.body : output;
+}
+
+/**
+ * The passage-shape signal for a substantial Layer 0 source: a body that
+ * names none of the passage's recurring characters while describing the text
+ * itself is a meta-describing Refusal.
+ * @param {string} output - Cleaned summarizer output
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
+ * @returns {string} Empty string when the draft passes, a rejection reason otherwise
+ */
+function findPassageShapeRejection(output, profile) {
+    const sourceTokens = getSourceTokenCount(profile?.provenance);
+    if (sourceTokens <= SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD) {
+        return '';
+    }
+    const censusNames = String(profile?.provenance?.passageNames || '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean);
+    if (findPassageShapeRefusal(narrativeBodyOf(output), censusNames)) {
+        return (
+            'passage-shape refusal: body names none of the passage names ' +
+            `(${censusNames.join(', ')}) while describing the text itself`
+        );
+    }
+    return '';
 }
 /**
  * Guard summarizer output before committing; warn once when invalid.

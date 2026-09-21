@@ -264,7 +264,7 @@ function rejectPromotionSize({
         sections: [
             {
                 id: 'draft',
-                label: '[NARRATIVE]',
+                label: '<narrative>',
                 actualTokens: outputTokens.count,
                 targetTokens: minTokens,
                 hardMaxTokens,

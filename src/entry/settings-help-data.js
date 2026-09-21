@@ -353,7 +353,7 @@ const HELP_ENTRIES = [
                 controlFor('sc_layer0_summary_token_target_val'),
             ],
             meaning:
-                'The target size for the [NARRATIVE] section of a single Layer 0 summary. Auto-derived from Model context; override it here.',
+                'The target size for the <narrative> section of a single Layer 0 summary. Auto-derived from Model context; override it here.',
             higher: 'preserves more chronological detail in each Layer 0 narrative.',
             lower: 'compresses each narrative harder and leaves more room in the memory budget.',
             defaultText: '200; auto-derived from Model context.',

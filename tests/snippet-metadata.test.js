@@ -96,7 +96,29 @@ describe('getSnippetDisplayMeta', () => {
 });
 
 describe('parseSnippet', () => {
-    it('strips the [NARRATIVE] header and extracts the scene-time key line', () => {
+    it('reads an enveloped snippet: body between the tags, scene time after the close tag', () => {
+        const parsed = parseSnippet(
+            '<narrative>\nScene.\n</narrative>\ncurrent_date_time: 2024-07-04 16 Thu',
+        );
+        expect(parsed.narrative).toBe('Scene.');
+        expect(parsed.currentDateTime).toBe('2024-07-04 16 Thu');
+    });
+
+    it('keeps multi-line enveloped prose intact', () => {
+        const parsed = parseSnippet(
+            '<narrative>\nScene one.\nScene two.\n</narrative>\ncurrent_date_time: 2024-07-04 16 Thu',
+        );
+        expect(parsed.narrative).toBe('Scene one.\nScene two.');
+        expect(parsed.currentDateTime).toBe('2024-07-04 16 Thu');
+    });
+
+    it('keeps enveloped prose without a scene time whole', () => {
+        const parsed = parseSnippet('<narrative>\nScene.\n</narrative>');
+        expect(parsed.narrative).toBe('Scene.');
+        expect(parsed.currentDateTime).toBeUndefined();
+    });
+
+    it('still strips the legacy [NARRATIVE] header from snippets stored before the envelope', () => {
         const parsed = parseSnippet('[NARRATIVE]\nScene.\n\ncurrent_date_time: 2024-07-04 16 Thu');
         expect(parsed.narrative).toBe('Scene.');
         expect(parsed.currentDateTime).toBe('2024-07-04 16 Thu');

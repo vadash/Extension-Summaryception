@@ -181,7 +181,7 @@ describe('formatRepairDiagnostics', () => {
             sections: [
                 {
                     id: 'long',
-                    label: '[NARRATIVE]',
+                    label: '<narrative>',
                     actualTokens: 200,
                     hardMaxTokens: 100,
                     text: 'too much prose',
@@ -195,7 +195,7 @@ describe('formatRepairDiagnostics', () => {
         expect(output).toContain('<rejected_long>');
         expect(output).toContain('too much prose');
         expect(output).toContain('</rejected_long>');
-        expect(output).toContain('[NARRATIVE] repair: cut it down');
+        expect(output).toContain('<narrative> repair: cut it down');
         expect(output).not.toContain('<rejected_empty>');
     });
 
@@ -213,7 +213,7 @@ describe('formatRepairDiagnostics', () => {
     it('emits preserve directives and blocks for passing sections with text or a preservation instruction', () => {
         const diagnostics = buildRepairDiagnostics({
             sections: [
-                { id: 'keep', label: '[NARRATIVE]', actualTokens: 10, text: 'keep me' },
+                { id: 'keep', label: '<narrative>', actualTokens: 10, text: 'keep me' },
                 {
                     id: 'note',
                     label: 'Note',
@@ -223,7 +223,7 @@ describe('formatRepairDiagnostics', () => {
             ],
         });
         const output = formatRepairDiagnostics(diagnostics);
-        expect(output).toContain('Preserve [NARRATIVE] unchanged');
+        expect(output).toContain('Preserve <narrative> unchanged');
         expect(output).toContain('<preserve_keep>');
         expect(output).toContain('keep me');
         expect(output).toContain('Preserve Note unchanged: verbatim');
