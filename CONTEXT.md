@@ -118,7 +118,7 @@ Code: src/foundation/connection-routes.js
 _Avoid_: connection card, provider, backend
 
 **Connection Route Catalogue**:
-The one declaration of the Connection Route set: each route's setting keys, the source options it accepts, the provider sources among them, the unset default, and the ordered hops each chain runs. Settings normalization, reset preservation, the Call Profile resolver, and the settings UI derive their route facts from it.
+The one declaration of the Connection Route set: each route's setting keys, the source options it accepts, the provider sources among them, the unset default, the ordered hops each chain runs, and the panel slots its cards appear in. Settings normalization, reset preservation, the Call Profile resolver, and the settings UI derive their route facts from it.
 Code: src/foundation/connection-routes.js
 _Avoid_: route registry, connection config
 
