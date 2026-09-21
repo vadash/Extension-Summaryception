@@ -23,12 +23,14 @@ describe('deriveContinuityMarks', () => {
         expect(deriveContinuityMarks(chat)).toEqual({ markedIndices: [1, 4], liveIndex: 4 });
     });
 
-    it('skips user and system messages even when they carry a payload', () => {
+    it('skips the user turn and marks a hidden reply, whatever carries a payload', () => {
         const chat = [
             audited(makeMessage({ isUser: true })),
             audited(makeMessage({ isSystem: true })),
         ];
-        expect(deriveContinuityMarks(chat)).toEqual({ markedIndices: [], liveIndex: null });
+        // The user turn never carries a mark; a hidden reply is still a reply,
+        // and Ghosting's hide flag is not its identity (ADR-0028).
+        expect(deriveContinuityMarks(chat)).toEqual({ markedIndices: [1], liveIndex: 1 });
     });
 
     it('leaves replies without a payload unmarked', () => {

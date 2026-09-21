@@ -172,7 +172,7 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
             }
             return { status: 'aborted' };
         }
-        logAuditCompletion(priorSnapshot, priorState, turnCount, String(target.sc_id ?? ''));
+        logAuditCompletion({ priorSnapshot, priorState, turnCount, scId: target.sc_id, audit });
         return { status: 'completed' };
     } catch (e) {
         warn('Continuity audit failed:', e);
@@ -182,31 +182,39 @@ export async function runAuditorExtraction({ notify = silentAdapter } = {}) {
 
 /**
  * Log the completed audit against the pre-commit snapshot. Only allocated
- * when the state log is on; the full variant dumps the whole state.
- * @param {SummaryceptionContinuityState | null} priorSnapshot - Cloned prior state, or null when logging is off.
- * @param {SummaryceptionContinuityState} state - The committed checkpoint state.
- * @param {number} turnCount - Derived turn number of the audit.
- * @param {string} auditedScId - sc_id of the audited reply carrying the checkpoint.
+ * when the state log is on; the full variant dumps the whole state. An
+ * over-budget note count rides along, which is what makes the GM-note cap
+ * observable instead of silent (ADR-0029).
+ * @param {object} completed - The committed audit to log.
+ * @param {SummaryceptionContinuityState | null} completed.priorSnapshot - Cloned prior state, or null when logging is off.
+ * @param {SummaryceptionContinuityState} completed.priorState - The committed checkpoint state.
+ * @param {number} completed.turnCount - Derived turn number of the audit.
+ * @param {string | undefined} completed.scId - sc_id of the audited reply carrying the checkpoint.
+ * @param {{ notesTruncated: number }} completed.audit - The validated audit the commit applied.
  * @returns {void}
  */
-function logAuditCompletion(priorSnapshot, state, turnCount, auditedScId) {
+function logAuditCompletion({ priorSnapshot, priorState, turnCount, scId, audit }) {
     if (!priorSnapshot) {
         return;
     }
+    const auditedScId = String(scId ?? '');
     const title =
         `${LOG_PREFIX} [Continuity] audit - COMPLETED ` +
         `(turn ${turnCount}, audited ${auditedScId})`;
+    const overBudget = audit.notesTruncated > 0 ? { notes_truncated: audit.notesTruncated } : {};
     if (isContinuityStateLogFullEnabled()) {
         logContinuityAudit(title, {
             kind: 'success',
             turn_count: turnCount,
             audited_sc_id: auditedScId,
-            state,
+            ...overBudget,
+            state: priorState,
         });
     } else {
         logContinuityAudit(title, {
             kind: 'success',
-            changes: diffContinuityStates(priorSnapshot, state),
+            ...overBudget,
+            changes: diffContinuityStates(priorSnapshot, priorState),
         });
     }
 }
@@ -221,7 +229,7 @@ function logAuditCompletion(priorSnapshot, state, turnCount, auditedScId) {
  * @param {string} contextStr
  * @param {object} deps
  * @param {import('./notify.js').NotifyAdapter} deps.notify
- * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }}>}
+ * @returns {Promise<{ status: 'aborted' | 'failed' } | { status: 'ok', audit: { state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number }}>}
  */
 async function dispatchAuditRound(storyTxt, contextStr, { notify }) {
     const response = await callSummarizer({

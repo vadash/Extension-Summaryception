@@ -10,10 +10,11 @@ the model's booleans.
 Audits fire on settled replies (ADR-0017), so the injected block always describes
 the last audited reply, never the reply being generated or the user turn after it.
 When newer replies trail the checkpoint, `deriveContinuityCoverage` reports
-staleness and `updateContinuityInjection` prepends a literal marker to the block:
+staleness and `updateContinuityInjection` prepends a marker carrying the real
+drift to the block:
 
 ```text
-<!-- active_continuity: cached from turn N-1 -->
+<!-- active_continuity: stale, 1 un-audited Exchange -->
 ```
 
 The next settled audit re-covers at most the four most recent un-audited Exchanges
@@ -52,9 +53,18 @@ step 1/N). A pair absent from prior state is judged from context.
 
 ## Agenda fields
 
-Each `agendas` entry carries `task`, `step` (`current`/`max`), `status`,
-`body_state`, `fibs` (lies this character has told), and `aware` (secrets this
-character knows).
+Each `agendas` entry carries `task`, `step` (`current`/`max`), and `status`. A
+character's physical condition belongs in `physics`, and who knows what belongs
+in the `[S]` notes; the state holds no second home for either (ADR-0029).
+
+## Note budget
+
+`gm_notes` is capped by code at 4 `[R]` reminders, 8 `[T]` threads, and 12 `[S]`
+secrets — 24 notes total. The prompt states the same numbers, so the Auditor
+prunes to fit rather than preserving notes the cap would discard, and the
+continuity state log reports `notes_truncated` whenever the cap drops one. The
+old contract's "never omit an untouched note" is gone: a note survives only
+while its fact still matters.
 
 ## Shipped default prompts
 
@@ -115,10 +125,7 @@ Output exactly one JSON object with these sections:
     "<Character Name>": {
       "task": "<current goal>",
       "step": { "current": <int>, "max": <int> },
-      "status": "<on-screen state or off-screen location>",
-      "body_state": "<condition>",
-      "fibs": "<lies this character has told, or ''>",
-      "aware": "<secrets this character knows, or ''>"
+      "status": "<on-screen state or off-screen location>"
     }
   },
   "gm_notes": ["[R] ...", "[T] ...", "[S] ..."],
@@ -138,16 +145,19 @@ Discovery rule: first appearance in the exchanges initializes the agenda (task f
 
 <task_rules>
 Rewrite the ENTIRE state object from <prior_continuity_state> plus what <latest_exchanges> changed. Output is a full state rewrite, not a delta.
+The state has exactly five sections — turn_count, bonds, agendas, gm_notes, physics — and no others.
+What belongs where: a character's goal, progress, and on-screen state belong in agendas; a character's physical condition and the scene's positioning belong in physics; who knows what belongs in the [S] notes.
 Keep the exchanges' consequences only: permanent lore, resolved threads, and static card facts stay out of the dynamic state.
 Physical gates and intimacy tiers are read-only context; never emit them.
 </task_rules>
 
 <critical_rules>
 [PRESERVATION & PRUNING CONTRACT]
-1. VERBATIM CONTINUITY: You MUST carry forward all existing [R], [T], and [S] notes from the previous state unless explicitly resolved or contradicted. Never omit an untouched note.
-2. PURGE ON COMPLETION: If a thread or task was completely resolved or finished in this turn, delete it immediately (e.g., when an appointment is over, purge the arrival note).
-3. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
-4. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [S] and explicitly note who knows and who is ignorant.
+1. PRUNE ON RESOLUTION: Carry a note forward only while its fact still matters — someone on-screen still does not know it, or the commitment it records is still open. Rewrite a live note in place to its current state. Delete a resolved or finished one outright instead of annotating it (e.g., when an appointment is over, purge the arrival note).
+2. NOTE BUDGET: at most 4 [R] reminders, 8 [T] threads, and 12 [S] secrets — 24 notes total. This is a hard cap. When a new note earns its place, delete the least load-bearing note of the same kind rather than dropping the new one. Order notes most important first: the cap keeps the earliest entries.
+3. NO SECOND HOME FOR A FACT: A fact an agenda's task, step, or status already states does not belong in a note as well, and a character's physical condition belongs in physics, not in [S].
+4. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
+5. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [S] and explicitly note who knows and who is ignorant.
 You never do arithmetic: bond scores, sparks, grudges, gates, and turn counting are computed by JavaScript from your booleans.
 Write the output mainly in English; short non-English names, titles, and source-language phrases are allowed.
 </critical_rules>

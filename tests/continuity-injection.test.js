@@ -258,12 +258,32 @@ describe('updateContinuityInjection', () => {
 
         expect(setExtensionPrompt).toHaveBeenCalledWith(
             'summaryception_continuity',
-            expect.stringContaining('<!-- active_continuity: cached from turn N-1 -->'),
+            expect.stringContaining('<!-- active_continuity: stale, 10 un-audited Exchanges -->'),
             EXTENSION_PROMPT_POSITIONS.IN_CHAT,
             1 + 10,
             false,
             EXTENSION_PROMPT_ROLES.SYSTEM,
         );
+    });
+
+    it('reports a single un-audited Exchange in the singular', () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'u1' }),
+            makeMessage({ scId: 'a1' }),
+            makeMessage({ isUser: true, scId: 'u2' }),
+            makeMessage({ scId: 'a2' }),
+        ];
+        attachCheckpoint(chat, 'a1', makeContinuity());
+        const setExtensionPrompt = installContext({
+            settings: { continuityEnabled: true },
+            chat,
+        });
+
+        updateContinuityInjection();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        expect(text).toContain('<!-- active_continuity: stale, 1 un-audited Exchange -->');
+        expect(text).not.toContain('Exchanges');
     });
 
     it('renders no block when no live checkpoint exists', () => {

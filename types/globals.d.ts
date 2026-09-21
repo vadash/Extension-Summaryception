@@ -59,9 +59,6 @@ interface SummaryceptionAgenda {
     task: string;
     step: SummaryceptionContinuityStep;
     status: string;
-    body_state: string;
-    fibs: string;
-    aware: string;
 }
 
 interface SummaryceptionContinuityPhysics {

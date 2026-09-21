@@ -103,8 +103,12 @@ describe('deriveContinuityCoverage', () => {
             reply('a1'),
         ];
 
-        expect(deriveContinuityCoverage(chat).windowIndices).toEqual([1, 3]);
-        expect(deriveContinuityCoverage(chat).targetIndex).toBe(3);
+        const { windowIndices, targetIndex } = deriveContinuityCoverage(chat);
+
+        // The user line the walk back crosses still rides along, and the system
+        // message is a non-user message, so it joins the window too (ADR-0028).
+        expect(windowIndices).toEqual([1, 2, 3]);
+        expect(targetIndex).toBe(3);
     });
 
     it('covers the whole chat when no checkpoint anchors coverage', () => {
@@ -127,7 +131,8 @@ describe('deriveContinuityCoverage', () => {
 
         expect(coverage.checkpointIndex).toBe(4);
         expect(coverage.state).toEqual(auditedState(3));
-        expect(coverage.turnCount).toBe(3);
+        // Three replies plus the system message, which is not the user turn.
+        expect(coverage.turnCount).toBe(4);
     });
 
     it('falls back to an older payload when the newest one is not a state object', () => {

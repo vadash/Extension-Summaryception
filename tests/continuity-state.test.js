@@ -33,9 +33,6 @@ const validAuditorJson = () =>
                 task: 'Survive salon waxing',
                 step: { current: 1, max: 3 },
                 status: 'Arrived at salon',
-                body_state: 'Nervous energy',
-                fibs: 'None',
-                aware: 'None',
             },
         },
         gm_notes: ['[R] Vova gets aroused easily.', '[S] Quipsy knows the secret.'],
@@ -80,9 +77,6 @@ describe('classifyContinuity', () => {
                     task: 'Survive salon waxing',
                     step: { current: 1, max: 3 },
                     status: 'Arrived at salon',
-                    body_state: 'Nervous energy',
-                    fibs: 'None',
-                    aware: 'None',
                 },
             },
             gm_notes: ['[R] Vova gets aroused easily.', '[S] Quipsy knows the secret.'],
@@ -101,6 +95,7 @@ describe('classifyContinuity', () => {
             state: null,
             sectionVerdicts: ['parse'],
             flags: {},
+            notesTruncated: 0,
         });
     });
 
@@ -143,10 +138,9 @@ describe('classifyContinuity', () => {
             task: 'Train',
             step: { current: 2, max: 2 },
             status: 'None',
-            body_state: 'None',
-            fibs: 'None',
-            aware: 'None',
         });
+        // A stored payload's retired field is ignored, never migrated (ADR-0029).
+        expect(Object.keys(state.agendas.Quipsy)).toEqual(['task', 'step', 'status']);
         expect(state.agendas.Mirra.step).toEqual({ current: 1, max: 99 });
         expect(state.physics.location).toBe('Track');
         expect(state.physics.clothing_state).toBe('');
@@ -256,10 +250,11 @@ describe('classifyContinuity', () => {
         expect(sectionVerdicts).toEqual(['gm_notes']);
     });
 
-    it('truncates gm_notes to 10 per kind and 20 total', () => {
+    it('truncates gm_notes to the per-kind budget and reports what it dropped', () => {
         const notes = [
-            ...Array.from({ length: 12 }, (_, i) => `[R] Reminder ${i + 1}`),
-            ...Array.from({ length: 12 }, (_, i) => `[T] Thread ${i + 1}`),
+            ...Array.from({ length: 6 }, (_, i) => `[R] Reminder ${i + 1}`),
+            ...Array.from({ length: 10 }, (_, i) => `[T] Thread ${i + 1}`),
+            ...Array.from({ length: 14 }, (_, i) => `[S] Secret ${i + 1}`),
         ];
         const raw = JSON.stringify({
             turn_count: 1,
@@ -268,17 +263,20 @@ describe('classifyContinuity', () => {
             gm_notes: notes,
             physics: {},
         });
-        const { state, sectionVerdicts } = classifyContinuity(raw);
+        const { state, sectionVerdicts, notesTruncated } = classifyContinuity(raw);
         expect(sectionVerdicts).toEqual([]);
-        expect(state.gm_notes).toHaveLength(20);
-        expect(state.gm_notes.filter((note) => note.startsWith('[R]'))).toHaveLength(10);
-        expect(state.gm_notes.filter((note) => note.startsWith('[T]'))).toHaveLength(10);
+        expect(state.gm_notes).toHaveLength(24);
+        expect(state.gm_notes.filter((note) => note.startsWith('[R]'))).toHaveLength(4);
+        expect(state.gm_notes.filter((note) => note.startsWith('[T]'))).toHaveLength(8);
+        expect(state.gm_notes.filter((note) => note.startsWith('[S]'))).toHaveLength(12);
         expect(state.gm_notes[0]).toBe('[R] Reminder 1');
+        // The cap is observable: 2 reminders, 2 threads, and 2 secrets over budget.
+        expect(notesTruncated).toBe(6);
     });
 
-    it('verdicts gm_notes when an unknown tag follows the total cap', () => {
+    it('verdicts gm_notes when an unknown tag follows an over-budget list', () => {
         const notes = [
-            ...Array.from({ length: 10 }, (_, i) => `[R] Reminder ${i + 1}`),
+            ...Array.from({ length: 6 }, (_, i) => `[R] Reminder ${i + 1}`),
             ...Array.from({ length: 10 }, (_, i) => `[T] Thread ${i + 1}`),
             '[D] Late debug tag',
         ];
@@ -291,7 +289,7 @@ describe('classifyContinuity', () => {
         });
         const { state, sectionVerdicts } = classifyContinuity(raw);
         expect(sectionVerdicts).toEqual(['gm_notes']);
-        expect(state.gm_notes).toHaveLength(20);
+        expect(state.gm_notes).toHaveLength(4 + 8);
     });
 });
 
@@ -471,9 +469,19 @@ describe('deriveTurnCount', () => {
         expect(deriveTurnCount(chat)).toBe(3);
     });
 
-    it('ignores user, system, and falsy entries', () => {
+    it('counts a ghosted reply, which carries the host hide flag', () => {
+        const chat = [
+            { is_user: true },
+            { is_system: true, sc_id: 'ghosted' },
+            { is_user: true },
+            { sc_id: 'live' },
+        ];
+        expect(deriveTurnCount(chat)).toBe(2);
+    });
+
+    it('ignores only the user turn and falsy entries', () => {
         const chat = [{ is_user: true }, null, { is_system: true }, {}];
-        expect(deriveTurnCount(chat)).toBe(1);
+        expect(deriveTurnCount(chat)).toBe(2);
     });
 
     it('derives zero from an empty or missing chat', () => {

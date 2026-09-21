@@ -8,10 +8,15 @@ import {
 } from '../src/foundation/constants.js';
 import {
     AUDITOR_DISCOVERY_RULE,
+    AUDITOR_FACT_ROUTING_RULE,
     AUDITOR_NAME_RULE,
+    AUDITOR_NOTE_BUDGET,
+    AUDITOR_NOTE_KIND_CAPS,
+    AUDITOR_NOTE_TOTAL_CAP,
     DEFAULT_AUDITOR_SYSTEM_PROMPT,
     DEFAULT_AUDITOR_USER_PROMPT,
 } from '../src/foundation/prompt-constants.js';
+import { classifyContinuity } from '../src/core/continuity-state.js';
 import { getSettings } from '../src/foundation/settings.js';
 import { installSummaryContext } from './test-helpers.js';
 
@@ -31,9 +36,42 @@ describe('default auditor prompts', () => {
         expect(tags).toEqual(['R', 'T', 'S']);
     });
 
-    it('asks the agendas schema for fibs and aware', () => {
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('"fibs"');
-        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain('"aware"');
+    it('keeps the retired agenda fields out of the output schema', () => {
+        const schema = sectionBody(DEFAULT_AUDITOR_USER_PROMPT, 'output_schema');
+
+        expect(schema).toContain('"agendas"');
+        expect(schema).not.toContain('"body_state"');
+        expect(schema).not.toContain('"fibs"');
+        expect(schema).not.toContain('"aware"');
+    });
+
+    it('states the GM-note budget the code actually enforces', () => {
+        const { state } = classifyContinuity(
+            JSON.stringify({
+                turn_count: 1,
+                bonds: {},
+                agendas: {},
+                gm_notes: [
+                    ...Array.from({ length: 6 }, (_, i) => `[R] Reminder ${i + 1}`),
+                    ...Array.from({ length: 10 }, (_, i) => `[T] Thread ${i + 1}`),
+                    ...Array.from({ length: 14 }, (_, i) => `[S] Secret ${i + 1}`),
+                ],
+                physics: {},
+            }),
+        );
+        const kept = { R: 0, T: 0, S: 0 };
+        for (const note of state.gm_notes) {
+            kept[note[1]] += 1;
+        }
+
+        // The code keeps exactly the budget the prompt states.
+        expect(kept).toEqual(AUDITOR_NOTE_KIND_CAPS);
+        expect(state.gm_notes).toHaveLength(AUDITOR_NOTE_TOTAL_CAP);
+        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_NOTE_BUDGET);
+    });
+
+    it('routes each state fact to its one home in the task rules', () => {
+        expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_FACT_ROUTING_RULE);
     });
 
     it('wires the canonical-name and NPC-discovery rules into both prompts', () => {

@@ -211,7 +211,7 @@ The background extraction call that reads a finished turn and emits semantic eve
 _Avoid_: secondary model, extractor, auditor LLM
 
 **Continuity State**:
-The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for the chat.
+The bond, agenda, GM-note, and physics JSON the Continuity Engine maintains for the chat. It exists to steer the main model: the Continuity Block is its only output, and the User never reads the state outside diagnostics.
 _Avoid_: roleplay state, sync state
 
 **Continuity Checkpoint**:
@@ -251,7 +251,7 @@ The most recent four Exchanges a single combined Auditor call covers after misse
 _Avoid_: catch-up cap, recovery span
 
 **Turn Count**:
-The total number of Exchanges in the chat, re-derived by code from the chat at every audit. Coverage never feeds it: the Catch-up Window bounds what gets audited and the live Continuity Checkpoint anchors where coverage resumes, never the count.
+The total number of Exchanges in the chat, re-derived by code from the chat at every audit. Coverage never feeds it: the Catch-up Window bounds what gets audited and the live Continuity Checkpoint anchors where coverage resumes, never the count. Ghosting never removes an Exchange from it: a reply hidden from the prompt is still an Exchange (ADR-0028).
 Code: `turn_count` (src/core/continuity-state.js), `deriveTurnCount` (src/core/continuity-state.js)
 _Avoid_: audited turns, covered turns
 

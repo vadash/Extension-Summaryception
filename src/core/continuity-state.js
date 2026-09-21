@@ -1,9 +1,8 @@
 import { clampInteger } from '../foundation/numeric.js';
+import { AUDITOR_NOTE_KIND_CAPS, AUDITOR_NOTE_TOTAL_CAP } from '../foundation/prompt-constants.js';
 
 const BOND_BOUNDS = Object.freeze({ bond: [-5, 20], sparks: [0, 99], grudge: [0, 99] });
 const STEP_CEILING = 99;
-const GM_NOTE_TOTAL_CAP = 20;
-const GM_NOTE_KIND_CAP = 10;
 const NOTE_TAG_PATTERN = /^\[([RTS])\]/u;
 const USER_PAIR_PATTERN = /.+↔User$/u;
 const PHYSICS_FIELDS = Object.freeze([
@@ -24,7 +23,10 @@ export function isRecord(value) {
 
 /**
  * The assistant-reply test every Continuity chat walk shares: a present
- * message that is neither the user turn nor a system line.
+ * message that is not the user turn. Prompt visibility is not part of a
+ * reply's identity — Ghosting hides a summarized reply through the host's
+ * hide command, which marks that reply as a system line, and a hidden reply is
+ * still an Exchange (ADR-0028).
  * @param {ChatMessage} [message]
  * @returns {boolean}
  */
@@ -32,7 +34,7 @@ export function isAssistantMessage(message) {
     if (!message) {
         return false;
     }
-    return !message.is_user && !message.is_system;
+    return !message.is_user;
 }
 
 /**
@@ -106,7 +108,8 @@ export function canonicalizePairKey(key) {
 
 /**
  * Step invariant 1 ≤ current ≤ max ≤ 99: clamp max first, then clamp current
- * against the clamped max.
+ * against the clamped max. Retired fields a stored payload still carries are
+ * ignored, not migrated (ADR-0029).
  * @param {unknown} value
  * @returns {SummaryceptionAgenda}
  */
@@ -118,22 +121,22 @@ function normalizeAgenda(value) {
         task: normalizeTextField(source.task),
         step: { current: clampInteger(step.current, 1, max), max },
         status: normalizeTextField(source.status),
-        body_state: normalizeTextField(source.body_state),
-        fibs: normalizeTextField(source.fibs),
-        aware: normalizeTextField(source.aware),
     };
 }
 
 /**
  * Keeps only tagged strings in order, truncating per kind and then total; the
- * Auditor orders notes by priority, so first-seen wins.
+ * Auditor orders notes by priority, so first-seen wins. How many notes the
+ * budget dropped is reported to the caller, which is what makes the cap
+ * observable instead of silent (ADR-0029).
  * @param {unknown[]} notes
- * @returns {{ kept: string[], unknownTag: boolean }}
+ * @returns {{ kept: string[], unknownTag: boolean, truncated: number }}
  */
 function filterGmNotes(notes) {
     const kept = [];
     const perKind = { R: 0, T: 0, S: 0 };
     let unknownTag = false;
+    let truncated = 0;
     for (const entry of notes) {
         const note = typeof entry === 'string' ? entry : null;
         const match = note !== null ? note.match(NOTE_TAG_PATTERN) : null;
@@ -141,15 +144,17 @@ function filterGmNotes(notes) {
             unknownTag = true;
             continue;
         }
-        if (perKind[match[1]] >= GM_NOTE_KIND_CAP) {
+        if (
+            perKind[match[1]] >= AUDITOR_NOTE_KIND_CAPS[match[1]] ||
+            kept.length >= AUDITOR_NOTE_TOTAL_CAP
+        ) {
+            truncated += 1;
             continue;
         }
         perKind[match[1]] += 1;
-        if (kept.length < GM_NOTE_TOTAL_CAP) {
-            kept.push(note);
-        }
+        kept.push(note);
     }
-    return { kept, unknownTag };
+    return { kept, unknownTag, truncated };
 }
 
 /**
@@ -224,14 +229,14 @@ function classifyBonds(source, state, sectionVerdicts) {
  * only) before numeric normalization, so the rulebook can read what the
  * Auditor actually said.
  * @param {string | unknown} raw - Raw JSON text or an already-parsed value.
- * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>> }}
+ * @returns {{ state: SummaryceptionContinuityState | null, sectionVerdicts: string[], flags: Record<string, Record<string, unknown>>, notesTruncated: number }} notesTruncated counts the notes the budget dropped; it is not a verdict, because a verdict here would fail every audit at saturation (ADR-0029).
  */
 export function classifyContinuity(raw) {
     let parsed;
     try {
         parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     } catch {
-        return { state: null, sectionVerdicts: ['parse'], flags: {} };
+        return { state: null, sectionVerdicts: ['parse'], flags: {}, notesTruncated: 0 };
     }
     const source = isRecord(parsed) ? parsed : {};
     const state = createDefaultContinuity();
@@ -252,10 +257,12 @@ export function classifyContinuity(raw) {
         sectionVerdicts.push('agendas');
     }
 
+    let notesTruncated = 0;
     if (Array.isArray(source.gm_notes)) {
-        const { kept, unknownTag } = filterGmNotes(source.gm_notes);
-        state.gm_notes = kept;
-        if (unknownTag) {
+        const filtered = filterGmNotes(source.gm_notes);
+        state.gm_notes = filtered.kept;
+        notesTruncated = filtered.truncated;
+        if (filtered.unknownTag) {
             sectionVerdicts.push('gm_notes');
         }
     } else {
@@ -268,7 +275,7 @@ export function classifyContinuity(raw) {
         sectionVerdicts.push('physics');
     }
 
-    return { state, sectionVerdicts, flags };
+    return { state, sectionVerdicts, flags, notesTruncated };
 }
 
 /**

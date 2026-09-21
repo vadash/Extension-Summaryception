@@ -17,12 +17,12 @@ import {
 import { defaultSettings } from '../src/foundation/constants.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
-const auditorJson = (bonds = {}) =>
+const auditorJson = (bonds = {}, gmNotes = ['[T] Keep this thread']) =>
     JSON.stringify({
         turn_count: 999,
         bonds,
         agendas: {},
-        gm_notes: ['[T] Keep this thread'],
+        gm_notes: gmNotes,
         physics: {
             location: 'Salon',
             environment: 'Warm',
@@ -265,7 +265,8 @@ describe('runAuditorExtraction', () => {
         const storyTxt = callSummarizer.mock.calls[0][0].storyTxt;
         expect(storyTxt).toContain('[2]'); // u2 user line survives the system message at [3]
         expect(storyTxt).toContain('[4]'); // a2
-        expect(storyTxt).not.toContain('[3]'); // s1
+        // s1 is not the user turn, so the audit window keeps it (ADR-0028).
+        expect(storyTxt).toContain('[3]');
     });
 
     it('feeds the prior state JSON and macro memory as context', async () => {
@@ -380,6 +381,26 @@ describe('continuity state audit log', () => {
         expect(payload.changes.bonds['Quipsy↔User']).toEqual({ sparks: [6, 7], grudge: [1, 0] });
         expect(payload.changes.gm_notes).toEqual({ added: ['[T] Keep this thread'] });
         expect(payload.changes.physics.location).toEqual(['', 'Salon']);
+        // Nothing was over budget, so the cap stays out of the log.
+        expect(payload.notes_truncated).toBeUndefined();
+    });
+
+    it('reports the notes the GM-note budget dropped', async () => {
+        installSoloChat();
+        logger.isContinuityStateLogEnabled.mockReturnValue(true);
+        logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
+        const overBudget = Array.from({ length: 14 }, (_, i) => `[S] Secret ${i + 1}`);
+        callSummarizer.mockResolvedValue({
+            status: 'completed',
+            text: auditorJson({}, overBudget),
+        });
+
+        const outcome = await runAuditorExtraction();
+
+        expect(outcome.status).toBe('completed');
+        const payload = JSON.parse(console.log.mock.calls[1][0]);
+        expect(payload.notes_truncated).toBe(2);
+        expect(payload.changes.gm_notes).toEqual({ added: overBudget.slice(0, 12) });
     });
 
     it('logs the full committed state in full mode instead of the diff', async () => {

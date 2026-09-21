@@ -6,8 +6,17 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 
 const CONTINUITY_INJECTION_SLOT = 'summaryception_continuity';
 
-// Derived-staleness marker for an un-audited tail; emitted verbatim, "N-1" is literal.
-const STALE_CONTINUITY_MARKER = '<!-- active_continuity: cached from turn N-1 -->';
+/**
+ * Derived-staleness marker for an un-audited tail. The marker carries the real
+ * drift, because a fixed "one turn behind" understated a block that trails by
+ * more once an audit has failed or is still in flight.
+ * @param {number} drift - Un-audited Exchanges trailing the checkpoint.
+ * @returns {string}
+ */
+function formatStaleMarker(drift) {
+    const unit = drift === 1 ? 'Exchange' : 'Exchanges';
+    return `<!-- active_continuity: stale, ${drift} un-audited ${unit} -->`;
+}
 
 const GATE_LADDER = Object.freeze([
     { minBond: 12, gate: 'intimacy' },
@@ -94,8 +103,8 @@ export function formatContinuityBlock(state) {
 /**
  * Render the live Continuity Checkpoint (ADR-0017) into the dedicated
  * injection slot. Staleness is derived, not stored: the block carries the
- * spec §7 marker and an uncapped depth while newer un-audited Exchanges
- * trail the checkpoint. The slot clears when the extension or the Auditor is
+ * drift marker and an uncapped depth while newer un-audited Exchanges trail
+ * the checkpoint. The slot clears when the extension or the Auditor is
  * disabled, no checkpoint payload exists, or the state renders nothing.
  * @returns {void}
  */
@@ -111,7 +120,7 @@ export function updateContinuityInjection() {
             const block = formatContinuityBlock(coverage.state);
             if (block !== '') {
                 drift = coverage.unauditedIndices.length;
-                text = coverage.stale ? `${STALE_CONTINUITY_MARKER}\n${block}` : block;
+                text = coverage.stale ? `${formatStaleMarker(drift)}\n${block}` : block;
                 depth = coverage.blockDepth;
             }
         }

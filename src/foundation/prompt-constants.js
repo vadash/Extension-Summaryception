@@ -7,14 +7,40 @@ import {
 } from './prompt-parts.js';
 
 /**
- * Full State Rewrite preservation contract, verbatim from the Continuity
- * Engine spec (§5, Extraction Contract & Preservation Rules).
+ * GM-note budget, declared once. The Auditor prompt states these numbers and
+ * the state module enforces them, so the Auditor prunes to fit instead of
+ * preserving notes the cap would discard (ADR-0029). The declaration lives
+ * with the prompt contract because the prompt is what the budget constrains;
+ * the state module imports it so the two cannot drift.
+ */
+export const AUDITOR_NOTE_KIND_CAPS = Object.freeze({ R: 4, T: 8, S: 12 });
+export const AUDITOR_NOTE_TOTAL_CAP = 24;
+
+/**
+ * The budget sentence the Auditor prompt carries, built from the caps so a
+ * rebalanced budget updates the prompt with it.
+ */
+export const AUDITOR_NOTE_BUDGET = `at most ${AUDITOR_NOTE_KIND_CAPS.R} [R] reminders, ${AUDITOR_NOTE_KIND_CAPS.T} [T] threads, and ${AUDITOR_NOTE_KIND_CAPS.S} [S] secrets — ${AUDITOR_NOTE_TOTAL_CAP} notes total`;
+
+/**
+ * Where each Continuity State fact lives, so retiring a field cannot push its
+ * content into an unrelated section instead of deleting it (ADR-0029).
+ */
+export const AUDITOR_FACT_ROUTING_RULE =
+    "What belongs where: a character's goal, progress, and on-screen state belong in agendas; a character's physical condition and the scene's positioning belong in physics; who knows what belongs in the [S] notes.";
+
+/**
+ * Full State Rewrite preservation contract. The state is a bounded working set
+ * (ADR-0029), so a note survives only while its fact still steers the main
+ * model, and the Auditor is told the budget the code enforces instead of
+ * preserving notes the cap would discard.
  */
 const AUDITOR_PRESERVATION_RULES = `[PRESERVATION & PRUNING CONTRACT]
-1. VERBATIM CONTINUITY: You MUST carry forward all existing [R], [T], and [S] notes from the previous state unless explicitly resolved or contradicted. Never omit an untouched note.
-2. PURGE ON COMPLETION: If a thread or task was completely resolved or finished in this turn, delete it immediately (e.g., when an appointment is over, purge the arrival note).
-3. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
-4. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [S] and explicitly note who knows and who is ignorant.`;
+1. PRUNE ON RESOLUTION: Carry a note forward only while its fact still matters — someone on-screen still does not know it, or the commitment it records is still open. Rewrite a live note in place to its current state. Delete a resolved or finished one outright instead of annotating it (e.g., when an appointment is over, purge the arrival note).
+2. NOTE BUDGET: ${AUDITOR_NOTE_BUDGET}. This is a hard cap. When a new note earns its place, delete the least load-bearing note of the same kind rather than dropping the new one. Order notes most important first: the cap keeps the earliest entries.
+3. NO SECOND HOME FOR A FACT: A fact an agenda's task, step, or status already states does not belong in a note as well, and a character's physical condition belongs in physics, not in [S].
+4. EXCLUDE STATIC CARD LORE: Do NOT add static character backstory, permanent family relationships, or card definitions (e.g., do not log that Quipsy is a stepsister; that is already permanent lore).
+5. ASYMMETRIC KNOWLEDGE: If an event happened off-screen or was witnessed by only one character, flag it with [S] and explicitly note who knows and who is ignorant.`;
 
 export const AUDITOR_NAME_RULE =
     'JSON keys copy each character\'s name exactly as the character card spells it (Latin spelling); never inflected prose forms; the player is always "User"; bond pair keys are "<Name>↔User".';
@@ -239,10 +265,7 @@ const AUDITOR_SCHEMA_BLOCK = `Output exactly one JSON object with these sections
     "<Character Name>": {
       "task": "<current goal>",
       "step": { "current": <int>, "max": <int> },
-      "status": "<on-screen state or off-screen location>",
-      "body_state": "<condition>",
-      "fibs": "<lies this character has told, or ''>",
-      "aware": "<secrets this character knows, or ''>"
+      "status": "<on-screen state or off-screen location>"
     }
   },
   "gm_notes": ["[R] ...", "[T] ...", "[S] ..."],
@@ -278,6 +301,8 @@ export const DEFAULT_AUDITOR_USER_PROMPT = buildUserPrompt({
     inputBlocks: AUDITOR_INPUT_BLOCKS,
     schemaBlock: AUDITOR_SCHEMA_BLOCK,
     taskRules: `Rewrite the ENTIRE state object from <prior_continuity_state> plus what <latest_exchanges> changed. Output is a full state rewrite, not a delta.
+The state has exactly five sections — turn_count, bonds, agendas, gm_notes, physics — and no others.
+${AUDITOR_FACT_ROUTING_RULE}
 Keep the exchanges' consequences only: permanent lore, resolved threads, and static card facts stay out of the dynamic state.
 Physical gates and intimacy tiers are read-only context; never emit them.`,
     criticalRules: AUDITOR_CRITICAL_RULES,
