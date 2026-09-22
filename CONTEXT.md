@@ -163,8 +163,13 @@ _Avoid_: narrative models, narrative summarizer chain
 
 **Route Series**:
 One Narrative Chain hop's retry series: repeated summarizer attempts over one connection route until an attempt settles terminally or the retry budget runs out, with the repair switch and retry waits between attempts. Returns a Route Series Result — `completed`, `aborted`, `hard-failover`, `failed`, `rejected`, or `guard-stopped` — where `failed{retryable}` and `rejected` always imply the budget ran out.
-Code: `runRouteSeries` (src/core/request-series.js)
+Code: `session.runSeries` (src/core/request-series.js)
 _Avoid_: attempt series, retry loop
+
+**Call Session**:
+One summarizer call's live execution context: the Call Profile it was built from, the prompt and repair prompt it sends, the abort signal, and the Notify Adapter it runs with — held for the whole call, across every hop. One session executes each Route Series of the Narrative Chain behind a single interface; route cycling, health buckets, and the Route Plan stay outside it.
+Code: `createAttemptSession` (src/core/request-series.js)
+_Avoid_: attempt context, request state
 
 **Run Outcome**:
 The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.

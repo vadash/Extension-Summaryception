@@ -15,7 +15,6 @@ import {
     sendSummarizerRequest,
 } from './connectionutil.js';
 import {
-    ROUTE_CYCLE_RETRY_ATTEMPT,
     classifyAttemptRetryStatus,
     computeRetryDelay,
     getRetryStopReason,
@@ -94,30 +93,50 @@ function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFee
 }
 
 /**
+ * The facts a Call Session carries, verbatim from its creator. The session
+ * exposes them read-only so the Request Runner that built it can run cycle
+ * policy (abort checks, cycle notices) off the same object it passed in,
+ * without threading the facts twice; derived session state — the repair
+ * switch — never appears here.
+ * @typedef {object} CallSessionFacts
+ * @property {string} prompt - Fully substituted user prompt.
+ * @property {string} repairPrompt - Fully substituted repair prompt ('' when the call validates no repair).
+ * @property {AbortSignal} signal - Abort signal.
+ * @property {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch.
+ * @property {import('./notify.js').NotifyAdapter} notify - Notify adapter for mid-run notices.
+ */
+
+/**
+ * The Call Session (CONTEXT.md): one summarizer call's live execution
+ * context, carried across every hop of the Narrative Chain. The session's
+ * whole interface is its facts plus `runSeries` — one hop in, one Route
+ * Series Result out. Route cycling, health buckets, and the Route Plan stay
+ * with the Request Runner that builds the session.
+ * @param {CallSessionFacts} facts
+ * @returns {CallSessionFacts & { runSeries: (route: import('./call-profile.js').CallProfileRoute, hop: { routeLabel: string, maxRetries: number }) => Promise<RouteSeriesResult> }}
+ */
+export function createAttemptSession(facts) {
+    return {
+        ...facts,
+        runSeries: (route, hop) => runSeriesForSession(facts, route, hop),
+    };
+}
+
+/**
  * Run one connection route's retry series: repeated attempts with the repair
  * switch and retry waits until an attempt settles terminally or the retry
- * budget runs out. One hop of the Narrative Chain.
- * @param {object} p
- * @param {string} p.prompt - Fully substituted user prompt.
- * @param {string} p.repairPrompt - Fully substituted repair prompt ('' when the call validates no repair).
- * @param {AbortSignal} p.signal - Abort signal.
- * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch.
- * @param {import('./call-profile.js').CallProfileRoute} p.route - Resolved connection and timeout for this hop.
- * @param {string} p.routeLabel - Route label for structured logs.
- * @param {number} p.maxRetries - Retry budget for this route.
- * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter for mid-run notices.
+ * budget runs out. One hop of the Narrative Chain. The repair switch is
+ * per hop: a fallback hop starts back on the base prompt.
+ * @param {CallSessionFacts} facts - The session's call facts.
+ * @param {import('./call-profile.js').CallProfileRoute} route - Resolved connection and timeout for this hop.
+ * @param {{ routeLabel: string, maxRetries: number }} hop - Runner-derived route label and retry budget.
  * @returns {Promise<RouteSeriesResult>}
  */
-export async function runRouteSeries({
-    prompt,
-    repairPrompt,
-    signal,
-    profile,
+async function runSeriesForSession(
+    { prompt, repairPrompt, signal, profile, notify },
     route,
-    routeLabel,
-    maxRetries,
-    notify,
-}) {
+    { routeLabel, maxRetries },
+) {
     /** @type {Error & { status?: number, response?: { status?: number } }} */
     let lastError = new Error('no error');
     let attempts = 0;
@@ -293,44 +312,35 @@ async function runLoggedAttempt({
  * @returns {Promise<AttemptResult>}
  */
 async function runAttempt({ prompt, signal, profile, connection, timeoutMs, notify }) {
-    const guardFailure = await getEasyContextGuardFailure({
-        systemPrompt: profile.policy.systemPrompt,
-        prompt,
-        profile,
-        notify,
-    });
+    // One read-through: the frozen Call Profile is the only source of the
+    // system prompt; no helper receives it as a second, parallel fact.
+    const systemPrompt = profile.policy.systemPrompt;
+    const guardFailure = await getEasyContextGuardFailure({ prompt, profile, notify });
     if (guardFailure) {
         return guardFailure;
     }
 
-    await traceSummarizerRequest({ connection, systemPrompt: profile.policy.systemPrompt, prompt });
+    await traceSummarizerRequest({ connection, systemPrompt, prompt });
     const rawResult = await sendAttemptRequest({
         connection,
-        systemPrompt: profile.policy.systemPrompt,
+        systemPrompt,
         prompt,
         signal,
         timeoutMs,
     });
     trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
-    return await processAttemptResult({
-        rawResult,
-        systemPrompt: profile.policy.systemPrompt,
-        prompt,
-        profile,
-        notify,
-    });
+    return await processAttemptResult({ rawResult, prompt, profile, notify });
 }
 
 /**
  * @param {object} p
- * @param {string} p.systemPrompt
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} p.notify
  * @returns {Promise<AttemptResult | null>} `guard-stopped` when the guard blocks, else null
  */
-async function getEasyContextGuardFailure({ systemPrompt, prompt, profile, notify }) {
-    const guard = await checkEasyContextGuard(profile, systemPrompt, prompt);
+async function getEasyContextGuardFailure({ prompt, profile, notify }) {
+    const guard = await checkEasyContextGuard(profile, prompt);
     if (guard.ok) {
         return null;
     }
@@ -378,13 +388,12 @@ async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, ti
 /**
  * @param {object} p
  * @param {string} p.rawResult - Raw provider output
- * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} p.notify
  * @returns {Promise<AttemptResult>}
  */
-async function processAttemptResult({ rawResult, systemPrompt, prompt, profile, notify }) {
+async function processAttemptResult({ rawResult, prompt, profile, notify }) {
     const processed = await processSummarizerResponse(rawResult, profile, notify);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
@@ -398,7 +407,7 @@ async function processAttemptResult({ rawResult, systemPrompt, prompt, profile, 
     }
 
     await recordSuccessfulSummarizerUsage({
-        systemPrompt,
+        systemPrompt: profile.policy.systemPrompt,
         prompt,
         summary: processed.text,
         profile,
@@ -563,44 +572,17 @@ async function notifyRetryAndWait({ lastError, attempt, signal, maxRetries, noti
 }
 
 /**
- * Notify the user that both routes failed, then wait before restarting from primary.
- * @param {object} p
- * @param {string} p.healthBucket
- * @param {AbortSignal} p.signal
- * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter threaded from the request series
- * @returns {Promise<void>}
- */
-export async function notifyRouteCycleFailedAndWait({ healthBucket, signal, notify }) {
-    const delay = computeRetryDelay(new Error('Both routes failed'), ROUTE_CYCLE_RETRY_ATTEMPT);
-    const delaySec = (delay / 1000).toFixed(1);
-    await emitRetryEventAndWait({
-        delay,
-        log: info,
-        logLine:
-            `Both primary and fallback exhausted for ${healthBucket}; ` +
-            `resetting health state and retrying primary in ${delaySec}s.`,
-        event: {
-            kind: NOTIFY_EVENTS.ROUTE_CYCLE_WAIT,
-            delayMs: delay,
-        },
-        signal,
-        notify,
-    });
-}
-
-/**
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
- * @param {string} systemPrompt
  * @param {string} prompt - Fully substituted user prompt
  * @returns {Promise<{ ok: true } | { ok: false, limit: number, tokens: { count: number, estimated: boolean }, label: string }>}
  */
-async function checkEasyContextGuard(profile, systemPrompt, prompt) {
+async function checkEasyContextGuard(profile, prompt) {
     const limit = profile.policy.easyContextLimit;
     if (limit === null) {
         return { ok: true };
     }
 
-    const requestText = `${systemPrompt || ''}\n\n${prompt || ''}`;
+    const requestText = `${profile.policy.systemPrompt || ''}\n\n${prompt || ''}`;
     const tokens = await countTextTokens(requestText);
     if (tokens.count <= limit) {
         return { ok: true };

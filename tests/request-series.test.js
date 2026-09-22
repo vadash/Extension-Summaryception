@@ -11,7 +11,7 @@ vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
 import { NOTIFY_EVENTS, UI_MODES } from '../src/foundation/constants.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
-import { runRouteSeries } from '../src/core/request-series.js';
+import { createAttemptSession } from '../src/core/request-series.js';
 import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
 
 /** Minimal valid summary passage accepted by the real Output Hygiene chain. */
@@ -25,33 +25,42 @@ const VALID_SUMMARY =
  * mocked, so every status below is the real Output Hygiene and retry policy
  * at work.
  */
-describe('runRouteSeries outcomes', () => {
+describe('Call Session runSeries outcomes', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
         connectionMocks.sendSummarizerRequest.mockReset();
     });
 
-    function makeSeriesParams({ settings, profile, ...overrides } = {}) {
+    function makeSession({ settings, profile, ...overrides } = {}) {
         const resolvedSettings = settings ?? makeSummarySettings();
-        return {
+        const resolvedProfile = profile ?? resolveCallProfile(resolvedSettings, { kind: 'layer0' });
+        const session = createAttemptSession({
             prompt: 'prompt',
             repairPrompt: 'repair',
             signal: new AbortController().signal,
-            profile: profile ?? resolveCallProfile(resolvedSettings, { kind: 'layer0' }),
-            route: { connection: resolvedSettings, timeoutMs: 30000 },
-            routeLabel: 'primary',
-            maxRetries: RETRY_CONFIG.maxRetries,
+            profile: resolvedProfile,
             notify: makeNotifyRecorder(),
             ...overrides,
+        });
+        return {
+            session,
+            profile: resolvedProfile,
+            route: { connection: resolvedSettings, timeoutMs: 30000 },
+            hop: { routeLabel: 'primary', maxRetries: RETRY_CONFIG.maxRetries },
         };
+    }
+
+    function runSeries(overrides) {
+        const { session, route, hop } = makeSession(overrides);
+        return session.runSeries(route, hop);
     }
 
     it('completes with the text of the first accepted attempt', async () => {
         connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
 
-        const params = makeSeriesParams();
-        const result = await runRouteSeries(params);
+        const { session, profile, route, hop } = makeSession();
+        const result = await session.runSeries(route, hop);
 
         expect(result.status).toBe('completed');
         expect(result.text).toBe(VALID_SUMMARY);
@@ -60,8 +69,8 @@ describe('runRouteSeries outcomes', () => {
         const call = connectionMocks.sendSummarizerRequest.mock.calls[0][0];
         expect(call.userPrompt).toBe('prompt');
         // The system prompt comes from the frozen Call Profile, not the params.
-        expect(call.systemPrompt).toBe(params.profile.policy.systemPrompt);
-        expect(call.settings).toBe(params.route.connection);
+        expect(call.systemPrompt).toBe(profile.policy.systemPrompt);
+        expect(call.settings).toBe(route.connection);
     });
 
     it('switches to the repair prompt after a rejected output and completes', async () => {
@@ -70,7 +79,7 @@ describe('runRouteSeries outcomes', () => {
             .mockResolvedValueOnce('')
             .mockResolvedValueOnce(VALID_SUMMARY);
 
-        const pending = runRouteSeries(makeSeriesParams());
+        const pending = runSeries();
         await vi.runAllTimersAsync();
         const result = await pending;
 
@@ -84,13 +93,11 @@ describe('runRouteSeries outcomes', () => {
 
     it('stops with guard-stopped when the Easy context guard rejects the prompt', async () => {
         const recorder = makeNotifyRecorder();
-        const result = await runRouteSeries(
-            makeSeriesParams({
-                settings: makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
-                notify: recorder,
-                prompt: 'x'.repeat(4000),
-            }),
-        );
+        const result = await runSeries({
+            settings: makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
+            notify: recorder,
+            prompt: 'x'.repeat(4000),
+        });
 
         expect(result.status).toBe('guard-stopped');
         expect(result.attempts).toBe(1);
@@ -104,7 +111,7 @@ describe('runRouteSeries outcomes', () => {
         const controller = new AbortController();
         controller.abort();
 
-        const result = await runRouteSeries(makeSeriesParams({ signal: controller.signal }));
+        const result = await runSeries({ signal: controller.signal });
 
         expect(result.status).toBe('aborted');
         expect(result.attempts).toBe(0);
@@ -114,7 +121,7 @@ describe('runRouteSeries outcomes', () => {
     it('returns aborted when the request reports a user abort', async () => {
         connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('Aborted by user'));
 
-        const result = await runRouteSeries(makeSeriesParams());
+        const result = await runSeries();
 
         expect(result.status).toBe('aborted');
         expect(result.attempts).toBe(1);
@@ -124,7 +131,7 @@ describe('runRouteSeries outcomes', () => {
     it('reports hard failover once and skips the remaining retries', async () => {
         connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('Failed to fetch'));
 
-        const result = await runRouteSeries(makeSeriesParams());
+        const result = await runSeries();
 
         expect(result.status).toBe('hard-failover');
         expect(result.attempts).toBe(1);
@@ -135,7 +142,7 @@ describe('runRouteSeries outcomes', () => {
         vi.useFakeTimers();
         connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('timeout'));
 
-        const pending = runRouteSeries(makeSeriesParams());
+        const pending = runSeries();
         await vi.runAllTimersAsync();
         const result = await pending;
 
@@ -150,7 +157,7 @@ describe('runRouteSeries outcomes', () => {
     it('reports a non-retryable failure after one attempt', async () => {
         connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('bad request'));
 
-        const result = await runRouteSeries(makeSeriesParams());
+        const result = await runSeries();
 
         expect(result.status).toBe('failed');
         expect(result.retryable).toBe(false);
@@ -162,7 +169,7 @@ describe('runRouteSeries outcomes', () => {
         vi.useFakeTimers();
         connectionMocks.sendSummarizerRequest.mockResolvedValue('');
 
-        const pending = runRouteSeries(makeSeriesParams({ repairPrompt: '' }));
+        const pending = runSeries({ repairPrompt: '' });
         await vi.runAllTimersAsync();
         const result = await pending;
 

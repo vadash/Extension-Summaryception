@@ -11,7 +11,8 @@ vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
 import { NOTIFY_EVENTS, UI_MODES } from '../src/foundation/constants.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
-import { notifyRouteCycleFailedAndWait, runRouteSeries } from '../src/core/request-series.js';
+import { notifyRouteCycleFailedAndWait } from '../src/core/request-runner.js';
+import { createAttemptSession } from '../src/core/request-series.js';
 import {
     installBrowserRuntimeStub,
     makeNotifyRecorder,
@@ -30,33 +31,38 @@ describe('request series notify events', () => {
         connectionMocks.sendSummarizerRequest.mockReset();
     });
 
-    function makeSeriesParams(overrides = {}) {
-        return {
+    function makeSession(overrides = {}) {
+        const session = createAttemptSession({
             prompt: 'prompt',
             repairPrompt: 'repair',
             signal: new AbortController().signal,
             profile: resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }),
-            route: { connection: makeSummarySettings(), timeoutMs: 30000 },
-            routeLabel: 'primary',
-            maxRetries: RETRY_CONFIG.maxRetries,
             notify: makeNotifyRecorder(),
             ...overrides,
+        });
+        return {
+            session,
+            route: { connection: makeSummarySettings(), timeoutMs: 30000 },
+            hop: { routeLabel: 'primary', maxRetries: RETRY_CONFIG.maxRetries },
         };
+    }
+
+    function runSeries(overrides) {
+        const { session, route, hop } = makeSession(overrides);
+        return session.runSeries(route, hop);
     }
 
     it('emits a structured guard event when the Easy context guard blocks', async () => {
         const { toastr } = installBrowserRuntimeStub();
         const recorder = makeNotifyRecorder();
-        const result = await runRouteSeries(
-            makeSeriesParams({
-                notify: recorder,
-                profile: resolveCallProfile(
-                    makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
-                    { kind: 'layer0' },
-                ),
-                prompt: 'x'.repeat(4000),
-            }),
-        );
+        const result = await runSeries({
+            notify: recorder,
+            profile: resolveCallProfile(
+                makeSummarySettings({ uiMode: UI_MODES.EASY, advancedModelContext: 10 }),
+                { kind: 'layer0' },
+            ),
+            prompt: 'x'.repeat(4000),
+        });
 
         expect(result.status).toBe('guard-stopped');
         expect(connectionMocks.sendSummarizerRequest).not.toHaveBeenCalled();
@@ -78,9 +84,7 @@ describe('request series notify events', () => {
             Object.assign(new Error('rate limited'), { retryAfter: 60, status: 429 }),
         );
 
-        const pending = runRouteSeries(
-            makeSeriesParams({ notify: recorder, signal: controller.signal }),
-        );
+        const pending = runSeries({ notify: recorder, signal: controller.signal });
         // Park on the retry wait: the first attempt failed, the wait runs.
         await vi.waitFor(() => expect(recorder.events).toHaveLength(1));
         expect(recorder.events[0]).toEqual({

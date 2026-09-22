@@ -1,8 +1,9 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { debug, error as logError, info, trace } from '../foundation/logger.js';
-import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET } from '../foundation/retry.js';
+import { RETRY_CONFIG, ROUTE_CYCLE_FAILURE_BUDGET, sleepOrAbort } from '../foundation/retry.js';
 import { silentAdapter } from './notify.js';
-import { notifyRouteCycleFailedAndWait, runRouteSeries } from './request-series.js';
+import { ROUTE_CYCLE_RETRY_ATTEMPT, computeRetryDelay } from './request-retry-policy.js';
+import { createAttemptSession } from './request-series.js';
 
 /**
  * Structured result of one summarizer request: {@link import('./run-outcome.js').RunOutcome}.
@@ -109,26 +110,21 @@ export class RequestRunner {
      * @returns {Promise<import('./run-outcome.js').RunOutcome>} Structured outcome; `completed` carries the summary text and the resolved profile.
      */
     async run({ prompt, repairPrompt, signal, profile, notify = silentAdapter }) {
-        // Shared, read-only context for every route cycle and attempt of this request.
-        const series = {
-            prompt,
-            repairPrompt,
-            signal,
-            profile,
-            notify,
-            routeCycleFailures: 0,
-        };
+        // One Call Session per summarizer call: it carries the call facts
+        // across every route cycle and hop; the failure budget stays here.
+        const session = createAttemptSession({ prompt, repairPrompt, signal, profile, notify });
+        let routeCycleFailures = 0;
 
         while (true) {
-            if (series.signal.aborted) {
-                return abortRun(series.notify);
+            if (session.signal.aborted) {
+                return abortRun(session.notify);
             }
 
-            const cycle = await this.runRouteCycle(series);
+            const cycle = await this.runRouteCycle(session);
 
             if (cycle.status === 'retry') {
-                series.routeCycleFailures += 1;
-                if (series.routeCycleFailures >= ROUTE_CYCLE_FAILURE_BUDGET) {
+                routeCycleFailures += 1;
+                if (routeCycleFailures >= ROUTE_CYCLE_FAILURE_BUDGET) {
                     return cycle.outcome;
                 }
                 continue;
@@ -138,8 +134,8 @@ export class RequestRunner {
         }
     }
 
-    async runRouteCycle(series) {
-        const { healthBucket, routes } = series.profile.policy;
+    async runRouteCycle(session) {
+        const { healthBucket, routes } = session.profile.policy;
         let last = null;
         let attempts = 0;
 
@@ -159,15 +155,9 @@ export class RequestRunner {
                 attemptState = { routeLabel: 'fallback', maxRetries: RETRY_CONFIG.maxRetries };
             }
 
-            last = await runRouteSeries({
-                prompt: series.prompt,
-                repairPrompt: series.repairPrompt,
-                signal: series.signal,
-                profile: series.profile,
-                route,
+            last = await session.runSeries(route, {
                 routeLabel: attemptState.routeLabel,
                 maxRetries: attemptState.maxRetries,
-                notify: series.notify,
             });
             attempts += hopAttempts(last);
 
@@ -175,7 +165,7 @@ export class RequestRunner {
                 index,
                 attempts,
                 healthBucket,
-                series,
+                session,
             });
             if (terminal) {
                 return terminal;
@@ -195,21 +185,21 @@ export class RequestRunner {
                 failSummarization(
                     seriesError(settled),
                     { retriesExhausted: isRetryExhaustion(settled), attempts },
-                    series.notify,
+                    session.notify,
                 ),
             );
         }
 
         await notifyRouteCycleFailedAndWait({
             healthBucket,
-            signal: series.signal,
-            notify: series.notify,
+            signal: session.signal,
+            notify: session.notify,
         });
         this.primaryRetryExhaustedBuckets.delete(healthBucket);
         return {
             status: /** @type {'retry'} */ ('retry'),
             result: null,
-            outcome: failSummarization(seriesError(settled), { attempts }, series.notify),
+            outcome: failSummarization(seriesError(settled), { attempts }, session.notify),
         };
     }
 
@@ -220,25 +210,25 @@ export class RequestRunner {
      * primary-hop exhaustion sets it, so the next request probes the primary
      * route once.
      * @param {import('./request-series.js').RouteSeriesResult} last
-     * @param {{ index: number, attempts: number, healthBucket: string, series: object }} hop
+     * @param {{ index: number, attempts: number, healthBucket: string, session: object }} hop
      * @returns {object | null}
      */
-    resolveTerminalHopResult(last, { index, attempts, healthBucket, series }) {
+    resolveTerminalHopResult(last, { index, attempts, healthBucket, session }) {
         if (last.status === 'completed') {
             if (index === 0) {
                 this.primaryRetryExhaustedBuckets.delete(healthBucket);
             }
-            return buildRouteCycleResult(buildCompletedOutcome(last.text, series.profile));
+            return buildRouteCycleResult(buildCompletedOutcome(last.text, session.profile));
         }
         if (last.status === 'aborted') {
-            return buildRouteCycleResult(abortRun(series.notify));
+            return buildRouteCycleResult(abortRun(session.notify));
         }
         if (!isRetryExhaustion(last) && last.status !== 'hard-failover') {
             return buildRouteCycleResult(
                 failSummarization(
                     seriesError(last),
                     { retriesExhausted: false, attempts },
-                    series.notify,
+                    session.notify,
                 ),
             );
         }
@@ -247,6 +237,31 @@ export class RequestRunner {
         }
         return null;
     }
+}
+
+/**
+ * Cycle-level policy: both hops of the Narrative Chain failed, so notify,
+ * wait the cycle backoff, and let the runner restart from primary. It lives
+ * with the runner that walks the route cycle, not inside a Call Session that
+ * only runs one hop.
+ * @param {object} p
+ * @param {string} p.healthBucket - Health bucket the cycle exhausted.
+ * @param {AbortSignal} p.signal - Signal that cuts the wait short.
+ * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter threaded from the runner.
+ * @returns {Promise<void>}
+ */
+export async function notifyRouteCycleFailedAndWait({ healthBucket, signal, notify }) {
+    const delay = computeRetryDelay(new Error('Both routes failed'), ROUTE_CYCLE_RETRY_ATTEMPT);
+    const delaySec = (delay / 1000).toFixed(1);
+    info(
+        `Both primary and fallback exhausted for ${healthBucket}; ` +
+            `resetting health state and retrying primary in ${delaySec}s.`,
+    );
+    notify.transient({
+        kind: NOTIFY_EVENTS.ROUTE_CYCLE_WAIT,
+        delayMs: delay,
+    });
+    await sleepOrAbort(delay, signal);
 }
 
 /**
