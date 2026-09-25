@@ -6,7 +6,6 @@ import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
 import { callSummarizer } from '../core/summarizer-request.js';
-import { beginRun, isBusy } from '../core/summarizer-queue.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
 
 /**
@@ -32,10 +31,16 @@ export function getSnippetTextAt(layerIndex, snippetIndex) {
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue - Summarizer Queue whose busy state blocks regeneration.
  * @returns {RegenerationTarget | RegenerationUnavailable}
  */
-export function getSnippetRegenerationTarget(layerIndex, snippetIndex) {
-    return resolveRegenerationTarget(getChatStore(), getChat(), { layerIndex, snippetIndex });
+export function getSnippetRegenerationTarget(layerIndex, snippetIndex, queue) {
+    return resolveRegenerationTarget(
+        getChatStore(),
+        getChat(),
+        { layerIndex, snippetIndex },
+        { queue },
+    );
 }
 
 /**
@@ -43,14 +48,16 @@ export function getSnippetRegenerationTarget(layerIndex, snippetIndex) {
  * summarization is busy, so the caller can report the busy status.
  * @param {number} layerIndex
  * @param {number} snippetIndex
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue - Summarizer Queue whose busy state blocks regeneration.
  * @returns {boolean}
  */
-export function isRegenerationCandidate(layerIndex, snippetIndex) {
+export function isRegenerationCandidate(layerIndex, snippetIndex, queue) {
     const target = resolveRegenerationTarget(
         getChatStore(),
         getChat(),
         { layerIndex, snippetIndex },
         {
+            queue,
             includeContext: false,
         },
     );
@@ -119,20 +126,25 @@ export async function deleteSnippetAt(layerIndex, snippetIndex, options) {
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate }} options - Regeneration notices and the Foreground Gate the commit crosses.
+ * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} options - Regeneration notices, the Foreground Gate the commit crosses, and the Summarizer Queue the run leases.
  * @returns {Promise<RegenerateSnippetResult>}
  */
 export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
-    const { notify, gate } = options;
-    const target = resolveRegenerationTarget(getChatStore(), getChat(), {
-        layerIndex,
-        snippetIndex,
-    });
+    const { notify, gate, queue } = options;
+    const target = resolveRegenerationTarget(
+        getChatStore(),
+        getChat(),
+        {
+            layerIndex,
+            snippetIndex,
+        },
+        { queue },
+    );
     if (target.status !== 'ready') {
         return target;
     }
 
-    const run = beginRun('regeneration');
+    const run = queue.beginRun('regeneration');
     try {
         return await withUsageRun('snippet regeneration', async () => {
             return await regenerateSnippetWithTarget(target, notify, gate);
@@ -193,10 +205,10 @@ async function regenerateSnippetWithTarget(target, notify, gate) {
  * @param {SummaryceptionStore} store
  * @param {ChatMessage[]} chat
  * @param {{ layerIndex: number, snippetIndex: number }} position
- * @param {{ includeContext?: boolean }} [options] - Skip context building for status-only callers.
+ * @param {{ queue: import('../core/summarizer-queue.js').SummarizerQueue, includeContext?: boolean }} options - The Summarizer Queue whose busy state blocks regeneration; skip context building for status-only callers.
  * @returns {RegenerationTarget | RegenerationUnavailable}
  */
-function resolveRegenerationTarget(store, chat, position, { includeContext = true } = {}) {
+function resolveRegenerationTarget(store, chat, position, { queue, includeContext = true }) {
     const { layerIndex, snippetIndex } = position;
     const snippet = getSnippetAt(store, layerIndex, snippetIndex);
     if (!snippet) {
@@ -212,7 +224,7 @@ function resolveRegenerationTarget(store, chat, position, { includeContext = tru
     ) {
         return { status: 'unsupported' };
     }
-    if (isBusy()) {
+    if (queue.isBusy()) {
         return { status: 'busy' };
     }
 

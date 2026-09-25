@@ -27,6 +27,8 @@ import {
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
+/** A Summarizer Queue with no request in flight. */
+const queue = { isRequestLive: () => false };
 
 beforeEach(() => {
     gate = makeForegroundGate().gate;
@@ -201,7 +203,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted(['regenerate', {}, false], { gate });
+        onGenerationStarted(['regenerate', {}, false], { gate, queue });
 
         // The hook write must land inside the gate's pre-freeze window (the
         // write itself records the gate state); once the generation start
@@ -245,7 +247,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted(['regenerate', {}, false], { gate });
+        onGenerationStarted(['regenerate', {}, false], { gate, queue });
 
         expect(chat[1].extra.summaryception_continuity).toBeDefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
@@ -268,7 +270,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted(['swipe', {}, false], { gate });
+        onGenerationStarted(['swipe', {}, false], { gate, queue });
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
@@ -282,7 +284,7 @@ describe('continuity injection across reroll', () => {
             settings: { continuityEnabled: true },
         });
 
-        onGenerationStarted(['normal', {}, false], { gate });
+        onGenerationStarted(['normal', {}, false], { gate, queue });
 
         expect(chat[3].extra.summaryception_continuity).toBeDefined();
         expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(3);

@@ -2,13 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const summarizerMocks = vi.hoisted(() => ({
     callSummarizer: vi.fn(),
-    isBusy: vi.fn(() => false),
-    beginRun: vi.fn(() => ({ end: vi.fn(), isStopped: vi.fn(() => false) })),
 }));
 vi.mock('../src/core/summarizer-request.js', () => ({
     callSummarizer: summarizerMocks.callSummarizer,
 }));
-vi.mock('../src/core/summarizer-queue.js', () => summarizerMocks);
 
 import {
     isRegenerationCandidate,
@@ -25,6 +22,10 @@ import {
 } from './test-helpers.js';
 
 const gate = makeForegroundGate().gate;
+const queue = {
+    isBusy: vi.fn(() => false),
+    beginRun: vi.fn(() => ({ end: vi.fn(), isStopped: vi.fn(() => false) })),
+};
 
 /**
  * Completed regeneration outcome carrying the profile the real request layer
@@ -74,17 +75,17 @@ describe('updateSnippetTextAt', () => {
 describe('isRegenerationCandidate', () => {
     it('is true for a contiguous Layer 0 source range', () => {
         installReadySnippet();
-        expect(isRegenerationCandidate(0, 0)).toBe(true);
+        expect(isRegenerationCandidate(0, 0, queue)).toBe(true);
     });
 
     it('is false for a deeper-layer snippet', () => {
         installReadySnippet();
-        expect(isRegenerationCandidate(1, 0)).toBe(false);
+        expect(isRegenerationCandidate(1, 0, queue)).toBe(false);
     });
 
     it('is false for a missing snippet', () => {
         installReadySnippet();
-        expect(isRegenerationCandidate(0, 5)).toBe(false);
+        expect(isRegenerationCandidate(0, 5, queue)).toBe(false);
     });
 
     it('is false for non-contiguous source ids', () => {
@@ -97,7 +98,7 @@ describe('isRegenerationCandidate', () => {
             layers: [[{ text: 'summary', sourceMessageIds: ['user-id', 'assistant-id'] }]],
         });
         installSummaryContext({ chat, metadata: { summaryception: store } });
-        expect(isRegenerationCandidate(0, 0)).toBe(false);
+        expect(isRegenerationCandidate(0, 0, queue)).toBe(false);
     });
 });
 
@@ -115,7 +116,7 @@ describe('snippet regeneration request outcomes', () => {
             ),
         );
 
-        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -130,7 +131,9 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({ status: 'aborted' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'aborted' });
+        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+            status: 'aborted',
+        });
 
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);
@@ -140,7 +143,9 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({ status: 'blocked' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'blocked' });
+        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+            status: 'blocked',
+        });
 
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);

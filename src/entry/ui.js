@@ -11,7 +11,6 @@ import { getChatStore } from '../foundation/chat-store.js';
 import { getEffectiveSettings, getSettings } from '../foundation/settings.js';
 import { countGhostedMessages } from '../core/ghosting.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
-import { isBusy } from '../core/summarizer-queue.js';
 import { formatCompactTokenCount } from '../core/token-count.js';
 
 import { describeAutoWork } from '../core/summarization-routes.js';
@@ -32,9 +31,12 @@ const CONTEXT_COLOR_CLASSES = 'sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-dan
 
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
+ * Entry re-renders through the Refresh Port, whose composition root binding
+ * supplies the queue.
+ * @param {{ queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {Promise<void>}
  */
-export async function updateUI() {
+export async function updateUI({ queue }) {
     try {
         const s = getSettings();
         const effectiveSettings = getEffectiveSettings();
@@ -59,6 +61,7 @@ export async function updateUI() {
             work,
             ghostedCount,
             metrics,
+            busy: queue.isBusy(),
         };
         const memoryInjection = buildInjection(store.layers, effectiveSettings);
         const memoryUsage = await measureInjection(memoryInjection);
@@ -137,9 +140,9 @@ function setContextValueColor($element, tokens) {
 }
 
 async function renderStatusOverview(prefix, modeField, overview) {
-    const { settings: s, modeLabel, work, ghostedCount, metrics } = overview;
+    const { settings: s, modeLabel, work, ghostedCount, metrics, busy } = overview;
     $(`#${prefix}_${modeField}`).text(modeLabel);
-    $(`#${prefix}_worker`).text(await getWorkerLabel(s, work));
+    $(`#${prefix}_worker`).text(await getWorkerLabel(s, work, busy));
     $(`#${prefix}_snippets`).text(String(metrics.totalSnippets));
     $(`#${prefix}_ghosted`).text(String(ghostedCount));
 }
@@ -148,10 +151,11 @@ async function renderStatusOverview(prefix, modeField, overview) {
  * Build the worker status label from the auto work read model.
  * @param {ReturnType<typeof getEffectiveSettings>} s
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
+ * @param {boolean} busy - Whether any summarizer work is live
  * @returns {Promise<string>}
  */
-async function getWorkerLabel(s, work) {
-    if (isBusy()) {
+async function getWorkerLabel(s, work, busy) {
+    if (busy) {
         return 'Running';
     }
     if (!s.enabled) {

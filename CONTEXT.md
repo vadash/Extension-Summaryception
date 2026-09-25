@@ -200,7 +200,7 @@ Code: `beginRun`, `stop`, `isBusy` (src/core/summarizer-queue.js)
 _Avoid_: summarizing flag, busy flag
 
 **Summarizer Queue**:
-The coalescing worker that owns automatic summarization work: request, drain, and phase. One instance exists; automatic cycles start through request, foreground runs lease the queue through the Work Gate, and stop is the one way to end live work.
+The coalescing worker that owns automatic summarization work: request, drain, and phase. One instance exists, built at the composition root with the Foreground Gate and Notify Adapter and handed to entry; automatic cycles start through request, foreground runs lease the queue through the Work Gate, and stop is the one way to end live work.
 Code: `SummarizerQueue` (src/core/summarizer-queue.js)
 _Avoid_: job runner, work queue
 

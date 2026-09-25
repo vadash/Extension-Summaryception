@@ -16,17 +16,22 @@ import { ensureChild } from './ui-dom.js';
 let notifyAdapter = null;
 /** @type {import('../core/foreground-gate.js').ForegroundGate | null} */
 let foregroundGate = null;
+/** @type {import('../core/summarizer-queue.js').SummarizerQueue | null} */
+let summarizerQueue = null;
 
 /**
- * Core receives the notify adapter and the Foreground Gate only through this
- * call; they serve the snippet write paths a browser action triggers.
+ * Core receives the notify adapter, the Foreground Gate, and the Summarizer
+ * Queue only through this call; they serve the snippet write paths a browser
+ * action triggers.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter distributed to core calls.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate every snippet commit crosses.
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue - Summarizer Queue regeneration leases.
  * @returns {void}
  */
-export function initSnippetBrowser(notify, gate) {
+export function initSnippetBrowser(notify, gate, queue) {
     notifyAdapter = notify;
     foregroundGate = gate;
+    summarizerQueue = queue;
 }
 
 /**
@@ -105,7 +110,11 @@ function buildSnippetBrowserItem(snippet, layerIndex, snippetIndex) {
         snippetIndex,
         text: snippet.text,
         meta: getSnippetMeta(snippet),
-        canRedo: isRegenerationCandidate(layerIndex, snippetIndex),
+        canRedo: isRegenerationCandidate(
+            layerIndex,
+            snippetIndex,
+            /** @type {import('../core/summarizer-queue.js').SummarizerQueue} */ (summarizerQueue),
+        ),
     };
 }
 
@@ -391,7 +400,11 @@ async function onSnippetRedoClick() {
         return;
     }
 
-    const target = getSnippetRegenerationTarget(position.layerIdx, position.snippetIdx);
+    const target = getSnippetRegenerationTarget(
+        position.layerIdx,
+        position.snippetIdx,
+        /** @type {import('../core/summarizer-queue.js').SummarizerQueue} */ (summarizerQueue),
+    );
     if (target.status !== 'ready') {
         handleRegenerationTargetStatus(target);
         return;
@@ -447,6 +460,9 @@ async function runSnippetRegeneration(btn, position) {
             notify: notifyAdapter ?? undefined,
             gate: /** @type {import('../core/foreground-gate.js').ForegroundGate} */ (
                 foregroundGate
+            ),
+            queue: /** @type {import('../core/summarizer-queue.js').SummarizerQueue} */ (
+                summarizerQueue
             ),
         });
         handleRegenerationResult(result);

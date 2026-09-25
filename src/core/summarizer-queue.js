@@ -260,91 +260,25 @@ function isQueuePhase(phase) {
     );
 }
 
-/** @type {import('./notify.js').NotifyAdapter} */
-let notifyAdapter = silentAdapter;
-
-/** @type {import('./foreground-gate.js').ForegroundGate | null} */
-let foregroundGate = null;
-
 /**
- * Register the Foreground Gate the automatic cycle crosses. The composition
- * root installs it once; a cycle that runs without one is a wiring fault, not
- * a reason to mutate the prompt unguarded.
- * @param {import('./foreground-gate.js').ForegroundGate} gate
- * @returns {void}
+ * Build the one summarizer queue from static core imports. The composition
+ * root calls this once with the Foreground Gate the automatic cycle crosses
+ * and the Notify Adapter it reports through, then hands the instance to entry.
+ * @param {object} p
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate
+ * @param {import('./notify.js').NotifyAdapter} [p.notify]
+ * @returns {SummarizerQueue}
  */
-export function setForegroundGate(gate) {
-    foregroundGate = gate;
-}
-
-/**
- * The one summarizer queue instance, built from static core imports.
- * @type {SummarizerQueue}
- */
-export const summarizerQueue = new SummarizerQueue({
-    drainOneCycle: (queue) => {
-        if (!foregroundGate) {
-            throw new Error('Foreground Gate is not wired: the composition root installs it once.');
-        }
-        return runElasticAutoCycle(queue, {
-            refreshUi,
-            notify: notifyAdapter,
-            gate: foregroundGate,
-        });
-    },
-    abortAllRequests,
-    isRequestLive: isSummarizerRequestLive,
-    refreshUi,
-    withUsageRun,
-    yieldCycle: async () => {
-        await sleep(0);
-    },
-    afterDrain: flushPendingChatSave,
-});
-
-/**
- * @returns {Promise<void>}
- */
-export function requestSummarization() {
-    return summarizerQueue.request();
-}
-
-/**
- * Whether any summarizer work is live: the automatic worker, a foreground
- * lease, or a summarizer request.
- * @returns {boolean}
- */
-export function isBusy() {
-    return summarizerQueue.isBusy();
-}
-
-/**
- * @returns {boolean}
- */
-export function isRequestLive() {
-    return summarizerQueue.isRequestLive();
-}
-
-/**
- * @returns {void}
- */
-export function stopSummarization() {
-    summarizerQueue.stop();
-}
-
-/**
- * @param {'manual-run' | 'regeneration'} kind
- * @returns {{ end: () => void, isStopped: () => boolean }} Lease handle; caller ends it in finally.
- */
-export function beginRun(kind) {
-    return summarizerQueue.beginRun(kind);
-}
-
-/**
- * Register the notify adapter used by automatic summarization cycles.
- * @param {import('./notify.js').NotifyAdapter | null | undefined} adapter - Toastr-backed adapter from entry, or a falsy value to reset to silent.
- * @returns {void}
- */
-export function setNotify(adapter) {
-    notifyAdapter = adapter || silentAdapter;
+export function createSummarizerQueue({ gate, notify = silentAdapter }) {
+    return new SummarizerQueue({
+        drainOneCycle: (queue) => runElasticAutoCycle(queue, { refreshUi, notify, gate }),
+        abortAllRequests,
+        isRequestLive: isSummarizerRequestLive,
+        refreshUi,
+        withUsageRun,
+        yieldCycle: async () => {
+            await sleep(0);
+        },
+        afterDrain: flushPendingChatSave,
+    });
 }

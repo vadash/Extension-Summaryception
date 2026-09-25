@@ -9,7 +9,7 @@ import {
 import { error, warn } from '../foundation/logger.js';
 import { clampInteger } from '../foundation/numeric.js';
 import { selectOff, setComplexity, setEnabled } from '../foundation/operation-mode.js';
-import { refreshFull, refreshPreview } from '../foundation/refresh.js';
+import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { getSettings, resetSettingsToDefaults, saveSettings } from '../foundation/settings.js';
 import {
@@ -17,9 +17,7 @@ import {
     enforceRetentionInvariants,
 } from '../foundation/settings-normalizer.js';
 import { clearChatData } from '../core/chat-data.js';
-import { requestSummarization } from '../core/summarizer-queue.js';
 import { importSummaryceptionMemory } from '../features/memory.js';
-import { updateUI } from './ui.js';
 import {
     SETTING_SLIDER_SELECTOR,
     bindDataSettingElements,
@@ -44,22 +42,24 @@ function saveAndRefreshUi() {
 
 /**
  * Bind document event handlers for the Summaryception UI.
- * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter distributed to core calls.
- * @param {import('../core/summarizer-engine.js').ManualRunnerDeps} manualRunnerDeps - Engine deps for manual runs.
- * @param {import('../core/summarizer-engine.js').PauseLatchDeps} pauseLatchDeps - Engine deps for the pause latch.
+ * @param {object} deps
+ * @param {import('../core/notify.js').NotifyAdapter} deps.notify - Toastr-backed adapter distributed to core calls.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} deps.gate - Foreground Gate the import commit crosses.
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} deps.queue - Summarizer Queue settings changes kick.
+ * @param {import('../core/summarizer-engine.js').ManualRunnerDeps} deps.manualRunnerDeps - Engine deps for manual runs and the pause latch.
  * @returns {void}
  */
-export function bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps, gate) {
-    bindModeHandlers();
-    bindToggleHandlers();
+export function bindUIEvents({ notify, gate, queue, manualRunnerDeps }) {
+    bindModeHandlers(queue);
+    bindToggleHandlers(queue);
     bindSliderHandlers();
     bindTextareaHandlers();
     bindClickHandlers(notify, gate);
-    bindManualRunControls({ notify, manualRunnerDeps, pauseLatchDeps });
+    bindManualRunControls({ notify, manualRunnerDeps });
     bindPromptProfiles();
 }
 
-function bindModeHandlers() {
+function bindModeHandlers(queue) {
     $(document).on('change', 'input[name="sc_ui_mode"]', function () {
         const mode = String($(this).val());
         if (!(/** @type {string[]} */ (Object.values(UI_MODES)).includes(mode))) {
@@ -78,7 +78,7 @@ function bindModeHandlers() {
         }
         saveAndRefreshUi();
         if (s.enabled) {
-            requestAutoSummaryRefresh('mode changed');
+            requestAutoSummaryRefresh(queue, 'mode changed');
         }
     });
 }
@@ -86,13 +86,13 @@ function bindModeHandlers() {
 /**
  * @returns {void}
  */
-function bindToggleHandlers() {
+function bindToggleHandlers(queue) {
     $(document).on('change', '#sc_enabled', function () {
         const s = getSettings();
         setEnabled(s, $(this).prop('checked'));
         saveAndRefreshUi();
         if (s.enabled) {
-            requestAutoSummaryRefresh('enabled');
+            requestAutoSummaryRefresh(queue, 'enabled');
         }
     });
 
@@ -165,12 +165,13 @@ function bindCustomPlacementHandlers() {
     });
 }
 
-function requestAutoSummaryRefresh(reason) {
-    void requestSummarization()
+function requestAutoSummaryRefresh(queue, reason) {
+    void queue
+        .request()
         .catch((e) => {
             warn(`Auto summarization request after ${reason} failed:`, e);
         })
-        .finally(updateUI);
+        .finally(refreshUi);
 }
 
 /**
@@ -309,7 +310,7 @@ function bindClickHandlers(notify, gate) {
         }
     });
 
-    $(document).on('click', '#sc_refresh_preview', () => updateUI());
+    $(document).on('click', '#sc_refresh_preview', () => refreshUi());
 
     $(document).on('click', '#sc_export', function () {
         const store = getChatStore();

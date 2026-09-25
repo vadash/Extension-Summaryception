@@ -4,10 +4,6 @@ import { bindManualRunControls } from '../src/entry/ui-manual-run.js';
 import { TOAST_TITLE } from '../src/foundation/constants.js';
 import { createJQueryHarness, installSummaryContext, makeToastrMock } from './test-helpers.js';
 
-vi.mock('../src/entry/ui.js', async (importOriginal) => ({
-    ...(await importOriginal()),
-    updateUI: vi.fn(),
-}));
 const summarizerMocks = vi.hoisted(() => ({
     describeManualRun: vi.fn(),
     runManual: vi.fn(),
@@ -18,6 +14,11 @@ vi.mock('../src/core/summarizer-engine.js', async (importOriginal) => ({
     describeManualRun: summarizerMocks.describeManualRun,
     runManual: summarizerMocks.runManual,
 }));
+
+/** A Summarizer Queue with no live work. */
+function makeIdleQueue() {
+    return { isBusy: () => false, stop: vi.fn() };
+}
 
 describe('manual run failure handling', () => {
     const forceIdleHtml = '<i class="fa-solid fa-bolt"></i><span>Force Summarize</span>';
@@ -32,7 +33,7 @@ describe('manual run failure handling', () => {
         globalThis.$ = dom.$;
         summarizerMocks.describeManualRun.mockResolvedValue({ ready: true, backlog: 2 });
         summarizerMocks.runManual.mockRejectedValue(new Error('provider exploded'));
-        bindManualRunControls({ notify: null, manualRunnerDeps: {}, pauseLatchDeps: {} });
+        bindManualRunControls({ notify: null, manualRunnerDeps: { queue: makeIdleQueue() } });
         button = dom.element('#sc_force_summarize');
     });
 
@@ -63,7 +64,7 @@ describe('manual run outcome notices', () => {
         dom = createJQueryHarness();
         globalThis.$ = dom.$;
         summarizerMocks.describeManualRun.mockResolvedValue({ ready: true, backlog: 2 });
-        bindManualRunControls({ notify: null, manualRunnerDeps: {}, pauseLatchDeps: {} });
+        bindManualRunControls({ notify: null, manualRunnerDeps: { queue: makeIdleQueue() } });
         button = dom.element('#sc_force_summarize');
     });
 

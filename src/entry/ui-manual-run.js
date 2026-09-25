@@ -8,9 +8,7 @@ import {
     resumeAutoSummarization,
     runManual,
 } from '../core/summarizer-engine.js';
-import { isBusy, stopSummarization } from '../core/summarizer-queue.js';
-import { refreshPreview } from '../foundation/refresh.js';
-import { updateUI } from './ui.js';
+import { refreshPreview, refreshUi } from '../foundation/refresh.js';
 import {
     clearManualProgressToast,
     confirmSlopBreaker,
@@ -23,8 +21,6 @@ import {
 
 /** @type {import('../core/summarizer-engine.js').ManualRunnerDeps} */
 let manualRunnerDeps;
-/** @type {import('../core/summarizer-engine.js').PauseLatchDeps} */
-let pauseLatchDeps;
 
 /**
  * Abort a manual summarization run from its progress toast.
@@ -33,7 +29,7 @@ let pauseLatchDeps;
  */
 function cancelManualRun(controller) {
     controller.abort();
-    stopSummarization();
+    manualRunnerDeps.queue.stop();
 }
 
 const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
@@ -77,7 +73,7 @@ async function runManualSummarization($button, idleHtml, { run, notify, view }) 
         if ($button) {
             $button.prop('disabled', false).html(idleHtml);
         }
-        updateUI();
+        refreshUi();
     }
     if (outcome !== undefined) {
         view.notices[outcome.status]?.(outcome);
@@ -96,7 +92,7 @@ function guardManualRun(s) {
         toastr.warning('Enable Summaryception first.');
         return false;
     }
-    if (isBusy()) {
+    if (manualRunnerDeps.queue.isBusy()) {
         showBusySummaryToast();
         return false;
     }
@@ -208,7 +204,7 @@ export function reloadPage() {
  * @returns {Promise<void>}
  */
 async function onStopSummarize() {
-    const status = await pauseAutoSummarization(pauseLatchDeps);
+    const status = await pauseAutoSummarization(manualRunnerDeps);
     if (status === 'already-paused') {
         toastr.info('Already paused.', TOAST_TITLE);
         return;
@@ -222,7 +218,7 @@ async function onStopSummarize() {
     });
     $(this).prop('disabled', true);
     setTimeout(() => $(this).prop('disabled', false), 2000);
-    updateUI();
+    refreshUi();
 }
 
 /**
@@ -230,7 +226,7 @@ async function onStopSummarize() {
  * @returns {Promise<void>}
  */
 async function onResumeSummarize() {
-    const status = await resumeAutoSummarization(pauseLatchDeps);
+    const status = await resumeAutoSummarization(manualRunnerDeps);
     if (status === 'not-paused') {
         toastr.info('Not paused.', TOAST_TITLE);
         return;
@@ -238,23 +234,18 @@ async function onResumeSummarize() {
     toastr.success('Resumed. Automatic summarization is active again.', TOAST_TITLE, {
         timeOut: 3000,
     });
-    updateUI();
+    refreshUi();
 }
 
 /**
  * Bind the manual-run controls: Force Summarize, Slop Breaker, the
  * stale-cache advice toast action that starts the same manual run, and the
  * Stop/Resume controls.
- * @param {{ notify: import('../core/notify.js').NotifyAdapter, manualRunnerDeps: import('../core/summarizer-engine.js').ManualRunnerDeps, pauseLatchDeps: import('../core/summarizer-engine.js').PauseLatchDeps }} deps
+ * @param {{ notify: import('../core/notify.js').NotifyAdapter, manualRunnerDeps: import('../core/summarizer-engine.js').ManualRunnerDeps }} deps
  * @returns {void}
  */
-export function bindManualRunControls({
-    notify,
-    manualRunnerDeps: runnerDeps,
-    pauseLatchDeps: latchDeps,
-}) {
+export function bindManualRunControls({ notify, manualRunnerDeps: runnerDeps }) {
     manualRunnerDeps = runnerDeps;
-    pauseLatchDeps = latchDeps;
     $(document).on('click', '#sc_force_summarize, #sc_easy_force_summarize', async function () {
         await executeForceSummarize($(this), notify);
     });

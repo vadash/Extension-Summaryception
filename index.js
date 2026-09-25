@@ -14,12 +14,7 @@ import { saveChatStore } from './src/foundation/chat-store.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
 import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
-import {
-    requestSummarization,
-    setForegroundGate,
-    setNotify,
-    summarizerQueue,
-} from './src/core/summarizer-queue.js';
+import { createSummarizerQueue } from './src/core/summarizer-queue.js';
 import { callSummarizer } from './src/core/summarizer-request.js';
 import { createContinuityAuditor } from './src/core/continuity-audit.js';
 import { createForegroundGate } from './src/core/foreground-gate.js';
@@ -57,17 +52,16 @@ import { registerSlashCommands } from './src/entry/commands.js';
     }
 
     getSettings();
+    // The gate's requeue reads the queue lazily; the queue is built next.
     const gate = createForegroundGate({
         reassertInjection: reassertInjectionSnapshot,
         requeue: () => {
-            void requestSummarization();
+            void queue.request();
         },
     });
-    setForegroundGate(gate);
     const notify = createToastrNotifyAdapter();
-    setNotify(notify);
-    const manualRunnerDeps = { queue: summarizerQueue, refreshUi, withUsageRun, gate };
-    const pauseLatchDeps = { queue: summarizerQueue };
+    const queue = createSummarizerQueue({ gate, notify });
+    const manualRunnerDeps = { queue, refreshUi, withUsageRun, gate };
     const continuityAuditor = createContinuityAuditor({
         dispatch: callSummarizer,
         saveChatStore,
@@ -96,10 +90,10 @@ import { registerSlashCommands } from './src/entry/commands.js';
             });
         },
         updateContinuityMarker,
-        updateUI,
+        updateUI: (options) => updateUI({ ...options, queue }),
         updatePreview: syncLLMContextPreview,
     });
-    initSnippetBrowser(notify, gate);
+    initSnippetBrowser(notify, gate, queue);
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',
@@ -109,7 +103,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     $('#extensions_settings2').append(html);
 
     initSettingsHelp();
-    bindUIEvents(notify, manualRunnerDeps, pauseLatchDeps, gate);
+    bindUIEvents({ notify, gate, queue, manualRunnerDeps });
     bindPromptFreezeRecoveryEvents({ gate });
     initSettingsTabs();
     initConnectionUI();
@@ -120,18 +114,21 @@ import { registerSlashCommands } from './src/entry/commands.js';
             notify,
             type,
             auditor: continuityAuditor,
+            queue,
         }),
     );
-    eventSource.on(eventTypes.CHAT_CHANGED, () => onChatChanged({ gate }));
-    eventSource.on(eventTypes.GENERATION_STARTED, (...args) => onGenerationStarted(args, { gate }));
+    eventSource.on(eventTypes.CHAT_CHANGED, () => onChatChanged({ gate, queue }));
+    eventSource.on(eventTypes.GENERATION_STARTED, (...args) =>
+        onGenerationStarted(args, { gate, queue }),
+    );
     if (eventTypes.GENERATE_AFTER_DATA) {
         eventSource.on(eventTypes.GENERATE_AFTER_DATA, onGenerateAfterData);
     }
     if (eventTypes.GENERATION_ENDED) {
-        eventSource.on(eventTypes.GENERATION_ENDED, () => onGenerationEnded({ gate }));
+        eventSource.on(eventTypes.GENERATION_ENDED, () => onGenerationEnded({ gate, queue }));
     }
     if (eventTypes.GENERATION_STOPPED) {
-        eventSource.on(eventTypes.GENERATION_STOPPED, () => onGenerationEnded({ gate }));
+        eventSource.on(eventTypes.GENERATION_STOPPED, () => onGenerationEnded({ gate, queue }));
     }
     if (eventTypes.CHAT_COMPLETION_PROMPT_READY) {
         eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady);
@@ -139,7 +136,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     registerSlashCommands();
 
     eventSource.on(eventTypes.APP_READY, async () => {
-        await onAppReady({ gate });
+        await onAppReady({ gate, queue });
         console.log(LOG_PREFIX, 'loaded. Connection Settings available');
     });
 })();

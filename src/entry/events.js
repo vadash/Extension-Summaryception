@@ -15,7 +15,6 @@ import {
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
-import { isRequestLive, requestSummarization } from '../core/summarizer-queue.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
 import { updateContinuityMarker } from './continuity-marker.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
@@ -139,16 +138,17 @@ let promptFreezeRecoveryBound = false;
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
  * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, the other types dispatch nothing
  * @param {{ audit: (input: import('../core/continuity-audit.js').ContinuityAuditInput) => Promise<unknown> }} options.auditor - Continuity Audit built at the composition root
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} options.queue - Summarizer Queue a new reply kicks
  * @returns {void}
  */
-export function onMessageReceived(messageIndex, { notify, type, auditor }) {
+export function onMessageReceived(messageIndex, { notify, type, auditor, queue }) {
     try {
         const chat = getChat();
         const msg = chat[messageIndex];
         if (msg && !msg.is_user && !msg.is_system) {
             trace('New assistant message at index', messageIndex);
             setTimeout(async () => {
-                await requestSummarization();
+                await queue.request();
                 refreshUi();
             }, 500);
             if (isAuditorTriggerMessage(msg, type)) {
@@ -182,23 +182,23 @@ function gatherAuditInputs(notify) {
 
 /**
  * Reconciles the loaded chat before any automatic cycle can read it.
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {void}
  */
-export function onChatChanged({ gate }) {
+export function onChatChanged({ gate, queue }) {
     trace('Chat changed.');
     recoverPromptFreeze('chat change', gate);
-    scheduleLoadedChatReconciliation(gate);
+    scheduleLoadedChatReconciliation(gate, queue);
 }
 
 /**
  * Reconcile persisted Summaryception state after app load.
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {Promise<void>}
  */
-export async function onAppReady({ gate }) {
+export async function onAppReady({ gate, queue }) {
     gate.reset();
-    await runSerializedReconciliation(gate);
+    await runSerializedReconciliation(gate, queue);
 }
 
 /**
@@ -226,15 +226,15 @@ export function bindPromptFreezeRecoveryEvents({ gate }) {
 /**
  * Freezes prompt mutations for host generations; dry runs and own requests are excluded.
  * @param {unknown[]} args - GENERATION_STARTED event arguments.
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {void}
  */
-export function onGenerationStarted(args, { gate }) {
+export function onGenerationStarted(args, { gate, queue }) {
     if (isDryRunEvent(args[1], args[2])) {
         trace('Ignoring generation start from SillyTavern dry run.');
         return;
     }
-    if (isRequestLive()) {
+    if (queue.isRequestLive()) {
         trace('Ignoring generation start from active Summaryception request.');
         return;
     }
@@ -258,11 +258,11 @@ export function onGenerationStarted(args, { gate }) {
 
 /**
  * Unfreezes prompt mutations after a host generation ends.
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate }} deps
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {void}
  */
-export function onGenerationEnded({ gate }) {
-    const hasActiveSummaryRequest = isRequestLive();
+export function onGenerationEnded({ gate, queue }) {
+    const hasActiveSummaryRequest = queue.isRequestLive();
     const hasFrozenMutations = gate.isFrozen();
 
     if (hasActiveSummaryRequest && !hasFrozenMutations) {
@@ -275,7 +275,7 @@ export function onGenerationEnded({ gate }) {
         try {
             await gate.endGeneration();
             await flushPendingChatSave();
-            await requestSummarization();
+            await queue.request();
         } finally {
             refreshUi();
         }
@@ -342,30 +342,32 @@ async function reconcileLoadedChatState(gate) {
 /**
  * Debounce loaded-chat reconciliation after chat save/load bursts.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue
  * @returns {void}
  */
-function scheduleLoadedChatReconciliation(gate) {
+function scheduleLoadedChatReconciliation(gate, queue) {
     if (reconcileTimer) {
         clearTimeout(reconcileTimer);
     }
     reconcileTimer = setTimeout(() => {
         reconcileTimer = null;
-        void runSerializedReconciliation(gate);
+        void runSerializedReconciliation(gate, queue);
     }, 100);
 }
 
 /**
  * Run loaded-chat reconciliation serially, coalescing queued requests.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue
  * @returns {Promise<void>}
  */
-async function runSerializedReconciliation(gate) {
+async function runSerializedReconciliation(gate, queue) {
     if (reconcilePromise) {
         reconcileQueued = true;
         return await reconcilePromise;
     }
 
-    reconcilePromise = drainReconciliationQueue(gate);
+    reconcilePromise = drainReconciliationQueue(gate, queue);
     try {
         await reconcilePromise;
     } finally {
@@ -376,15 +378,16 @@ async function runSerializedReconciliation(gate) {
 /**
  * Drain one or more coalesced reconciliation requests.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue
  * @returns {Promise<void>}
  */
-async function drainReconciliationQueue(gate) {
+async function drainReconciliationQueue(gate, queue) {
     do {
         reconcileQueued = false;
         await reconcileLoadedChatState(gate);
         refreshUi();
     } while (reconcileQueued);
-    await checkStaleCacheAdvice();
+    await checkStaleCacheAdvice(queue);
 }
 
 let staleCacheAdviceKey = '';
@@ -392,12 +395,13 @@ let staleCacheAdviceKey = '';
 /**
  * Suggest an early Force Summarize when the loaded chat's provider cache is
  * stale. Shown once per queue state per page session.
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue
  * @returns {Promise<void>}
  */
-async function checkStaleCacheAdvice() {
+async function checkStaleCacheAdvice(queue) {
     try {
         const settings = getEffectiveSettings();
-        if (!settings.enabled || !isProviderCacheMode(settings) || isRequestLive()) {
+        if (!settings.enabled || !isProviderCacheMode(settings) || queue.isRequestLive()) {
             return;
         }
         const chat = getChat();
