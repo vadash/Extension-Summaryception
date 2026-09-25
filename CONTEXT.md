@@ -172,7 +172,7 @@ Code: `createAttemptSession` (src/core/request-series.js)
 _Avoid_: attempt context, request state
 
 **Run Outcome**:
-The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.
+The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). A summarizer request's `completed` always carries its Call Profile and means the text already passed every output check under that profile, so callers never re-validate it. `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.
 Code: `SummarizationRunOutcome` / `ManualRunOutcome` (src/core/run-outcome.js)
 
 **Log Tier**:

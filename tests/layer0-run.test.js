@@ -282,26 +282,6 @@ describe('Layer 0 run — one Passage', () => {
         expect(metadata.summaryception.layers[0]).toEqual([]);
         expect(metadata.summaryception.mutationEpoch).toBe(0);
     });
-
-    it('fails the run and skips the commit when the profile guard rejects a headerless summary', async () => {
-        const chat = buildChat();
-        const metadata = { summaryception: makeSummaryStore() };
-        installSummaryContext({ chat, metadata });
-        callSummarizer.mockImplementation(async ({ metadata: dispatchMetadata }) => ({
-            status: 'completed',
-            text: 'A headerless summary paragraph.',
-            profile: resolveCallProfile(makeSummarySettings(), dispatchMetadata),
-        }));
-
-        await expect(runOnePassage(makeNotifyRecorder())).resolves.toEqual({
-            status: 'failed',
-            completed: 0,
-            failed: 1,
-        });
-
-        expect(metadata.summaryception.layers[0]).toEqual([]);
-        expect(metadata.summaryception.mutationEpoch).toBe(0);
-    });
 });
 
 describe('Layer 0 run — atomic Passages', () => {

@@ -126,18 +126,6 @@ describe('snippet regeneration request outcomes', () => {
         expect(store.mutationEpoch).toBe(2);
     });
 
-    it('fails without mutating the store when the profile guard rejects a headerless summary', async () => {
-        const { store, snippet } = installReadySnippet();
-        summarizerMocks.callSummarizer.mockImplementation(
-            completedRegeneration('A headerless regeneration paragraph.'),
-        );
-
-        await expect(regenerateSnippetAt(0, 0, { gate })).resolves.toEqual({ status: 'failed' });
-
-        expect(snippet.text).toBe('old summary');
-        expect(store.mutationEpoch).toBe(0);
-    });
-
     it('returns aborted without mutating the store when the outcome is aborted', async () => {
         const { store, snippet } = installReadySnippet();
         summarizerMocks.callSummarizer.mockResolvedValue({ status: 'aborted' });

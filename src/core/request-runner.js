@@ -7,7 +7,7 @@ import { createAttemptSession } from './request-series.js';
 
 /**
  * Structured result of one summarizer request: {@link import('./run-outcome.js').RunOutcome}.
- * Completed outcomes carry the resolved profile for post-hoc validation.
+ * Completed outcomes carry accepted text and the profile it was accepted under.
  */
 
 function buildCompletedOutcome(text, profile) {

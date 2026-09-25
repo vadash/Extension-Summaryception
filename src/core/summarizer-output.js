@@ -225,21 +225,6 @@ function findPassageShapeRejection(output, profile) {
     }
     return '';
 }
-/**
- * Guard summarizer output before committing; warn once when invalid.
- * @param {string} text - Cleaned summarizer output
- * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
- * @param {string} [warnPrefix] - Optional prefix for the warning message
- * @returns {boolean}
- */
-export function isSummarizerOutputSafe(text, profile, warnPrefix = '') {
-    const integrityResult = validateSummarizerOutputIntegrity(text, profile);
-    if (integrityResult.valid) {
-        return true;
-    }
-    warn(`${warnPrefix}${integrityResult.error.message}`);
-    return false;
-}
 
 /**
  * @param {string} text - Text to inspect

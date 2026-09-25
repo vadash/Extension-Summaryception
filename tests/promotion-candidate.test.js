@@ -160,26 +160,6 @@ describe('generateValidatedPromotion', () => {
         });
     });
 
-    it('rejects output that fails the integrity guard without a repair pass', async () => {
-        installStore();
-        const prepared = makePrepared({
-            memoryTokensBefore: { count: 3000, estimated: false },
-            promotionMetadata: {
-                kind: 'promotion',
-                layerIndex: 0,
-                memoryTokensBefore: 3000,
-                memoryTokensBeforeEstimated: false,
-            },
-        });
-        callSummarizer.mockImplementation(outcomeWithProfile(SHORT_NARRATIVE));
-
-        const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
-
-        expect(result).toBeNull();
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
-        expect(callSummarizer.mock.calls[0][0].metadata).toEqual(prepared.promotionMetadata);
-    });
-
     it('rejects a valid-sized promotion that does not compress memory', async () => {
         installStore([
             [

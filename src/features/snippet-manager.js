@@ -3,7 +3,6 @@ import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
-import { validateSummarizerOutputIntegrity } from '../core/summarizer-output.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
 import { callSummarizer } from '../core/summarizer-request.js';
@@ -172,15 +171,7 @@ async function regenerateSnippetWithTarget(target, notify, gate) {
     if (outcome.status !== 'completed') {
         return { status: outcome.status };
     }
-    const profile = outcome.profile;
-    if (!profile) {
-        return { status: 'failed' };
-    }
-    const newSummary = /** @type {string} */ (outcome.text);
-    const integrityResult = validateSummarizerOutputIntegrity(newSummary, profile);
-    if (!integrityResult.valid) {
-        return { status: 'failed' };
-    }
+    const newSummary = outcome.text;
 
     await commitSnippetMutation(
         getChatStore(),

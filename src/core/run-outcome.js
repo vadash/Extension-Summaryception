@@ -14,13 +14,11 @@
 /**
  * Structured result of one summarizer request (ADR-0019). The deepest shared
  * request entry returns this instead of an empty-string sentinel. Completed
- * outcomes carry the resolved Call Profile so post-hoc output validation
- * consumes the same frozen policy the request ran under (ADR-0008).
- * @typedef {object} RunOutcome
- * @property {'completed' | 'aborted' | 'blocked' | 'failed'} status - Terminal request status.
- * @property {string} [text] - Summary text; present only when status is 'completed'.
- * @property {import('./call-profile.js').CallProfile} [profile] - Call profile resolved at dispatch; present only when status is 'completed'.
- * @property {number} [attempts] - Attempts actually made; present only when status is 'failed'.
+ * outcomes carry text that already passed every output check under the
+ * returned Call Profile, so callers never re-validate it (ADR-0008).
+ * @typedef {{ status: 'completed', text: string, profile: import('./call-profile.js').CallProfile }
+ *     | { status: 'aborted' | 'blocked' }
+ *     | { status: 'failed', attempts?: number }} RunOutcome
  */
 
 /**

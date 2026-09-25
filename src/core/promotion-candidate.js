@@ -8,7 +8,6 @@ import {
     getPromotionSummaryTokenHardMax,
     getPromotionSummaryTokenTarget,
 } from './promotion-planner.js';
-import { isSummarizerOutputSafe } from './summarizer-output.js';
 import { buildRepairDiagnostics } from './repair-diagnostics.js';
 import { callSummarizer } from './summarizer-request.js';
 import {
@@ -61,12 +60,11 @@ export async function generateValidatedPromotion(prepared, notify) {
     return await buildValidatedPromotionSnippet({
         prepared,
         narrative: metaOutcome.text,
-        profile: metaOutcome.profile,
         notify,
     });
 }
 
-async function buildValidatedPromotionSnippet({ prepared, narrative, profile, notify }) {
+async function buildValidatedPromotionSnippet({ prepared, narrative, notify }) {
     const {
         layerIndex,
         mergeCount,
@@ -90,7 +88,6 @@ async function buildValidatedPromotionSnippet({ prepared, narrative, profile, no
         settings,
         sourceNarrativeText,
         sourceTokens,
-        profile,
     });
     if (firstValidation.valid) {
         return firstCandidate;
@@ -138,7 +135,6 @@ async function buildValidatedPromotionSnippet({ prepared, narrative, profile, no
         settings,
         sourceNarrativeText,
         sourceTokens,
-        profile: repairOutcome.profile,
     });
     return repairedValidation.valid ? repairedCandidate : null;
 }
@@ -164,7 +160,6 @@ async function validatePromotionCandidate({
     settings,
     sourceNarrativeText,
     sourceTokens: providedSourceTokens,
-    profile,
 }) {
     const sourceTokens = providedSourceTokens || (await countTextTokens(sourceNarrativeText));
     const sizeValidation = await validatePromotionSize({
@@ -172,7 +167,6 @@ async function validatePromotionCandidate({
         promotedSnippet,
         settings,
         sourceTokens,
-        profile,
     });
     if (!sizeValidation.valid) {
         return sizeValidation;
@@ -180,16 +174,7 @@ async function validatePromotionCandidate({
     return validatePromotionCompressesMemory({ layerIndex, mergeCount, promotedSnippet, settings });
 }
 
-async function validatePromotionSize({
-    layerIndex,
-    promotedSnippet,
-    settings,
-    sourceTokens,
-    profile,
-}) {
-    if (!isPromotionSummarySafe({ layerIndex, promotedSnippet, profile })) {
-        return { valid: false, reason: 'integrity' };
-    }
+async function validatePromotionSize({ layerIndex, promotedSnippet, settings, sourceTokens }) {
     const outputTokens = await countTextTokens(promotedSnippet.text);
     const targetTokens = getLayer0SummaryTokenTarget(settings);
     const minTokens = getPromotionSummaryTokenTarget({ layerIndex, targetTokens });
@@ -239,14 +224,6 @@ async function validatePromotionCompressesMemory({
             )} tokens).`,
     );
     return { valid: false, reason: 'memory-total' };
-}
-
-function isPromotionSummarySafe({ layerIndex, promotedSnippet, profile }) {
-    return isSummarizerOutputSafe(
-        promotedSnippet.text,
-        profile,
-        `Promotion L${layerIndex} rejected: `,
-    );
 }
 
 function rejectPromotionSize({

@@ -165,6 +165,18 @@ describe('Call Session runSeries outcomes', () => {
         expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledOnce();
     });
 
+    it('never completes on output that fails integrity, so completed means accepted', async () => {
+        vi.useFakeTimers();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue('location: dock');
+
+        const pending = runSeries({ repairPrompt: '' });
+        await vi.runAllTimersAsync();
+        const result = await pending;
+
+        expect(result.status).toBe('rejected');
+        expect(result.reason).toBe('integrity-rejected');
+    });
+
     it('exhausts the retry budget on rejected outputs and reports the rejection reason', async () => {
         vi.useFakeTimers();
         connectionMocks.sendSummarizerRequest.mockResolvedValue('');
