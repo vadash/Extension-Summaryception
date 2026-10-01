@@ -100,17 +100,27 @@ function* iterateBackwardChatRange(chat, startIndex, endIndex) {
 }
 
 /**
+ * Check whether a record carries renderable conversation text and no special
+ * host payload.
+ * @param {ChatMessage | undefined} message
+ * @returns {boolean}
+ */
+function hasRenderableConversationText(message) {
+    return Boolean(message?.mes && String(message.mes).trim()) && !message?.extra?.type;
+}
+
+/**
  * Check whether a live chat record belongs in Layer 0 summarizer planning.
  * @param {ChatMessage | undefined} message
  * @returns {boolean}
  */
 export function isSummarizerConversationMessage(message) {
-    if (!message?.mes || !String(message.mes).trim()) {
+    if (!message || !hasRenderableConversationText(message)) {
         return false;
     }
     // Only an explicit host system flag marks a message as system. Never infer
     // it from role or content.
-    if (message.is_system || message.is_hidden || message.extra?.type) {
+    if (message.is_system || message.is_hidden) {
         return false;
     }
     return true;
@@ -217,17 +227,25 @@ async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
 
 /**
  * Scan an inclusive chat range with Layer 0 passage rules: prompt depths computed once,
- * non-conversation records skipped, each survivor rendered and counted exactly once.
+ * records failing the retention predicate skipped, each survivor rendered and counted exactly once.
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @param {number} startIndex - Requested start index
  * @param {number} endIndex - Requested end index
  * @param {ExtensionSettings} settings
+ * @param {object} [options] - Retention policy for the scan.
+ * @param {(message: ChatMessage) => boolean} [options.isIncluded] - Retention predicate; defaults to summarizer planning rules.
  * @yields {CountedChatMessage} Counted messages in traversal order
  */
-export async function* countedChatMessages(chat, startIndex, endIndex, settings) {
+export async function* countedChatMessages(
+    chat,
+    startIndex,
+    endIndex,
+    settings,
+    { isIncluded = isSummarizerConversationMessage } = {},
+) {
     const promptDepths = getPromptDepthsByChatIndex(chat);
     for (const { index, message } of iterateChatRange(chat, startIndex, endIndex)) {
-        if (!isSummarizerConversationMessage(message)) {
+        if (!isIncluded(message)) {
             continue;
         }
         const depth = promptDepths.get(index);
@@ -274,6 +292,7 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
             startIdx,
             endIdx,
             getEffectiveSettings(),
+            { isIncluded: isSummarizerPassageMessage },
         )) {
             accumulator.finalLines.push(finalLine);
             addBudgetStats(accumulator, stats);
@@ -293,6 +312,21 @@ export function isSummaryceptionOwnedMessage(message) {
         return false;
     }
     return getChatStore().ghostedMessageIds.includes(message.sc_id);
+}
+
+/**
+ * Check whether a live chat record belongs in a rendered Layer 0 passage.
+ * User-hidden and non-conversation records stay excluded; records hidden by
+ * Summaryception ghosting stay in the passage while ownership is live, so a
+ * committed snippet's own source range never renders as empty.
+ * @param {ChatMessage | undefined} message
+ * @returns {boolean}
+ */
+export function isSummarizerPassageMessage(message) {
+    if (isSummaryceptionOwnedMessage(message)) {
+        return hasRenderableConversationText(message);
+    }
+    return isSummarizerConversationMessage(message);
 }
 
 function buildPassageResult(accumulator) {

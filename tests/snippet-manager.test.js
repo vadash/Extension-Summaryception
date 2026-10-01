@@ -150,4 +150,57 @@ describe('snippet regeneration request outcomes', () => {
         expect(snippet.text).toBe('old summary');
         expect(store.mutationEpoch).toBe(0);
     });
+
+    it('regenerates a fully ghosted Layer 0 range from its owned source turns', async () => {
+        const chat = [
+            makeMessage({
+                isUser: true,
+                scId: 'user-id',
+                isSystem: true,
+                isHidden: true,
+                mes: 'User scene.',
+            }),
+            makeMessage({
+                scId: 'assistant-id',
+                isSystem: true,
+                isHidden: true,
+                mes: 'Assistant scene.',
+            }),
+        ];
+        const snippet = {
+            text: 'old summary',
+            sourceMessageIds: ['user-id', 'assistant-id'],
+            timestamp: 0,
+        };
+        const store = makeSummaryStore({
+            layers: [[snippet]],
+            ghostedMessageIds: ['user-id', 'assistant-id'],
+        });
+        installSummaryContext({ chat, metadata: { summaryception: store } });
+        summarizerMocks.callSummarizer.mockImplementation(
+            completedRegeneration('A fresh summary.'),
+        );
+
+        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+            status: 'regenerated',
+            range: [0, 1],
+        });
+        expect(snippet.text).toContain('A fresh summary.');
+    });
+
+    it('still reports empty-source when a user-hidden range has no live ownership', async () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'user-id', isHidden: true, mes: 'User scene.' }),
+            makeMessage({ scId: 'assistant-id', isHidden: true, mes: 'Assistant scene.' }),
+        ];
+        const store = makeSummaryStore({
+            layers: [[{ text: 'summary', sourceMessageIds: ['user-id', 'assistant-id'] }]],
+        });
+        installSummaryContext({ chat, metadata: { summaryception: store } });
+
+        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+            status: 'empty-source',
+        });
+        expect(summarizerMocks.callSummarizer).not.toHaveBeenCalled();
+    });
 });

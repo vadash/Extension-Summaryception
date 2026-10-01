@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    buildPassageFromRangeWithStats,
     findLastMessage,
     getAssistantTurns,
     getPromptDepthsByChatIndex,
     getVisibleAssistantTurns,
     isSummarizerConversationMessage,
+    isSummarizerPassageMessage,
     iterateChatRange,
 } from '../src/core/chatutils.js';
 import {
@@ -153,5 +155,56 @@ describe('findLastMessage', () => {
         expect(findLastMessage(chat, 4, isUser, 4)).toBeNull();
         expect(findLastMessage(chat, 1, isUser, 3)).toBeNull();
         expect(findLastMessage(chat, 0, () => false)).toBeNull();
+    });
+});
+
+describe('isSummarizerPassageMessage', () => {
+    it('retains owned ghosted turns and rejects user-hidden or non-conversation records', () => {
+        const ghosted = makeMessage({ isSystem: true, isHidden: true, mes: 'old turn' });
+        const userHidden = makeMessage({ isHidden: true, mes: 'user hid me' });
+        const note = makeMessage({ isSystem: true, isHidden: true, mes: 'note' });
+        note.extra.type = 'note';
+        const ownedBlank = makeMessage({ isSystem: true, isHidden: true, mes: '   ' });
+        const ownedNote = makeMessage({ isSystem: true, isHidden: true, mes: 'note' });
+        ownedNote.extra.type = 'note';
+        installSummaryContext({
+            chat: [ghosted],
+            metadata: {
+                summaryception: makeSummaryStore({
+                    ghostedMessageIds: [ghosted.sc_id, ownedBlank.sc_id, ownedNote.sc_id],
+                }),
+            },
+        });
+        expect(isSummarizerPassageMessage(ghosted)).toBe(true);
+        expect(isSummarizerPassageMessage(userHidden)).toBe(false);
+        expect(isSummarizerPassageMessage(note)).toBe(false);
+        expect(isSummarizerPassageMessage(makeMessage({ mes: '   ' }))).toBe(false);
+        expect(isSummarizerPassageMessage(ownedBlank)).toBe(false);
+        expect(isSummarizerPassageMessage(ownedNote)).toBe(false);
+    });
+});
+
+describe('buildPassageFromRangeWithStats', () => {
+    it('renders owned ghosted and live turns while skipping user-hidden or non-conversation records', async () => {
+        const ghosted = makeMessage({ isSystem: true, isHidden: true, mes: 'ghosted turn' });
+        const userHidden = makeMessage({ isHidden: true, mes: 'user hid me' });
+        const note = makeMessage({ isSystem: true, isHidden: true, mes: 'note' });
+        note.extra.type = 'note';
+        const live = makeMessage({ mes: 'live turn' });
+        const chat = [ghosted, userHidden, note, live];
+        installSummaryContext({
+            chat,
+            metadata: {
+                summaryception: makeSummaryStore({
+                    ghostedMessageIds: [ghosted.sc_id, note.sc_id],
+                }),
+            },
+        });
+
+        const passage = await buildPassageFromRangeWithStats(chat, 0, 3);
+        expect(passage.text).toContain('ghosted turn');
+        expect(passage.text).toContain('live turn');
+        expect(passage.text).not.toContain('user hid me');
+        expect(passage.text).not.toContain('note');
     });
 });
