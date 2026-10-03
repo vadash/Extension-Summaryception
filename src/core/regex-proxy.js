@@ -3,13 +3,15 @@ import { warn } from '../foundation/logger.js';
 
 /**
  * @typedef {object} RegexModule
- * @property {(rawString: string, placement: number, options?: object) => string} getRegexedString - ST's regex transformation function
- * @property {{ USER_INPUT: number, AI_OUTPUT: number }} regex_placement - ST's placement enum for message sources
+ * @property {(rawString: string, placement: number, options?: object) => string} getRegexedString - SillyTavern's regex transformation function
+ * @property {{ USER_INPUT: number, AI_OUTPUT: number }} regex_placement - SillyTavern's placement enum for message sources
  */
 const REGEX_ENGINE_URL = '/scripts/extensions/regex/engine.js';
 
 /** @type {RegexModule | null} */
 let _regexModule = null;
+// One load attempt per session: a missing engine must not turn every message
+// into a failed import.
 let _loadAttempted = false;
 
 async function loadRegexModule() {
@@ -47,6 +49,8 @@ export async function applyRegexToMessage(mes, isUser, depth) {
         const placement = isUser
             ? _regexModule.regex_placement.USER_INPUT
             : _regexModule.regex_placement.AI_OUTPUT;
+        // isPrompt selects the host's prompt variant so the passage matches
+        // what the model reads.
         return _regexModule.getRegexedString(mes, placement, {
             isPrompt: true,
             depth,

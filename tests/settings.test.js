@@ -18,7 +18,7 @@ import { installSummaryContext, installSillyTavernStub } from './test-helpers.js
 /**
  * Extension settings as the host holds them: the load path's backfill, the
  * Effective Settings projection, and the defaults reset. The repair passes
- * these reach are covered host-free in tests/settings-normalizer.test.js.
+ * these reach run host-free and are covered in the normalizer's own tests.
  */
 describe('getSettings', () => {
     it('returns a settings object and reuses the same reference on subsequent calls', () => {
@@ -56,9 +56,9 @@ describe('memory mode transitions', () => {
 
 describe('getEffectiveSettings', () => {
     it('forces enabled:false in OFF mode (the OFF branch disables the effective settings)', () => {
-        // normalizeModeSettings overwrites enabled to match uiMode. A raw
-        // enabled:true under OFF is therefore unobservable through
-        // getSettings(), so this test asserts the effective output only.
+        // The load-time repair overwrites enabled to match uiMode, so a raw
+        // enabled:true under OFF is unobservable through getSettings(); this
+        // test asserts the effective output only.
         installSummaryContext({ settings: { uiMode: UI_MODES.OFF, enabled: true } });
         const effective = getEffectiveSettings();
         expect(effective.enabled).toBe(false);

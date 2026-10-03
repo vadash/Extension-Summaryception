@@ -21,7 +21,7 @@ import { readOperationMode, repairOperationMode } from './operation-mode.js';
 /**
  * Extension settings as the SillyTavern context holds them: the load-time
  * backfill and repair, the Effective Settings projection, and the defaults
- * reset. The repair itself is host-free (settings-normalizer.js).
+ * reset. The repair itself is host-free.
  */
 
 /**
@@ -37,6 +37,8 @@ export function getSettings() {
         /** @type {unknown} */ (settings)
     );
     const defaultsRecord = /** @type {Record<string, unknown>} */ (defaultSettings);
+    // Capture before the backfill: the repair passes need to know which keys
+    // the stored object carried, not which it has now.
     const hadUiMode = Object.hasOwn(settings, 'uiMode');
     const hadMaskUserRoleMode = Object.hasOwn(settings, 'maskUserRoleMode');
     for (const key of Object.keys(defaultSettings)) {
@@ -62,7 +64,8 @@ export function getEffectiveSettings() {
 }
 
 /**
- *
+ * Debounces so rapid control changes coalesce into one host save.
+ * @returns {void}
  */
 export function saveSettings() {
     saveSettingsDebounced();
@@ -119,8 +122,8 @@ function resetPromptValues(settings) {
 }
 
 /**
- * Restores every default except the keys in RESET_PRESERVED_KEYS and the
- * prompt profile pairs, which resetPromptValues handles.
+ * Restores every default except RESET_PRESERVED_KEYS and the prompt profile
+ * pairs, which resetPromptValues handles.
  * @returns {void}
  */
 export function resetSettingsToDefaults() {

@@ -8,7 +8,7 @@ const SETTINGS_HTML_URL = new URL('../settings.html', import.meta.url);
 /**
  * Scan the raw source with a plain regex because the bounds checks must run
  * in plain node, with no DOM.
- * @param {string} html - Raw settings.html source
+ * @param {string} html - Raw settings template source
  * @returns {Array<{id: string|null, type: string|null, key: string|null, min: string|null, max: string|null, step: string|null, value: string|null}>}
  */
 function parseInputs(html) {

@@ -156,7 +156,6 @@ describe('countMessageTokens', () => {
         const callsAfterFirst = getTokenCountAsync.mock.calls.length;
 
         const second = await countMessageTokens(message, 'hello', 'hello');
-        // Same combined length -> cache hit, tokenizer not invoked again.
         expect(getTokenCountAsync.mock.calls.length).toBe(callsAfterFirst);
         expect(second).toEqual(first);
     });

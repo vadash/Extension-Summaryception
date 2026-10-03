@@ -97,7 +97,7 @@ export function getMessageIndexByScId(chat) {
 /**
  * @param {ChatMessage[] | unknown} chat
  * @param {unknown} ids
- * @returns {number[]}
+ * @returns {number[]} Matching chat indices, sorted ascending so callers can fold them into contiguous ranges.
  */
 export function resolveScIdsToIndices(chat, ids) {
     if (!Array.isArray(ids)) {

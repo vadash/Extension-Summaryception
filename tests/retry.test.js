@@ -25,7 +25,6 @@ describe('parseRetryAfter', () => {
     it('returns null when no retry-after signal is present or it is unparseable', () => {
         expect(parseRetryAfter({})).toBeNull();
         expect(parseRetryAfter(null)).toBeNull();
-        // 'not-a-date' fails both Number() and Date parsing branches.
         expect(parseRetryAfter({ retryAfter: 'not-a-date' })).toBeNull();
     });
 });

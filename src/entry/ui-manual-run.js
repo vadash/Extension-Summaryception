@@ -23,7 +23,6 @@ import {
 let manualRunnerDeps;
 
 /**
- * Abort a manual summarization run from its progress toast.
  * @param {AbortController} controller
  * @returns {void}
  */
@@ -35,9 +34,9 @@ function cancelManualRun(controller) {
 const MANUAL_RUN_BUSY_HTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Working...</span>';
 
 /**
- * Shared manual-run driver: busy button, abort/progress wiring, status notice,
- * injection refresh, reload, and UI update. `run` receives the engine options
- * carrying the abort signal; returning undefined skips the notice (nothing ran).
+ * Shared manual-run driver for both strategies. `run` receives the engine
+ * options carrying the abort signal; returning undefined skips the notice
+ * because nothing ran.
  * @param {object | null} $button jQuery-wrapped trigger button, disabled while running.
  * @param {string} idleHtml Button html restored after the run.
  * @param {{ run: (options: object) => Promise<import('../core/run-outcome.js').ManualRunOutcome | undefined>, notify: import('../core/notify.js').NotifyAdapter, view: import('./ui-dialogs.js').ManualRunView }} ops
@@ -83,7 +82,7 @@ async function runManualSummarization($button, idleHtml, { run, notify, view }) 
 }
 
 /**
- * Shared manual-run guard. Show the toast for the first failing check.
+ * Manual-run guard; the checks run in order and the first failure shows its toast.
  * @param {object} s Effective settings.
  * @returns {boolean} true when a manual run is allowed.
  */
@@ -177,7 +176,6 @@ function showManualCacheWarning(settings) {
 }
 
 /**
- * Reload the page after successful manual context changes.
  * @param {import('../core/run-outcome.js').ManualRunOutcome | undefined} outcome
  * @returns {void}
  */
@@ -188,7 +186,6 @@ function reloadAfterManualRun(outcome) {
 }
 
 /**
- * Reload the SillyTavern page after context-changing actions.
  * @returns {void}
  */
 export function reloadPage() {
@@ -238,9 +235,6 @@ async function onResumeSummarize() {
 }
 
 /**
- * Bind the manual-run controls: Force Summarize, Slop Breaker, the
- * stale-cache advice toast action that starts the same manual run, and the
- * Stop/Resume controls.
  * @param {{ notify: import('../core/notify.js').NotifyAdapter, manualRunnerDeps: import('../core/summarizer-engine.js').ManualRunnerDeps }} deps
  * @returns {void}
  */

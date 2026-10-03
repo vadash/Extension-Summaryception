@@ -11,8 +11,6 @@ import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';
 
-// Message hiding (ghosting via native /hide and /unhide)
-
 /**
  * @typedef {object} GhostRangeOptions
  * @property {boolean} [showProgress] - Open a notify progress handle for manual work.
@@ -190,7 +188,9 @@ async function ghostMessagesInRangeEffect(startIdx, endIdx, ctx, options) {
 }
 
 /**
- * Mark a hide range as Summaryception-owned, persist it, then visually hide it.
+ * Record ownership before the visual hide: a hidden message without
+ * ownership reads as user-hidden, so a later sync would skip it and never
+ * release it.
  * @param {object} p
  * @param {ChatMessage[]} p.chat
  * @param {SummaryceptionStore} p.store

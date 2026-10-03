@@ -15,7 +15,7 @@ const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 /**
  * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {Partial<ExtensionSettings>} settings - Effective Summaryception settings.
- * @returns {number} Number of messages rewritten.
+ * @returns {number}
  */
 export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {}) {
     if (!settings.enabled || !settings.maskUserRoleAsAssistant) {

@@ -1,7 +1,7 @@
 import { SLIDER_LIMITS } from './constants.js';
 
 /**
- * The Connection Route set (CONTEXT.md): the one declaration of every
+ * The Connection Route set: the one declaration of every
  * connection target a summarizer call can run on. Settings normalization,
  * reset preservation, the Call Profile resolver, and the settings UI derive
  * their route facts from here, so a route's keys and options cannot disagree
@@ -122,7 +122,7 @@ export const CONNECTION_ROUTES = Object.freeze({
                 prefix: 'summaryception_fallback',
                 controlPrefix: 'sc_fallback',
                 hasResponseLengthRow: true,
-                // Same as merge: the markup declares no timeout row to hide.
+                // The markup declares no timeout row to hide.
                 hasTimeoutRow: false,
             }),
         ]),
@@ -149,7 +149,7 @@ export const CONNECTION_ROUTES = Object.freeze({
 });
 
 /**
- * The Narrative Chain (CONTEXT.md): the Layer 0 route, the merge route that
+ * The Narrative Chain: the Layer 0 route, the merge route that
  * replaces it for promotion calls, and its configured fallback. The merge
  * route supplies the promotion hop's timeout key whether or not it replaces
  * the connection.
@@ -164,7 +164,7 @@ export const NARRATIVE_CHAIN = Object.freeze({
 /**
  * The Auditor's chain: one hop on its own route (ADR-0009). An inherited
  * Auditor runs the Narrative Chain exactly as a Layer 0 call would; a
- * separated Auditor runs its single hop with no failover — the Catch-up
+ * separated Auditor runs its single hop with no failover; the Catch-up
  * Window, not a second connection, recovers a missed audit.
  * @type {Readonly<{ primary: ConnectionRouteId }>}
  */

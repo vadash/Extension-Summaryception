@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Regression: a completed Force Summarize run must leave the stale-cache
-// advice silent. The verbatim cut sits 10% inside the budget, so the drained
-// window stays below the full-budget trigger line and a reload cannot
-// re-queue whole turns behind the dialog.
+// A completed Force Summarize run must leave the stale-cache advice silent.
+// The verbatim cut stays inside the budget, so the drained window sits below
+// the full-budget trigger line and a reload cannot re-queue whole turns
+// behind the dialog.
 
 const layer0Mocks = vi.hoisted(() => ({ runLayer0: vi.fn() }));
 

@@ -5,7 +5,7 @@ import { isAssistantMessage, isRecord } from './continuity-state.js';
  * The Continuity Checkpoint: the per-message payload a settled audit commits,
  * and the payload rules around it (ADR-0017). Payload presence is the state, so
  * this module owns the key, the presence test, both read walks, the write, and
- * the two removals — which is what makes Clear remove the shape through its
+ * the two removals, which is what lets Clear remove the shape through its
  * writer (ADR-0027).
  */
 
@@ -17,10 +17,10 @@ const REROLL_TYPES = new Set(['swipe', 'regenerate']);
 
 /**
  * Whether the host reroll replaces the chat's last message. The host excludes
- * that message from the prompt chat: a swipe pops it (ST script.js coreChat.pop)
- * and a regenerate deletes it, while a regenerate over a trailing user turn
- * generates a new reply instead. A narrator or system tail diverges between the
- * two host types, so it stays out of scope here.
+ * that message from the prompt chat: a swipe pops it and a regenerate deletes
+ * it, while a regenerate over a trailing user turn generates a new reply
+ * instead. A narrator or system tail diverges between the two host types, so
+ * it stays out of scope here.
  * @param {unknown} generationType - ST GENERATION_STARTED type argument.
  * @param {ChatMessage[] | unknown} chat
  * @returns {boolean}
@@ -120,8 +120,8 @@ export function removeCheckpoints(chat) {
 
 /**
  * The Continuity Mark read model's input: every reply whose extra carries a
- * checkpoint payload, in chat order. No freshness test and no coverage math —
- * a hidden reply keeps its payload and its mark (ADR-0022, ADR-0028).
+ * checkpoint payload, in chat order. No freshness test and no coverage math,
+ * because a hidden reply keeps its payload and its mark (ADR-0022, ADR-0028).
  * @param {ChatMessage[] | unknown} chat
  * @returns {number[]}
  */

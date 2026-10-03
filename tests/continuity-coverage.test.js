@@ -5,7 +5,7 @@ import { makeMessage } from './test-helpers.js';
 /**
  * Continuity Coverage: the chat read model shared by the audit lifecycle and
  * the Continuity Block injection. Chat facts only; the state schema and the
- * flags rulebook live in continuity-state.js.
+ * flags rulebook are the continuity state module's job.
  */
 
 const auditedState = (turnCount, overrides = {}) => ({

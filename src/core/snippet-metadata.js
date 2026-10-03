@@ -64,10 +64,11 @@ function readSceneTime(span) {
 }
 
 /**
- * Derives the ISO weekday from the date and rewrites the value's
- * weekday token when it is missing or wrong. Preserves the hour and drops
- * stray minutes (per the HH-resolution contract). Returns the input verbatim
- * when no valid ISO date is present, so malformed values stay untouched.
+ * Derives the weekday from the ISO date in UTC, so the result never depends
+ * on the host timezone, and rewrites the value's weekday token when it is
+ * missing or wrong. Stored scene time keeps hour precision, so minutes are
+ * dropped. Returns the input verbatim when no valid ISO date is present, so
+ * malformed values stay untouched.
  * @param {string} value - raw current_date_time value from the model
  * @returns {string}
  */

@@ -7,7 +7,9 @@ import { buildInjection } from '../core/memory-injection.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
 
 /**
- *
+ * Registers the extension's slash commands with the host parser.
+ * Skips registration when the host omits the parser.
+ * @returns {void}
  */
 export function registerSlashCommands() {
     try {

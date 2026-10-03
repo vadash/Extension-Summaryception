@@ -11,8 +11,8 @@ const CONTEXT_MODULE = resolve(FOUNDATION_DIR, 'context.js');
 /**
  * The pure modules: their whole point is that they run with no host context,
  * so a test of theirs needs no installed SillyTavern stub. This file holds
- * that property to account, since nothing else can: the boundary rules in
- * `eslint.config.js` allow a foundation module to import the host facade.
+ * that property to account, since nothing else can: the static boundary rules
+ * allow a foundation module to import the host facade.
  */
 const HOST_FREE_MODULES = [
     resolve(FOUNDATION_DIR, 'objects.js'),

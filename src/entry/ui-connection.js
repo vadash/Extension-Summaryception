@@ -99,8 +99,8 @@ function bindRouteProfile(settings, route, selector) {
 }
 
 /**
- * Bind the route response-length inputs and the Auditor's narrative-failover
- * checkbox: the plain settings the route cards carry.
+ * Bind the route response-length inputs, the plain data-bound settings the
+ * route cards carry.
  * @returns {void}
  */
 function bindConnectionInputs() {

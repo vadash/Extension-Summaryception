@@ -136,7 +136,7 @@ const foundationMocks = vi.hoisted(() => {
                     return fn();
                 }
             } catch {
-                // Fall through to the JSON default.
+                // Host request headers may be unavailable in tests; the JSON default keeps requests well-formed.
             }
             return { 'Content-Type': 'application/json' };
         });

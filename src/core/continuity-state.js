@@ -25,7 +25,7 @@ export function isRecord(value) {
 /**
  * The assistant-reply test every Continuity chat walk shares: a present
  * message that is not the user turn. Prompt visibility is not part of a
- * reply's identity — Ghosting hides a summarized reply through the host's
+ * reply's identity: Ghosting hides a summarized reply through the host's
  * hide command, which marks that reply as a system line, and a hidden reply is
  * still an Exchange (ADR-0028).
  * @param {ChatMessage} [message]
@@ -191,7 +191,8 @@ export function createDefaultContinuity() {
 }
 
 /**
- * Merge raw bond pairs into the state and mirror the raw payloads into flags.
+ * Flags carry the raw pair payloads so the flags rulebook reads what the
+ * Auditor said, not the clamped values.
  * @param {Record<string, unknown>} source - Raw parsed Auditor object.
  * @param {SummaryceptionContinuityState} state - State under construction.
  * @param {string[]} sectionVerdicts - Section verdict sink.

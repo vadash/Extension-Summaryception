@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * ADR shape contract (ADR-0025, docs/agents/domain.md).
+ * ADR shape contract (ADR-0025).
  *
  * Pins the mechanical half of the shape only: titles, allowed sections, status
  * frontmatter, retired numbers, and that every cited number resolves. Prose and
@@ -22,11 +22,6 @@ const STATUS_PATTERN = /^(proposed|accepted|deprecated|superseded by ADR-\d{4})$
 const CITATION_PATTERN = /\bADR-(\d{4})\b/g;
 const RETIRED_ROW_PATTERN = /^\|\s*(\d{4})\s*\|([^|]*)\|([^|]*)\|/gm;
 
-/**
- * Walk `dir` and return the absolute path of every scanned file beneath it.
- * @param {string} dir - Absolute directory to walk
- * @returns {string[]}
- */
 function collectFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -100,7 +95,7 @@ function readStatus(lines) {
 }
 
 /**
- * Read the retired-number table from docs/adr/README.md. A retired number has
+ * Read the retired-number table from the ADR README. A retired number has
  * no file, so this table is the only record of it and the only thing that lets
  * a live ADR cite it.
  * @returns {Map<string, {title: string, supersededBy: string|null}>}

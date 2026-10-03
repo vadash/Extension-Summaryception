@@ -57,8 +57,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
 /**
  * Resolver input for one summarizer call: the call category plus the
  * provenance the dispatch constructors build. Downstream, the request path
- * consumes the resolved CallProfile (src/core/call-profile.js) and never
- * reads `kind`.
+ * consumes the resolved CallProfile and never reads `kind`.
  * @typedef {object} SummarizerCallMetadata
  * @property {'layer0' | 'promotion' | 'regenerate' | 'auditor' | string} [kind] - Call category
  * @property {[number, number]} [sourceRange] - Source chat index range
@@ -108,8 +107,8 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
 /**
  * Resolve one call's policy and provenance from settings and the call
  * category. Pure: no state imports, settings arrive as an argument. Runs once
- * inside buildSummarizerPipelineInput; the returned profile is the only thing
- * the request path consumes.
+ * per dispatch; the returned profile is the only thing the request path
+ * consumes.
  * @param {ExtensionSettings} settings - Effective settings captured for this dispatch
  * @param {SummarizerCallMetadata} [call] - Call category plus the provenance the constructors build
  * @returns {CallProfile}
@@ -364,7 +363,7 @@ function resolveNarrativeFallbackHop(settings, isPromotion, primary) {
 /**
  * Resolve the Auditor series: inherit keeps the Narrative Chain identical to
  * a Layer 0 call; a separated Auditor runs its single hop with no failover
- * (ADR-0009) — the Catch-up Window recovers a missed audit.
+ * (ADR-0009); the Catch-up Window recovers a missed audit.
  * @param {ExtensionSettings} settings
  * @returns {CallProfileRoute[]}
  */

@@ -77,7 +77,6 @@ describe('clearChatData', () => {
         expect(store.ghostedMessageIds).toEqual([]);
         expect(store.mutationEpoch).toBeGreaterThan(0);
         expect(ctx.chatMetadata.unrelated).toEqual({ keep: true });
-        // Message-level shapes are gone; host fields and foreign extras stay.
         expect(chat.every((message) => !Object.hasOwn(message, 'sc_id'))).toBe(true);
         expect(chat[0].extra).toEqual({ api: 'keep', sc_ghosted: true });
         expect(chat[1].extra).toEqual({ reasoning: 'keep' });

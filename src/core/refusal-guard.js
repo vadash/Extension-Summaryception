@@ -10,10 +10,8 @@
 // inert.
 const DECLINED_OUTPUT_RE = /(?:^|\r?\n)\s*<declined>([\s\S]*?)<\/declined>\s*$/i;
 
-// Lexical refusal patterns (v1, frozen). First-person inability or deflection,
-// policy vocabulary, and the assistant-identity tell. Scope: the narrative
-// body only, so quoted in-story dialogue and summarized character speech
-// cannot trip them.
+// Frozen lexical refusal set. Scope: the narrative body only, so quoted
+// in-story dialogue and summarized character speech cannot trip them.
 const REFUSAL_PATTERNS = [
     {
         kind: 'inability',
@@ -149,7 +147,6 @@ const CENSUS_STOP_TOKENS = new Set([
 ]);
 
 /**
- * Read the Declined Marker reason out of cleaned summarizer output.
  * @param {string} text - Cleaned summarizer output
  * @returns {string | null} The reason (possibly empty), or null without a marker
  */
@@ -159,7 +156,6 @@ export function extractDeclinedReason(text) {
 }
 
 /**
- * Match the frozen lexical refusal set against a narrative body.
  * @param {string} text - Narrative body text to inspect
  * @returns {string | null} The pattern kind, or null when nothing matches
  */
@@ -174,11 +170,9 @@ export function findRefusalPattern(text) {
 }
 
 /**
- * Build the passage's character-name census: capitalized tokens recurring at
- * least twice, ranked by frequency then first occurrence, capped. Pure text
- * statistics; no host access, no player-name resolution.
+ * Pure text statistics; no host access, no player-name resolution.
  * @param {string} passageText - The raw Passage text one request summarizes
- * @returns {string[]} Up to eight passage names, empty for nameless input
+ * @returns {string[]}
  */
 export function buildPassageNameCensus(passageText) {
     const source = String(passageText || '');
@@ -204,12 +198,11 @@ export function buildPassageNameCensus(passageText) {
 }
 
 /**
- * The passage-shape signal: does the body reference the text itself while
- * naming none of the passage's recurring characters? A census empty by
- * construction never flags, so nameless narration cannot false-trip.
+ * A census empty by construction never flags, so nameless narration cannot
+ * false-trip.
  * @param {string} narrativeBody - The draft's narrative body
  * @param {string[]} censusNames - The passage name census
- * @returns {boolean} True when the shape matches a meta-describing Refusal
+ * @returns {boolean}
  */
 export function findPassageShapeRefusal(narrativeBody, censusNames) {
     const body = String(narrativeBody || '');

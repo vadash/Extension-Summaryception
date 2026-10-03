@@ -38,10 +38,7 @@ function saveAndRefreshUi() {
     refreshFull();
 }
 
-// Event bindings
-
 /**
- * Bind document event handlers for the Summaryception UI.
  * @param {object} deps
  * @param {import('../core/notify.js').NotifyAdapter} deps.notify - Toastr-backed adapter distributed to core calls.
  * @param {import('../core/foreground-gate.js').ForegroundGate} deps.gate - Foreground Gate the import commit crosses.
@@ -148,8 +145,8 @@ function bindToggleHandlers(queue) {
 }
 
 function bindCustomPlacementHandlers() {
-    // Position and role are plain selects: key and fixed option values live in
-    // settings.html, so the engine reads and writes them identically.
+    // Position and role are plain selects: the markup declares the key and the
+    // fixed option values, so the data-attribute engine binds them directly.
     bindDataSettingElements('#sc_custom_memory_position, #sc_custom_memory_role', {
         eventName: 'change',
         afterSave: refreshFull,
@@ -208,7 +205,8 @@ function enforceRetentionConstraints(changedKey) {
  * @returns {void}
  */
 function bindTextareaHandlers() {
-    // Strip patterns: key and "lines" type are declared in settings.html.
+    // Strip patterns: the markup declares the key and the "lines" type, so the
+    // data-attribute engine binds them.
     bindDataSettingElements('#sc_strip_patterns', { eventName: 'change' });
     bindDocumentSetting({
         eventName: 'change',
@@ -221,8 +219,8 @@ function bindTextareaHandlers() {
 /**
  * Import summary memory from a JSON file.
  *
- * The ephemeral <input type="file"> never enters the live DOM, so vanilla
- * document.createElement suffices. We read its files and discard it.
+ * The file input is ephemeral and never enters the live DOM, so it needs no
+ * cleanup after the read.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
  * @returns {void}
  */
@@ -260,7 +258,6 @@ function triggerImport(notify, gate) {
 }
 
 /**
- * Reset advanced settings to defaults.
  * @returns {void}
  */
 function onResetDefaults() {
@@ -285,7 +282,6 @@ function onResetDefaults() {
 }
 
 /**
- * Bind action button click handlers (clear, refresh, export, import, reset).
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
  * @returns {void}
  */

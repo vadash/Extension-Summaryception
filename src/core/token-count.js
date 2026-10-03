@@ -11,7 +11,7 @@ const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
 
 /**
  * @typedef {object} TokenCount
- * @property {number} count - Token count
+ * @property {number} count - Token total for the message text
  * @property {boolean} estimated - Whether the count came from the fallback estimator
  */
 
@@ -284,6 +284,8 @@ function normalizeCachedTokenCount(count) {
 }
 
 /**
+ * Count with the active host tokenizer. Any failure returns null so the caller
+ * falls back to the estimate; token counting never fails a run.
  * @param {string} text - Text to count
  * @returns {Promise<number | null>}
  */
@@ -309,7 +311,6 @@ function estimateTokenCount(text) {
 }
 
 /**
- * Normalize tokenizer output to a non-negative integer.
  * @param {unknown} count - Token count returned by SillyTavern
  * @returns {number | null}
  */

@@ -4,10 +4,9 @@ import { createContinuityAuditor, isAuditorTriggerMessage } from '../src/core/co
 import { makeMessage, makeSummaryStore } from './test-helpers.js';
 
 /**
- * The Continuity Audit: the lifecycle that turns un-audited Exchanges into a
- * committed Continuity Checkpoint. It reads the world through its arguments and
- * its injected dependencies, so these tests need neither an installed
- * SillyTavern context nor a mocked summarizer router.
+ * The audit reads the world through its arguments and its injected
+ * dependencies, so these tests need neither an installed SillyTavern
+ * context nor a mocked summarizer router.
  */
 
 const auditorJson = (bonds = {}, gmNotes = ['[T] Keep this thread']) =>

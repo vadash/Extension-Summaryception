@@ -313,7 +313,6 @@ function buildLayer0SourceRangeLine(metadata = {}) {
 }
 
 /**
- * Add Layer 1+ promotion-specific consolidation constraints.
  * @param {string} prompt
  * @param {Partial<ExtensionSettings>} settings
  * @param {import('./call-profile.js').SummarizerCallMetadata} metadata

@@ -8,7 +8,6 @@ import {
 } from '../src/entry/ui-dialogs.js';
 import { installBrowserRuntimeStub } from './test-helpers.js';
 
-/** Install a $ stub (via the shared runtime stub) that records progress text writes. */
 function installTextCapture() {
     const writes = [];
     installBrowserRuntimeStub({
@@ -22,7 +21,7 @@ function installTextCapture() {
 /**
  * The entry adapter maps structured notify events onto toastr (ADR-0019).
  * Tests assert notification kind, persistence, cadence, and processed/total
- * counts. Wording stays unasserted per house test rules.
+ * counts; wording stays unasserted.
  */
 describe('toastr notify adapter mapping', () => {
     it('opens one persistent info toast per progress handle', () => {

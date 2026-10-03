@@ -11,7 +11,7 @@ import { CONNECTION_ROUTES, getRouteTimeoutLimits } from './connection-routes.js
 import { clampInteger, clampToStep } from './numeric.js';
 
 /**
- * The read-time Settings Normalization pass (CONTEXT.md): the one place a
+ * The read-time Settings Normalization pass: the one place a
  * stored settings object is repaired to a legal one. It runs on a plain
  * object with no host access, so the settings object is the whole fixture for
  * its tests, and the load path, the reset pass, and the UI's derive-after-edit
@@ -21,11 +21,9 @@ import { clampInteger, clampToStep } from './numeric.js';
 const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']);
 
 /**
- * Repair one stored settings object in place, in order: memory placement, role
- * mask, retention and request timeouts, the Continuity toggles, then the
- * prompt profiles. The retention and timeout passes always clamp and never
- * report change, because the load path persisted them unconditionally before
- * this pass existed.
+ * The retention and timeout passes always clamp and never report change,
+ * because the load path persisted them unconditionally before this pass
+ * existed.
  * @param {ExtensionSettings} settings - Settings object mutated in place.
  * @param {{ hadMaskUserRoleMode: boolean }} stored - Whether the stored object carried the role-mask key at all.
  * @returns {boolean} Whether a setting the caller persists changed.
@@ -46,7 +44,7 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
 }
 
 /**
- * Normalize memory placement settings in place.
+ * Normalize the memory mode, placement, and Connection Route sources in place.
  * @param {ExtensionSettings} settings
  * @returns {boolean} Whether settings were changed.
  */
@@ -304,6 +302,8 @@ function normalizePromptSettings(settings) {
         }
 
         const promptText = settingsRecord[binding.settingKey];
+        // Blank custom text counts as no custom text; it would inject an
+        // empty prompt slot.
         if (isCustom && typeof promptText === 'string' && promptText.trim()) {
             continue;
         }

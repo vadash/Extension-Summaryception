@@ -21,7 +21,6 @@ import { getSettings } from '../src/foundation/settings.js';
 import { installSummaryContext } from './test-helpers.js';
 
 describe('default auditor prompts', () => {
-    /** Extract one XML section body from a composed prompt template. */
     function sectionBody(prompt, tag) {
         const match = prompt.match(new RegExp(`<${tag}>\\n([\\s\\S]*?)\\n</${tag}>`));
         return match === null ? '' : match[1];
@@ -64,7 +63,6 @@ describe('default auditor prompts', () => {
             kept[note[1]] += 1;
         }
 
-        // The code keeps exactly the budget the prompt states.
         expect(kept).toEqual(AUDITOR_NOTE_KIND_CAPS);
         expect(state.gm_notes).toHaveLength(AUDITOR_NOTE_TOTAL_CAP);
         expect(DEFAULT_AUDITOR_USER_PROMPT).toContain(AUDITOR_NOTE_BUDGET);

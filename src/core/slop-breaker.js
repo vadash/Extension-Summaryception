@@ -65,6 +65,8 @@ function getSlopBreakerTargetIndex(chat, boundaryIndex) {
     if (!latest || latest.index <= boundaryIndex) {
         return null;
     }
+    // A batch counts assistant turns only, so the cut cannot end on a user
+    // message; fall back to the latest eligible message before it.
     if (!latest.message.is_user) {
         return latest.index;
     }

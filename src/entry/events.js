@@ -122,8 +122,6 @@ function stableSerialize(value) {
         .join(',')}}`;
 }
 
-// ─── Event Handlers ──────────────────────────────────────────────────
-
 let reconcileTimer = null;
 let reconcilePromise = null;
 let reconcileQueued = false;
@@ -192,7 +190,6 @@ export function onChatChanged({ gate, queue }) {
 }
 
 /**
- * Reconcile persisted Summaryception state after app load.
  * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {Promise<void>}
  */
@@ -257,7 +254,6 @@ export function onGenerationStarted(args, { gate, queue }) {
 }
 
 /**
- * Unfreezes prompt mutations after a host generation ends.
  * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
  * @returns {void}
  */
@@ -289,7 +285,6 @@ export function onGenerationEnded({ gate, queue }) {
 }
 
 /**
- * Rewrite final foreground prompt roles after ST assembles generation data.
  * @param {unknown} dryRun - Whether this is a prompt-inspection dry run.
  * @returns {void}
  */
@@ -376,7 +371,6 @@ async function runSerializedReconciliation(gate, queue) {
 }
 
 /**
- * Drain one or more coalesced reconciliation requests.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate
  * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue
  * @returns {Promise<void>}

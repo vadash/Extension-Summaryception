@@ -40,7 +40,6 @@ function storeSettingsTab(tabName) {
 }
 
 /**
- * Activate a button/panel group: mark the target active, hide the rest.
  * @param {{ buttonClass: string, buttonAttr: string, panelClass: string, panelAttr: string }} group
  * @param {string} name - Target tab or pane name
  * @returns {void}
@@ -59,7 +58,6 @@ function activateTabGroup({ buttonClass, buttonAttr, panelClass, panelAttr }, na
 }
 
 /**
- * Activate a settings tab and hide the other tab panels.
  * @param {string} tabName
  * @returns {void}
  */
@@ -76,7 +74,6 @@ function activateSettingsTab(tabName) {
 }
 
 /**
- * Activate an internal prompt editor pane.
  * @param {string} paneName
  * @returns {void}
  */

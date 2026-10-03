@@ -35,8 +35,8 @@
  */
 
 /**
- * Terminal result of one manual run: the status its notice is selected by, plus
- * the counts that notice is phrased from.
+ * Terminal result of one manual run: the status that selects the notice, plus
+ * the counts the notice reports.
  * @typedef {object} ManualRunOutcome
  * @property {'completed' | 'partial' | 'aborted' | 'blocked' | 'failed' | 'idle'} status - One verdict per run (see deriveManualRunOutcome).
  * @property {number} completed - Batches committed.

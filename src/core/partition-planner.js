@@ -2,7 +2,10 @@ import { defaultSettings } from '../foundation/constants.js';
 import { countedChatMessages } from './chatutils.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
+// Floor for Layer 0 partition size: cuts and configured caps never produce a
+// smaller source range.
 const MIN_L0_SOURCE_TOKENS = 2000;
+// Ratio a partition may exceed its token cap by before a cut becomes mandatory.
 const L0_SOURCE_OVERSHOOT_TOLERANCE = 1.15;
 
 /**
@@ -184,6 +187,13 @@ function buildPartitionFromSegments(segments) {
     };
 }
 
+/**
+ * The final segment may end past its turn at the passage end, but only when
+ * that end lies beyond the turn.
+ * @param {number} turnIndex
+ * @param {number | undefined} finalSourceEndIdx
+ * @returns {number}
+ */
 function getFinalEndIdx(turnIndex, finalSourceEndIdx) {
     if (
         typeof finalSourceEndIdx === 'number' &&

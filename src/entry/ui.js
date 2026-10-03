@@ -79,7 +79,6 @@ export async function updateUI({ queue }) {
 }
 
 /**
- * Sync all static settings inputs from the settings object.
  * @param {ReturnType<typeof getSettings>} s
  * @param {ReturnType<typeof getEffectiveSettings>} effectiveSettings
  * @returns {void}
@@ -93,8 +92,6 @@ function syncSettingsInputs(s, effectiveSettings) {
 }
 
 /**
- * Toggle the complexity panels, continuity section, and stop/resume controls
- * from the mode view model.
  * @param {{ off: boolean, easyPanel: boolean, advancedPanel: boolean, continuitySection: boolean, stop: boolean, resume: boolean }} view
  * @returns {void}
  */
@@ -148,7 +145,6 @@ async function renderStatusOverview(prefix, modeField, overview) {
 }
 
 /**
- * Build the worker status label from the auto work read model.
  * @param {ReturnType<typeof getEffectiveSettings>} s
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
  * @param {boolean} busy - Whether any summarizer work is live
@@ -185,8 +181,6 @@ async function renderBudgetStatus(s, work, memoryUsage) {
 }
 
 /**
- * Render a context budget card into the `#sc_<prefix>_budget_{total,bar,legend}`
- * selector triple, clearing it when the view model cannot be built.
  * @param {string} prefix
  * @param {Function} build - Returns the buildContextBudgetViewModel inputs.
  * @returns {Promise<void>}
@@ -204,7 +198,6 @@ async function renderBudgetCard(prefix, build) {
 }
 
 /**
- * Render the verbatim budget card from the auto work read model.
  * @param {ReturnType<typeof getEffectiveSettings>} s
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
  * @returns {Promise<void>}
@@ -228,7 +221,6 @@ async function renderVerbatimBudget(s, work) {
 }
 
 /**
- * Render the queued-chat trigger gauge from the auto work read model.
  * @param {ReturnType<typeof getEffectiveSettings>} s
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
  * @returns {Promise<void>}
@@ -336,7 +328,6 @@ function getBudgetSegmentTitle(segment) {
 }
 
 /**
- * Build and render the layer statistics panel.
  * @param {ReturnType<typeof getSettings>} s
  * @param {ReturnType<typeof getChatStore>} store
  * @param {number} ghostedCount - Ghosted message count, computed once per updateUI.

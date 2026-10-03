@@ -50,11 +50,10 @@ export async function sendSummarizerRequest({ settings, systemPrompt, userPrompt
 }
 
 /**
- * Check whether the effective route's provider can actually cancel an
- * in-flight request. The capability is read from the adapter registry;
- * unknown sources are treated as uncancellable.
+ * The capability comes from the adapter registry; an unknown source counts
+ * as uncancellable.
  * @param {ExtensionSettings} effectiveSettings - Route-resolved connection settings
- * @returns {boolean} True only when the registered provider declares `cancellable`
+ * @returns {boolean}
  */
 export function isCancellableConnection(effectiveSettings) {
     return providers[effectiveSettings?.connectionSource]?.cancellable === true;

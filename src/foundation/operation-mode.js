@@ -85,8 +85,8 @@ export function selectOff(settings) {
 /**
  * Load-time repair of the stored mode trio. The returned flag reports whether
  * the stored gate moved, which is the caller's save trigger; repairs that
- * leave the gate alone are not persisted here, matching the pre-existing
- * normalizer contract.
+ * leave the gate alone are not persisted here, matching the normalizer's
+ * change-report contract.
  * @param {ExtensionSettings} settings
  * @param {{ hadUiMode: boolean }} stored - Whether the raw settings carried a mode.
  * @returns {boolean}

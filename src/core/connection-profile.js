@@ -58,6 +58,8 @@ export async function sendViaProfile({
         ];
 
         const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
+        // Host preset and instruct injection must stay off: the summarizer
+        // prompts are self-contained.
         const raw = await service.sendRequest(profileId, messages, tokenLimit, {
             includePreset: false,
             includeInstruct: false,
@@ -81,7 +83,6 @@ export async function sendViaProfile({
 }
 
 /**
- * Get SillyTavern's validated profile request service.
  * @returns {ConnectionManagerRequestService}
  */
 function getProfileRequestService() {
@@ -107,7 +108,6 @@ function getProfileRequestService() {
 }
 
 /**
- * Extract content from a `data` field.
  * @param {ConnectionProfileResponse} obj
  * @returns {string|null} The data string, or null if absent
  */
@@ -168,7 +168,6 @@ function parseProfileResponse(raw) {
 }
 
 /**
- * Wrap a profile request error into a ConnectionError.
  * @param {object} params
  * @param {unknown} params.error - The original error
  * @param {string} params.profileId - The profile ID

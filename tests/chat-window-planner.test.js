@@ -136,8 +136,8 @@ describe('buildChatWindowPlan', () => {
                 maxL0SourceTokens: 4000,
             }),
         );
-        // Partition balancing itself is covered by partition-planner.test.js. This
-        // test only proves the wider seam produces non-empty, fully covering partitions.
+        // Partition balancing has its own coverage; this test only proves the
+        // wider seam produces non-empty, fully covering partitions.
         expect(plan.partitions.length).toBeGreaterThan(0);
         expect(plan.partitions.flatMap((part) => part.turns)).toHaveLength(
             plan.eligibleTurns.length,

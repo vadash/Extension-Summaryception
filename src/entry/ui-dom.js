@@ -1,6 +1,7 @@
 /**
  * Find the first descendant of $parent matching selector, creating it via
- * make() when absent. make() owns placement of any node it creates.
+ * make() when absent. ensureChild never places the created node; make()
+ * owns its placement.
  * @param {object} $parent jQuery-wrapped search root
  * @param {string} selector jQuery selector for the child to find
  * @param {function(): object} make Called when absent; owns placement of the created node

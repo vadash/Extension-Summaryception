@@ -13,8 +13,8 @@ import { makeMessage } from './test-helpers.js';
 /**
  * The Continuity Checkpoint: the payload a settled audit commits into the
  * audited reply's message extra, and the payload rules around it (ADR-0017).
- * Chat facts and payload facts only; the state schema lives in
- * continuity-state.js and the coverage read model in continuity-coverage.js.
+ * Chat facts and payload facts only; state schema classification and the
+ * coverage read model each live in their own module.
  */
 
 const state = (turnCount, overrides = {}) => ({

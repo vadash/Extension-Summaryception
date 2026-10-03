@@ -100,11 +100,7 @@ function showSlopIncomplete(outcome) {
     );
 }
 
-/**
- * Slop Breaker notices, selected by status and phrased from the counts it
- * committed.
- * @type {Record<string, ManualRunNotice>}
- */
+/** @type {Record<string, ManualRunNotice>} */
 const SLOP_NOTICES = {
     idle: () => showManualRunIdle(ELASTIC_STRATEGIES.SLOP),
     completed: () =>
@@ -205,8 +201,8 @@ export function clearManualProgressToast(progressToast) {
 }
 
 /**
- * The delegated click handler in ui-manual-run.js handles the Force
- * Summarize button.
+ * The toast action button has no handler at render time; the delegated
+ * document click binding picks it up after the toast enters the DOM.
  * @param {import('../core/cache-staleness.js').StaleCacheAdvice} advice
  * @returns {unknown}
  */

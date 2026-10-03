@@ -18,6 +18,7 @@ const HELP_TOOLTIP_DELAY_MS = 500;
 let helpTooltipTimer = null;
 
 /**
+ * Annotates the active settings render with help tooltips.
  * @returns {void}
  */
 export function initSettingsHelp() {

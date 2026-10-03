@@ -79,7 +79,7 @@ export function messageLineTokens(isUser, mesLength) {
     return (isUser ? 'Player: ' : 'Assistant: ').length + mesLength;
 }
 
-/** Build common summarization settings with overrides. */
+/** Baseline summarization settings; every preset helper overrides it. */
 export function makeSummarySettings(overrides = {}) {
     return {
         enabled: true,

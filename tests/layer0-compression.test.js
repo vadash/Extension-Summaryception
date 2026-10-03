@@ -158,7 +158,8 @@ describe('buildLayer0SizeRepairFeedback', () => {
         expect(output).toContain('<summaryception_l0_repair_feedback>');
         expect(output).toContain('</summaryception_l0_repair_feedback>');
         expect(output).toContain('<narrative>');
-        // The repair ask is narrative-only now; no state section is mentioned.
+        // The repair ask names the narrative section only, so no state
+        // section may appear in the feedback.
         expect(output).not.toContain('[STATE]');
     });
 

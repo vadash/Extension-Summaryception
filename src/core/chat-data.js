@@ -18,7 +18,7 @@ import { removeCheckpoints } from './continuity-checkpoint.js';
  *
  * A step that fails leaves the wipe partial; the action is user-confirmed and
  * idempotent, so re-running it finishes the job.
- * @returns {Promise<void>} Throws to its caller when a step fails.
+ * @returns {Promise<void>}
  */
 export async function clearChatData() {
     const store = getChatStore();

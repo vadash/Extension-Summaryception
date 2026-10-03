@@ -130,8 +130,8 @@ export async function runManual(deps, strategy, options = {}) {
  */
 
 /**
- * Stop path for the pause latch: abort any live run, persist `autoPaused`, and
- * let the queue settle. Callers only map the returned status to a notice.
+ * Stop half of the Pause Latch seam. Callers only map the returned status to
+ * a notice; the abort and the persisted latch stay inside this seam.
  * @param {PauseLatchDeps} deps
  * @returns {Promise<'paused' | 'already-paused' | 'idle'>}
  */
@@ -147,8 +147,8 @@ export async function pauseAutoSummarization(deps) {
 }
 
 /**
- * Resume path for the pause latch: clear `autoPaused` and fire-and-forget one
- * automatic cycle.
+ * Resume half of the Pause Latch seam. Callers only map the returned status
+ * to a notice; the kicked cycle is fire-and-forget.
  * @param {PauseLatchDeps} deps
  * @returns {Promise<'resumed' | 'not-paused'>}
  */

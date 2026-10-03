@@ -87,7 +87,6 @@ export async function buildAutoSummaryRoutePlan(chat, store, settings) {
  */
 
 /**
- * Build the automatic route plan and flatten it into status scalars.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
  * @param {ExtensionSettings} settings
@@ -106,7 +105,6 @@ export async function describeAutoWork(chat, store, settings) {
 }
 
 /**
- * Build the Force Summarize route plan.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
  * @param {ExtensionSettings} settings
@@ -125,7 +123,6 @@ export async function buildForceSummaryRoutePlan(chat, store, settings) {
 }
 
 /**
- * Build the Slop Breaker route plan.
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
  * @param {ExtensionSettings} settings
@@ -150,7 +147,6 @@ export async function buildSlopSummaryRoutePlan(chat, store, settings, opts = {}
 }
 
 /**
- * Copy the token stats a chat window plan contributes to its route plan.
  * @param {import('./chat-window-planner.js').ChatWindowPlan} plan
  * @returns {SummaryRouteTokenStats}
  */

@@ -3,9 +3,9 @@ import { formatTokenValue } from '../core/token-count.js';
 
 /**
  * @typedef {object} ContextBudgetTokenPart
- * @property {string} label - Segment label for budget displays.
+ * @property {string} label - Display string as shown in the budget card.
  * @property {string} kind - Segment category used for styling and ordering.
- * @property {number} count - Token count for the segment.
+ * @property {number} count - Token count for the segment, measured or estimated.
  * @property {boolean} estimated - Whether the count came from fallback estimation.
  */
 

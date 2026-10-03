@@ -31,7 +31,7 @@ import { countTextTokens, formatTokenCount, formatTokenValue } from './token-cou
 import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-parts.js';
 
 /**
- * One attempt's settled outcome — the attempt protocol's vocabulary. A Route
+ * One attempt's settled outcome in the attempt protocol's vocabulary. A Route
  * Series Result (below) is the same vocabulary at series scope; `rejected`
  * drops the repair payloads, which only the per-attempt transaction log and
  * the repair switch read.
@@ -47,7 +47,7 @@ import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-
 
 /**
  * How one connection route's retry series ended. `failed{retryable}` and
- * `rejected` always imply the retry budget ran out — the series only
+ * `rejected` always imply the retry budget ran out, so the series only
  * surfaces a retryable ending instead of retrying. `hard-failover` implies
  * the connection is dead for this route and the remaining retries were
  * skipped. `guard-stopped` means the Easy context guard blocked the request
@@ -63,7 +63,6 @@ import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-
  */
 
 /**
- * Fold accepted repair feedback into the repair prompt.
  * @param {string} prompt
  * @param {string} repairFeedback
  * @returns {string}
@@ -77,8 +76,6 @@ function appendRepairFeedback(prompt, repairFeedback) {
 }
 
 /**
- * The prompt for one attempt: the base user prompt, or the repair prompt
- * once the series switched after a rejected output.
  * @param {string} basePrompt
  * @param {string} repairPrompt
  * @param {boolean} useRepairPrompt
@@ -96,8 +93,8 @@ function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFee
  * The facts a Call Session carries, verbatim from its creator. The session
  * exposes them read-only so the Request Runner that built it can run cycle
  * policy (abort checks, cycle notices) off the same object it passed in,
- * without threading the facts twice; derived session state — the repair
- * switch — never appears here.
+ * without threading the facts twice; the repair switch, the derived session
+ * state, never appears here.
  * @typedef {object} CallSessionFacts
  * @property {string} prompt - Fully substituted user prompt.
  * @property {string} repairPrompt - Fully substituted repair prompt ('' when the call validates no repair).
@@ -107,11 +104,11 @@ function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFee
  */
 
 /**
- * The Call Session (CONTEXT.md): one summarizer call's live execution
- * context, carried across every hop of the Narrative Chain. The session's
- * whole interface is its facts plus `runSeries` — one hop in, one Route
- * Series Result out. Route cycling, health buckets, and the Route Plan stay
- * with the Request Runner that builds the session.
+ * The Call Session: one summarizer call's live execution context, carried
+ * across every hop of the Narrative Chain. The session's whole interface is
+ * its facts plus `runSeries`: one hop in, one Route Series Result out.
+ * Route cycling, health buckets, and the Route Plan stay with the Request
+ * Runner that builds the session.
  * @param {CallSessionFacts} facts
  * @returns {CallSessionFacts & { runSeries: (route: import('./call-profile.js').CallProfileRoute, hop: { routeLabel: string, maxRetries: number }) => Promise<RouteSeriesResult> }}
  */
@@ -203,9 +200,6 @@ async function runSeriesForSession(
 }
 
 /**
- * Map a terminally-settled attempt onto the series vocabulary: `failed`
- * carries its retryability, `rejected` the hygiene reason, and the rest are
- * bare error endings.
  * @param {AttemptResult} attemptResult
  * @param {Error} error
  * @param {number} attempts
@@ -447,7 +441,6 @@ async function traceSummarizerRequest({ connection, systemPrompt, prompt }) {
 }
 
 /**
- * Map a thrown provider error onto the attempt vocabulary.
  * @param {unknown} err - Thrown error
  * @param {AbortSignal} signal - Abort signal
  * @returns {AttemptResult}

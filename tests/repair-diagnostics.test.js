@@ -95,11 +95,8 @@ describe('buildRepairDiagnostics', () => {
     it('populates reductionGuidance only when tooLong and targetTokens > 0', () => {
         const { sections } = buildRepairDiagnostics({
             sections: [
-                // tooLong with a positive target -> guidance populated.
                 { id: 'long', actualTokens: 200, targetTokens: 100, hardMaxTokens: 150 },
-                // tooLong but no target -> empty guidance.
                 { id: 'longNoTarget', actualTokens: 200, targetTokens: 0, hardMaxTokens: 150 },
-                // not tooLong -> empty guidance.
                 { id: 'ok', actualTokens: 50, targetTokens: 100, hardMaxTokens: 150 },
             ],
         });
@@ -187,7 +184,6 @@ describe('formatRepairDiagnostics', () => {
                     text: 'too much prose',
                     repairInstruction: 'cut it down',
                 },
-                // Violating but empty text -> no rejected block for it.
                 { id: 'empty', actualTokens: 200, hardMaxTokens: 100, text: '   ' },
             ],
         });
@@ -317,7 +313,6 @@ describe('buildStructuralRepairFeedback', () => {
             { length: narrativeCap + 2 },
             (_v, i) => `Sentence ${i}.`,
         ).join(' ');
-        // Two above-hard-maximum sections in one diagnostics object.
         const diagnostics = buildRepairDiagnostics({
             sections: [
                 { id: 'narrative', actualTokens: 100, hardMaxTokens: 1, text: narrativeText },

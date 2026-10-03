@@ -38,7 +38,6 @@ export function buildRepairDiagnostics({
 }
 
 /**
- * Describe how much text should be removed to reach a soft target.
  * @param {number} actualTokens
  * @param {number} targetTokens
  * @returns {string}

@@ -22,8 +22,7 @@ import {
 
 /**
  * The Layer 0 Run: the one lifecycle that commits Layer 0 Snippets, whether the
- * route selects a single Passage or the cache-friendly route selects many
- * (CONTEXT.md, Layer 0 Run).
+ * route selects a single Passage or the cache-friendly route selects many.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
  * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the engine; a run without one stays silent.
  * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the commit and the Ghosting repair cross.

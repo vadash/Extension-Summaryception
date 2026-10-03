@@ -27,7 +27,7 @@ import {
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
-/** A Summarizer Queue with no request in flight. */
+/** Minimal Summarizer Queue stand-in; the generation-start hook only asks it for a live request. */
 const queue = { isRequestLive: () => false };
 
 beforeEach(() => {
@@ -222,11 +222,10 @@ describe('continuity injection across reroll', () => {
         expect(block).not.toContain('draft-two thread');
         expect(block).not.toContain('Kitchen');
         expect(block).toContain('BOND +1');
-        // The host drops the rerolled reply from the prompt chat (ST
-        // script.js coreChat.pop() for a swipe, and the delete for a
-        // regenerate), so the block lands one message past the covered
-        // exchange: directly before the pending user turn u2, not inside the
-        // covered exchange.
+        // The host drops the rerolled reply from the prompt chat (a swipe
+        // pops it, a regenerate deletes it), so the block lands one message
+        // past the covered exchange: directly before the pending user turn
+        // u2, not inside the covered exchange.
         expect(depth).toBe(1);
     });
 

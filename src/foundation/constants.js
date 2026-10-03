@@ -119,11 +119,11 @@ export const OPERATION_MODES = Object.freeze({
 
 /**
  * Slider and numeric-stepper bounds, keyed by setting id. Single source of
- * truth for the min/max/step attributes in settings.html and for the
- * read-time clamps in the settings normalizer; declaration↔template
- * agreement is enforced by tests/settings-bounds.test.js.
+ * truth for numeric input bounds: the read-time normalizer is the only
+ * enforcement, and the settings template's min/max/step attributes pin to
+ * this map.
  * Bounds only: initial values live in defaultSettings. A `MAX` of null means
- * the template declares no upper bound (number input without a max attribute).
+ * the input declares no upper bound.
  */
 export const SLIDER_LIMITS = Object.freeze({
     advancedModelContext: Object.freeze({ MIN: 8000, MAX: 64000, STEP: 1000 }),
@@ -187,7 +187,7 @@ export const INTERNAL_MAX_LAYER_DEPTH = 20;
 // ─── Layer Presentation ──────────────────────────────────────────────
 
 /**
- * Human-facing label for a summary layer.
+ * One shared helper serves the status panel, the snippet browser, and slash commands.
  * @param {number} index - Zero-based layer index
  * @returns {string}
  */
@@ -196,7 +196,6 @@ export function layerLabel(index) {
 }
 
 /**
- * List the store's non-empty summary layers, deepest first.
  * @param {SummaryceptionStore} store
  * @returns {Array<{ index: number, layer: SummaryceptionSnippet[] }>}
  */
@@ -293,26 +292,26 @@ export const defaultSettings = Object.freeze({
     // ─── Connection Settings ─────────────────────────────────────
     connectionSource: 'default', // 'default' | 'profile'
     summarizerResponseLength: 0, // 0 = provider/profile default
-    connectionProfileId: '', // ID of selected ST Connection Profile
-    requestTimeoutSeconds: 120, // Layer 0 / regenerate, in seconds
+    connectionProfileId: '',
+    requestTimeoutSeconds: 120, // Layer 0 / regenerate route
 
     // Optional Layer 1+ promotion merge connection. 'inherit' uses the Layer 0 connection above.
     mergeConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile'
     mergeSummarizerResponseLength: 0,
     mergeConnectionProfileId: '',
-    mergeRequestTimeoutSeconds: 90, // L1+ promotions, in seconds
+    mergeRequestTimeoutSeconds: 90, // Layer 1+ promotion route
 
     // Optional fallback connection used after the primary route exhausts retryable failures.
     fallbackConnectionSource: 'disabled', // 'disabled' | 'default' | 'profile'
     fallbackSummarizerResponseLength: 0,
     fallbackConnectionProfileId: '',
-    fallbackRequestTimeoutSeconds: 120, // fallback route, in seconds
+    fallbackRequestTimeoutSeconds: 120,
 
     // Dedicated Continuity Auditor connection, separate from the Narrative Chain (ADR-0009).
     auditorConnectionSource: 'inherit', // 'inherit' | 'default' | 'profile'
     auditorSummarizerResponseLength: 0,
     auditorConnectionProfileId: '',
-    auditorRequestTimeoutSeconds: 120, // auditor primary route, in seconds
+    auditorRequestTimeoutSeconds: 120, // auditor primary route
 });
 
 // ─── Prompt Presets ──────────────────────────────────────────────────

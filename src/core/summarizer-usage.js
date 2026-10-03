@@ -2,8 +2,8 @@ import { debug } from '../foundation/logger.js';
 import { countTextTokens, formatTokenValue } from './token-count.js';
 
 // Usage recording and token-range formatting live here only. The per-call
-// human label is resolved once into the CallProfile (src/core/call-profile.js);
-// do not re-derive label switches per caller.
+// human label resolves once into the Call Profile at dispatch; do not
+// re-derive label switches per caller.
 
 /**
  * @typedef {object} SummarizerTokenUsage
@@ -137,7 +137,7 @@ export function recordSummarizerUsage(usage) {
 
 /**
  * @param {UsageRun} run - Active run
- * @param {SummarizerUsageInput} usage - Usage input
+ * @param {SummarizerUsageInput} usage
  * @returns {SummarizerUsageEntry}
  */
 function addUsageToRun(run, usage) {
@@ -202,7 +202,7 @@ function detachEndedRun(run) {
 }
 
 /**
- * @param {SummarizerUsageEntry} entry - Usage entry
+ * @param {SummarizerUsageEntry} entry
  * @returns {string}
  */
 function formatCallUsageLine(entry) {
@@ -229,7 +229,7 @@ function formatCallUsageLine(entry) {
 /**
  * Get source text tokens for the LLM call. Provenance decides: promotion
  * calls carry memory tokens, direct calls carry the passage regex stats.
- * @param {SummarizerUsageEntry} entry - Usage entry
+ * @param {SummarizerUsageEntry} entry
  * @returns {{ count: number | null | undefined, estimated: boolean }}
  */
 function getInputTokenCount(entry) {
@@ -255,7 +255,7 @@ function getInputTokenCount(entry) {
 }
 
 /**
- * @param {SummarizerUsageEntry} entry - Usage entry
+ * @param {SummarizerUsageEntry} entry
  * @param {{ count: number | null | undefined, estimated: boolean }} inputTokens - Source tokens
  * @returns {{ count: number | null | undefined, estimated: boolean }}
  */
@@ -281,7 +281,7 @@ function getPromptOverheadTokenCount(entry, inputTokens) {
 }
 
 /**
- * @param {SummarizerUsageEntry} entry - Usage entry
+ * @param {SummarizerUsageEntry} entry
  * @returns {string}
  */
 function formatPromotionMemoryStats(entry) {
@@ -336,7 +336,7 @@ function getSavedPercent(before, after) {
 }
 
 /**
- * @param {number | undefined} value - Count value
+ * @param {number | undefined} value
  * @returns {string}
  */
 function formatOverflowValue(value) {
@@ -359,7 +359,7 @@ function formatRegexStats(provenance = {}) {
 }
 
 /**
- * @param {SummarizerUsageInput} entry - Usage entry
+ * @param {SummarizerUsageInput} entry
  * @returns {boolean}
  */
 function isTotalEstimated(entry) {
@@ -371,8 +371,8 @@ function isTotalEstimated(entry) {
 }
 
 /**
- * @param {number} value - Number to format
- * @param {number} [digits] - Decimal digits
+ * @param {number} value
+ * @param {number} [digits]
  * @returns {string}
  */
 function formatNumber(value, digits) {

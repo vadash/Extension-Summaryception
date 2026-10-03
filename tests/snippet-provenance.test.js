@@ -9,7 +9,7 @@ import { makeMessages, makeSummaryStore } from './test-helpers.js';
 /**
  * The Snippet provenance read models: which stable message identifiers the
  * committed Snippets own, and how far into the chat that ownership reaches.
- * Both read models are pure — the store and the chat are the whole fixture.
+ * Both read models are pure: the store and the chat are the whole fixture.
  */
 describe('collectSnippetSourceIds', () => {
     it('flattens provenance across all layers, deduping in first-seen order', () => {

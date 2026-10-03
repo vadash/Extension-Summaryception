@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Restore the real logger module. tests/setup.js replaces it with a mock.
+// The shared test setup replaces the logger with a mock; restore the real
+// module here.
 vi.mock('../src/foundation/logger.js', async (importOriginal) => importOriginal());
 import { serializeError } from '../src/foundation/logger.js';
 import { wrapConnectionError } from '../src/core/connection-error.js';

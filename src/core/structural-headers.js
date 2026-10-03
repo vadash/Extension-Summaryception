@@ -9,9 +9,8 @@ const NARRATIVE_OPEN_TAG = '<narrative>';
 const NARRATIVE_CLOSE_TAG = '</narrative>';
 
 /**
- * Parse the Output Envelope: the prose between one <narrative> open tag that
- * starts the text and one close tag, plus the tail after the close tag. Input
- * is normalized for line-start tag drift first, so callers hand in raw text.
+ * Input is normalized for line-start tag drift first, so callers hand in raw
+ * text.
  * @param {string} text - Raw summarizer output or stored snippet text
  * @returns {{ body: string, tail: string } | null} Null without an open-anchored, single-close envelope
  */
@@ -29,7 +28,9 @@ export function parseNarrativeEnvelope(text) {
         body: normalized.slice(NARRATIVE_OPEN_TAG.length, closeIndex),
         tail: normalized.slice(closeIndex + NARRATIVE_CLOSE_TAG.length),
     };
-} // Line-start tag drift for the envelope pair, normalized the same way
+}
+
+// Line-start tag drift for the envelope pair, normalized the same way
 // bracket headers always were: lowercase-out, own line, one newline after.
 // Legacy bracket headers arriving in model output normalize into the envelope.
 const LINE_START_TAG_RE =
@@ -43,7 +44,6 @@ const BRACKET_TAG_MAP = {
 const DECLINED_PAIR_RE = /(^|\r?\n)[^\S\r\n]*<declined>([\s\S]*?)<\/declined>[^\S\r\n]*/gi;
 
 /**
- * Normalize common LLM drift where structural tags are emitted inline.
  * @param {string} text
  * @returns {string}
  */

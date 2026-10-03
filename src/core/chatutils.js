@@ -342,8 +342,8 @@ function buildPassageResult(accumulator) {
 
 /**
  * Build a full context string from all layers down to (and including) a target layer.
- * Deepest layers first, target layer last, giving the summarizer full awareness
- * of what's already been captured so it can avoid redundancy.
+ * Deepest layers first, target layer last, so the summarizer knows the
+ * captured history and can avoid repeating it.
  *
  * @param {number} downToLayer - Include this layer and all layers above it
  * @returns {string} - Combined context string, or '(none yet)'

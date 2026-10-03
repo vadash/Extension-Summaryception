@@ -15,7 +15,6 @@ vi.mock('../src/core/summarizer-engine.js', async (importOriginal) => ({
     runManual: summarizerMocks.runManual,
 }));
 
-/** A Summarizer Queue with no live work. */
 function makeIdleQueue() {
     return { isBusy: () => false, stop: vi.fn() };
 }

@@ -9,6 +9,8 @@ const LAYER0_INITIAL_BUDGET_RATIO = 0.6;
 const LAYER0_DEEP_BUDGET_RATIO = 0.5;
 const LAYER1_BUDGET_RATIO = 0.3;
 const DEEP_LAYER_BUDGET_RATIO = 0.2;
+// The floor keeps Layer 0 from draining toward empty: injected memory below
+// steady state silently truncates.
 const LAYER0_PROMOTION_RETENTION_FLOOR_RATIO = 0.4;
 
 /**

@@ -40,9 +40,9 @@ import { debug, info, trace, warn } from '../foundation/logger.js';
 const FOREGROUND_FREEZE_HEARTBEAT_GRACE_MS = 1000;
 
 /**
- * The one protocol every prompt mutation crosses (CONTEXT.md, Foreground Gate).
+ * The one protocol every prompt mutation crosses.
  * The gate owns the freeze boundary and decides whether prompt-affecting work
- * runs now, queues until the freeze lifts, or re-runs when it lifts — an effect
+ * runs now, queues until the freeze lifts, or re-runs when it lifts. An effect
  * that reports it could not finish is the gate's to re-run, never the caller's.
  */
 export class ForegroundGate {
@@ -141,8 +141,8 @@ export class ForegroundGate {
      * @returns {Promise<PromptEffectResult>}
      */
     async runEffect(effect) {
-        // A heal in flight is already clearing the freeze. Awaiting it from a
-        // commit or effect that heal itself is flushing would deadlock, so the
+        // A heal in flight is already clearing the freeze. Awaiting it from the
+        // commit or effect the heal itself is flushing would deadlock, so the
         // pre-check queues instead and lets the flush finish.
         if (this.#foregroundFrozen && !this.#staleRecoveryPromise) {
             await this.heal(`${effect.kind} effect`);
@@ -254,10 +254,11 @@ export class ForegroundGate {
             if (streamingProcessor?.isFinished === false) {
                 return true;
             }
-            // ST keeps body[data-generating] set until activateSendButtons clears
-            // it — after hideStopButton has already emitted GENERATION_ENDED. The
-            // stop-button probe alone reads "idle" during that teardown window
-            // and false-heals the freeze the end handler is releasing.
+            // SillyTavern keeps body[data-generating] set until activateSendButtons
+            // clears it, and hideStopButton has already emitted GENERATION_ENDED
+            // by then. The stop-button probe alone reads "idle" during that
+            // teardown window and false-heals the freeze the end handler is
+            // releasing.
             if (isGeneratingFlagSet()) {
                 return true;
             }

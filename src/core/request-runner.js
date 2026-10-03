@@ -6,8 +6,9 @@ import { ROUTE_CYCLE_RETRY_ATTEMPT, computeRetryDelay } from './request-retry-po
 import { createAttemptSession } from './request-series.js';
 
 /**
- * Structured result of one summarizer request: {@link import('./run-outcome.js').RunOutcome}.
- * Completed outcomes carry accepted text and the profile it was accepted under.
+ * The Run Outcome of one summarizer request. Completed outcomes carry the
+ * accepted text and the profile it was accepted under, so callers never
+ * re-validate the text.
  */
 
 function buildCompletedOutcome(text, profile) {

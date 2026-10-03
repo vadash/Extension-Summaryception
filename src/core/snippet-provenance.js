@@ -1,9 +1,8 @@
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 
 /**
- * The Snippet provenance read models (CONTEXT.md): which stable message
- * identifiers the committed Snippets own, and how far into the chat that
- * ownership currently reaches.
+ * The Snippet provenance read models: which stable message identifiers the
+ * committed Snippets own, and how far into the chat that ownership reaches.
  */
 
 /**

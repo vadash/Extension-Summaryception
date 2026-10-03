@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { deriveManualRunOutcome } from '../src/core/run-outcome.js';
 
-/** Build the run state one manual run accumulates before its verdict. */
 function makeTally(overrides = {}) {
     return {
         completed: 0,

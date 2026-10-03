@@ -6,7 +6,7 @@ import { normalizeSettings } from '../src/foundation/settings-normalizer.js';
 
 /**
  * The read-time Settings Normalization pass. It never touches the host, so a
- * stored settings object is the entire fixture — no installed SillyTavern
+ * stored settings object is the entire fixture: no installed SillyTavern
  * context, no chat metadata.
  */
 function normalize(overrides = {}, stored = { hadMaskUserRoleMode: true }) {

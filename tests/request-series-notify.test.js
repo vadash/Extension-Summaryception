@@ -121,8 +121,9 @@ describe('request series notify events', () => {
         expect(toastr.error).not.toHaveBeenCalled();
         expect(recorder.events).toHaveLength(1);
         expect(recorder.events[0].kind).toBe(NOTIFY_EVENTS.ROUTE_CYCLE_WAIT);
-        // Backoff band for the route-cycle attempt: base * multiplier^3 plus
-        // jitter, no Retry-After on the synthetic error.
+        // Backoff band for the route-cycle attempt: base * multiplier to the
+        // power of the retry budget, plus jitter; no Retry-After header on
+        // the synthetic error.
         const band =
             RETRY_CONFIG.baseDelay * RETRY_CONFIG.backoffMultiplier ** RETRY_CONFIG.maxRetries;
         expect(recorder.events[0].delayMs).toBeGreaterThanOrEqual(band);

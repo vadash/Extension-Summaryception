@@ -21,10 +21,9 @@ const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
 
 /**
  * Strip reasoning tags, thinking blocks, and other model artifacts
- * from the summarizer output. Uses configurable patterns plus
- * regex for common reasoning block formats.
- * @param {string} raw - The raw summarizer response
- * @returns {string} Cleaned text
+ * from the summarizer output.
+ * @param {string} raw
+ * @returns {string}
  */
 function cleanSummarizerOutput(raw) {
     let text = raw;
@@ -64,7 +63,6 @@ function cleanSummarizerOutput(raw) {
 }
 
 /**
- * Strip or reject Han-heavy summarizer output when enabled.
  * @param {string} cleanedResult - Output after standard artifact cleanup
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null, percent: string | null }}
@@ -124,8 +122,6 @@ export function validateSummarizerOutputIntegrity(text, profile) {
 }
 
 /**
- * The Declined Marker verdict: a confessed Refusal carries the model's own
- * reason as the diagnosis.
  * @param {string} output - Cleaned summarizer output
  * @returns {string} Empty string without a marker, the rejection reason otherwise
  */
@@ -140,7 +136,6 @@ function declinedRejection(output) {
 }
 
 /**
- * The minimum-output rule for substantial sources.
  * @param {string} output - Cleaned summarizer output
  * @param {number} sourceTokens - Source token count from the call's provenance
  * @returns {string} Empty string when the draft passes, the rejection reason otherwise
@@ -172,10 +167,10 @@ function compressionPolicyRejection(output, profile) {
         }
     }
 
-    // The lexical net runs for every compression call — Layer 0 family and
-    // promotion — scoped to the envelope body when one is present, else the
-    // whole output. In-story quoted dialogue lives inside the envelope, so it
-    // stays inert either way.
+    // The lexical net runs for every compression call, Layer 0 family and
+    // promotion alike. It scans the envelope body when one is present, else
+    // the whole output. In-story quoted dialogue lives inside the envelope,
+    // so it stays inert either way.
     if (profile?.policy?.compression) {
         const refusalKind = findRefusalPattern(narrativeBodyOf(output));
         if (refusalKind) {
@@ -190,8 +185,6 @@ function compressionPolicyRejection(output, profile) {
 }
 
 /**
- * The narrative body of a compression call's output: inside the Output
- * Envelope when one is present, else the whole text.
  * @param {string} output - Cleaned summarizer output
  * @returns {string}
  */
@@ -290,7 +283,6 @@ function rejectIntegrity(reason) {
 // ─── Response Processing ──────────────────────────────────────────────
 
 /**
- * Clean and validate a raw provider response.
  * @param {string} rawResult - Raw provider output
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter for the language-mix rejection; defaults to the silent adapter

@@ -8,23 +8,23 @@ export const SETTING_SLIDER_SELECTOR = 'input[type="range"][data-sc-slider-setti
 /**
  * @typedef {object} SettingBinding
  * @property {string} key - Settings key to persist.
- * @property {(source: object) => unknown} read - Reads the value from the source element.
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Optional hook before saving the value.
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Optional hook after saving the value.
+ * @property {(source: object) => unknown} read - Reads the control value; the read-time normalizer owns bounds enforcement.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Runs after the value lands in settings and before the persist.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Runs after the persist.
  */
 
 /**
  * @typedef {object} DataSettingOptions
  * @property {string} [eventName] - DOM event used to persist the setting.
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Optional hook before saving the value.
- * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Optional hook after saving the value.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [beforeSave] - Runs after the value lands in settings and before the persist.
+ * @property {(settings: ReturnType<typeof getSettings>, value: unknown, source: object) => void} [afterSave] - Runs after the persist.
  */
 
 /**
  * @typedef {object} SliderSettingBindingOptions
- * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [beforeSave] - Optional hook before saving the slider value.
- * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSave] - Optional hook after saving the slider value.
- * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSavePartner] - Optional hook after saving from the partner input; defaults to afterSave.
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [beforeSave] - Runs after the value lands in settings and before the persist.
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSave] - Runs after the persist.
+ * @property {(settings: ReturnType<typeof getSettings>, value: number, source: object, key: string) => void} [afterSavePartner] - Runs after the persist when the partner input is the source; defaults to afterSave.
  */
 
 /**
@@ -119,6 +119,7 @@ export function bindSliderSettingPairs(selector = SETTING_SLIDER_SELECTOR, optio
         });
 
         $(document).on('focus', binding.partnerSelector, function () {
+            // The partner input shows the compact label; focus swaps in the raw value for editing.
             $(this).val(getSettings()[binding.key]);
         });
     }
@@ -140,7 +141,6 @@ export function syncSliderSettingPairs(
 }
 
 /**
- * Read a checkbox as a boolean.
  * @param {object} $element jQuery-wrapped element
  * @returns {boolean}
  */
@@ -149,7 +149,6 @@ export function readChecked($element) {
 }
 
 /**
- * Read an input value as a string.
  * @param {object} $element jQuery-wrapped element
  * @returns {string}
  */
@@ -158,7 +157,6 @@ export function readString($element) {
 }
 
 /**
- * Read a trimmed input value as a string.
  * @param {object} $element jQuery-wrapped element
  * @returns {string}
  */
@@ -167,7 +165,6 @@ export function readTrimmedString($element) {
 }
 
 /**
- * Read a base-10 integer input, falling back to zero.
  * @param {object} $element jQuery-wrapped element
  * @returns {number}
  */
@@ -176,7 +173,6 @@ export function readIntegerOrZero($element) {
 }
 
 /**
- * Read a textarea as a list of trimmed non-empty lines.
  * @param {object} $element jQuery-wrapped element
  * @returns {string[]}
  */
@@ -291,8 +287,8 @@ function syncSliderSettingPair(binding, settings) {
 
 /**
  * Normalize a slider value against the SLIDER_LIMITS bounds declared for its
- * setting. Bounds live in the shared map. The read-time settings normalizer
- * is the only enforcement.
+ * setting. The clamp is a UI affordance; the read-time settings normalizer is
+ * the only bounds enforcement.
  * @param {unknown} value
  * @param {string} key Settings key whose SLIDER_LIMITS entry applies
  * @returns {number}
@@ -319,7 +315,6 @@ function parseSliderInputValue(value, { min, step }) {
 }
 
 /**
- * Sync role-mask controls with masking enabled state.
  * @param {boolean} enabled
  * @returns {void}
  */

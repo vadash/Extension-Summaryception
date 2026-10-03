@@ -14,7 +14,6 @@ import { buildSnapshotBasis, isSnapshotStoreCurrent } from './summarizer-snapsho
 import { countTextTokens } from './token-count.js';
 
 /**
- * Attempt one promotion for the plan's over-limit candidate.
  * @param {object} plan - Promotion plan from buildPromotionPlan.
  * @param {ExtensionSettings} s - Effective settings.
  * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the drain; runs without one stay silent.
@@ -26,7 +25,6 @@ async function attemptPromotion(plan, s, notify, gate) {
 }
 
 /**
- * Merge snippets into the next layer using the summarizer.
  * @param {object} p
  * @param {object} p.plan - Promotion plan supplying the merge count and retention-floor verdict.
  * @param {{ layerIndex: number, quota: number, tokens: number, count: number }} p.candidate - Over-limit layer from the plan.
@@ -63,7 +61,6 @@ async function mergeLayerSnippets({ plan, candidate, s, notify, gate }) {
 }
 
 /**
- * Assemble the promotion request inputs for one over-limit layer.
  * @param {object} p
  * @param {number} p.layerIndex
  * @param {ExtensionSettings} p.settings
@@ -170,7 +167,6 @@ function capturePromotionSnapshot(layerIndex) {
 }
 
 /**
- * Apply an LLM-backed merge promotion after validating the source layers.
  * @param {object} p
  * @param {object} p.snapshot
  * @param {number} p.layerIndex

@@ -61,7 +61,7 @@ export function isPromptLogEnabled() {
 }
 
 /**
- * @param {...unknown} args - Console arguments
+ * @param {...unknown} args
  * @returns {void}
  */
 export function info(...args) {
@@ -71,7 +71,7 @@ export function info(...args) {
 }
 
 /**
- * @param {...unknown} args - Console arguments
+ * @param {...unknown} args
  * @returns {void}
  */
 export function debug(...args) {
@@ -81,7 +81,7 @@ export function debug(...args) {
 }
 
 /**
- * @param {...unknown} args - Console arguments
+ * @param {...unknown} args
  * @returns {void}
  */
 export function trace(...args) {
@@ -94,7 +94,7 @@ export function trace(...args) {
 }
 
 /**
- * @param {...unknown} args - Console arguments
+ * @param {...unknown} args
  * @returns {void}
  */
 export function warn(...args) {
@@ -102,7 +102,7 @@ export function warn(...args) {
 }
 
 /**
- * @param {...unknown} args - Console arguments
+ * @param {...unknown} args
  * @returns {void}
  */
 export function error(...args) {

@@ -12,7 +12,6 @@ import { silentAdapter } from './notify.js';
 
 const CONTINUITY_AUDIT_LOG_TYPE = 'summaryception.continuity.audit.v1';
 
-/** Milestone titles for the audit log groups. */
 const AUDIT_LOG_TITLES = Object.freeze({
     start: 'START',
     failed: 'FAILED',
@@ -46,8 +45,9 @@ const AUDIT_LOG_TITLES = Object.freeze({
 /**
  * Trigger filter for MESSAGE_RECEIVED: only a fresh or regenerated assistant
  * reply starts an audit; swipes and continues are intermediate turns that a
- * finished reply supersedes. ST messages carry no `type` field — the event
- * fires with `(messageIndex, type)` and that argument is authoritative.
+ * finished reply supersedes. ST messages carry no `type` field: the host
+ * fires the event as `(messageIndex, type)`, so that argument is the
+ * authoritative signal.
  * @param {{ is_user?: unknown, is_system?: unknown } | null | undefined} message
  * @param {unknown} type - MESSAGE_RECEIVED type argument ('normal', 'swipe', 'continue', 'append').
  * @returns {boolean}
@@ -145,8 +145,6 @@ async function runAudit(
 }
 
 /**
- * Whether the Continuity Audit runs at all: the extension and the Continuity
- * Engine must both be on, and a group chat is never audited.
  * @param {ExtensionSettings} settings
  * @param {boolean} hasGroup
  * @returns {boolean}
@@ -159,8 +157,9 @@ function isAuditEligible(settings, hasGroup) {
 }
 
 /**
- * The working state the audit merges into: a clone of the live checkpoint, or
- * a fresh default state for a chat that has never been audited.
+ * Working copy the audit merges into. Clone the live checkpoint so the
+ * stored payload stays untouched until the commit overwrites it; a chat
+ * never audited starts from the default state.
  * @param {SummaryceptionContinuityState | null} state
  * @returns {SummaryceptionContinuityState}
  */
@@ -169,7 +168,6 @@ function clonePriorState(state) {
 }
 
 /**
- * Log the start milestone for one audit.
  * @param {number} turnCount
  * @param {number | null} checkpointIndex - The live checkpoint's chat index, or null when the chat anchors nowhere.
  * @returns {void}
@@ -183,11 +181,10 @@ function logAuditStart(turnCount, checkpointIndex) {
 }
 
 /**
- * Dispatch one audit call and classify the reply. A non-completed response
- * or an abort yields no audit; a completed response without text is a
- * contract violation and counts as a failed draft. Validation failure means
- * no checkpoint write; the next audit re-covers the Exchanges through the
- * Catch-up Window (ADR-0017, single-call audit).
+ * A non-completed dispatch yields no audit. A completed response without
+ * text is a contract violation and counts as a failed draft. Validation
+ * failure means no checkpoint write; the next audit re-covers the Exchanges
+ * through the Catch-up Window (ADR-0017, single-call audit).
  * @param {string} storyTxt
  * @param {string} contextStr
  * @param {object} deps
@@ -256,10 +253,10 @@ function applyAuditResult(prior, audit, turnCount) {
 }
 
 /**
- * Log the completed audit against the pre-commit snapshot. Only allocated
- * when the state log is on; the full variant dumps the whole state. An
- * over-budget note count rides along, which is what makes the GM-note cap
- * observable instead of silent (ADR-0029).
+ * The pre-commit snapshot is allocated only when the state log is on; the
+ * full variant dumps the whole state. An over-budget note count rides
+ * along, which is what makes the GM-note cap observable instead of silent
+ * (ADR-0029).
  * @param {object} completed - The committed audit to log.
  * @param {SummaryceptionContinuityState | null} completed.priorSnapshot - Cloned prior state, or null when logging is off.
  * @param {SummaryceptionContinuityState} completed.priorState - The committed checkpoint state.
@@ -290,8 +287,7 @@ function logAuditCompletion({ priorSnapshot, priorState, turnCount, scId, audit 
 /**
  * One collapsed console group per Continuity State audit milestone. The
  * enabled guard and the group shape live here, so the lifecycle reports an
- * event instead of repeating the guard at every exit. Mirrors the
- * request-attempt-log style.
+ * event instead of repeating the guard at every exit.
  * @param {'start' | 'failed' | 'aborted' | 'completed'} kind - Lifecycle milestone.
  * @param {string} detail - Extra title text, e.g. the turn and coverage anchors.
  * @param {Record<string, unknown>} payload - Event body, serialized into the group.
@@ -328,8 +324,8 @@ function isSameChatIdentity(a, b) {
 }
 
 /**
- * Render the covered chat indices as the audit story: each Exchange is its
- * user line plus the assistant reply.
+ * The coverage window holds whole Exchanges, so user lines appear beside
+ * the assistant replies.
  * @param {ChatMessage[]} chat
  * @param {number[]} windowIndices - Sorted covered indices from the coverage read model.
  * @param {string} playerName - Display name of the user turns.
@@ -346,7 +342,6 @@ function buildAuditStory(chat, windowIndices, playerName) {
 }
 
 /**
- * User prompt context: prior Continuity State JSON plus the macro memory.
  * @param {SummaryceptionContinuityState} prior
  * @param {SummaryceptionStore} store
  * @returns {string}

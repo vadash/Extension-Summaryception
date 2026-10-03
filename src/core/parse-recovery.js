@@ -1,7 +1,7 @@
 import { jsonrepair } from '../vendor/jsonrepair.js';
 
 /**
- * Parse Recovery (src/core/parse-recovery.js)
+ * Parse Recovery
  *
  * The deterministic waterfall that turns a malformed Auditor reply into a
  * parseable Continuity State JSON before classification. Tiers run
@@ -12,7 +12,7 @@ import { jsonrepair } from '../vendor/jsonrepair.js';
  * Structural completion (tier 4) runs before balanced-block extraction
  * (tier 5): completion only succeeds when the appended text parses whole, so
  * it preserves the full draft, while extraction drops everything outside the
- * block — a truncated root object must not lose its sections to a balanced
+ * block. A truncated root object must not lose its sections to a balanced
  * inner one.
  */
 
@@ -30,7 +30,6 @@ const TYPOGRAPHY_REPLACEMENTS = [
 ];
 
 /**
- * Strip a surrounding markdown code fence.
  * @param {string} text
  * @returns {string | null}
  */
@@ -46,7 +45,6 @@ function stripFences(text) {
 }
 
 /**
- * Slice from the first `{` to the last `}`.
  * @param {string} text
  * @returns {string | null}
  */
@@ -60,7 +58,6 @@ function sliceBraces(text) {
 }
 
 /**
- * Fold smart quotes onto their ASCII counterparts.
  * @param {string} text
  * @returns {string | null}
  */
@@ -77,7 +74,6 @@ function normalizeTypography(text) {
 }
 
 /**
- * Tier 2 text transforms: fence strip, then first-brace/last-brace slice.
  * @returns {Array<(text: string) => string | null>}
  */
 function tier2Transforms() {
@@ -85,7 +81,6 @@ function tier2Transforms() {
 }
 
 /**
- * Tier 3 transform: smart quotes fold onto ASCII quotes.
  * @returns {Array<(text: string) => string | null>}
  */
 function tier3Transforms() {
@@ -93,11 +88,10 @@ function tier3Transforms() {
 }
 
 /**
- * Find the index of the `}` that closes the object opening at `start`, or
- * -1 when the text ends first. Quote- and escape-aware: brace characters
- * inside string literals never count toward depth.
+ * Quote- and escape-aware: brace characters inside string literals never
+ * count toward depth.
  * @param {string} text
- * @param {number} start - Index of the opening `{`
+ * @param {number} start
  * @returns {number}
  */
 function balancedEnd(text, start) {
@@ -128,10 +122,8 @@ function balancedEnd(text, start) {
 }
 
 /**
- * Tier 5 transform: extract balanced {...} blocks with string-aware scanning
- * (escapes and quotes never count toward depth), preferring the largest
- * candidate. Survives preamble and trailing prose whose braces would fool a
- * naive first/last slice.
+ * Survives preamble and trailing prose whose braces would fool a naive
+ * first/last slice.
  * @param {string} text
  * @returns {string | null}
  */
@@ -153,10 +145,9 @@ function extractBalancedBlock(text) {
 }
 
 /**
- * Remove commas followed only by whitespace before a structural close,
- * scanning outside string literals so string contents stay untouched.
+ * Scans outside string literals so string contents stay untouched.
  * @param {string} text
- * @returns {string | null} The stripped text, or null when nothing changed
+ * @returns {string | null}
  */
 function stripTrailingCommas(text) {
     let out = '';
@@ -195,9 +186,6 @@ function stripTrailingCommas(text) {
 }
 
 /**
- * The open-structure state one left-to-right scan of a JSON draft ends in:
- * which containers remain open, whether a string was cut mid-value, and
- * whether the draft ends on a complete key awaiting its value.
  * @param {string} text
  * @returns {{ stack: string[], inString: boolean, stringIsKey: boolean }}
  */
@@ -243,12 +231,10 @@ function scanOpenState(text) {
 }
 
 /**
- * Complete the closes a truncated object is missing: appends the missing
- * quotes and brackets the scanner saw open, in reverse order. A draft cut
- * off in key position (a complete string awaiting its value) also gets a
- * `: null` value so the appended closes actually parse.
+ * A draft cut off in key position (a complete string awaiting its value)
+ * also gets a `: null` value so the appended closes actually parse.
  * @param {string} text
- * @returns {string | null} The completed text, or null when nothing is open
+ * @returns {string | null}
  */
 function completeCloses(text) {
     const { stack, inString, stringIsKey } = scanOpenState(text);
@@ -275,9 +261,6 @@ function completeCloses(text) {
 }
 
 /**
- * Tier 4 transforms: structural completion that never inspects string
- * contents with regexes. Trailing-comma removal scans outside strings; close
- * completion appends only what the scanner saw open.
  * @returns {Array<(text: string) => string | null>}
  */
 function tier4Transforms() {
@@ -285,7 +268,6 @@ function tier4Transforms() {
 }
 
 /**
- * Tier 5 transform list.
  * @returns {Array<(text: string) => string | null>}
  */
 function tier5Transforms() {
@@ -293,11 +275,9 @@ function tier5Transforms() {
 }
 
 /**
- * Attempt each transform in order, parsing each product; the first
- * JSON.parse-able product wins.
- * @param {number} tier - The tier number the transform list belongs to
+ * @param {number} tier
  * @param {Array<(text: string) => string | null>} transforms
- * @param {string} text - Trimmed reply text the transforms consume
+ * @param {string} text
  * @returns {{ tier: number, value: unknown } | null}
  */
 function attemptTransforms(tier, transforms, text) {
@@ -309,20 +289,17 @@ function attemptTransforms(tier, transforms, text) {
         try {
             return { tier, value: JSON.parse(product) };
         } catch {
-            // Try the next transform.
+            // Not valid JSON, so this tier's shape is wrong; the loop tries the next transform.
         }
     }
     return null;
 }
 
 /**
- * Parse Recovery: the deterministic Parse Recovery waterfall for a malformed
- * Auditor reply. Tiers run cheapest-first; the first tier that yields a
- * JSON.parse-able value wins. Returns null when every tier fails; the caller
- * emits the 'parse' verdict and the Catch-up Window re-covers the Exchanges.
- * @param {string | null | undefined} raw - The raw Auditor reply text
- * @returns {{ tier: number, value: unknown } | null} The recovered value
- *   with the tier that produced it, or null.
+ * Returns null when every tier fails; the caller emits the 'parse' verdict
+ * and the Catch-up Window re-covers the Exchanges.
+ * @param {string | null | undefined} raw
+ * @returns {{ tier: number, value: unknown } | null}
  */
 export function recoverContinuityJson(raw) {
     if (typeof raw !== 'string') {
@@ -333,32 +310,27 @@ export function recoverContinuityJson(raw) {
         return null;
     }
 
-    // Tier 1: plain parse.
     try {
         return { tier: 1, value: JSON.parse(text) };
     } catch {
-        // Fall through to the transform tiers.
+        // Not valid JSON as received; the transform tiers re-shape it below.
     }
 
-    // Tier 2: fence strip, then first-brace/last-brace slice.
     const tier2 = attemptTransforms(2, tier2Transforms(), text);
     if (tier2 !== null) {
         return tier2;
     }
 
-    // Tier 3: typography normalize (smart quotes -> ASCII quotes).
     const tier3 = attemptTransforms(3, tier3Transforms(), text);
     if (tier3 !== null) {
         return tier3;
     }
 
-    // Tier 4: trailing-comma removal, then close completion.
     const tier4 = attemptTransforms(4, tier4Transforms(), text);
     if (tier4 !== null) {
         return tier4;
     }
 
-    // Tier 5: string-aware balanced-block extraction.
     const tier5 = attemptTransforms(5, tier5Transforms(), text);
     if (tier5 !== null) {
         return tier5;
@@ -371,7 +343,7 @@ export function recoverContinuityJson(raw) {
  * The aggressive tail of the waterfall: the vendored jsonrepair as the final
  * tier. Its string-content rewrites only ever see text every conservative
  * tier already failed on.
- * @param {string} text - Trimmed reply text that conservative tiers could not parse
+ * @param {string} text
  * @returns {{ tier: number, value: unknown } | null}
  */
 function recoverAggressive(text) {

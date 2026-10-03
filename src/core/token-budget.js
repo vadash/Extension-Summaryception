@@ -1,5 +1,7 @@
 import { defaultSettings } from '../foundation/constants.js';
 
+// One source of per-layer size policy: Layer 0 output bounds, promotion
+// quotas, and the repair ceiling all derive from these ratios.
 export const TOKENS_PER_SENTENCE = 35;
 export const LAYER_MIN_RATIO = { l0: 0.4, l1: 0.4, l2: 0.3 };
 export const LAYER_HARD_MAX_RATIO = { l0: 1.5, l1: 1.75, l2: 1.5 };
@@ -13,7 +15,7 @@ export const LAYER_SAFETY_MULTIPLIER = { l0: 0.85, l1: 0.5, l2: 0.5 };
 export const SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD = 500;
 
 /**
- * Integer sentence cap for a layer, anchored to slider target T.
+ * Integer sentence cap for a layer, derived from the configured token target.
  * @param {'l0' | 'l1' | 'l2' | number} layer
  * @param {number | undefined} targetTokens
  * @returns {number}

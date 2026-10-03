@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { installSummaryContext, makeForegroundGate } from './test-helpers.js';
 
 describe('stale freeze heal flush', () => {
-    // Reproduces the user report: a summary commit queues behind an active
-    // foreground generation, and the stale-freeze heal flushes it at generation
-    // end. The commit's own prompt effect must land instead of staying queued
-    // forever, and the heal must settle.
+    // A summary commit queues behind an active foreground generation, and the
+    // stale-freeze heal flushes it at generation end. The commit's own prompt
+    // effect must land instead of staying queued forever, and the heal must
+    // settle.
     it('holds prompt effects a mid-flush generation freezes and settles', async () => {
         installSummaryContext({ chat: [] });
         let clock = 5000;
@@ -84,13 +84,12 @@ describe('stale freeze heal flush', () => {
         }
     });
 
-    // Reproduces the user report: every normal generation end (success or
-    // stop) logged "Stale foreground freeze detected". ST emits
-    // GENERATION_ENDED from hideStopButton, after hiding #mes_stop but before
-    // activateSendButtons clears body[data-generating]; the heal's liveness
-    // probe saw only the finished stream and hidden stop button, concluded no
-    // generation was running, and healed a freeze the end handler was about
-    // to release itself.
+    // During the GENERATION_ENDED teardown window SillyTavern has a finished
+    // stream and a hidden stop button while body[data-generating] is still
+    // set, because hideStopButton emits the event before activateSendButtons
+    // clears that flag. A liveness probe reading only the stream and the stop
+    // button sees no generation, so it would heal a freeze the end handler is
+    // about to release itself.
     it('keeps the freeze during the GENERATION_ENDED teardown window', async () => {
         installSummaryContext({ chat: [] });
         let clock = 5000;

@@ -70,8 +70,9 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 ];
 
 /**
- * @param {string} msg - The error message string
- * @returns {boolean} True if a retryable pattern is found
+ * The patterns are lowercase; pass an already lowercased message.
+ * @param {string} msg
+ * @returns {boolean}
  */
 function msgHasRetryablePattern(msg) {
     for (const pattern of RETRYABLE_MESSAGE_PATTERNS) {
@@ -83,8 +84,8 @@ function msgHasRetryablePattern(msg) {
 }
 
 /**
- * @param {object} error - The error to check
- * @returns {boolean} True if the status code is retryable
+ * @param {object} error
+ * @returns {boolean}
  */
 function statusCodeIsRetryable(error) {
     const status = error?.status || error?.response?.status || error?.statusCode;
@@ -95,6 +96,8 @@ function statusCodeIsRetryable(error) {
 }
 
 /**
+ * A failed fetch surfaces as a TypeError naming fetch, so classify it as a
+ * network failure rather than a code defect.
  * @param {object} error
  * @returns {boolean}
  */
@@ -106,8 +109,8 @@ function isRetryableTypeError(error) {
 }
 
 /**
- * @param {object} error - The error to evaluate
- * @returns {boolean} True if the error is retryable
+ * @param {object} error
+ * @returns {boolean}
  */
 export function isRetryableError(error) {
     if (error?.name === 'AbortError') {

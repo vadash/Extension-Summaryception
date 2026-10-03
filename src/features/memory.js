@@ -19,9 +19,8 @@ function validateImportPayload(data) {
 }
 
 /**
- * Unlike Clear, which throws to its caller, an invalid payload is a guard
- * rather than a fault. Every outcome arrives as a structured status for the
- * entry layer to notice.
+ * An invalid payload is a guarded outcome, not a thrown fault: every result
+ * arrives as a structured status for the entry layer to notice.
  * @param {any} data - Parsed JSON payload
  * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate }} options - Import notices and the Foreground Gate the commit crosses.
  * @returns {Promise<{ status: 'imported', count: number } | { status: 'invalid' } | { status: 'failed', cause: unknown }>}

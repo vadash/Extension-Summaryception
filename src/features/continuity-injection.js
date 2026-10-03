@@ -56,11 +56,11 @@ function formatSection(header, lines) {
 }
 
 /**
- * Dense spec §6 rendering of the Continuity State for the main model: only
+ * Dense rendering of the Continuity State for the main model: only
  * non-empty sections render, secret notes form the secrets section, and the
- * remaining notes join the agendas as active threads. [S] is the schema's
- * only secrets tag (continuity.js NOTE_TAG_PATTERN), so the renderer never
- * inspects note text beyond that prefix.
+ * remaining notes join the agendas as active threads. [S] is the only
+ * secrets tag the note schema defines, so the renderer never inspects note
+ * text beyond that prefix.
  * @param {SummaryceptionContinuityState} state
  * @returns {string} Empty when no section has content.
  */

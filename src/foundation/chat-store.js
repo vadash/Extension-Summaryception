@@ -20,7 +20,8 @@ export function getChatStore() {
 }
 
 /**
- *
+ * Reads the store first so the persisted metadata keeps the repaired shape.
+ * @returns {Promise<void>}
  */
 export async function saveChatStore() {
     getChatStore();
