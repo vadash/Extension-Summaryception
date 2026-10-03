@@ -34,19 +34,21 @@ describe('buildChatWindowPlan', () => {
         expect(ready.tokenBudgetExceeded).toBe(true);
     });
 
-    it('keeps complete messages in A and ends B on the prior assistant', async () => {
+    it('keeps complete messages in A and ends B inside its budget', async () => {
         const chat = makeSizedChat(3, { userLength: 40, assistantLength: 60 });
+        const verbatimTokenBudget = messageLineTokens(false, 60) + 1;
         const plan = await buildChatWindowPlan(
             chat,
             makeSummaryStore(),
             windowSettings({
-                verbatimTokenBudget: messageLineTokens(false, 60) + 1,
+                verbatimTokenBudget,
                 queuedTokenBudget: 1,
             }),
         );
-        expect(plan.verbatimStartIdx).toBe(4);
+        expect(plan.verbatimStartIdx).toBe(5);
         expect(plan.queuedEndIdx).toBe(3);
         expect(plan.eligibleTurns.map((turn) => turn.index)).toEqual([1, 3]);
+        expect(plan.verbatimTokens).toBeLessThanOrEqual(verbatimTokenBudget);
     });
 
     it('stays idle when the latest conversation message is a user message', async () => {

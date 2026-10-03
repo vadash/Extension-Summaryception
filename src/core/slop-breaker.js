@@ -1,5 +1,5 @@
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
-import { findLastMessage, getAssistantTurns, isSummaryceptionOwnedMessage } from './chatutils.js';
+import { findLastMessage, getAssistantTurns, isSummarizerPassageMessage } from './chatutils.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 
 /**
@@ -61,14 +61,14 @@ export async function getSlopBreakerPlan(chat, store, settings, { targetIndex } 
  * @returns {number | null}
  */
 function getSlopBreakerTargetIndex(chat, boundaryIndex) {
-    const latest = findLastMessage(chat, chat.length - 1, isCountableConversationMessage);
+    const latest = findLastMessage(chat, chat.length - 1, isSummarizerPassageMessage);
     if (!latest || latest.index <= boundaryIndex) {
         return null;
     }
     if (!latest.message.is_user) {
         return latest.index;
     }
-    return findLastMessage(chat, latest.index - 1, isCountableConversationMessage)?.index ?? null;
+    return findLastMessage(chat, latest.index - 1, isSummarizerPassageMessage)?.index ?? null;
 }
 
 /**
@@ -82,20 +82,8 @@ function getEligibleAssistantTurns(chat, boundaryIndex, targetIndex) {
         (turn) =>
             turn.index > boundaryIndex &&
             turn.index <= targetIndex &&
-            isCountableConversationMessage(chat[turn.index]),
+            isSummarizerPassageMessage(chat[turn.index]),
     );
-}
-
-/**
- * Check whether a message belongs to summarizable conversation text.
- * @param {ChatMessage | undefined} message
- * @returns {message is ChatMessage}
- */
-function isCountableConversationMessage(message) {
-    if (!message?.mes || !String(message.mes).trim()) {
-        return false;
-    }
-    return !(message.is_system || message.is_hidden) || isSummaryceptionOwnedMessage(message);
 }
 
 /**

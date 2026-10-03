@@ -132,17 +132,30 @@ async function collectLiveData(chat, sourceStartIdx, settings) {
 }
 
 /**
+ * Fraction of the verbatim budget the cut leaves as trigger headroom. The cut
+ * line sits inside the budget, so a finished run lands below the full-budget
+ * trigger line and token-count jitter cannot re-queue whole turns.
+ * @constant {number}
+ */
+const VERBATIM_CUT_MARGIN = 0.1;
+
+/**
+ * Find the verbatim window start by walking backward until the margined budget
+ * fills. The crossing entry joins the window whole, so the window stays below
+ * the configured budget while summarization cuts ~10% deeper than the exact
+ * budget line.
  * @param {LiveEntry[]} entries
  * @param {number} budget
  * @param {number} fallback
  * @returns {number}
  */
 function findVerbatimStart(entries, budget, fallback) {
+    const cutTarget = budget * (1 - VERBATIM_CUT_MARGIN);
     let tokens = 0;
     for (let i = entries.length - 1; i >= 0; i--) {
         const entry = entries[i];
         tokens += entry.stats.finalTokens;
-        if (tokens >= budget) {
+        if (tokens >= cutTarget) {
             return entry.index;
         }
     }
