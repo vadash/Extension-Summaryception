@@ -23,6 +23,11 @@ The single point every Snippet mutation passes through: apply the change, sync G
 Code: `commitSnippetMutation` (src/core/snippet-commit.js)
 _Avoid_: Snippet save
 
+**Chat Persistence**:
+The debounced scheduler that writes the chat file and chat metadata after an extension mutation, coalescing bursts and flushing on demand. It is the one runtime instance kept as a root-initialized holder rather than a threaded dependency (ADR-0031).
+Code: `persistChatState` / `flushPendingChatSave` (src/core/persist-state.js)
+_Avoid_: save timer, chat save
+
 **Promotion**:
 Moving merged older snippets from a layer into the next deeper layer.
 Code: `attemptPromotion` (src/core/summarizer-promotion.js)
@@ -170,6 +175,16 @@ _Avoid_: attempt series, retry loop
 One summarizer call's live execution context: the Call Profile it was built from, the prompt and repair prompt it sends, the abort signal, and the Notify Adapter it runs with — held for the whole call, across every hop. One session executes each Route Series of the Narrative Chain behind a single interface; route cycling, health buckets, and the Route Plan stay outside it.
 Code: `createAttemptSession` (src/core/request-series.js)
 _Avoid_: attempt context, request state
+
+**Summarizer Dispatch**:
+The one owner of live summarizer requests: it runs one summarizer call through the request runner and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
+Code: `callSummarizer` / `isRequestLive` / `abortAllRequests` (src/core/summarizer-request.js)
+_Avoid_: request registry, summarizer client
+
+**Usage Ledger**:
+The nested scope that records each summarizer call's token usage against the run that made it — an automatic drain, a Manual Run, a Regeneration — and reports the run's largest call when the scope ends. One instance exists, built at the composition root; the Call Session carries it, so the Route Series records without reaching module state.
+Code: `withUsageRun` / `recordSummarizerUsage` (src/core/summarizer-usage.js)
+_Avoid_: usage tracker, token accounting
 
 **Run Outcome**:
 The structured result at every run level — summarizer request, batch commit, promotion drain, auto cycle, Manual Run: `completed`, `partial`, `aborted`, `blocked`, `failed`, or `idle` (no eligible work). A summarizer request's `completed` always carries its Call Profile and means the text already passed every output check under that profile, so callers never re-validate it. `partial` marks a run that stopped short of its intended target; an abort outranks the Foreground Gate and the Gate outranks giving up. Outcomes and notify events carry data only; entry renders all user-facing notices.
