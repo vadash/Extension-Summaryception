@@ -26,11 +26,7 @@ import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
 import { initSettingsHelp } from './src/entry/settings-help.js';
 import { initSettingsTabs } from './src/entry/ui-tabs.js';
-import {
-    registerSummaryceptionMemoryMacro,
-    reassertInjectionSnapshot,
-    updateInjection,
-} from './src/features/injection.js';
+import { createMemoryInjectionWriter } from './src/features/injection.js';
 import { updateContinuityInjection } from './src/features/continuity-injection.js';
 import { updateContinuityMarker } from './src/entry/continuity-marker.js';
 import {
@@ -56,8 +52,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
     initChatPersistence({ saveChat, saveMetadata });
     getSettings();
     // The gate's requeue reads the queue lazily; the queue is built next.
+    const writer = createMemoryInjectionWriter();
     const gate = createForegroundGate({
-        reassertInjection: reassertInjectionSnapshot,
+        reassertInjection: writer.reassert,
         requeue: () => {
             void queue.request();
         },
@@ -78,7 +75,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
             void gate.runEffect({
                 kind: 'injection-refresh',
                 apply: () => {
-                    updateInjection(options);
+                    writer.update(options);
                     return true;
                 },
             });
@@ -110,7 +107,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
     bindPromptFreezeRecoveryEvents({ gate });
     initSettingsTabs();
     initConnectionUI();
-    await registerSummaryceptionMemoryMacro();
+    await writer.registerMacro();
 
     eventSource.on(eventTypes.MESSAGE_RECEIVED, (messageIndex, type) =>
         onMessageReceived(/** @type {number} */ (messageIndex), {

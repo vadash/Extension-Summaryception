@@ -1,6 +1,7 @@
 import { MEMORY_MODES } from '../src/foundation/constants.js';
 import { createForegroundGate } from '../src/core/foreground-gate.js';
 import { initChatPersistence } from '../src/core/persist-state.js';
+import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { vi } from 'vitest';
 
 /**
@@ -33,6 +34,15 @@ export function makeChatPersistence() {
     const saveMetadata = vi.fn(async () => {});
     initChatPersistence({ saveChat, saveMetadata });
     return { saveChat, saveMetadata };
+}
+
+/**
+ * Build one Memory Injection writer for a test, so the last-written key and
+ * the committed snapshot stay isolated from other tests' instances.
+ * @returns {ReturnType<typeof createMemoryInjectionWriter>}
+ */
+export function makeMemoryInjectionWriter() {
+    return createMemoryInjectionWriter();
 }
 
 export function makeMessage(options = {}) {
