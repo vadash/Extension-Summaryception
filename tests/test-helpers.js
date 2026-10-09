@@ -45,6 +45,19 @@ export function makeMemoryInjectionWriter() {
     return createMemoryInjectionWriter();
 }
 
+/**
+ * Build one Summarizer Dispatch for a test, so live-request state stays
+ * isolated from other tests' instances. Tests control the request runner
+ * through their own `vi.mock` of `src/core/request-runner.js`.
+ * Loaded lazily so files that never build a dispatch keep their module graph
+ * free of the request stack.
+ * @returns {Promise<import('../src/core/summarizer-request.js').SummarizerDispatch>}
+ */
+export async function makeSummarizerDispatch() {
+    const { createSummarizerDispatch } = await import('../src/core/summarizer-request.js');
+    return createSummarizerDispatch();
+}
+
 export function makeMessage(options = {}) {
     const {
         isUser = false,

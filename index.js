@@ -16,7 +16,7 @@ import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/ref
 import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { createSummarizerQueue } from './src/core/summarizer-queue.js';
-import { callSummarizer } from './src/core/summarizer-request.js';
+import { createSummarizerDispatch } from './src/core/summarizer-request.js';
 import { createContinuityAuditor } from './src/core/continuity-audit.js';
 import { createForegroundGate } from './src/core/foreground-gate.js';
 import { withUsageRun } from './src/core/summarizer-usage.js';
@@ -60,10 +60,11 @@ import { registerSlashCommands } from './src/entry/commands.js';
         },
     });
     const notify = createToastrNotifyAdapter();
-    const queue = createSummarizerQueue({ gate, notify });
-    const manualRunnerDeps = { queue, refreshUi, withUsageRun, gate };
+    const dispatch = createSummarizerDispatch();
+    const queue = createSummarizerQueue({ gate, notify, dispatch });
+    const manualRunnerDeps = { queue, refreshUi, withUsageRun, gate, dispatch: dispatch.call };
     const continuityAuditor = createContinuityAuditor({
-        dispatch: callSummarizer,
+        dispatch: dispatch.call,
         saveChatStore,
         refreshPreview,
         getChat,
@@ -93,7 +94,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
         updateUI: (options) => updateUI({ ...options, queue }),
         updatePreview: syncLLMContextPreview,
     });
-    initSnippetBrowser(notify, gate, queue);
+    initSnippetBrowser(notify, gate, queue, dispatch);
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',

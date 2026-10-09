@@ -1,12 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const callSummarizer = vi.hoisted(() => vi.fn());
-vi.mock('../src/core/summarizer-request.js', () => ({
-    callSummarizer,
-    abortAllRequests: vi.fn(),
-    isRequestLive: vi.fn(() => false),
-}));
-
 import { createContinuityAuditor } from '../src/core/continuity-audit.js';
 import { getName1 } from '../src/foundation/context.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
@@ -23,6 +16,8 @@ import {
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
+/** The dispatch stand-in the auditor receives; returns the outcome the real request layer would. */
+const dispatch = vi.fn();
 /** Minimal Summarizer Queue stand-in; the generation-start hook only asks it for a live request. */
 const queue = { isRequestLive: () => false };
 
@@ -74,7 +69,7 @@ const regenChat = () => [
  */
 function makeAudit(ctx) {
     const auditor = createContinuityAuditor({
-        dispatch: callSummarizer,
+        dispatch,
         saveChatStore: async () => {},
         refreshPreview: () => {},
         getChat: () => ctx.chat,
@@ -107,7 +102,7 @@ const draftTwoAudit = () =>
 
 afterEach(() => {
     vi.resetModules();
-    callSummarizer.mockReset();
+    dispatch.mockReset();
     continuityWrites.frozenAtWrite.length = 0;
     delete globalThis.SillyTavern;
 });
@@ -127,7 +122,7 @@ describe('continuity coverage across regenerate', () => {
 
         // Exchange 2's draft reply lands and is audited: the draft's thread,
         // scene location, and spark enter the state, checkpointed on a2.
-        callSummarizer.mockResolvedValue({ status: 'completed', text: draftTwoAudit() });
+        dispatch.mockResolvedValue({ status: 'completed', text: draftTwoAudit() });
         await runAudit();
         expect(chat[3].extra.summaryception_continuity.gm_notes).toEqual(['[T] draft-two thread']);
 
@@ -169,7 +164,7 @@ describe('continuity coverage across regenerate', () => {
         const outcome = await runAudit();
 
         expect(outcome.status).toBe('idle');
-        expect(callSummarizer).not.toHaveBeenCalled();
+        expect(dispatch).not.toHaveBeenCalled();
         expect(chat[3].extra.summaryception_continuity.physics.location).toBe('Old Draft');
     });
 });

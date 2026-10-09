@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const callSummarizer = vi.hoisted(() => vi.fn());
-vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
-
 import { drainPromotionOverflow } from '../src/core/summarizer-promotion.js';
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
 import {
@@ -17,6 +14,8 @@ import {
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
+/** The dispatch stand-in; returns the outcome the real request layer would. */
+const dispatch = vi.fn();
 
 beforeEach(() => {
     gate = makeForegroundGate().gate;
@@ -24,12 +23,12 @@ beforeEach(() => {
 
 /**
  * drainPromotionOverflow is the single owner of overflow clearing. Tests
- * drive the real module and mock only the summarizer request.
+ * drive the real module and stub the Summarizer Dispatch.
  */
 describe('drainPromotionOverflow', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        callSummarizer.mockReset();
+        dispatch.mockReset();
         delete globalThis.toastr;
     });
     function installSettledStore() {
@@ -42,12 +41,14 @@ describe('drainPromotionOverflow', () => {
     it('returns completed with zero attempts when no layer overflows', async () => {
         installSettledStore();
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 1, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'completed',
             attempts: 0,
         });
 
-        expect(callSummarizer).not.toHaveBeenCalled();
+        expect(dispatch).not.toHaveBeenCalled();
     });
 
     it('treats a floor-refused candidate as nothing to promote', async () => {
@@ -62,73 +63,83 @@ describe('drainPromotionOverflow', () => {
             settings: makeSummarySettings({ memoryTokenBudget: 10000, snippetsPerLayer: 20 }),
         });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 3, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'completed',
             attempts: 0,
         });
 
-        expect(callSummarizer).not.toHaveBeenCalled();
+        expect(dispatch).not.toHaveBeenCalled();
     });
 
     it('stops after one consecutive failed promotion at the auto budget', async () => {
         installOverflowingStore();
-        callSummarizer.mockResolvedValue({ status: 'failed' });
+        dispatch.mockResolvedValue({ status: 'failed' });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 1, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'failed',
             attempts: 1,
         });
 
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
     });
 
     it('tolerates three consecutive failures at the manual budget', async () => {
         installOverflowingStore();
-        callSummarizer.mockResolvedValue({ status: 'failed' });
+        dispatch.mockResolvedValue({ status: 'failed' });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 3, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'failed',
             attempts: 3,
         });
 
-        expect(callSummarizer).toHaveBeenCalledTimes(3);
+        expect(dispatch).toHaveBeenCalledTimes(3);
     });
 
     it('reports blocked before the first attempt when the stop guard trips', async () => {
         installOverflowingStore();
         gate.beginGeneration();
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 1, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 1, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'blocked',
             attempts: 0,
         });
 
-        expect(callSummarizer).not.toHaveBeenCalled();
+        expect(dispatch).not.toHaveBeenCalled();
     });
 
     it('reports blocked after an attempt when the stop guard trips mid-drain', async () => {
         installOverflowingStore();
-        callSummarizer.mockImplementation(async () => {
+        dispatch.mockImplementation(async () => {
             gate.beginGeneration();
             return { status: 'failed' };
         });
 
-        await expect(drainPromotionOverflow({ maxConsecutiveFailures: 3, gate })).resolves.toEqual({
+        await expect(
+            drainPromotionOverflow({ maxConsecutiveFailures: 3, gate, dispatch }),
+        ).resolves.toEqual({
             status: 'blocked',
             attempts: 1,
         });
 
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
     });
 
     it('emits one structured promotion-started event and never calls toastr', async () => {
         const { toastr } = installBrowserRuntimeStub();
         const recorder = makeNotifyRecorder();
         installOverflowingStore();
-        callSummarizer.mockResolvedValue({ status: 'failed' });
+        dispatch.mockResolvedValue({ status: 'failed' });
 
         await expect(
-            drainPromotionOverflow({ maxConsecutiveFailures: 1, notify: recorder, gate }),
+            drainPromotionOverflow({ maxConsecutiveFailures: 1, notify: recorder, gate, dispatch }),
         ).resolves.toEqual({
             status: 'failed',
             attempts: 1,

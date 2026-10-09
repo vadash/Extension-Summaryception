@@ -16,12 +16,14 @@ import { countTextTokens } from './token-count.js';
 /**
  * @param {object} plan - Promotion plan from buildPromotionPlan.
  * @param {ExtensionSettings} s - Effective settings.
- * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the drain; runs without one stay silent.
- * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the merge commit crosses.
+ * @param {object} p - The notify adapter, Foreground Gate, and summarizer dispatch the merge runs through.
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter threaded from the drain; runs without one stay silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate - Foreground Gate the merge commit crosses.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch the merge requests through.
  * @returns {Promise<boolean>} Whether the promotion merged and committed.
  */
-async function attemptPromotion(plan, s, notify, gate) {
-    return await mergeLayerSnippets({ plan, candidate: plan.candidate, s, notify, gate });
+async function attemptPromotion(plan, s, { notify, gate, dispatch }) {
+    return await mergeLayerSnippets({ plan, candidate: plan.candidate, s, notify, gate, dispatch });
 }
 
 /**
@@ -31,9 +33,10 @@ async function attemptPromotion(plan, s, notify, gate) {
  * @param {ExtensionSettings} p.s
  * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter; runs without one stay silent.
  * @param {import('./foreground-gate.js').ForegroundGate} p.gate - Foreground Gate the merge commit crosses.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch the merge requests through.
  * @returns {Promise<boolean>}
  */
-async function mergeLayerSnippets({ plan, candidate, s, notify, gate }) {
+async function mergeLayerSnippets({ plan, candidate, s, notify, gate, dispatch }) {
     const outcome = await prepareLayerPromotion({
         layerIndex: candidate.layerIndex,
         settings: s,
@@ -47,7 +50,10 @@ async function mergeLayerSnippets({ plan, candidate, s, notify, gate }) {
         return false;
     }
 
-    const promotedSnippet = await generateValidatedPromotion(outcome.prepared, notify);
+    const promotedSnippet = await generateValidatedPromotion(outcome.prepared, {
+        notify,
+        dispatch,
+    });
     if (!promotedSnippet) {
         return false;
     }
@@ -212,9 +218,15 @@ async function applyMergePromotion({ snapshot, layerIndex, promotedSnippet }) {
  * @param {number} [options.maxConsecutiveFailures] - Consecutive failed promotions tolerated before stopping.
  * @param {import('./notify.js').NotifyAdapter} [options.notify] - Notify adapter threaded from the engine; runs without one stay silent.
  * @param {import('./foreground-gate.js').ForegroundGate} options.gate - Foreground Gate the drain asks before and after every attempt.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} options.dispatch - Summarizer Dispatch every promotion request goes through.
  * @returns {Promise<{status: 'completed', attempts: number} | {status: 'blocked', attempts: number} | {status: 'failed', attempts: number}>} Run status and the number of promotions attempted.
  */
-export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity, notify, gate }) {
+export async function drainPromotionOverflow({
+    maxConsecutiveFailures = Infinity,
+    notify,
+    gate,
+    dispatch,
+}) {
     const s = getEffectiveSettings();
     let failures = 0;
     let attempts = 0;
@@ -226,7 +238,7 @@ export async function drainPromotionOverflow({ maxConsecutiveFailures = Infinity
         if ((await gate.promptWorkGate('promotion drain')) === 'blocked') {
             return { status: 'blocked', attempts };
         }
-        const promoted = await attemptPromotion(plan, s, notify, gate);
+        const promoted = await attemptPromotion(plan, s, { notify, gate, dispatch });
         attempts++;
         if ((await gate.promptWorkGate('promotion drain')) === 'blocked') {
             return { status: 'blocked', attempts };

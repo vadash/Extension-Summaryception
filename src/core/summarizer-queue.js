@@ -4,10 +4,6 @@ import { refreshUi } from '../foundation/refresh.js';
 import { silentAdapter } from './notify.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { runElasticAutoCycle } from './summarizer-engine.js';
-import {
-    abortAllRequests,
-    isRequestLive as isSummarizerRequestLive,
-} from './summarizer-request.js';
 import { withUsageRun } from './summarizer-usage.js';
 
 /**
@@ -261,19 +257,22 @@ function isQueuePhase(phase) {
 }
 
 /**
- * Build the one summarizer queue from static core imports. The composition
- * root calls this once with the Foreground Gate the automatic cycle crosses
- * and the Notify Adapter it reports through, then hands the instance to entry.
+ * Build the one summarizer queue. The composition root calls this once with
+ * the Foreground Gate the automatic cycle crosses, the Notify Adapter it
+ * reports through, and the Summarizer Dispatch whose members feed the queue's
+ * busy and stop paths, then hands the instance to entry.
  * @param {object} p
  * @param {import('./foreground-gate.js').ForegroundGate} p.gate
  * @param {import('./notify.js').NotifyAdapter} [p.notify]
+ * @param {import('./summarizer-request.js').SummarizerDispatch} p.dispatch - Summarizer Dispatch; its call runs the automatic cycle, its abort/isLive feed the queue.
  * @returns {SummarizerQueue}
  */
-export function createSummarizerQueue({ gate, notify = silentAdapter }) {
+export function createSummarizerQueue({ gate, notify = silentAdapter, dispatch }) {
     return new SummarizerQueue({
-        drainOneCycle: (queue) => runElasticAutoCycle(queue, { refreshUi, notify, gate }),
-        abortAllRequests,
-        isRequestLive: isSummarizerRequestLive,
+        drainOneCycle: (queue) =>
+            runElasticAutoCycle(queue, { refreshUi, notify, gate, dispatch: dispatch.call }),
+        abortAllRequests: dispatch.abort,
+        isRequestLive: dispatch.isLive,
         refreshUi,
         withUsageRun,
         yieldCycle: async () => {

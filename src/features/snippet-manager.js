@@ -5,7 +5,6 @@ import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
-import { callSummarizer } from '../core/summarizer-request.js';
 import { withUsageRun } from '../core/summarizer-usage.js';
 
 /**
@@ -126,11 +125,11 @@ export async function deleteSnippetAt(layerIndex, snippetIndex, options) {
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} options - Regeneration notices, the Foreground Gate the commit crosses, and the Summarizer Queue the run leases.
+ * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue, dispatch: import('../core/summarizer-request.js').SummarizerDispatch['call'] }} options - Regeneration notices, the Foreground Gate the commit crosses, the Summarizer Queue the run leases, and the Summarizer Dispatch the request goes through.
  * @returns {Promise<RegenerateSnippetResult>}
  */
 export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
-    const { notify, gate, queue } = options;
+    const { notify, gate, queue, dispatch } = options;
     const target = resolveRegenerationTarget(
         getChatStore(),
         getChat(),
@@ -147,7 +146,7 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
     const run = queue.beginRun('regeneration');
     try {
         return await withUsageRun('snippet regeneration', async () => {
-            return await regenerateSnippetWithTarget(target, notify, gate);
+            return await regenerateSnippetWithTarget(target, notify, gate, dispatch);
         });
     } finally {
         run.end();
@@ -158,9 +157,10 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
  * @param {RegenerationTarget} target
  * @param {import('../core/notify.js').NotifyAdapter | undefined} notify - Adapter for regeneration notices.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate the commit crosses.
+ * @param {import('../core/summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch the request goes through.
  * @returns {Promise<RegenerationRunResult>}
  */
-async function regenerateSnippetWithTarget(target, notify, gate) {
+async function regenerateSnippetWithTarget(target, notify, gate, dispatch) {
     const chat = getChat();
     const [rangeStart, rangeEnd] = target.range;
     const passage = await buildPassageFromRangeWithStats(chat, rangeStart, rangeEnd);
@@ -168,7 +168,7 @@ async function regenerateSnippetWithTarget(target, notify, gate) {
         return { status: 'empty-source' };
     }
 
-    const outcome = await callSummarizer({
+    const outcome = await dispatch({
         storyTxt: passage.text,
         contextStr: /** @type {string} */ (target.context),
         metadata: {

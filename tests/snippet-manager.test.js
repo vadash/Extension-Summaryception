@@ -1,12 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const summarizerMocks = vi.hoisted(() => ({
-    callSummarizer: vi.fn(),
-}));
-vi.mock('../src/core/summarizer-request.js', () => ({
-    callSummarizer: summarizerMocks.callSummarizer,
-}));
-
 import {
     isRegenerationCandidate,
     regenerateSnippetAt,
@@ -26,6 +19,8 @@ const queue = {
     isBusy: vi.fn(() => false),
     beginRun: vi.fn(() => ({ end: vi.fn(), isStopped: vi.fn(() => false) })),
 };
+/** The dispatch stand-in; returns the outcome the real request layer would. */
+const dispatch = vi.fn();
 
 /**
  * Completed regeneration outcome carrying the profile the real request layer
@@ -60,7 +55,7 @@ function installReadySnippet() {
 describe('updateSnippetTextAt', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        summarizerMocks.callSummarizer.mockReset();
+        dispatch.mockReset();
     });
 
     it('returns the updated status after an applied edit', async () => {
@@ -105,18 +100,18 @@ describe('isRegenerationCandidate', () => {
 describe('snippet regeneration request outcomes', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        summarizerMocks.callSummarizer.mockReset();
+        dispatch.mockReset();
     });
 
     it('writes the regenerated snippet when the outcome is completed', async () => {
         const { store, snippet } = installReadySnippet();
-        summarizerMocks.callSummarizer.mockImplementation(
+        dispatch.mockImplementation(
             completedRegeneration(
                 '<narrative>\nA fresh summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu',
             ),
         );
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -129,9 +124,9 @@ describe('snippet regeneration request outcomes', () => {
 
     it('returns aborted without mutating the store when the outcome is aborted', async () => {
         const { store, snippet } = installReadySnippet();
-        summarizerMocks.callSummarizer.mockResolvedValue({ status: 'aborted' });
+        dispatch.mockResolvedValue({ status: 'aborted' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
             status: 'aborted',
         });
 
@@ -141,9 +136,9 @@ describe('snippet regeneration request outcomes', () => {
 
     it('returns blocked without mutating the store when the outcome is blocked', async () => {
         const { store, snippet } = installReadySnippet();
-        summarizerMocks.callSummarizer.mockResolvedValue({ status: 'blocked' });
+        dispatch.mockResolvedValue({ status: 'blocked' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
             status: 'blocked',
         });
 
@@ -177,11 +172,9 @@ describe('snippet regeneration request outcomes', () => {
             ghostedMessageIds: ['user-id', 'assistant-id'],
         });
         installSummaryContext({ chat, metadata: { summaryception: store } });
-        summarizerMocks.callSummarizer.mockImplementation(
-            completedRegeneration('A fresh summary.'),
-        );
+        dispatch.mockImplementation(completedRegeneration('A fresh summary.'));
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -198,9 +191,9 @@ describe('snippet regeneration request outcomes', () => {
         });
         installSummaryContext({ chat, metadata: { summaryception: store } });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue })).resolves.toEqual({
+        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
             status: 'empty-source',
         });
-        expect(summarizerMocks.callSummarizer).not.toHaveBeenCalled();
+        expect(dispatch).not.toHaveBeenCalled();
     });
 });

@@ -44,14 +44,15 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @property {() => void} refreshUi - Refreshes visible extension UI state.
  * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate every prompt mutation of the run crosses.
+ * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs every summarizer request.
  */
 
 /**
  * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
- * @param {{ refreshUi?: () => void, notify?: import('./notify.js').NotifyAdapter, gate: import('./foreground-gate.js').ForegroundGate }} opts
+ * @param {{ refreshUi?: () => void, notify?: import('./notify.js').NotifyAdapter, gate: import('./foreground-gate.js').ForegroundGate, dispatch: import('./summarizer-request.js').SummarizerDispatch['call'] }} opts
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-export async function runElasticAutoCycle(queue, { refreshUi, notify, gate }) {
+export async function runElasticAutoCycle(queue, { refreshUi, notify, gate, dispatch }) {
     if ((await gate.promptWorkGate('auto worker', { refreshUi })) === 'blocked') {
         queue.setPhase('paused');
         return { status: 'blocked' };
@@ -65,7 +66,12 @@ export async function runElasticAutoCycle(queue, { refreshUi, notify, gate }) {
 
     const prepared = await prepareSummaryCycle();
     queue.setPhase('promoting');
-    const promotion = await drainPromotionOverflow({ maxConsecutiveFailures: 1, notify, gate });
+    const promotion = await drainPromotionOverflow({
+        maxConsecutiveFailures: 1,
+        notify,
+        gate,
+        dispatch,
+    });
     if (promotion.attempts > 0 || promotion.status !== 'completed') {
         return promotion;
     }
@@ -78,7 +84,7 @@ export async function runElasticAutoCycle(queue, { refreshUi, notify, gate }) {
     }
 
     queue.setPhase('layer0');
-    return await processRoutePlan(routePlan, notify, gate);
+    return await processRoutePlan(routePlan, notify, gate, dispatch);
 }
 
 /**
@@ -112,7 +118,12 @@ export async function runManual(deps, strategy, options = {}) {
             { targetIndex, totalBatches: initialRoutePlan.totalBatches },
             options,
         );
-        const promotionStatus = await normalizeManualMemory(tally, options.notify, deps.gate);
+        const promotionStatus = await normalizeManualMemory(
+            tally,
+            options.notify,
+            deps.gate,
+            deps.dispatch,
+        );
         deps.refreshUi();
         return deriveManualRunOutcome(
             { ...tally, blocked: tally.blocked || promotionStatus === 'blocked' },
@@ -187,10 +198,11 @@ export async function describeManualRun(strategy) {
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
  * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter for automatic runs.
  * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the run crosses.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch the run calls through.
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-async function processRoutePlan(routePlan, notify, gate) {
-    const outcome = await runLayer0(routePlan, notify, gate);
+async function processRoutePlan(routePlan, notify, gate, dispatch) {
+    const outcome = await runLayer0(routePlan, { notify, gate, dispatch });
 
     if (outcome.status === 'blocked' || outcome.status === 'idle') {
         return outcome;
@@ -286,7 +298,11 @@ async function executeManualTask(deps, strategy, target, options) {
                 break;
             }
 
-            const result = await processStrategyBatch(batch, strategy, options.notify, deps.gate);
+            const result = await processStrategyBatch(batch, strategy, {
+                notify: options.notify,
+                gate: deps.gate,
+                dispatch: deps.dispatch,
+            });
             const step = await applyManualLoopStep({
                 tally,
                 result,
@@ -294,6 +310,7 @@ async function executeManualTask(deps, strategy, target, options) {
                 runToken,
                 notify: options.notify,
                 gate: deps.gate,
+                dispatch: deps.dispatch,
                 consecutiveFailures,
             });
             consecutiveFailures = step.consecutiveFailures;
@@ -332,6 +349,7 @@ const MANUAL_FAILURE_LIMIT = 3;
  * @param {AbortSignal} [step.signal] - Cancellation signal for the run.
  * @param {import('./notify.js').NotifyAdapter} [step.notify] - Notify adapter for promotions.
  * @param {import('./foreground-gate.js').ForegroundGate} step.gate - Foreground Gate the loop step asks before continuing.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} step.dispatch - Summarizer Dispatch the promotion drain calls through.
  * @param {number} step.consecutiveFailures - Failure streak before this step.
  * @returns {Promise<{ exit: boolean, consecutiveFailures: number }>} Exit decision and the updated streak.
  */
@@ -342,6 +360,7 @@ async function applyManualLoopStep({
     runToken,
     notify,
     gate,
+    dispatch,
     consecutiveFailures,
 }) {
     if (result.blocked) {
@@ -361,7 +380,7 @@ async function applyManualLoopStep({
     }
 
     if (result.success && result.committed) {
-        const promotion = await normalizePromotions(notify, gate);
+        const promotion = await normalizePromotions(notify, gate, dispatch);
         if (promotion.status === 'blocked') {
             tally.blocked = true;
         } else if (promotion.status === 'failed') {
@@ -389,13 +408,15 @@ async function applyManualLoopStep({
  * Run one route plan through the strategy's boundary assessment.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} plan
  * @param {ManualStrategy} strategy
- * @param {import('./notify.js').NotifyAdapter | undefined} notify
- * @param {import('./foreground-gate.js').ForegroundGate} gate
+ * @param {object} p - The notify adapter, Foreground Gate, and summarizer dispatch the batch runs through.
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch the run calls through.
  * @returns {Promise<{ success: boolean, committed: boolean, blocked: boolean, done?: boolean }>}
  */
-async function processStrategyBatch(plan, strategy, notify, gate) {
+async function processStrategyBatch(plan, strategy, { notify, gate, dispatch }) {
     const beforeIndex = getCurrentSummarizedBoundary(getChat(), getChatStore());
-    const outcome = await runLayer0(plan, notify, gate);
+    const outcome = await runLayer0(plan, { notify, gate, dispatch });
     const afterIndex = getCurrentSummarizedBoundary(getChat(), getChatStore());
     return {
         success: outcome.status === 'completed',
@@ -404,7 +425,7 @@ async function processStrategyBatch(plan, strategy, notify, gate) {
     };
 }
 
-async function normalizeManualMemory(tally, notify, gate) {
+async function normalizeManualMemory(tally, notify, gate, dispatch) {
     if (tally.aborted || tally.blocked || tally.completed === 0 || tally.failed > 0) {
         return 'skipped';
     }
@@ -412,11 +433,11 @@ async function normalizeManualMemory(tally, notify, gate) {
         info('Manual promotion deferred; prompt mutation guard is active.');
         return 'blocked';
     }
-    return (await normalizePromotions(notify, gate)).status;
+    return (await normalizePromotions(notify, gate, dispatch)).status;
 }
 
-async function normalizePromotions(notify, gate) {
-    return await drainPromotionOverflow({ maxConsecutiveFailures: 3, notify, gate });
+async function normalizePromotions(notify, gate, dispatch) {
+    return await drainPromotionOverflow({ maxConsecutiveFailures: 3, notify, gate, dispatch });
 }
 
 async function prepareManualRun(deps, recoverReason) {

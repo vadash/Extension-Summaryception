@@ -178,7 +178,7 @@ _Avoid_: attempt context, request state
 
 **Summarizer Dispatch**:
 The one owner of live summarizer requests: it runs one summarizer call through the request runner and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
-Code: `callSummarizer` / `isRequestLive` / `abortAllRequests` (src/core/summarizer-request.js)
+Code: `createSummarizerDispatch` (src/core/summarizer-request.js)
 _Avoid_: request registry, summarizer client
 
 **Usage Ledger**:

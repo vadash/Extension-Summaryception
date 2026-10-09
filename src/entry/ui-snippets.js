@@ -18,20 +18,24 @@ let notifyAdapter = null;
 let foregroundGate = null;
 /** @type {import('../core/summarizer-queue.js').SummarizerQueue | null} */
 let summarizerQueue = null;
+/** @type {import('../core/summarizer-request.js').SummarizerDispatch | null} */
+let summarizerDispatch = null;
 
 /**
- * Core receives the notify adapter, the Foreground Gate, and the Summarizer
- * Queue only through this call; they serve the snippet write paths a browser
- * action triggers.
+ * Core receives the notify adapter, the Foreground Gate, the Summarizer
+ * Queue, and the Summarizer Dispatch only through this call; they serve the
+ * snippet write paths a browser action triggers.
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter distributed to core calls.
  * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate every snippet commit crosses.
  * @param {import('../core/summarizer-queue.js').SummarizerQueue} queue - Summarizer Queue regeneration leases.
+ * @param {import('../core/summarizer-request.js').SummarizerDispatch} dispatch - Summarizer Dispatch regeneration requests go through.
  * @returns {void}
  */
-export function initSnippetBrowser(notify, gate, queue) {
+export function initSnippetBrowser(notify, gate, queue, dispatch) {
     notifyAdapter = notify;
     foregroundGate = gate;
     summarizerQueue = queue;
+    summarizerDispatch = dispatch;
 }
 
 /**
@@ -464,6 +468,9 @@ async function runSnippetRegeneration(btn, position) {
             queue: /** @type {import('../core/summarizer-queue.js').SummarizerQueue} */ (
                 summarizerQueue
             ),
+            dispatch: /** @type {import('../core/summarizer-request.js').SummarizerDispatch} */ (
+                summarizerDispatch
+            ).call,
         });
         handleRegenerationResult(result);
     } finally {

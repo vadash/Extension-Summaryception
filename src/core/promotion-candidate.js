@@ -9,7 +9,6 @@ import {
     getPromotionSummaryTokenTarget,
 } from './promotion-planner.js';
 import { buildRepairDiagnostics } from './repair-diagnostics.js';
-import { callSummarizer } from './summarizer-request.js';
 import {
     formatSnippetAnchor,
     parseSnippet,
@@ -32,10 +31,12 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @param {string} prepared.contextStr
  * @param {object} prepared.promotedMetadata
  * @param {object} prepared.promotionMetadata
- * @param {import('./notify.js').NotifyAdapter} [notify] - Notify adapter; runs without one stay silent.
+ * @param {object} p
+ * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter; runs without one stay silent.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch both requests go through.
  * @returns {Promise<object | null>} The promoted snippet, or null when rejected.
  */
-export async function generateValidatedPromotion(prepared, notify) {
+export async function generateValidatedPromotion(prepared, { notify, dispatch }) {
     notify?.transient({
         kind: NOTIFY_EVENTS.PROMOTION_STARTED,
         mergedCount: prepared.toMerge.length,
@@ -47,7 +48,7 @@ export async function generateValidatedPromotion(prepared, notify) {
         return null;
     }
 
-    const metaOutcome = await callSummarizer({
+    const metaOutcome = await dispatch({
         storyTxt: prepared.storyTxt,
         contextStr: prepared.contextStr,
         metadata: prepared.promotionMetadata,
@@ -61,10 +62,11 @@ export async function generateValidatedPromotion(prepared, notify) {
         prepared,
         narrative: metaOutcome.text,
         notify,
+        dispatch,
     });
 }
 
-async function buildValidatedPromotionSnippet({ prepared, narrative, notify }) {
+async function buildValidatedPromotionSnippet({ prepared, narrative, notify, dispatch }) {
     const {
         layerIndex,
         mergeCount,
@@ -102,7 +104,7 @@ async function buildValidatedPromotionSnippet({ prepared, narrative, notify }) {
         return null;
     }
 
-    const repairOutcome = await callSummarizer({
+    const repairOutcome = await dispatch({
         storyTxt,
         contextStr,
         metadata: {

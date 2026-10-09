@@ -7,7 +7,6 @@ import { debug, error, info, isTraceEnabled, serializeError, trace } from '../fo
 import { repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
 import { persistChatState } from './persist-state.js';
-import { callSummarizer } from './summarizer-request.js';
 import { buildSnippetMetadataFromText } from './snippet-metadata.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { buildPassageNameCensus } from './refusal-guard.js';
@@ -24,14 +23,16 @@ import {
  * The Layer 0 Run: the one lifecycle that commits Layer 0 Snippets, whether the
  * route selects a single Passage or the cache-friendly route selects many.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
- * @param {import('./notify.js').NotifyAdapter | undefined} notify - Notify adapter threaded from the engine; a run without one stays silent.
- * @param {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the commit and the Ghosting repair cross.
+ * @param {object} p
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter threaded from the engine; a run without one stays silent.
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate - Foreground Gate the commit and the Ghosting repair cross.
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch every passage request goes through.
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-export async function runLayer0(routePlan, notify, gate) {
+export async function runLayer0(routePlan, { notify, gate, dispatch }) {
     const progress = createBatchProgress(notify);
     try {
-        return await runPassages(routePlan, notify, progress, gate);
+        return await runPassages({ routePlan, notify, progress, gate, dispatch });
     } catch (err) {
         trace('  CAUGHT EXCEPTION:', {
             ...serializeError(err),
@@ -44,13 +45,15 @@ export async function runLayer0(routePlan, notify, gate) {
 }
 
 /**
- * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
- * @param {import('./notify.js').NotifyAdapter | undefined} notify
- * @param {BatchProgressOwner} progress
- * @param {import('./foreground-gate.js').ForegroundGate} gate
+ * @param {object} p
+ * @param {import('./summarization-routes.js').SummaryRoutePlan} p.routePlan
+ * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
+ * @param {BatchProgressOwner} p.progress
+ * @param {import('./foreground-gate.js').ForegroundGate} p.gate
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch every passage request goes through.
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-async function runPassages(routePlan, notify, progress, gate) {
+async function runPassages({ routePlan, notify, progress, gate, dispatch }) {
     const chat = getChat();
     if (ensureChatScIds(chat)) {
         await persistChatState({ chatSave: 'deferred' });
@@ -93,6 +96,7 @@ async function runPassages(routePlan, notify, progress, gate) {
             notify,
             progress,
             total: passages.length,
+            dispatch,
         });
         if (result.status !== 'completed') {
             return verdictFor(result.status, snapshots.length);
@@ -294,9 +298,19 @@ function createBatchProgress(notify) {
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify
  * @param {BatchProgressOwner} p.progress - Shared batch progress owner for this run
  * @param {number} p.total
+ * @param {import('./summarizer-request.js').SummarizerDispatch['call']} p.dispatch - Summarizer Dispatch the request goes through.
  * @returns {Promise<{status: 'completed', snapshot: import('./summarizer-snapshot.js').SummarizationJobSnapshot, summary: string} | {status: 'idle' | 'aborted' | 'failed'}>}
  */
-async function runPassage({ chat, store, passage, contextText, notify, progress, total }) {
+async function runPassage({
+    chat,
+    store,
+    passage,
+    contextText,
+    notify,
+    progress,
+    total,
+    dispatch,
+}) {
     const snapshot = await captureLayer0Snapshot({
         chat,
         store,
@@ -316,7 +330,7 @@ async function runPassage({ chat, store, passage, contextText, notify, progress,
     // exactly once, whether this run owns it or shares it across passages.
     let outcome;
     try {
-        outcome = await callSummarizer({
+        outcome = await dispatch({
             storyTxt: snapshot.passageText,
             contextStr: snapshot.contextText,
             metadata: {

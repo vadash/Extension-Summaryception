@@ -1,8 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const callSummarizer = vi.hoisted(() => vi.fn());
-vi.mock('../src/core/summarizer-request.js', () => ({ callSummarizer }));
-
 import { generateValidatedPromotion } from '../src/core/promotion-candidate.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
@@ -20,6 +17,8 @@ import {
  */
 
 const settings = makeSummarySettings({ layer0SummaryTokenTarget: 100 });
+/** The dispatch stand-in; returns the outcome the real request layer would. */
+const dispatch = vi.fn();
 const GOOD_NARRATIVE = 'word '.repeat(30).trim(); // 149 tokens: inside the band
 const SHORT_NARRATIVE = 'short'; // 5 tokens: under the 40-token floor
 const LONG_NARRATIVE = 'word '.repeat(40).trim(); // 199 tokens: over the 175 hard max
@@ -63,7 +62,7 @@ function makePrepared(overrides = {}) {
     };
 }
 
-/** Completed callSummarizer outcome whose profile resolves from the dispatch metadata. */
+/** Completed dispatch outcome whose profile resolves from the dispatch metadata. */
 function outcomeWithProfile(text) {
     return async ({ metadata }) => ({
         status: 'completed',
@@ -75,7 +74,7 @@ function outcomeWithProfile(text) {
 describe('generateValidatedPromotion', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        callSummarizer.mockReset();
+        dispatch.mockReset();
         delete globalThis.toastr;
     });
 
@@ -83,13 +82,13 @@ describe('generateValidatedPromotion', () => {
         installStore();
         const recorder = makeNotifyRecorder();
         const prepared = makePrepared();
-        callSummarizer.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
+        dispatch.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
 
-        const result = await generateValidatedPromotion(prepared, recorder);
+        const result = await generateValidatedPromotion(prepared, { notify: recorder, dispatch });
 
         expect(result).toEqual({ text: GOOD_NARRATIVE, sourceMessageIds: ['msg-0', 'msg-2'] });
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
-        expect(callSummarizer.mock.calls[0]).toEqual([
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(dispatch.mock.calls[0]).toEqual([
             {
                 storyTxt: prepared.storyTxt,
                 contextStr: prepared.contextStr,
@@ -112,15 +111,15 @@ describe('generateValidatedPromotion', () => {
         installStore();
         const recorder = makeNotifyRecorder();
         const prepared = makePrepared();
-        callSummarizer
+        dispatch
             .mockImplementationOnce(outcomeWithProfile(SHORT_NARRATIVE))
             .mockImplementationOnce(outcomeWithProfile(GOOD_NARRATIVE));
 
-        const result = await generateValidatedPromotion(prepared, recorder);
+        const result = await generateValidatedPromotion(prepared, { notify: recorder, dispatch });
 
         expect(result).toEqual({ text: GOOD_NARRATIVE, sourceMessageIds: ['msg-0', 'msg-2'] });
-        expect(callSummarizer).toHaveBeenCalledTimes(2);
-        const { storyTxt, contextStr, metadata, notify } = callSummarizer.mock.calls[1][0];
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        const { storyTxt, contextStr, metadata, notify } = dispatch.mock.calls[1][0];
         expect(storyTxt).toBe(prepared.storyTxt);
         expect(contextStr).toBe(prepared.contextStr);
         expect(notify).toBe(recorder);
@@ -145,15 +144,18 @@ describe('generateValidatedPromotion', () => {
     it('repairs an oversized output once and rejects when the repair still misses', async () => {
         installStore();
         const prepared = makePrepared();
-        callSummarizer
+        dispatch
             .mockImplementationOnce(outcomeWithProfile(LONG_NARRATIVE))
             .mockImplementationOnce(outcomeWithProfile(SHORT_NARRATIVE));
 
-        const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
+        const result = await generateValidatedPromotion(prepared, {
+            notify: makeNotifyRecorder(),
+            dispatch,
+        });
 
         expect(result).toBeNull();
-        expect(callSummarizer).toHaveBeenCalledTimes(2);
-        expect(callSummarizer.mock.calls[1][0].metadata.promotionRepair).toMatchObject({
+        expect(dispatch).toHaveBeenCalledTimes(2);
+        expect(dispatch.mock.calls[1][0].metadata.promotionRepair).toMatchObject({
             reason: 'compression-ratio',
             outputTokens: LONG_NARRATIVE.length,
             hardMaxTokens: 175,
@@ -169,23 +171,29 @@ describe('generateValidatedPromotion', () => {
             ],
         ]);
         const prepared = makePrepared();
-        callSummarizer.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
+        dispatch.mockImplementation(outcomeWithProfile(GOOD_NARRATIVE));
 
-        const result = await generateValidatedPromotion(prepared, makeNotifyRecorder());
+        const result = await generateValidatedPromotion(prepared, {
+            notify: makeNotifyRecorder(),
+            dispatch,
+        });
 
         expect(result).toBeNull();
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
     });
 
     it('returns null and stays silent beyond the notify event when the request fails', async () => {
         installStore();
         const recorder = makeNotifyRecorder();
-        callSummarizer.mockResolvedValue({ status: 'failed' });
+        dispatch.mockResolvedValue({ status: 'failed' });
 
-        const result = await generateValidatedPromotion(makePrepared(), recorder);
+        const result = await generateValidatedPromotion(makePrepared(), {
+            notify: recorder,
+            dispatch,
+        });
 
         expect(result).toBeNull();
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
         expect(recorder.events).toEqual([
             {
                 type: 'transient',
@@ -199,11 +207,14 @@ describe('generateValidatedPromotion', () => {
 
     it('returns null when the narrative carries no usable summary', async () => {
         installStore();
-        callSummarizer.mockResolvedValue({ status: 'completed', text: '' });
+        dispatch.mockResolvedValue({ status: 'completed', text: '' });
 
-        const result = await generateValidatedPromotion(makePrepared(), makeNotifyRecorder());
+        const result = await generateValidatedPromotion(makePrepared(), {
+            notify: makeNotifyRecorder(),
+            dispatch,
+        });
 
         expect(result).toBeNull();
-        expect(callSummarizer).toHaveBeenCalledTimes(1);
+        expect(dispatch).toHaveBeenCalledTimes(1);
     });
 });
