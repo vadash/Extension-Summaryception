@@ -26,7 +26,6 @@ import {
     updateAttemptLogState,
 } from './request-attempt-log.js';
 import { processSummarizerResponse } from './summarizer-output.js';
-import { recordSuccessfulSummarizerUsage } from './summarizer-pipeline.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-parts.js';
 
@@ -101,6 +100,7 @@ function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFee
  * @property {AbortSignal} signal - Abort signal.
  * @property {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch.
  * @property {import('./notify.js').NotifyAdapter} notify - Notify adapter for mid-run notices.
+ * @property {import('./summarizer-usage.js').UsageLedger} usage - Usage Ledger this call records its token usage into.
  */
 
 /**
@@ -130,7 +130,7 @@ export function createAttemptSession(facts) {
  * @returns {Promise<RouteSeriesResult>}
  */
 async function runSeriesForSession(
-    { prompt, repairPrompt, signal, profile, notify },
+    { prompt, repairPrompt, signal, profile, notify, usage },
     route,
     { routeLabel, maxRetries },
 ) {
@@ -165,6 +165,7 @@ async function runSeriesForSession(
             timeoutMs: route.timeoutMs,
             routeLabel,
             notify,
+            usage,
         });
 
         if (attemptResult.status === 'completed') {
@@ -248,6 +249,7 @@ function logRetryStopReason(reason, maxRetries) {
  * @param {number} p.timeoutMs - Attempt timeout in milliseconds.
  * @param {string} p.routeLabel - Route label for structured logs.
  * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter for mid-run notices.
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into.
  * @returns {Promise<AttemptResult>}
  */
 async function runLoggedAttempt({
@@ -259,6 +261,7 @@ async function runLoggedAttempt({
     timeoutMs,
     routeLabel,
     notify,
+    usage,
 }) {
     const startedAt = Date.now();
     const logState = createAttemptLogState();
@@ -272,6 +275,7 @@ async function runLoggedAttempt({
             connection,
             timeoutMs,
             notify,
+            usage,
         });
         updateAttemptLogState(logState, attemptResult);
     } catch (err) {
@@ -303,9 +307,10 @@ async function runLoggedAttempt({
  * @param {ExtensionSettings} p.connection - Resolved connection settings for this route.
  * @param {number} p.timeoutMs - Attempt timeout in milliseconds.
  * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter for mid-run notices.
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into.
  * @returns {Promise<AttemptResult>}
  */
-async function runAttempt({ prompt, signal, profile, connection, timeoutMs, notify }) {
+async function runAttempt({ prompt, signal, profile, connection, timeoutMs, notify, usage }) {
     // One read-through: the frozen Call Profile is the only source of the
     // system prompt; no helper receives it as a second, parallel fact.
     const systemPrompt = profile.policy.systemPrompt;
@@ -323,7 +328,7 @@ async function runAttempt({ prompt, signal, profile, connection, timeoutMs, noti
         timeoutMs,
     });
     trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
-    return await processAttemptResult({ rawResult, prompt, profile, notify });
+    return await processAttemptResult({ rawResult, prompt, profile, notify, usage });
 }
 
 /**
@@ -385,9 +390,10 @@ async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, ti
  * @param {string} p.prompt - Fully substituted user prompt
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} p.notify
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into
  * @returns {Promise<AttemptResult>}
  */
-async function processAttemptResult({ rawResult, prompt, profile, notify }) {
+async function processAttemptResult({ rawResult, prompt, profile, notify, usage }) {
     const processed = await processSummarizerResponse(rawResult, profile, notify);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
@@ -400,7 +406,7 @@ async function processAttemptResult({ rawResult, prompt, profile, notify }) {
         };
     }
 
-    await recordSuccessfulSummarizerUsage({
+    await usage.record({
         systemPrompt: profile.policy.systemPrompt,
         prompt,
         summary: processed.text,

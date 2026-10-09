@@ -12,7 +12,9 @@ import { isCancellableConnection } from '../src/core/connectionutil.js';
 import { createAttemptSession } from '../src/core/request-series.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
-import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
+import { makeNotifyRecorder, makeSummarySettings, makeUsageLedger } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 describe('route series timeout retryability vs cancellation capability', () => {
     afterEach(() => {
@@ -29,6 +31,7 @@ describe('route series timeout retryability vs cancellation capability', () => {
             signal: new AbortController().signal,
             profile: resolveCallProfile(settings, { kind: 'layer0' }),
             notify: makeNotifyRecorder(),
+            usage: usageLedger,
             ...overrides,
         });
         return {

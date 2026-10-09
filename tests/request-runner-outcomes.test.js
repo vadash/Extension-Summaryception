@@ -12,7 +12,9 @@ import { RequestRunner } from '../src/core/request-runner.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import { NOTIFY_EVENTS, UI_MODES } from '../src/foundation/constants.js';
-import { makeNotifyRecorder, makeSummarySettings } from './test-helpers.js';
+import { makeNotifyRecorder, makeSummarySettings, makeUsageLedger } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 /** Minimal valid summary passage accepted by the real Output Hygiene chain. */
 const VALID_SUMMARY =
@@ -39,6 +41,7 @@ describe('RequestRunner.run outcomes', () => {
             signal: signal ?? new AbortController().signal,
             profile: profile ?? resolveCallProfile(resolvedSettings, { kind: 'layer0' }),
             notify,
+            usage: usageLedger,
         };
     }
 

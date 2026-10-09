@@ -38,101 +38,146 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * @property {boolean} ended - Whether the run has ended
  */
 
-/** @type {UsageRun | null} */
-let activeRun = null;
+/**
+ * The Usage Ledger: the nested scope that records each summarizer call's
+ * token usage against the run that made it — an automatic drain, a manual
+ * run, a regeneration — and reports the run's largest call when the scope
+ * ends. One instance exists, built at the composition root (ADR-0031); the
+ * Call Session carries it, so the request series records without reaching
+ * module state.
+ * @typedef {object} UsageLedger
+ * @property {function(string, function(): Promise<*>): Promise<*>} withRun - Runs work inside a usage accounting scope.
+ * @property {(input: { systemPrompt: string, prompt: string, summary: string, profile: import('./call-profile.js').CallProfile }) => Promise<SummarizerTokenUsage>} record - Estimates one successful LLM call and appends it to every open run.
+ * @property {(systemPrompt: string, userPrompt: string, completionText: string) => Promise<SummarizerTokenUsage>} estimate - Estimates prompt and completion tokens with the active tokenizer.
+ */
 
 /**
- * @param {string} label - Human-readable run label
- * @returns {UsageRun}
+ * Build one Usage Ledger instance. The run chain lives in the closure, so
+ * the composition root and tests build isolated instances.
+ * @returns {UsageLedger}
  */
-export function beginUsageRun(label) {
-    const run = {
-        label,
-        calls: [],
-        parent: activeRun,
-        ended: false,
-    };
-    activeRun = run;
-    return run;
-}
+export function createUsageLedger() {
+    /** @type {UsageRun | null} */
+    let activeRun = null;
 
-/**
- * Finish a usage run and log the largest single LLM call if any were recorded.
- * @param {UsageRun} run - Run object returned by beginUsageRun
- * @returns {void}
- */
-export function endUsageRun(run) {
-    if (!run || run.ended) {
-        return;
+    /**
+     * @param {string} label - Human-readable run label
+     * @returns {UsageRun}
+     */
+    function beginUsageRun(label) {
+        const run = {
+            label,
+            calls: [],
+            parent: activeRun,
+            ended: false,
+        };
+        activeRun = run;
+        return run;
     }
 
-    run.ended = true;
-    logRunMax(run);
+    /**
+     * Finish a usage run and log the largest single LLM call if any were recorded.
+     * @param {UsageRun} run - Run object returned by beginUsageRun
+     * @returns {void}
+     */
+    function endUsageRun(run) {
+        if (!run || run.ended) {
+            return;
+        }
 
-    if (activeRun === run) {
-        activeRun = run.parent;
-        return;
+        run.ended = true;
+        logRunMax(run);
+
+        if (activeRun === run) {
+            activeRun = run.parent;
+            return;
+        }
+
+        detachEndedRun(run);
     }
 
-    detachEndedRun(run);
-}
-
-/**
- * @template T
- * @param {string} label - Human-readable run label
- * @param {() => Promise<T>} callback - Work to run
- * @returns {Promise<T>}
- */
-export async function withUsageRun(label, callback) {
-    const run = beginUsageRun(label);
-    try {
-        return await callback();
-    } finally {
-        endUsageRun(run);
-    }
-}
-
-/**
- * Estimate prompt and completion tokens with SillyTavern's active tokenizer.
- * @param {string} systemPrompt - System prompt sent to the summarizer
- * @param {string} userPrompt - Fully rendered user prompt sent to the summarizer
- * @param {string} completionText - Cleaned summarizer response
- * @returns {Promise<SummarizerTokenUsage>}
- */
-export async function estimateSummarizerUsage(systemPrompt, userPrompt, completionText) {
-    const [promptTokenCount, completionTokenCount] = await Promise.all([
-        countTextTokens(`${systemPrompt || ''}\n${userPrompt || ''}`),
-        countTextTokens(completionText || ''),
-    ]);
-    const totalTokens = promptTokenCount.count + completionTokenCount.count;
-    const totalTokensEstimated = promptTokenCount.estimated || completionTokenCount.estimated;
-
-    return {
-        promptTokens: promptTokenCount.count,
-        completionTokens: completionTokenCount.count,
-        totalTokens,
-        promptTokensEstimated: promptTokenCount.estimated,
-        completionTokensEstimated: completionTokenCount.estimated,
-        totalTokensEstimated,
-    };
-}
-
-/**
- * Record one successful LLM call and emit its compact debug log line.
- * @param {SummarizerUsageInput} usage - Estimated usage and call metadata
- * @returns {void}
- */
-export function recordSummarizerUsage(usage) {
-    /** @type {SummarizerUsageEntry | null} */
-    let logEntry = null;
-
-    for (let run = activeRun; run; run = run.parent) {
-        const entry = addUsageToRun(run, usage);
-        logEntry ||= entry;
+    /**
+     * Remove an out-of-order completed run from the active parent chain.
+     * @param {UsageRun} run - Completed run
+     * @returns {void}
+     */
+    function detachEndedRun(run) {
+        for (let cursor = activeRun; cursor?.parent; cursor = cursor.parent) {
+            if (cursor.parent === run) {
+                cursor.parent = run.parent;
+                return;
+            }
+        }
     }
 
-    logEntry ||= { ...usage, callNumber: 0 };
-    debug(formatCallUsageLine(logEntry));
+    /**
+     * @template T
+     * @param {string} label - Human-readable run label
+     * @param {() => Promise<T>} callback - Work to run
+     * @returns {Promise<T>}
+     */
+    async function withRun(label, callback) {
+        const run = beginUsageRun(label);
+        try {
+            return await callback();
+        } finally {
+            endUsageRun(run);
+        }
+    }
+
+    /**
+     * Estimate and record one successful LLM call, appending it to every run
+     * open on the chain; the innermost run owns the per-call log line. With
+     * no open run the call logs on its own.
+     * @param {object} input
+     * @param {string} input.systemPrompt - System prompt sent to the summarizer
+     * @param {string} input.prompt - Fully substituted user prompt
+     * @param {string} input.summary - Cleaned summarizer response
+     * @param {import('./call-profile.js').CallProfile} input.profile - Resolved call profile
+     * @returns {Promise<SummarizerTokenUsage>}
+     */
+    async function record({ systemPrompt, prompt, summary, profile }) {
+        const usage = await estimate(systemPrompt, prompt, summary);
+
+        /** @type {SummarizerUsageEntry | null} */
+        let logEntry = null;
+
+        for (let run = activeRun; run; run = run.parent) {
+            const entry = addUsageToRun(run, { profile, ...usage });
+            logEntry ||= entry;
+        }
+
+        logEntry ||= { profile, ...usage, callNumber: 0 };
+        debug(formatCallUsageLine(logEntry));
+        return usage;
+    }
+
+    /**
+     * Estimate prompt and completion tokens with SillyTavern's active tokenizer.
+     * @param {string} systemPrompt - System prompt sent to the summarizer
+     * @param {string} userPrompt - Fully rendered user prompt sent to the summarizer
+     * @param {string} completionText - Cleaned summarizer response
+     * @returns {Promise<SummarizerTokenUsage>}
+     */
+    async function estimate(systemPrompt, userPrompt, completionText) {
+        const [promptTokenCount, completionTokenCount] = await Promise.all([
+            countTextTokens(`${systemPrompt || ''}\n${userPrompt || ''}`),
+            countTextTokens(completionText || ''),
+        ]);
+        const totalTokens = promptTokenCount.count + completionTokenCount.count;
+        const totalTokensEstimated = promptTokenCount.estimated || completionTokenCount.estimated;
+
+        return {
+            promptTokens: promptTokenCount.count,
+            completionTokens: completionTokenCount.count,
+            totalTokens,
+            promptTokensEstimated: promptTokenCount.estimated,
+            completionTokensEstimated: completionTokenCount.estimated,
+            totalTokensEstimated,
+        };
+    }
+
+    return { withRun, record, estimate };
 }
 
 /**
@@ -185,20 +230,6 @@ function logRunMax(run) {
                 maxCall.completionTokensEstimated,
             )})`,
     );
-}
-
-/**
- * Remove an out-of-order completed run from the active parent chain.
- * @param {UsageRun} run - Completed run
- * @returns {void}
- */
-function detachEndedRun(run) {
-    for (let cursor = activeRun; cursor?.parent; cursor = cursor.parent) {
-        if (cursor.parent === run) {
-            cursor.parent = run.parent;
-            return;
-        }
-    }
 }
 
 /**

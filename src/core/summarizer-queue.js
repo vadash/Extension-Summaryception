@@ -4,7 +4,6 @@ import { refreshUi } from '../foundation/refresh.js';
 import { silentAdapter } from './notify.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { runElasticAutoCycle } from './summarizer-engine.js';
-import { withUsageRun } from './summarizer-usage.js';
 
 /**
  * @typedef {object} SummarizerQueueContext
@@ -18,7 +17,7 @@ import { withUsageRun } from './summarizer-usage.js';
  * @property {() => void} abortAllRequests - Aborts every live summarizer request.
  * @property {() => boolean} isRequestLive - Whether any summarizer request is in flight.
  * @property {() => void} refreshUi - Refreshes visible extension UI state.
- * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
+ * @property {import('./summarizer-usage.js').UsageLedger['withRun']} withRun - Runs work inside a usage accounting scope.
  * @property {{ log?: (...args: unknown[]) => void } | ((...args: unknown[]) => void)} [logger] - Optional queue logger.
  * @property {() => Promise<void>} [yieldCycle] - Yields between processed work units.
  * @property {() => Promise<void>} [afterDrain] - Runs after the worker drain completes.
@@ -46,7 +45,7 @@ export class SummarizerQueue {
         abortAllRequests,
         isRequestLive,
         refreshUi,
-        withUsageRun,
+        withRun,
         logger,
         yieldCycle,
         afterDrain,
@@ -55,7 +54,7 @@ export class SummarizerQueue {
         this.abortAllRequests = abortAllRequests;
         this.isRequestLive = isRequestLive;
         this.refreshUi = refreshUi;
-        this.withUsageRun = withUsageRun;
+        this.withRun = withRun;
         this.yieldCycle = yieldCycle || defaultYieldCycle;
         this.afterDrain = afterDrain || defaultAfterDrain;
         this.log = typeof logger === 'function' ? logger : logger?.log;
@@ -157,7 +156,7 @@ export class SummarizerQueue {
      * @returns {Promise<void>}
      */
     async #drainSummarizationWorker() {
-        await this.withUsageRun('auto worker drain', async () => {
+        await this.withRun('auto worker drain', async () => {
             this.running = true;
             this.refreshUi();
 
@@ -265,16 +264,17 @@ function isQueuePhase(phase) {
  * @param {import('./foreground-gate.js').ForegroundGate} p.gate
  * @param {import('./notify.js').NotifyAdapter} [p.notify]
  * @param {import('./summarizer-request.js').SummarizerDispatch} p.dispatch - Summarizer Dispatch; its call runs the automatic cycle, its abort/isLive feed the queue.
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger whose withRun scopes the worker drain.
  * @returns {SummarizerQueue}
  */
-export function createSummarizerQueue({ gate, notify = silentAdapter, dispatch }) {
+export function createSummarizerQueue({ gate, notify = silentAdapter, dispatch, usage }) {
     return new SummarizerQueue({
         drainOneCycle: (queue) =>
             runElasticAutoCycle(queue, { refreshUi, notify, gate, dispatch: dispatch.call }),
         abortAllRequests: dispatch.abort,
         isRequestLive: dispatch.isLive,
         refreshUi,
-        withUsageRun,
+        withRun: usage.withRun,
         yieldCycle: async () => {
             await sleep(0);
         },

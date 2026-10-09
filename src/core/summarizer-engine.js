@@ -42,7 +42,7 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @typedef {object} ManualRunnerDeps
  * @property {import('./summarizer-queue.js').SummarizerQueue} queue - Shared summarizer queue.
  * @property {() => void} refreshUi - Refreshes visible extension UI state.
- * @property {function(string, function(): Promise<*>): Promise<*>} withUsageRun - Runs work inside a usage accounting scope.
+ * @property {import('./summarizer-usage.js').UsageLedger['withRun']} withRun - Runs work inside a usage accounting scope.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate every prompt mutation of the run crosses.
  * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs every summarizer request.
  */
@@ -100,7 +100,7 @@ export async function runManual(deps, strategy, options = {}) {
     if (!manualStrategy) {
         return deriveManualRunOutcome(createManualRunTally());
     }
-    return await deps.withUsageRun(manualStrategy.usageLabel, async () => {
+    return await deps.withRun(manualStrategy.usageLabel, async () => {
         if (!(await prepareManualRun(deps, `manual ${strategy.toLowerCase()}`))) {
             return deriveManualRunOutcome({ ...createManualRunTally(), blocked: true });
         }

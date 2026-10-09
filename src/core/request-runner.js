@@ -108,12 +108,20 @@ export class RequestRunner {
      * @param {AbortSignal} p.signal - Abort signal
      * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
      * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
+     * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into
      * @returns {Promise<import('./run-outcome.js').RunOutcome>} Structured outcome; `completed` carries the summary text and the resolved profile.
      */
-    async run({ prompt, repairPrompt, signal, profile, notify = silentAdapter }) {
+    async run({ prompt, repairPrompt, signal, profile, notify = silentAdapter, usage }) {
         // One Call Session per summarizer call: it carries the call facts
         // across every route cycle and hop; the failure budget stays here.
-        const session = createAttemptSession({ prompt, repairPrompt, signal, profile, notify });
+        const session = createAttemptSession({
+            prompt,
+            repairPrompt,
+            signal,
+            profile,
+            notify,
+            usage,
+        });
         let routeCycleFailures = 0;
 
         while (true) {

@@ -23,8 +23,11 @@ import {
     makeChatPersistence,
     makeForegroundGate,
     makeMessage,
+    makeUsageLedger,
 } from './test-helpers.js';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
+
+const usageLedger = await makeUsageLedger();
 
 const NOW = Date.now();
 
@@ -108,7 +111,7 @@ describe('stale-cache advice after a Force run', () => {
             {
                 queue: { setPhase: vi.fn(), beginRun: vi.fn(() => runToken) },
                 refreshUi: vi.fn(),
-                withUsageRun: vi.fn(async (_label, work) => await work()),
+                withRun: usageLedger.withRun,
                 gate: makeForegroundGate().gate,
             },
             'FORCE',

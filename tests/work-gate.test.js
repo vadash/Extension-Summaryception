@@ -24,7 +24,9 @@ vi.mock('../src/core/summarizer-pipeline.js', async () => {
 });
 
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';
-import { makeSummarizerDispatch } from './test-helpers.js';
+import { makeSummarizerDispatch, makeUsageLedger } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 /** Build a queue with injected fake dependencies. The queue needs no host context. */
 function makeGateQueue(drainOneCycle, { isRequestLive = () => false } = {}) {
@@ -33,7 +35,7 @@ function makeGateQueue(drainOneCycle, { isRequestLive = () => false } = {}) {
         abortAllRequests: vi.fn(),
         isRequestLive: vi.fn(isRequestLive),
         refreshUi: vi.fn(),
-        withUsageRun: vi.fn(async (_label, work) => await work()),
+        withRun: usageLedger.withRun,
         yieldCycle: vi.fn(async () => {}),
     });
 }

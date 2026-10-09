@@ -19,7 +19,7 @@ import { createSummarizerQueue } from './src/core/summarizer-queue.js';
 import { createSummarizerDispatch } from './src/core/summarizer-request.js';
 import { createContinuityAuditor } from './src/core/continuity-audit.js';
 import { createForegroundGate } from './src/core/foreground-gate.js';
-import { withUsageRun } from './src/core/summarizer-usage.js';
+import { createUsageLedger } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
 import { syncLLMContextPreview, updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
@@ -60,9 +60,16 @@ import { registerSlashCommands } from './src/entry/commands.js';
         },
     });
     const notify = createToastrNotifyAdapter();
-    const dispatch = createSummarizerDispatch();
-    const queue = createSummarizerQueue({ gate, notify, dispatch });
-    const manualRunnerDeps = { queue, refreshUi, withUsageRun, gate, dispatch: dispatch.call };
+    const usage = createUsageLedger();
+    const dispatch = createSummarizerDispatch({ usage });
+    const queue = createSummarizerQueue({ gate, notify, dispatch, usage });
+    const manualRunnerDeps = {
+        queue,
+        refreshUi,
+        withRun: usage.withRun,
+        gate,
+        dispatch: dispatch.call,
+    };
     const continuityAuditor = createContinuityAuditor({
         dispatch: dispatch.call,
         saveChatStore,
@@ -94,7 +101,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
         updateUI: (options) => updateUI({ ...options, queue }),
         updatePreview: syncLLMContextPreview,
     });
-    initSnippetBrowser(notify, gate, queue, dispatch);
+    initSnippetBrowser({ notify, gate, queue, dispatch, usage });
 
     const html = await renderExtensionTemplateAsync(
         'third-party/Extension-Summaryception',

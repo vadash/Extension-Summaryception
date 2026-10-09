@@ -17,7 +17,10 @@ import {
     installBrowserRuntimeStub,
     makeNotifyRecorder,
     makeSummarySettings,
+    makeUsageLedger,
 } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 /**
  * The request series emits structured notify events (ADR-0019) instead of
@@ -38,6 +41,7 @@ describe('request series notify events', () => {
             signal: new AbortController().signal,
             profile: resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }),
             notify: makeNotifyRecorder(),
+            usage: usageLedger,
             ...overrides,
         });
         return {

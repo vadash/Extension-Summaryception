@@ -5,7 +5,6 @@ import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
-import { withUsageRun } from '../core/summarizer-usage.js';
 
 /**
  * @typedef {{ status: 'ready', snippet: SummaryceptionSnippet, range: [number, number], context?: string }} RegenerationTarget
@@ -125,11 +124,11 @@ export async function deleteSnippetAt(layerIndex, snippetIndex, options) {
 /**
  * @param {number} layerIndex
  * @param {number} snippetIndex
- * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue, dispatch: import('../core/summarizer-request.js').SummarizerDispatch['call'] }} options - Regeneration notices, the Foreground Gate the commit crosses, the Summarizer Queue the run leases, and the Summarizer Dispatch the request goes through.
+ * @param {{ notify?: import('../core/notify.js').NotifyAdapter, gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue, dispatch: import('../core/summarizer-request.js').SummarizerDispatch['call'], withRun: import('../core/summarizer-usage.js').UsageLedger['withRun'] }} options - Regeneration notices, the Foreground Gate the commit crosses, the Summarizer Queue the run leases, the Summarizer Dispatch the request goes through, and the Usage Ledger scope the call records into.
  * @returns {Promise<RegenerateSnippetResult>}
  */
 export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
-    const { notify, gate, queue, dispatch } = options;
+    const { notify, gate, queue, dispatch, withRun } = options;
     const target = resolveRegenerationTarget(
         getChatStore(),
         getChat(),
@@ -145,7 +144,7 @@ export async function regenerateSnippetAt(layerIndex, snippetIndex, options) {
 
     const run = queue.beginRun('regeneration');
     try {
-        return await withUsageRun('snippet regeneration', async () => {
+        return await withRun('snippet regeneration', async () => {
             return await regenerateSnippetWithTarget(target, notify, gate, dispatch);
         });
     } finally {

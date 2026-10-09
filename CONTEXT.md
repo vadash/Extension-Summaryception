@@ -172,18 +172,18 @@ Code: `session.runSeries` (src/core/request-series.js)
 _Avoid_: attempt series, retry loop
 
 **Call Session**:
-One summarizer call's live execution context: the Call Profile it was built from, the prompt and repair prompt it sends, the abort signal, and the Notify Adapter it runs with — held for the whole call, across every hop. One session executes each Route Series of the Narrative Chain behind a single interface; route cycling, health buckets, and the Route Plan stay outside it.
+One summarizer call's live execution context: the Call Profile it was built from, the prompt and repair prompt it sends, the abort signal, the Notify Adapter it runs with, and the Usage Ledger it records token usage into — held for the whole call, across every hop. One session executes each Route Series of the Narrative Chain behind a single interface; route cycling, health buckets, and the Route Plan stay outside it.
 Code: `createAttemptSession` (src/core/request-series.js)
 _Avoid_: attempt context, request state
 
 **Summarizer Dispatch**:
-The one owner of live summarizer requests: it runs one summarizer call through the request runner and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
+The one owner of live summarizer requests: it runs one summarizer call through the request runner and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root with the Usage Ledger, which it places on every Call Session; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
 Code: `createSummarizerDispatch` (src/core/summarizer-request.js)
 _Avoid_: request registry, summarizer client
 
 **Usage Ledger**:
 The nested scope that records each summarizer call's token usage against the run that made it — an automatic drain, a Manual Run, a Regeneration — and reports the run's largest call when the scope ends. One instance exists, built at the composition root; the Call Session carries it, so the Route Series records without reaching module state.
-Code: `withUsageRun` / `recordSummarizerUsage` (src/core/summarizer-usage.js)
+Code: `createUsageLedger` (src/core/summarizer-usage.js)
 _Avoid_: usage tracker, token accounting
 
 **Run Outcome**:

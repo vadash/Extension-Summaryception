@@ -12,7 +12,10 @@ import {
     makeMessage,
     makeSummarySettings,
     makeSummaryStore,
+    makeUsageLedger,
 } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 const gate = makeForegroundGate().gate;
 const queue = {
@@ -111,7 +114,9 @@ describe('snippet regeneration request outcomes', () => {
             ),
         );
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
+        await expect(
+            regenerateSnippetAt(0, 0, { gate, queue, dispatch, withRun: usageLedger.withRun }),
+        ).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -126,7 +131,9 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         dispatch.mockResolvedValue({ status: 'aborted' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
+        await expect(
+            regenerateSnippetAt(0, 0, { gate, queue, dispatch, withRun: usageLedger.withRun }),
+        ).resolves.toEqual({
             status: 'aborted',
         });
 
@@ -138,7 +145,9 @@ describe('snippet regeneration request outcomes', () => {
         const { store, snippet } = installReadySnippet();
         dispatch.mockResolvedValue({ status: 'blocked' });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
+        await expect(
+            regenerateSnippetAt(0, 0, { gate, queue, dispatch, withRun: usageLedger.withRun }),
+        ).resolves.toEqual({
             status: 'blocked',
         });
 
@@ -174,7 +183,9 @@ describe('snippet regeneration request outcomes', () => {
         installSummaryContext({ chat, metadata: { summaryception: store } });
         dispatch.mockImplementation(completedRegeneration('A fresh summary.'));
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
+        await expect(
+            regenerateSnippetAt(0, 0, { gate, queue, dispatch, withRun: usageLedger.withRun }),
+        ).resolves.toEqual({
             status: 'regenerated',
             range: [0, 1],
         });
@@ -191,7 +202,9 @@ describe('snippet regeneration request outcomes', () => {
         });
         installSummaryContext({ chat, metadata: { summaryception: store } });
 
-        await expect(regenerateSnippetAt(0, 0, { gate, queue, dispatch })).resolves.toEqual({
+        await expect(
+            regenerateSnippetAt(0, 0, { gate, queue, dispatch, withRun: usageLedger.withRun }),
+        ).resolves.toEqual({
             status: 'empty-source',
         });
         expect(dispatch).not.toHaveBeenCalled();

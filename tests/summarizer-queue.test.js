@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SummarizerQueue } from '../src/core/summarizer-queue.js';
+import { makeUsageLedger } from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 /** Every host dependency is injected, so the queue needs no host context. */
 function makeQueue(drainOneCycle) {
@@ -9,7 +12,7 @@ function makeQueue(drainOneCycle) {
         abortAllRequests: vi.fn(),
         isRequestLive: vi.fn(() => false),
         refreshUi: vi.fn(),
-        withUsageRun: vi.fn(async (_label, work) => await work()),
+        withRun: usageLedger.withRun,
         yieldCycle: vi.fn(async () => {}),
     });
 }

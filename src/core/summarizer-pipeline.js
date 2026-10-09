@@ -3,7 +3,6 @@ import { isTraceEnabled, trace } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { appendLayer0PromptConstraints } from './layer0-compression.js';
 import { resolveCallProfile } from './call-profile.js';
-import { estimateSummarizerUsage, recordSummarizerUsage } from './summarizer-usage.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
 /**
@@ -70,23 +69,6 @@ export async function traceSummarizerInputTokens(storyTxt, contextStr) {
 
     trace('  storyTxt tokens:', formatTokenCount(storyTokens));
     trace('  contextStr tokens:', formatTokenCount(contextTokens));
-}
-
-/**
- * @param {object} p
- * @param {string} p.systemPrompt - System prompt sent to the summarizer
- * @param {string} p.prompt - Fully substituted user prompt
- * @param {string} p.summary - Cleaned summarizer response
- * @param {import('./call-profile.js').CallProfile} p.profile - Resolved call profile
- * @returns {Promise<import('./summarizer-usage.js').SummarizerTokenUsage>}
- */
-export async function recordSuccessfulSummarizerUsage({ systemPrompt, prompt, summary, profile }) {
-    const usage = await estimateSummarizerUsage(systemPrompt, prompt, summary);
-    recordSummarizerUsage({
-        profile,
-        ...usage,
-    });
-    return usage;
 }
 
 /**

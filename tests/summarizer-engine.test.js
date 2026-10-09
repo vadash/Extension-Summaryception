@@ -37,7 +37,14 @@ vi.mock('../src/core/summary-preflight.js', () => ({
 
 import { ELASTIC_STRATEGIES, runManual } from '../src/core/summarizer-engine.js';
 import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
-import { installSummaryContext, makeChatPersistence, makeForegroundGate } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeChatPersistence,
+    makeForegroundGate,
+    makeUsageLedger,
+} from './test-helpers.js';
+
+const usageLedger = await makeUsageLedger();
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
@@ -60,7 +67,7 @@ function makeDeps({ stopAfterFirstBatch = false } = {}) {
         },
         runToken,
         refreshUi: vi.fn(),
-        withUsageRun: vi.fn(async (_label, work) => await work()),
+        withRun: usageLedger.withRun,
         gate,
     };
     if (stopAfterFirstBatch) {
