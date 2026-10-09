@@ -1,5 +1,6 @@
 import { MEMORY_MODES } from '../src/foundation/constants.js';
 import { createForegroundGate } from '../src/core/foreground-gate.js';
+import { initChatPersistence } from '../src/core/persist-state.js';
 import { vi } from 'vitest';
 
 /**
@@ -21,6 +22,17 @@ export function makeForegroundGate({ now } = {}) {
     const requeue = vi.fn();
     const gate = createForegroundGate({ reassertInjection, requeue, ...(now ? { now } : {}) });
     return { gate, reassertInjection, requeue };
+}
+
+/**
+ * Initialize Chat Persistence with recorded host saves for one test.
+ * @returns {{ saveChat: import('vitest').Mock, saveMetadata: import('vitest').Mock }}
+ */
+export function makeChatPersistence() {
+    const saveChat = vi.fn(async () => {});
+    const saveMetadata = vi.fn(async () => {});
+    initChatPersistence({ saveChat, saveMetadata });
+    return { saveChat, saveMetadata };
 }
 
 export function makeMessage(options = {}) {

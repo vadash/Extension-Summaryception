@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, vi } from 'vitest';
 
 import { installSummaryContext } from './test-helpers.js';
+import { initChatPersistence } from '../src/core/persist-state.js';
 
 const foundationMocks = vi.hoisted(() => {
     const MODULE_NAME = 'summaryception';
@@ -243,6 +244,11 @@ globalThis.summaryceptionFoundationMocks = foundationMocks;
 beforeEach(() => {
     foundationMocks.reset();
     installSummaryContext();
+    // Holder must reference the same facade mocks existing suites assert on.
+    initChatPersistence({
+        saveChat: foundationMocks.context.saveChat,
+        saveMetadata: foundationMocks.context.saveMetadata,
+    });
 });
 
 // Host display mocks are installed per test. Clear only what a test installed.

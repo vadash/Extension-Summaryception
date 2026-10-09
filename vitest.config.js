@@ -18,7 +18,7 @@ export default defineConfig({
         // Coverage with enforced thresholds.
         // Only unit-testable modules are included in coverage; modules that
         // depend on a live SillyTavern runtime (ghosting, injection, memory,
-        // persist, summarizer, ui, events, commands) are excluded because
+        // summarizer, ui, events, commands) are excluded because
         // they cannot run in a headless jsdom context.
         coverage: {
             provider: 'v8',
@@ -29,6 +29,7 @@ export default defineConfig({
                 'src/foundation/retry.js',
                 'src/core/chatutils.js',
                 'src/core/snippet-provenance.js',
+                'src/core/persist-state.js',
                 'src/foundation/chat-store.js',
                 'src/foundation/objects.js',
                 'src/foundation/settings.js',

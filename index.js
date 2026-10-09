@@ -9,8 +9,9 @@
  */
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
-import { getChat, getContext } from './src/foundation/context.js';
+import { getChat, getContext, saveChat, saveMetadata } from './src/foundation/context.js';
 import { saveChatStore } from './src/foundation/chat-store.js';
+import { initChatPersistence } from './src/core/persist-state.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
 import { getSettings } from './src/foundation/settings.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
@@ -51,6 +52,8 @@ import { registerSlashCommands } from './src/entry/commands.js';
         throw new Error('Summaryception requires SillyTavern extension rendering and event APIs.');
     }
 
+    // Chat Persistence is the one root-initialized holder (ADR-0031).
+    initChatPersistence({ saveChat, saveMetadata });
     getSettings();
     // The gate's requeue reads the queue lazily; the queue is built next.
     const gate = createForegroundGate({

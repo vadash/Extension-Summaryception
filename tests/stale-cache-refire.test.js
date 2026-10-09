@@ -11,10 +11,6 @@ vi.mock('../src/core/layer0-run.js', () => layer0Mocks);
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     drainPromotionOverflow: vi.fn(async () => ({ status: 'completed', attempts: 0 })),
 }));
-vi.mock('../src/core/persist-state.js', () => ({
-    flushPendingChatSave: vi.fn(async () => {}),
-    persistChatState: vi.fn(async () => {}),
-}));
 
 import { evaluateStaleCacheAdvice } from '../src/core/cache-staleness.js';
 import { runManual } from '../src/core/summarizer-engine.js';
@@ -22,7 +18,12 @@ import { buildChatWindowPlan } from '../src/core/chat-window-planner.js';
 import { getChat } from '../src/foundation/context.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
 import { getEffectiveSettings } from '../src/foundation/settings.js';
-import { installSummaryContext, makeForegroundGate, makeMessage } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeChatPersistence,
+    makeForegroundGate,
+    makeMessage,
+} from './test-helpers.js';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
 
 const NOW = Date.now();
@@ -87,6 +88,7 @@ async function readAdvice(now) {
 
 describe('stale-cache advice after a Force run', () => {
     beforeEach(() => {
+        makeChatPersistence();
         layer0Mocks.runLayer0.mockImplementation(async (plan) => commitBatch(plan));
     });
 

@@ -31,22 +31,19 @@ vi.mock('../src/core/snippet-provenance.js', async (importOriginal) => ({
 vi.mock('../src/core/summarizer-promotion.js', () => ({
     drainPromotionOverflow: vi.fn(async () => ({ status: 'completed', attempts: 0 })),
 }));
-vi.mock('../src/core/persist-state.js', () => ({
-    flushPendingChatSave: vi.fn(async () => {}),
-    persistChatState: vi.fn(async () => {}),
-}));
 vi.mock('../src/core/summary-preflight.js', () => ({
     prepareSummaryCycle: vi.fn(async () => ({ chat: [], store: {} })),
 }));
 
 import { ELASTIC_STRATEGIES, runManual } from '../src/core/summarizer-engine.js';
 import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
-import { installSummaryContext, makeForegroundGate } from './test-helpers.js';
+import { installSummaryContext, makeChatPersistence, makeForegroundGate } from './test-helpers.js';
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
 
 beforeEach(() => {
+    makeChatPersistence();
     gate = makeForegroundGate().gate;
 });
 

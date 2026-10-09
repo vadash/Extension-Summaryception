@@ -1,6 +1,5 @@
-import { saveChat } from '../foundation/context.js';
 import { warn } from '../foundation/logger.js';
-import { saveChatStore } from '../foundation/chat-store.js';
+import { getChatStore } from '../foundation/chat-store.js';
 
 const CHAT_SAVE_DEBOUNCE_MS = 1500;
 
@@ -10,13 +9,41 @@ const CHAT_SAVE_DEBOUNCE_MS = 1500;
 let chatSaveTimer = null;
 
 /**
+ * Host save functions; the composition root initializes this one holder
+ * (ADR-0031), tests re-initialize it through the same seam.
+ * @type {{ saveChat: () => Promise<void>, saveMetadata: () => Promise<void> } | null}
+ */
+let persistence = null;
+
+/**
+ * @param {{ saveChat: () => Promise<void>, saveMetadata: () => Promise<void> }} host
+ * @returns {void}
+ */
+export function initChatPersistence({ saveChat, saveMetadata }) {
+    persistence = { saveChat, saveMetadata };
+}
+
+/**
+ * @returns {{ saveChat: () => Promise<void>, saveMetadata: () => Promise<void> }}
+ */
+function requirePersistence() {
+    if (!persistence) {
+        throw new Error(
+            'Chat Persistence is not initialized; the composition root must call initChatPersistence first.',
+        );
+    }
+    return persistence;
+}
+
+/**
  * Persist chat metadata and chat state in one step.
  * Metadata is always saved immediately; chat file writes may be deferred.
  * @param {{ chatSave?: ChatSaveMode }} [options]
  * @returns {Promise<void>}
  */
 export async function persistChatState({ chatSave = 'immediate' } = {}) {
-    await saveChatStore();
+    await getChatStore();
+    await requirePersistence().saveMetadata();
 
     if (chatSave === 'deferred') {
         scheduleChatSave();
@@ -61,6 +88,7 @@ function clearScheduledChatSave() {
 }
 
 async function saveChatSafely() {
+    const { saveChat } = requirePersistence();
     try {
         await saveChat();
     } catch (e) {
