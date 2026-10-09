@@ -105,14 +105,17 @@ export function formatContinuityBlock(state) {
  * injection slot. Staleness is derived, not stored: the block carries the
  * drift marker and an uncapped depth while newer un-audited Exchanges trail
  * the checkpoint. The slot clears when the extension or the Auditor is
- * disabled, no checkpoint payload exists, or the state renders nothing.
+ * disabled, no checkpoint payload exists, or the state renders nothing. The
+ * reroll tail comes from the Foreground Gate at the composition root; without
+ * it the block places against the full chat view.
+ * @param {{ rerollTail?: boolean }} [options] - Prompt view read from `gate.isRerollTail()`.
  * @returns {void}
  */
-export function updateContinuityInjection() {
+export function updateContinuityInjection({ rerollTail } = {}) {
     try {
         const settings = getEffectiveSettings();
         const chat = getChat();
-        const coverage = deriveContinuityCoverage(chat);
+        const coverage = deriveContinuityCoverage(chat, { rerollTail });
         let text = '';
         let depth = 0;
         let drift = 0;

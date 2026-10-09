@@ -4,6 +4,7 @@ import {
     isSendButtonInStopMode,
 } from '../foundation/context.js';
 import { debug, info, trace, warn } from '../foundation/logger.js';
+import { isRerollTail } from './continuity-checkpoint.js';
 
 /** @typedef {'applied' | 'queued' | 'stale'} CommitResult */
 /** @typedef {'applied' | 'queued'} PromptEffectResult */
@@ -54,6 +55,7 @@ export class ForegroundGate {
     #now;
 
     #foregroundFrozen = false;
+    #rerollTail = false;
     /** @type {PendingCommit[]} */
     #pendingCommits = [];
     /** @type {PendingPromptEffect[]} */
@@ -76,11 +78,14 @@ export class ForegroundGate {
      * Freeze prompt-affecting mutations after the beforeFreeze hook runs and the
      * committed injection is reasserted. The hook is the one gate-sanctioned
      * window for pre-freeze prompt writes (ADR-0016): it runs while the gate is
-     * still open, before the freeze locks slot content.
-     * @param {{ beforeFreeze?: () => void }} [options]
+     * still open, before the freeze locks slot content. The generation type and
+     * chat record the Reroll Tail (ADR-0017) before the hook so its injection
+     * write already renders the prompt view that excludes the tail.
+     * @param {{ beforeFreeze?: () => void, generationType?: unknown, chat?: unknown }} [options]
      * @returns {void}
      */
-    beginGeneration({ beforeFreeze } = {}) {
+    beginGeneration({ beforeFreeze, generationType, chat } = {}) {
+        this.#rerollTail = isRerollTail(generationType, chat);
         if (beforeFreeze) {
             beforeFreeze();
         }
@@ -105,12 +110,23 @@ export class ForegroundGate {
         }
 
         this.#foregroundFrozen = false;
+        this.#rerollTail = false;
         this.#freezeStartedAt = 0;
         const commits = this.#pendingCommits.length;
         const effects = this.#pendingEffects.length;
         info(`Foreground freeze off; commits=${commits}, effects=${effects} flushed.`);
         await this.#flushPendingCommits();
         await this.#flushPendingEffects();
+    }
+
+    /**
+     * Whether the in-flight generation replaces the chat tail, so the host
+     * excludes that message from the prompt chat (ADR-0017). Coverage and the
+     * Continuity Block read it as their explicit prompt-view input.
+     * @returns {boolean}
+     */
+    isRerollTail() {
+        return this.#rerollTail;
     }
 
     /**
@@ -237,6 +253,7 @@ export class ForegroundGate {
      */
     reset() {
         this.#foregroundFrozen = false;
+        this.#rerollTail = false;
         this.#pendingCommits = [];
         this.#pendingEffects = [];
         this.#generationEpoch = 0;
@@ -367,7 +384,8 @@ export class ForegroundGate {
 
 /**
  * Build the Foreground Gate. The composition root builds one and hands it to
- * its callers, so the freeze, the epoch, and both queues have a single owner.
+ * its callers, so the freeze, the epoch, the Reroll Tail, and both queues have
+ * a single owner.
  * @param {ForegroundGateDeps} deps
  * @returns {ForegroundGate}
  */

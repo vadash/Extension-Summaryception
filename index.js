@@ -87,7 +87,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
             void gate.runEffect({
                 kind: 'continuity-refresh',
                 apply: () => {
-                    updateContinuityInjection();
+                    updateContinuityInjection({ rerollTail: gate.isRerollTail() });
                     return true;
                 },
             });
@@ -118,6 +118,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
             type,
             auditor: continuityAuditor,
             queue,
+            gate,
         }),
     );
     eventSource.on(eventTypes.CHAT_CHANGED, () => onChatChanged({ gate, queue }));

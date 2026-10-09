@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installSummaryContext, makeForegroundGate } from './test-helpers.js';
+import { installSummaryContext, makeForegroundGate, makeMessage } from './test-helpers.js';
 
 const { logger } = globalThis.summaryceptionFoundationMocks;
 
@@ -169,5 +169,55 @@ describe('gate wiring', () => {
         await expect(gate.promptWorkGate('after reset')).resolves.toBe('open');
         await gate.endGeneration();
         expect(applied).not.toHaveBeenCalled();
+    });
+});
+
+/** The gate owns the Reroll Tail: beginGeneration records it, endGeneration clears it. */
+describe('reroll tail', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    const rerollChat = () => [
+        makeMessage({ isUser: true, scId: 'u1' }),
+        makeMessage({ scId: 'a1' }),
+    ];
+
+    it('starts with no reroll tail', () => {
+        installSummaryContext({ chat: [] });
+        const { gate } = makeForegroundGate();
+
+        expect(gate.isRerollTail()).toBe(false);
+    });
+
+    it('records the reroll tail for a swipe and clears it at generation end', async () => {
+        installSummaryContext({ chat: [] });
+        const { gate } = makeForegroundGate();
+
+        gate.beginGeneration({ generationType: 'swipe', chat: rerollChat() });
+
+        expect(gate.isRerollTail()).toBe(true);
+
+        await gate.endGeneration();
+
+        expect(gate.isRerollTail()).toBe(false);
+    });
+
+    it('records the reroll tail for a regenerate', () => {
+        installSummaryContext({ chat: [] });
+        const { gate } = makeForegroundGate();
+
+        gate.beginGeneration({ generationType: 'regenerate', chat: rerollChat() });
+
+        expect(gate.isRerollTail()).toBe(true);
+    });
+
+    it('keeps no reroll tail for a generation that does not replace the last reply', () => {
+        installSummaryContext({ chat: [] });
+        const { gate } = makeForegroundGate();
+
+        gate.beginGeneration({ generationType: 'normal', chat: rerollChat() });
+
+        expect(gate.isRerollTail()).toBe(false);
     });
 });

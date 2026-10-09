@@ -7,11 +7,6 @@ import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js
 import { syncGhosting } from '../core/ghosting.js';
 import { isAuditorTriggerMessage } from '../core/continuity-audit.js';
 import { discardCheckpoint } from '../core/continuity-checkpoint.js';
-import {
-    beginRerollTail,
-    endRerollTail,
-    isRerollTailInFlight,
-} from '../core/continuity-coverage.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
@@ -136,10 +131,11 @@ let promptFreezeRecoveryBound = false;
  * @param {import('../core/notify.js').NotifyAdapter} [options.notify] - Notify adapter for auditor notices
  * @param {unknown} [options.type] - MESSAGE_RECEIVED type argument; 'normal' triggers an audit, the other types dispatch nothing
  * @param {{ audit: (input: import('../core/continuity-audit.js').ContinuityAuditInput) => Promise<unknown> }} options.auditor - Continuity Audit built at the composition root
- * @param {import('../core/summarizer-queue.js').SummarizerQueue} options.queue - Summarizer Queue a new reply kicks
+ * @param {import('../core/summarizer-queue.js').SummarizerQueue} options.queue - Summarizer Queue a new reply kicks.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} options.gate - Foreground Gate owning the Reroll Tail the audit's coverage input reads.
  * @returns {void}
  */
-export function onMessageReceived(messageIndex, { notify, type, auditor, queue }) {
+export function onMessageReceived(messageIndex, { notify, type, auditor, queue, gate }) {
     try {
         const chat = getChat();
         const msg = chat[messageIndex];
@@ -150,7 +146,7 @@ export function onMessageReceived(messageIndex, { notify, type, auditor, queue }
                 refreshUi();
             }, 500);
             if (isAuditorTriggerMessage(msg, type)) {
-                void auditor.audit(gatherAuditInputs(notify)).catch((e) => {
+                void auditor.audit(gatherAuditInputs(gate, notify)).catch((e) => {
                     warn('Continuity auditor run error:', e);
                 });
             }
@@ -163,17 +159,18 @@ export function onMessageReceived(messageIndex, { notify, type, auditor, queue }
 /**
  * Read the host facts one Continuity Audit needs. Entry owns the host reads;
  * the audit owns every gate past this point.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate owning the Reroll Tail the audit input reads.
  * @param {import('../core/notify.js').NotifyAdapter} [notify] - Notify adapter threaded to the dispatch call.
  * @returns {import('../core/continuity-audit.js').ContinuityAuditInput}
  */
-function gatherAuditInputs(notify) {
+function gatherAuditInputs(gate, notify) {
     return {
         chat: getChat(),
         store: getChatStore(),
         settings: getEffectiveSettings(),
         hasGroup: Boolean(getGroupId()),
         playerName: getName1(),
-        rerollTail: isRerollTailInFlight(),
+        rerollTail: gate.isRerollTail(),
         notify,
     };
 }
@@ -239,12 +236,13 @@ export function onGenerationStarted(args, { gate, queue }) {
     // read model and the prompt view must exclude that reply before the freeze
     // locks the slot content in. The hook is the gate's pre-freeze window, so
     // both land even when a stale-heal is still in flight.
+    const chat = getChat();
     gate.beginGeneration({
+        generationType: args[0],
+        chat,
         beforeFreeze: () => {
-            const chat = getChat();
-            beginRerollTail(args[0], chat);
             if (discardCheckpoint(chat, args[0])) {
-                updateContinuityInjection();
+                updateContinuityInjection({ rerollTail: gate.isRerollTail() });
                 updateContinuityMarker();
             }
         },
@@ -266,7 +264,6 @@ export function onGenerationEnded({ gate, queue }) {
         return;
     }
 
-    endRerollTail();
     void (async () => {
         try {
             await gate.endGeneration();

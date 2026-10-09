@@ -1,9 +1,5 @@
 import { CATCHUP_WINDOW_EXCHANGES } from '../foundation/constants.js';
-import {
-    findLiveCheckpoint,
-    isRerollTail,
-    listCheckpointIndices,
-} from './continuity-checkpoint.js';
+import { findLiveCheckpoint, listCheckpointIndices } from './continuity-checkpoint.js';
 import { deriveTurnCount, isAssistantMessage } from './continuity-state.js';
 
 /**
@@ -23,41 +19,13 @@ import { deriveTurnCount, isAssistantMessage } from './continuity-state.js';
  * @property {boolean} rerollTail - Whether the prompt view excluded the chat tail, which is why blockDepth can trail the un-audited reply count.
  */
 
-let rerollTailInFlight = false;
-
-/**
- * Record the reroll for the generation that is starting. The flag must outlive
- * the generation-start hook: every render inside the generation window reads it.
- * @param {unknown} generationType - ST GENERATION_STARTED type argument.
- * @param {ChatMessage[] | unknown} chat - The chat view the reroll replaces into.
- * @returns {boolean} Whether the prompt excludes the chat tail.
- */
-export function beginRerollTail(generationType, chat) {
-    rerollTailInFlight = isRerollTail(generationType, chat);
-    return rerollTailInFlight;
-}
-
-/**
- * @returns {void}
- */
-export function endRerollTail() {
-    rerollTailInFlight = false;
-}
-
-/**
- * @returns {boolean}
- */
-export function isRerollTailInFlight() {
-    return rerollTailInFlight;
-}
-
 /**
  * @param {ChatMessage[] | unknown} chat
- * @param {{ rerollTail?: boolean }} [options] - Prompt view override; defaults to the in-flight reroll.
+ * @param {{ rerollTail?: boolean }} [options] - Prompt view: true while the Foreground Gate holds the Reroll Tail; callers read it from the gate.
  * @returns {ContinuityCoverage}
  */
 export function deriveContinuityCoverage(chat, options = {}) {
-    const rerollTail = options.rerollTail ?? isRerollTailInFlight();
+    const rerollTail = options.rerollTail ?? false;
     const messages = Array.isArray(chat) ? chat : [];
     const excludedIndex = rerollTail ? messages.length - 1 : -1;
     const checkpoint = findLiveCheckpoint(messages, excludedIndex);

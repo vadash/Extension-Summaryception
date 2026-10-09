@@ -286,7 +286,7 @@ _Avoid_: continuity snapshot, sync read model
 
 **Reroll Tail**:
 The chat's last message while a swipe or regenerate generation is replacing it. The host excludes that message from the prompt chat, so the Continuity Block's placement counts the prompt view, which drops the tail; the stale marker keeps reading the chat view.
-Code: `isRerollTail` / `beginRerollTail` (src/core/continuity-coverage.js)
+Code: `isRerollTail` (src/core/foreground-gate.js)
 _Avoid_: swiped message, pending reply
 
 **Continuity Block**:

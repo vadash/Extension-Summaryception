@@ -11,11 +11,7 @@ import { createContinuityAuditor } from '../src/core/continuity-audit.js';
 import { getName1 } from '../src/foundation/context.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
 import { getEffectiveSettings } from '../src/foundation/settings.js';
-import {
-    deriveContinuityCoverage,
-    endRerollTail,
-    isRerollTailInFlight,
-} from '../src/core/continuity-coverage.js';
+import { deriveContinuityCoverage } from '../src/core/continuity-coverage.js';
 import { updateContinuityInjection } from '../src/features/continuity-injection.js';
 import { onGenerationStarted } from '../src/entry/events.js';
 import {
@@ -39,9 +35,9 @@ vi.mock('../src/features/continuity-injection.js', async (importOriginal) => {
     const actual = await importOriginal();
     return {
         ...actual,
-        updateContinuityInjection: () => {
+        updateContinuityInjection: (...args) => {
             continuityWrites.frozenAtWrite.push(gate.isFrozen());
-            actual.updateContinuityInjection();
+            actual.updateContinuityInjection(...args);
         },
     };
 });
@@ -113,7 +109,6 @@ afterEach(() => {
     vi.resetModules();
     callSummarizer.mockReset();
     continuityWrites.frozenAtWrite.length = 0;
-    endRerollTail();
     delete globalThis.SillyTavern;
 });
 
@@ -140,7 +135,7 @@ describe('continuity coverage across regenerate', () => {
         // newest-payload read model drops back to exchange 1 by itself.
         chat.splice(3, 1);
 
-        const coverage = deriveContinuityCoverage(chat);
+        const coverage = deriveContinuityCoverage(chat, { rerollTail: gate.isRerollTail() });
         expect(coverage.checkpointIndex).toBe(1);
         expect(coverage.state.gm_notes).toEqual([]);
         expect(coverage.state.bonds['Quipsy↔User']).toEqual({ bond: 1, sparks: 1, grudge: 0 });
@@ -212,7 +207,9 @@ describe('continuity injection across reroll', () => {
         expect(gate.isFrozen()).toBe(true);
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
-        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
+        expect(
+            deriveContinuityCoverage(chat, { rerollTail: gate.isRerollTail() }).checkpointIndex,
+        ).toBe(1);
 
         const slotCall = setExtensionPrompt.mock.calls.find(
             ([name]) => name === 'summaryception_continuity',
@@ -249,8 +246,10 @@ describe('continuity injection across reroll', () => {
         onGenerationStarted(['regenerate', {}, false], { gate, queue });
 
         expect(chat[1].extra.summaryception_continuity).toBeDefined();
-        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
-        expect(isRerollTailInFlight()).toBe(false);
+        expect(
+            deriveContinuityCoverage(chat, { rerollTail: gate.isRerollTail() }).checkpointIndex,
+        ).toBe(1);
+        expect(gate.isRerollTail()).toBe(false);
 
         updateContinuityInjection();
 
@@ -272,7 +271,9 @@ describe('continuity injection across reroll', () => {
         onGenerationStarted(['swipe', {}, false], { gate, queue });
 
         expect(chat[3].extra.summaryception_continuity).toBeUndefined();
-        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(1);
+        expect(
+            deriveContinuityCoverage(chat, { rerollTail: gate.isRerollTail() }).checkpointIndex,
+        ).toBe(1);
     });
 
     it('keeps the checkpoint on generations that do not replace the last reply', () => {
@@ -286,6 +287,8 @@ describe('continuity injection across reroll', () => {
         onGenerationStarted(['normal', {}, false], { gate, queue });
 
         expect(chat[3].extra.summaryception_continuity).toBeDefined();
-        expect(deriveContinuityCoverage(chat).checkpointIndex).toBe(3);
+        expect(
+            deriveContinuityCoverage(chat, { rerollTail: gate.isRerollTail() }).checkpointIndex,
+        ).toBe(3);
     });
 });
