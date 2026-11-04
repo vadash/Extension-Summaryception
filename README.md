@@ -205,9 +205,13 @@ Older major versions are still available as branches. Open SillyTavern's extensi
 
 ## Troubleshooting
 
-Extension refuses to update: remove and install it again.
+### Extension refuses to update
 
-Major updates can reset settings or misbehave: clear memories before updating and stick to the named branches.
+Remove and install it again.
+
+### Major updates can reset settings or misbehave
+
+Clear memories before updating and stick to the named branches.
 
 ### Timestamps in bot replies
 
