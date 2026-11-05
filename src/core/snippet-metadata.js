@@ -5,8 +5,11 @@ import { collectSnippetSourceIds } from './snippet-provenance.js';
 
 const UNKNOWN_TIME = 'unknown';
 const COMPACT_CURRENT_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{2})(?:\s+[a-z]{3})?$/i;
+// The compact form is what the pipeline writes; the `msgs …; current …` form
+// is read-side compatibility only, so stored Snippets and model echoes written
+// before the one-form rule still strip cleanly.
 const LEADING_SNIPPET_ANCHORS_RE =
-    /^\s*(?:(?:[-*]\s*)?\[msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?\]\s*)+/i;
+    /^\s*(?:(?:[-*]\s*)?\[(?:\d+\s*-\s*\d+(?:@[^\]]*)?|msgs\s+(?:unknown|\d+\s*-\s*\d+)(?:\s*;[^\]]*)?)\]\s*)+/i;
 const WEEKDAY_NAMES = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
 const CURRENT_DATE_TIME_RE =
     /^\s*(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2})(?::\d{2})?)?(?:\s+([A-Za-z]{3}))?\s*$/;
@@ -178,28 +181,14 @@ export function formatAnchoredSnippetNarrative(snippet = {}, formatAnchor = form
 }
 
 /**
- * Format the deterministic source/time anchor for a snippet.
+ * Format the one deterministic source/time anchor a Snippet carries in a
+ * prompt: `[A-B@YYYY-MM-DDTHH]`, or `[A-B]` without a known Scene Time. One
+ * form serves the summarizer context, the promotion input, and the injection,
+ * so a model reads the same shape everywhere (ADR-0032).
  * @param {object} snippet
  * @returns {string}
  */
 export function formatSnippetAnchor(snippet = {}) {
-    const meta = extractSnippetMetadata(snippet);
-    const range = resolveSnippetRange(meta.sourceMessageIds);
-    if (!range) {
-        return '';
-    }
-
-    const rangeText = `msgs ${range[0]}-${range[1]}`;
-    const current = meta.currentDateTime || UNKNOWN_TIME;
-    return `[${rangeText}; current ${current}]`;
-}
-
-/**
- * Format a compact source/time anchor for runtime memory injection.
- * @param {object} snippet
- * @returns {string}
- */
-export function formatCompactSnippetAnchor(snippet = {}) {
     const meta = extractSnippetMetadata(snippet);
     const range = resolveSnippetRange(meta.sourceMessageIds);
     if (!range) {

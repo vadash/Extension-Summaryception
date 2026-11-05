@@ -93,7 +93,7 @@ cause-to-effect chain: the link that explains how the present situation came to 
 source "you" -> <player>.
 length: the sentence cap in the recall limits.`;
 
-const LAYER0_CRITICAL_RULES = `anchor: the bracketed source-range prefix on a prior passage names its messages and the scene year, day, and hour at its end.
+const LAYER0_CRITICAL_RULES = `anchor: [A-B@YYYY-MM-DDTHH], the source message range A-B and the scene time at B, one form in every prompt.
 relative time word in <passage> (tomorrow, today, in N days, next weekday, bare weekday, this evening) -> resolved against the scene time that anchor carries.
 prose date: month name and day number, e.g. "On July 6"; the year and the hour stay in the anchor.
 prose date placement: only where a relative time word resolves or the scene day changes.
@@ -135,7 +135,7 @@ minor inventory items, temporary rules, transient positions, stale scene facts -
 baseline: <prior> is immutable established history; a re-summarized prior event, a duplicated prior date -> dropped.
 delta: only the new events inside <passage>.
 continuity: the output appends to the end of <prior> in chronological order, with no look back.
-anchors: lower-layer source-range anchors -> preserved exactly, hour-level 24-hour stamps included.
+anchors: lower-layer source-range anchors, [A-B@YYYY-MM-DDTHH], -> preserved exactly, hour-level 24-hour stamps included.
 relative time word (tomorrow, today, in N days, next weekday, bare weekday, this evening) -> computed against that passage's anchor date and written as the full calendar date.
 absolute time -> preserved; inferable timing downgraded to a vague relative word -> dropped.
 future goal or plan -> its explicit date and hour anchor kept.

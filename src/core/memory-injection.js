@@ -1,9 +1,5 @@
 import { getEffectiveSettings } from '../foundation/settings.js';
-import {
-    formatAnchoredSnippetNarrative,
-    formatCompactSnippetAnchor,
-    formatSnippetAnchor,
-} from './snippet-metadata.js';
+import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
 import { countTextTokens } from './token-count.js';
 
 /**
@@ -54,9 +50,7 @@ export function buildMemoryBody(layers) {
  * @returns {MemoryInjection}
  */
 export function buildInjection(layers, settings = getEffectiveSettings()) {
-    const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers, {
-        compactAnchors: true,
-    });
+    const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
 
     return {
         text: memoryText ? renderInjectionTemplate({ memoryText }, settings) : '',
@@ -91,15 +85,14 @@ export async function measureInjection(injection) {
 
 /**
  * @param {Array<Array<{ text: string }>>} layers
- * @param {{ compactAnchors?: boolean }} [options]
  * @returns {MemoryInjectionParts}
  */
-export function buildMemoryInjectionParts(layers, { compactAnchors = false } = {}) {
+export function buildMemoryInjectionParts(layers) {
     if (!Array.isArray(layers)) {
         return emptyParts();
     }
 
-    const chronologyParts = collectChronologyParts(layers, compactAnchors);
+    const chronologyParts = collectChronologyParts(layers);
     // The injection template legend names the section, so the body carries no heading.
     const chronologyText = chronologyParts.map((part) => part.text).join('\n');
 
@@ -121,7 +114,7 @@ export function renderInjectionTemplate(injectionParts, settings, { emptyFallbac
     );
 }
 
-function collectChronologyParts(layers, compactAnchors) {
+function collectChronologyParts(layers) {
     const parts = [];
     for (let i = layers.length - 1; i >= 0; i--) {
         const layer = layers[i];
@@ -129,12 +122,7 @@ function collectChronologyParts(layers, compactAnchors) {
             continue;
         }
         const text = layer
-            .map((snippet) =>
-                formatAnchoredSnippetNarrative(
-                    snippet,
-                    compactAnchors ? formatCompactSnippetAnchor : formatSnippetAnchor,
-                ),
-            )
+            .map((snippet) => formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor))
             .filter(Boolean)
             .join('\n');
         if (text) {

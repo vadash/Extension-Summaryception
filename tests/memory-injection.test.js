@@ -8,6 +8,7 @@ import {
     renderInjectionTemplate,
 } from '../src/core/memory-injection.js';
 import { countTextTokens } from '../src/core/token-count.js';
+import { installSummaryContext, makeMessages } from './test-helpers.js';
 
 describe('buildMemoryInjectionParts', () => {
     it('joins per-layer chronology sections with no heading of its own', () => {
@@ -123,6 +124,24 @@ describe('buildMemoryBody', () => {
         const body = buildMemoryBody([[{ text: 'The party reached the tavern.' }]]);
 
         expect(body).toBe('The party reached the tavern.');
+    });
+
+    it('anchors with the one compact form, the same as the injection', () => {
+        installSummaryContext({ chat: makeMessages(8) });
+        const layers = [
+            [
+                {
+                    sourceMessageIds: ['message-2', 'message-5'],
+                    currentDateTime: '2024-01-02 14',
+                    text: 'She left.',
+                },
+            ],
+        ];
+
+        expect(buildMemoryBody(layers)).toBe('[2-5@2024-01-02T14] She left.');
+        expect(buildInjection(layers, { injectionTemplate: '{{summary}}' }).text).toBe(
+            '[2-5@2024-01-02T14] She left.',
+        );
     });
 
     it('is the memory body of the same parts builder', () => {

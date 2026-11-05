@@ -4,10 +4,10 @@ import {
     buildPromotedSnippetMetadata,
     buildSnippetMetadataFromText,
     extractSnippetMetadata,
-    formatCompactSnippetAnchor,
     formatSnippetAnchor,
     getSnippetDisplayMeta,
     parseSnippet,
+    stripLeadingSnippetAnchor,
 } from '../src/core/snippet-metadata.js';
 import { installSummaryContext, makeMessages } from './test-helpers.js';
 
@@ -56,13 +56,26 @@ describe('live metadata anchors', () => {
             currentDateTime: '2024-01-02 14',
         };
 
-        expect(formatSnippetAnchor(snippet)).toBe('[msgs 2-7; current 2024-01-02 14]');
-        expect(formatCompactSnippetAnchor(snippet)).toBe('[2-7@2024-01-02T14]');
+        expect(formatSnippetAnchor(snippet)).toBe('[2-7@2024-01-02T14]');
     });
 
     it('omits anchors when no source ID resolves', () => {
         installSummaryContext({ chat: makeMessages(1) });
         expect(formatSnippetAnchor({ sourceMessageIds: ['missing'] })).toBe('');
+    });
+});
+
+describe('stripLeadingSnippetAnchor', () => {
+    it.each([
+        ['[12-34@2024-01-02T14] She left.', 'She left.'],
+        ['[msgs 12-34; current 2024-01-02 14] She left.', 'She left.'],
+        ['[12-34] [45-60@2024-01-03T09] She left.', 'She left.'],
+    ])('strips %s', (text, expected) => {
+        expect(stripLeadingSnippetAnchor(text)).toBe(expected);
+    });
+
+    it('leaves prose without an anchor untouched', () => {
+        expect(stripLeadingSnippetAnchor('She left.')).toBe('She left.');
     });
 });
 
