@@ -23,6 +23,11 @@ The single point every Snippet mutation passes through: apply the change, sync G
 Code: `commitSnippetMutation` (src/core/snippet-commit.js)
 _Avoid_: Snippet save
 
+**Snippet Anchor**:
+The read-time prefix a Snippet carries in a prompt or a promotion input: its first and last Chat Index plus its Scene Time, written `[A-B@YYYY-MM-DDTHH]` in one form everywhere. It is the only carrier of a year and an hour; narrative prose carries a date only where a relative word resolves or the scene day changes.
+Code: `formatCompactSnippetAnchor` (src/core/snippet-metadata.js)
+_Avoid_: message range header, chronology header
+
 **Chat Persistence**:
 The debounced scheduler that writes the chat file and chat metadata after an extension mutation, coalescing bursts and flushing on demand. It is the one runtime instance kept as a root-initialized holder rather than a threaded dependency (ADR-0031).
 Code: `persistChatState` / `flushPendingChatSave` (src/core/persist-state.js)
@@ -79,6 +84,11 @@ Code: `verbatimBudget` / `verbatimStartIdx` (src/core/chat-window-planner.js)
 The `<narrative>…</narrative>` tag pair a Layer 0 or promotion response must wrap its prose in, followed only by the scene-time line. The close tag is the document-level contract: prose after it is rejectable, whatever the prose claims to be.
 Code: `validateLayer0Structure` (src/core/layer0-compression.js)
 _Avoid_: narrative header, [NARRATIVE] header
+
+**Scene Time**:
+The calendar day and hour a Passage ends on, as the summarizer derives it and the Snippet stores it. It resolves the relative time words of that snippet's prose and renders as the Snippet Anchor.
+Code: `currentDateTime` (src/core/snippet-metadata.js)
+_Avoid_: timestamp, date header
 
 **Output Hygiene**:
 The chain that turns a raw summarizer response into safe snippet text: cleanup, CN ideograph policy, integrity guard, Refusal Guard, Layer 0 size guard.
@@ -236,6 +246,16 @@ _Avoid_: Stop guard, renderer freeze check
 One preset select plus prompt textarea pair, joined by a `(presetKey, settingKey)` binding. Picking a preset fills the textarea; editing the textarea flips the profile to `custom`.
 Code: `bindPromptProfiles` (src/entry/ui-prompts.js); defaults reset via `resetSettingsToDefaults` (src/foundation/settings.js)
 _Avoid_: prompt field, preset pair
+
+**Prompt Grammar**:
+The one dense convention every prompt Summaryception authors follows: `key: value` lines, `trigger -> replacement` for each ban, single lowercase root tags, single spaces between single-word items. Instruction prose carries no slash, plus, bare underscore, or all-caps bracket header; literals the pipeline parses keep their spelling (ADR-0032).
+Code: `src/foundation/prompt-constants.js`, assembler `src/foundation/prompt-parts.js`
+_Avoid_: prompt style, formatting rules
+
+**Recall Block**:
+The last message of a summarizer request: a per-family checklist of numbered one-line tasks the model answers before writing, then the volatile limits, then the execution trigger as its final line. It states almost no new rules; it makes the model visit the rules the system message already holds.
+Code: `src/foundation/prompt-parts.js`
+_Avoid_: chain of thought, reasoning prompt, CoT block
 
 **View Model**:
 A DOM-free plain-data model for one UI region (Context Budget bar, Trigger Gauge). Entry renders View Models; it never computes them.
