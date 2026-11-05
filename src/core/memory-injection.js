@@ -10,7 +10,7 @@ import { countTextTokens } from './token-count.js';
  */
 
 /**
- * The read model of what ships in the prompt slot: compact anchors,
+ * The read model of what ships in the prompt slot: the Snippet Anchor form,
  * template-wrapped, with the per-layer parts kept for cost display.
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
@@ -35,8 +35,8 @@ import { countTextTokens } from './token-count.js';
  */
 
 /**
- * The bare memory body handed to the summarizer as context: full anchors,
- * per-layer sections, never template-wrapped.
+ * The bare memory body handed to the summarizer as context: the same anchor
+ * form as the injection, per-layer sections, never template-wrapped.
  * @param {Array<Array<{ text: string }>>} layers
  * @returns {string}
  */
