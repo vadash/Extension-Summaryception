@@ -127,6 +127,18 @@ describe('summarizer request messages', () => {
         expect(request.recall).not.toContain('<budget>');
     });
 
+    it('carries an edited custom recall body into the recall message', async () => {
+        const request = await assemble({
+            settings: makeSummarySettings({
+                layer0RecallPreset: 'custom',
+                layer0RecallBody: 'custom recall sentinel\n1. answer this first.',
+            }),
+        });
+
+        expect(request.recall).toContain('custom recall sentinel');
+        expect(request.recall).toContain('1. answer this first.');
+    });
+
     it('renders the promotion repair reason in the recall limits', async () => {
         const request = await assemble({
             metadata: {

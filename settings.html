@@ -1051,6 +1051,24 @@
                         </label>
                         <textarea id="sc_summarizer_repair_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="summarizerRepairPrompt"></textarea>
                     </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_layer0_recall_preset">
+                            <span>Layer 0 Recall Preset</span>
+                        </label>
+                        <select id="sc_layer0_recall_preset" class="text_pole" data-sc-setting="layer0RecallPreset">
+                            <option value="narrative">Default</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="sc-row sc-prompt-secondary">
+                        <label for="sc_layer0_recall_body">
+                            <span>Layer 0 Recall Block</span>
+                            <small class="sc-hint">
+                                Closes the request; the sentence cap and the execution trigger stay automatic below it.
+                            </small>
+                        </label>
+                        <textarea id="sc_layer0_recall_body" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="layer0RecallBody"></textarea>
+                    </div>
                     </div>
                     <div class="sc-prompt-pane" role="tabpanel" data-sc-prompt-panel="promotion" hidden>
                     <small class="sc-help-text">Used when consolidating lower-layer memories into deeper meta-summaries.</small>
@@ -1110,6 +1128,24 @@
                             </small>
                         </label>
                         <textarea id="sc_promotion_repair_prompt" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="promotionRepairPrompt"></textarea>
+                    </div>
+                    <div class="sc-setting-row">
+                        <label for="sc_promotion_recall_preset">
+                            <span>Layer 1+ Recall Preset</span>
+                        </label>
+                        <select id="sc_promotion_recall_preset" class="text_pole" data-sc-setting="promotionRecallPreset">
+                            <option value="narrative">Default</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="sc-row sc-prompt-secondary">
+                        <label for="sc_promotion_recall_body">
+                            <span>Layer 1+ Recall Block</span>
+                            <small class="sc-hint">
+                                Closes the request; the sentence cap and the execution trigger stay automatic below it.
+                            </small>
+                        </label>
+                        <textarea id="sc_promotion_recall_body" class="text_pole sc-textarea sc-textarea-tall" rows="8" data-sc-setting="promotionRecallBody"></textarea>
                     </div>
                     </div>
                     <div class="sc-prompt-pane" role="tabpanel" data-sc-prompt-panel="auditor" hidden>

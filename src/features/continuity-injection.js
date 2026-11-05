@@ -1,4 +1,5 @@
 import { deriveContinuityCoverage } from '../core/continuity-coverage.js';
+import { AUDITOR_DISABLED } from '../foundation/auditor-switch.js';
 import { getChat, setExtensionPrompt } from '../foundation/context.js';
 import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../foundation/constants.js';
 import { trace, warn } from '../foundation/logger.js';
@@ -119,7 +120,12 @@ export function updateContinuityInjection({ rerollTail } = {}) {
         let text = '';
         let depth = 0;
         let drift = 0;
-        if (settings.enabled && settings.continuityEnabled === true && coverage.state) {
+        if (
+            !AUDITOR_DISABLED &&
+            settings.enabled &&
+            settings.continuityEnabled === true &&
+            coverage.state
+        ) {
             const block = formatContinuityBlock(coverage.state);
             if (block !== '') {
                 drift = coverage.unauditedIndices.length;
@@ -130,11 +136,13 @@ export function updateContinuityInjection({ rerollTail } = {}) {
         if (text === '') {
             const reason = !settings.enabled
                 ? 'extension off'
-                : settings.continuityEnabled !== true
-                  ? 'auditor off'
-                  : coverage.state
-                    ? 'state renders empty'
-                    : 'no checkpoint payload';
+                : AUDITOR_DISABLED
+                  ? 'auditor disabled'
+                  : settings.continuityEnabled !== true
+                    ? 'auditor off'
+                    : coverage.state
+                      ? 'state renders empty'
+                      : 'no checkpoint payload';
             trace(`Continuity slot cleared: ${reason}`);
             setExtensionPrompt(CONTINUITY_INJECTION_SLOT, '', {
                 position: EXTENSION_PROMPT_POSITIONS.NONE,

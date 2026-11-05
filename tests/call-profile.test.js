@@ -79,6 +79,37 @@ describe('resolveCallProfile prompts', () => {
             resolveCallProfile(promptSettings, { kind: 'auditor' }).policy.repairPromptTemplate,
         ).toBe('');
     });
+
+    it('freezes the resolved recall body into the policy', () => {
+        const settings = makeSummarySettings({
+            layer0RecallBody: 'L0-RECALL',
+            promotionRecallBody: 'PROMO-RECALL',
+        });
+
+        expect(resolveCallProfile(settings, { kind: 'layer0' }).policy.recallBody).toBe(
+            'L0-RECALL',
+        );
+        expect(resolveCallProfile(settings, { kind: 'promotion' }).policy.recallBody).toBe(
+            'PROMO-RECALL',
+        );
+        // A promotion repair dispatch keeps its frozen repair tasks.
+        const repair = resolveCallProfile(settings, {
+            kind: 'promotion',
+            promotionRepair: { rejectedSummary: 'draft' },
+        }).policy;
+        expect(repair.recallBody).toBe(repair.repairRecallBody);
+    });
+
+    it('falls back to the shipped recall body for a malformed setting', () => {
+        const broken = makeSummarySettings({ layer0RecallBody: 42, promotionRecallBody: null });
+
+        expect(resolveCallProfile(broken, { kind: 'layer0' }).policy.recallBody).toBe(
+            defaultSettings.layer0RecallBody,
+        );
+        expect(resolveCallProfile(broken, { kind: 'promotion' }).policy.recallBody).toBe(
+            defaultSettings.promotionRecallBody,
+        );
+    });
 });
 
 describe('resolveCallProfile route timeouts', () => {

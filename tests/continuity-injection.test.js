@@ -12,6 +12,10 @@ import {
 } from '../src/features/continuity-injection.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
+// These tests cover the renderer the temporary guard hides; auditor-guard
+// covers the guarded path.
+vi.mock('../src/foundation/auditor-switch.js', () => ({ AUDITOR_DISABLED: false }));
+
 function makeContinuity(overrides = {}) {
     return {
         turn_count: 12,

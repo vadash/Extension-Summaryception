@@ -253,8 +253,8 @@ Code: `src/foundation/prompt-constants.js`, assembler `src/foundation/prompt-par
 _Avoid_: prompt style, formatting rules
 
 **Recall Block**:
-The last message of a summarizer request: a per-family checklist of numbered one-line tasks the model answers before writing, then the volatile limits, then the execution trigger as its final line. It states almost no new rules; it makes the model visit the rules the system message already holds.
-Code: `src/foundation/prompt-parts.js`
+The last message of a summarizer request: a per-family checklist of numbered one-line tasks the model answers before writing, then the volatile limits, then the execution trigger as its final line. It states almost no new rules; it makes the model visit the rules the system message already holds. The body is an editable Prompt Profile per family; the limits and the trigger stay automatic.
+Code: `src/foundation/prompt-parts.js`; settings `layer0RecallBody` / `promotionRecallBody`
 _Avoid_: chain of thought, reasoning prompt, CoT block
 
 **View Model**:

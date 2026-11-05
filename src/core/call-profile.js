@@ -5,9 +5,7 @@ import {
     EXECUTION_TRIGGER_PROMO,
 } from '../foundation/prompt-parts.js';
 import {
-    LAYER0_RECALL_BODY,
     LAYER0_REPAIR_RECALL_BODY,
-    PROMOTION_RECALL_BODY,
     PROMOTION_REPAIR_RECALL_BODY,
 } from '../foundation/prompt-constants.js';
 import {
@@ -140,7 +138,7 @@ export function resolveCallProfile(settings, call = {}) {
                       defaultSettings.summarizerRepairPrompt,
                   )
                 : '',
-            recallBody: resolveRecallBody(call),
+            recallBody: resolveRecallBody(settings, call),
             repairRecallBody: resolveRepairRecallBody(call),
             triggerLine: resolveTriggerLine(call.kind),
             label: buildCallLabel(call),
@@ -226,22 +224,25 @@ function resolveUserPromptTemplate(settings, call) {
 }
 
 /**
- * The family's recall body: one constant per family, shared by the first
- * attempt and its repair retry. The Auditor carries none, so its request
- * stays two messages (ADR-0033). Slice 3 turns this into an editable pair.
+ * The family's recall body: the editable setting for the first attempt, the
+ * frozen repair tasks for a repair retry. The Auditor carries none, so its
+ * request stays two messages (ADR-0033).
+ * @param {ExtensionSettings} settings
  * @param {SummarizerCallMetadata} call
  * @returns {string}
  */
-function resolveRecallBody(call) {
+function resolveRecallBody(settings, call) {
     if (call.kind === 'promotion') {
         // A promotion repair dispatch picks its payload template here, so the
         // recall tasks follow the same switch.
-        return call.promotionRepair ? PROMOTION_REPAIR_RECALL_BODY : PROMOTION_RECALL_BODY;
+        return call.promotionRepair
+            ? PROMOTION_REPAIR_RECALL_BODY
+            : getStringSetting(settings.promotionRecallBody, defaultSettings.promotionRecallBody);
     }
     if (call.kind === 'auditor') {
         return '';
     }
-    return LAYER0_RECALL_BODY;
+    return getStringSetting(settings.layer0RecallBody, defaultSettings.layer0RecallBody);
 }
 
 /**

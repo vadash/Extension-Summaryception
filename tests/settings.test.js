@@ -181,6 +181,21 @@ describe('resetSettingsToDefaults', () => {
         expect(s.promotionSystemPrompt).toBe('kept custom text');
     });
 
+    it('resets both recall profiles and keeps custom recall text untouched', () => {
+        const s = settingsFor();
+        s.layer0RecallPreset = 'narrative';
+        s.layer0RecallBody = 'edited recall body';
+        s.promotionRecallPreset = 'custom';
+        s.promotionRecallBody = 'kept custom recall';
+
+        resetSettingsToDefaults();
+
+        expect(s.layer0RecallPreset).toBe(defaultSettings.layer0RecallPreset);
+        expect(s.layer0RecallBody).toBe(defaultSettings.layer0RecallBody);
+        expect(s.promotionRecallPreset).toBe('custom');
+        expect(s.promotionRecallBody).toBe('kept custom recall');
+    });
+
     it('copies default arrays instead of aliasing them', () => {
         const s = settingsFor();
         s.stripPatterns.push('extra-pattern');

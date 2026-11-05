@@ -123,3 +123,54 @@ describe('normalizeSettings', () => {
         expect(budget.minSummaryBudget).toBeLessThanOrEqual(budget.maxL0SourceTokens);
     });
 });
+
+describe('normalizeSettings recall profiles', () => {
+    it('defaults both recall pairs when the stored preset is invalid', () => {
+        const { settings, changed } = normalize({
+            layer0RecallPreset: 'bogus',
+            layer0RecallBody: 'drifted layer0 text',
+            promotionRecallPreset: 'also-bogus',
+            promotionRecallBody: 'drifted promotion text',
+        });
+
+        expect(changed).toBe(true);
+        expect(settings.layer0RecallPreset).toBe(defaultSettings.layer0RecallPreset);
+        expect(settings.layer0RecallBody).toBe(defaultSettings.layer0RecallBody);
+        expect(settings.promotionRecallPreset).toBe(defaultSettings.promotionRecallPreset);
+        expect(settings.promotionRecallBody).toBe(defaultSettings.promotionRecallBody);
+    });
+
+    it('forces the preset text over drifted text for a valid non-custom preset', () => {
+        const { settings } = normalize({
+            layer0RecallPreset: 'narrative',
+            layer0RecallBody: 'stale shipped copy',
+            promotionRecallPreset: 'narrative',
+            promotionRecallBody: 'stale shipped copy',
+        });
+
+        expect(settings.layer0RecallBody).toBe(defaultSettings.layer0RecallBody);
+        expect(settings.promotionRecallBody).toBe(defaultSettings.promotionRecallBody);
+    });
+
+    it('keeps non-blank custom recall text and defaults a blank custom body', () => {
+        const kept = normalize({
+            layer0RecallPreset: 'custom',
+            layer0RecallBody: 'my recall checklist',
+            promotionRecallPreset: 'custom',
+            promotionRecallBody: 'my promotion checklist',
+        }).settings;
+        expect(kept.layer0RecallBody).toBe('my recall checklist');
+        expect(kept.promotionRecallBody).toBe('my promotion checklist');
+
+        const blank = normalize({
+            layer0RecallPreset: 'custom',
+            layer0RecallBody: '   ',
+            promotionRecallPreset: 'custom',
+            promotionRecallBody: '',
+        }).settings;
+        expect(blank.layer0RecallPreset).toBe(defaultSettings.layer0RecallPreset);
+        expect(blank.layer0RecallBody).toBe(defaultSettings.layer0RecallBody);
+        expect(blank.promotionRecallPreset).toBe(defaultSettings.promotionRecallPreset);
+        expect(blank.promotionRecallBody).toBe(defaultSettings.promotionRecallBody);
+    });
+});

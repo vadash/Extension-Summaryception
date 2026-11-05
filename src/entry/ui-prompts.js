@@ -1,7 +1,9 @@
 import {
     AUDITOR_PROMPT_PRESETS,
     AUDITOR_SYSTEM_PROMPT_PRESETS,
+    LAYER0_RECALL_PRESETS,
     PROMOTION_PROMPT_PRESETS,
+    PROMOTION_RECALL_PRESETS,
     PROMOTION_REPAIR_PROMPT_PRESETS,
     PROMOTION_SYSTEM_PROMPT_PRESETS,
     PROMPT_PRESETS,
@@ -30,6 +32,11 @@ const PROMPT_FIELD_UI = {
         textarea: '#sc_summarizer_repair_prompt',
         presets: SUMMARIZER_REPAIR_PROMPT_PRESETS,
     },
+    layer0RecallPreset: {
+        presetSelect: '#sc_layer0_recall_preset',
+        textarea: '#sc_layer0_recall_body',
+        presets: LAYER0_RECALL_PRESETS,
+    },
     promotionSystemPromptPreset: {
         presetSelect: '#sc_promotion_system_prompt_preset',
         textarea: '#sc_promotion_system_prompt',
@@ -44,6 +51,11 @@ const PROMPT_FIELD_UI = {
         presetSelect: '#sc_promotion_repair_prompt_preset',
         textarea: '#sc_promotion_repair_prompt',
         presets: PROMOTION_REPAIR_PROMPT_PRESETS,
+    },
+    promotionRecallPreset: {
+        presetSelect: '#sc_promotion_recall_preset',
+        textarea: '#sc_promotion_recall_body',
+        presets: PROMOTION_RECALL_PRESETS,
     },
     auditorSystemPromptPreset: {
         presetSelect: '#sc_auditor_system_prompt_preset',

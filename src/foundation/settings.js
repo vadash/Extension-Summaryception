@@ -6,10 +6,12 @@ import {
     PROMOTION_PROMPT_PRESETS,
     PROMOTION_REPAIR_PROMPT_PRESETS,
     PROMOTION_SYSTEM_PROMPT_PRESETS,
+    PROMOTION_RECALL_PRESETS,
     PROMPT_PRESETS,
     PROMPT_SETTING_KEYS,
     SUMMARIZER_REPAIR_PROMPT_PRESETS,
     SUMMARIZER_SYSTEM_PROMPT_PRESETS,
+    LAYER0_RECALL_PRESETS,
     defaultSettings,
 } from './constants.js';
 import { getExtensionSettings, saveSettingsDebounced } from './context.js';
@@ -91,9 +93,11 @@ const PROMPT_PRESET_TABLES = Object.freeze({
     summarizerSystemPromptPreset: SUMMARIZER_SYSTEM_PROMPT_PRESETS,
     promptPreset: PROMPT_PRESETS,
     summarizerRepairPromptPreset: SUMMARIZER_REPAIR_PROMPT_PRESETS,
+    layer0RecallPreset: LAYER0_RECALL_PRESETS,
     promotionSystemPromptPreset: PROMOTION_SYSTEM_PROMPT_PRESETS,
     promotionPromptPreset: PROMOTION_PROMPT_PRESETS,
     promotionRepairPromptPreset: PROMOTION_REPAIR_PROMPT_PRESETS,
+    promotionRecallPreset: PROMOTION_RECALL_PRESETS,
     auditorSystemPromptPreset: AUDITOR_SYSTEM_PROMPT_PRESETS,
     auditorPromptPreset: AUDITOR_PROMPT_PRESETS,
 });

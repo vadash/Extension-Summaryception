@@ -14,6 +14,10 @@ import {
     makeSummaryStore,
 } from './test-helpers.js';
 
+// These tests cover the lifecycle the temporary guard hides; auditor-guard
+// covers the guarded path.
+vi.mock('../src/foundation/auditor-switch.js', () => ({ AUDITOR_DISABLED: false }));
+
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
 /** The dispatch stand-in the auditor receives; returns the outcome the real request layer would. */

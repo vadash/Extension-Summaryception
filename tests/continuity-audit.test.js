@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createContinuityAuditor, isAuditorTriggerMessage } from '../src/core/continuity-audit.js';
 import { makeMessage, makeSummaryStore } from './test-helpers.js';
 
+// These tests cover the lifecycle the temporary guard hides; auditor-guard
+// covers the guarded path.
+vi.mock('../src/foundation/auditor-switch.js', () => ({ AUDITOR_DISABLED: false }));
+
 /**
  * The audit reads the world through its arguments and its injected
  * dependencies, so these tests need neither an installed SillyTavern

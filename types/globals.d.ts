@@ -128,6 +128,10 @@ interface ExtensionSettings {
     auditorSystemPrompt: string;
     auditorPromptPreset: string;
     auditorUserPrompt: string;
+    layer0RecallPreset: string;
+    layer0RecallBody: string;
+    promotionRecallPreset: string;
+    promotionRecallBody: string;
     promptPreset: string;
     applyRegexScripts: boolean;
     promotionPromptPreset: string;

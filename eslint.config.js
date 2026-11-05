@@ -68,6 +68,7 @@ export default [
                 { type: 'context', pattern: 'src/foundation/context.js' },
                 { type: 'logger', pattern: 'src/foundation/logger.js' },
                 { type: 'retry', pattern: 'src/foundation/retry.js' },
+                { type: 'constants', pattern: 'src/foundation/auditor-switch.js' },
                 {
                     type: 'state',
                     pattern: ['src/foundation/settings.js', 'src/foundation/chat-store.js'],

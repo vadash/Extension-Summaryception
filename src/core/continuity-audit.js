@@ -1,4 +1,5 @@
 import { LOG_PREFIX, listNonEmptyLayers } from '../foundation/constants.js';
+import { AUDITOR_DISABLED } from '../foundation/auditor-switch.js';
 import {
     isContinuityStateLogEnabled,
     isContinuityStateLogFullEnabled,
@@ -86,6 +87,9 @@ async function runAudit(
     { chat, store, settings, hasGroup, playerName, rerollTail, notify = silentAdapter },
     { dispatch, saveChatStore, refreshPreview, getChat },
 ) {
+    if (AUDITOR_DISABLED) {
+        return { status: 'idle' };
+    }
     if (!isAuditEligible(settings, hasGroup)) {
         return { status: 'idle' };
     }

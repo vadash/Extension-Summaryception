@@ -8,6 +8,8 @@ import {
     DEFAULT_SUMMARIZER_REPAIR_PROMPT,
     DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
     DEFAULT_SUMMARIZER_USER_PROMPT,
+    LAYER0_RECALL_BODY,
+    PROMOTION_RECALL_BODY,
 } from './prompt-constants.js';
 
 export { RECALL_REPEAT_INJECTION_TEMPLATE } from './prompt-constants.js';
@@ -255,13 +257,17 @@ export const defaultSettings = Object.freeze({
     promotionRepairPrompt: DEFAULT_PROMOTION_REPAIR_PROMPT,
     auditorSystemPrompt: DEFAULT_AUDITOR_SYSTEM_PROMPT,
     auditorUserPrompt: DEFAULT_AUDITOR_USER_PROMPT,
+    layer0RecallBody: LAYER0_RECALL_BODY,
+    promotionRecallBody: PROMOTION_RECALL_BODY,
 
     summarizerSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
     promptPreset: 'narrative', // 'narrative' | 'custom'
     summarizerRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
+    layer0RecallPreset: 'narrative', // 'narrative' | 'custom'
     promotionSystemPromptPreset: 'narrative', // 'narrative' | 'custom'
     promotionPromptPreset: 'narrative', // 'narrative' | 'custom'
     promotionRepairPromptPreset: 'narrative', // 'narrative' | 'custom'
+    promotionRecallPreset: 'narrative', // 'narrative' | 'custom'
     auditorSystemPromptPreset: 'continuity', // 'continuity' | 'custom'
     auditorPromptPreset: 'continuity', // 'continuity' | 'custom'
     applyRegexScripts: true, // true = apply ST's regex scripts to passage text before summarizing
@@ -331,6 +337,11 @@ export const SUMMARIZER_REPAIR_PROMPT_PRESETS = {
     custom: null,
 };
 
+export const LAYER0_RECALL_PRESETS = {
+    narrative: defaultSettings.layer0RecallBody,
+    custom: null, // Uses whatever is in the textarea
+};
+
 export const PROMOTION_PROMPT_PRESETS = {
     narrative: defaultSettings.promotionUserPrompt,
     custom: null, // Uses whatever is in the textarea
@@ -344,6 +355,11 @@ export const PROMOTION_SYSTEM_PROMPT_PRESETS = {
 export const PROMOTION_REPAIR_PROMPT_PRESETS = {
     narrative: defaultSettings.promotionRepairPrompt,
     custom: null,
+};
+
+export const PROMOTION_RECALL_PRESETS = {
+    narrative: defaultSettings.promotionRecallBody,
+    custom: null, // Uses whatever is in the textarea
 };
 
 export const AUDITOR_PROMPT_PRESETS = {
@@ -360,8 +376,9 @@ export const DEFAULT_PROMPT_PRESET = 'narrative';
 export const DEFAULT_PROMOTION_PROMPT_PRESET = 'narrative';
 
 /**
- * The eight (presetKey, settingKey) prompt pairs shared by persistence
- * normalization and the prompt UI bindings. Order defines UI field order.
+ * The ten (presetKey, settingKey) prompt pairs shared by persistence
+ * normalization and the prompt UI bindings. Order defines UI field order, so
+ * a family's recall pair sits after its payload pair.
  * @type {ReadonlyArray<{ presetKey: string, settingKey: string }>}
  */
 export const PROMPT_SETTING_KEYS = Object.freeze([
@@ -374,6 +391,7 @@ export const PROMPT_SETTING_KEYS = Object.freeze([
         presetKey: 'summarizerRepairPromptPreset',
         settingKey: 'summarizerRepairPrompt',
     }),
+    Object.freeze({ presetKey: 'layer0RecallPreset', settingKey: 'layer0RecallBody' }),
     Object.freeze({
         presetKey: 'promotionSystemPromptPreset',
         settingKey: 'promotionSystemPrompt',
@@ -383,6 +401,7 @@ export const PROMPT_SETTING_KEYS = Object.freeze([
         presetKey: 'promotionRepairPromptPreset',
         settingKey: 'promotionRepairPrompt',
     }),
+    Object.freeze({ presetKey: 'promotionRecallPreset', settingKey: 'promotionRecallBody' }),
     Object.freeze({
         presetKey: 'auditorSystemPromptPreset',
         settingKey: 'auditorSystemPrompt',
