@@ -88,29 +88,29 @@ describe('buildSizeTargetLine', () => {
 describe('buildSizeConstraintsBlock', () => {
     it('wraps the target and repair lines between matching tags', () => {
         const result = buildSizeConstraintsBlock({
-            wrapperTag: 'summaryception_promotion_constraints',
+            wrapperTag: 'limits',
             targetLine: 'L',
             repairLine: 'R',
         });
-        expect(result.startsWith('<summaryception_promotion_constraints>\nL')).toBe(true);
-        expect(result).toContain('R</summaryception_promotion_constraints>');
-        expect(result.endsWith('</summaryception_promotion_constraints>')).toBe(true);
+        expect(result.startsWith('<limits>\nL')).toBe(true);
+        expect(result).toContain('R</limits>');
+        expect(result.endsWith('</limits>')).toBe(true);
     });
 
     it('still closes the wrapper when the repair line is omitted', () => {
         const result = buildSizeConstraintsBlock({
-            wrapperTag: 'summaryception_promotion_constraints',
+            wrapperTag: 'limits',
             targetLine: 'L',
         });
-        expect(result.endsWith('</summaryception_promotion_constraints>')).toBe(true);
+        expect(result.endsWith('</limits>')).toBe(true);
     });
 });
 
 describe('buildLayer0BudgetHint', () => {
-    it('wraps the narrative sentence cap and never leaks token figures', () => {
+    it('wraps the narrative sentence cap and carries no token figures', () => {
         const result = buildLayer0BudgetHint({ targetTokens: 250 });
-        expect(result).toContain('<summaryception_source_budget>');
-        expect(result).toContain('</summaryception_source_budget>');
+        expect(result).toContain('<budget>');
+        expect(result).toContain('</budget>');
         expect(result).toContain('<narrative>');
         expect(result).toContain('sentences');
         expect(result).not.toContain('[STATE]');

@@ -105,7 +105,7 @@ describe('appendLayer0PromptConstraints', () => {
             settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
-        expect(result).toContain('<summaryception_source_budget>');
+        expect(result).toContain('<budget>');
         expect(result).toContain('<narrative>');
         expect(result).not.toContain('[STATE]');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
@@ -130,7 +130,7 @@ describe('appendLayer0PromptConstraints', () => {
             settings,
             resolveCallProfile(settings, { kind: 'layer0', sourceRange: [5] }),
         );
-        expect(result).not.toContain('covers chat messages');
+        expect(result).not.toContain('passage range:');
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
     });
 
@@ -155,8 +155,8 @@ describe('buildLayer0SizeRepairFeedback', () => {
             outputTokens: 500,
             bounds,
         });
-        expect(output).toContain('<summaryception_l0_repair_feedback>');
-        expect(output).toContain('</summaryception_l0_repair_feedback>');
+        expect(output).toContain('<feedback>');
+        expect(output).toContain('</feedback>');
         expect(output).toContain('<narrative>');
         // The repair ask names the narrative section only, so no state
         // section may appear in the feedback.
@@ -170,8 +170,9 @@ describe('buildLayer0SizeRepairFeedback', () => {
             bounds,
         });
         // The synthesized narrative section carries no text, so it appears as a
-        // rejection header line rather than a <rejected_narrative> body block.
+        // rejection header line rather than a <rejected> body block.
         expect(output).toContain('<narrative>: rejected.');
+        expect(output).not.toContain('<rejected>');
     });
 });
 

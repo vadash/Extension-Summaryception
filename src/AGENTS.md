@@ -41,7 +41,7 @@
 
 ## Prompt
 
-- Prompt sections have a fixed order: input, schema, task rules, critical rules, trigger.
+- Prompt sections have a fixed order: `<in>`, `<out>`, `<task>`, `<rules>`, trigger.
 - The bare imperative trigger is the final prompt line.
 - Insert dynamic budget and repair blocks above the trigger.
 - Budget hints use countable units such as sentences and lines.

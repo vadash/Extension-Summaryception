@@ -100,10 +100,10 @@ export function buildMemoryInjectionParts(layers, { compactAnchors = false } = {
     }
 
     const chronologyParts = collectChronologyParts(layers, compactAnchors);
+    // The injection template legend names the section, so the body carries no heading.
     const chronologyText = chronologyParts.map((part) => part.text).join('\n');
-    const memoryText = chronologyText ? `[CHRONOLOGY]\n${chronologyText}` : '';
 
-    return { chronologyParts, chronologyText, memoryText };
+    return { chronologyParts, chronologyText, memoryText: chronologyText };
 }
 
 /**

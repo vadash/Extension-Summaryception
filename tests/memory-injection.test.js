@@ -10,7 +10,7 @@ import {
 import { countTextTokens } from '../src/core/token-count.js';
 
 describe('buildMemoryInjectionParts', () => {
-    it('joins per-layer chronology sections under [CHRONOLOGY]', () => {
+    it('joins per-layer chronology sections with no heading of its own', () => {
         const layers = [
             [{ text: 'The party reached the tavern.' }],
             [{ text: 'The ferry crossed at dawn.' }],
@@ -18,10 +18,10 @@ describe('buildMemoryInjectionParts', () => {
 
         const parts = buildMemoryInjectionParts(layers);
 
-        expect(parts.memoryText).toContain('[CHRONOLOGY]');
         expect(parts.memoryText).toContain('The party reached the tavern.');
         expect(parts.memoryText).toContain('The ferry crossed at dawn.');
-        expect(parts.memoryText).toBe(`[CHRONOLOGY]\n${parts.chronologyText}`);
+        // The injection template legend names the section; the body adds no heading.
+        expect(parts.memoryText).toBe(parts.chronologyText);
     });
 
     it('reports chronology parts tagged by layer index, deepest first', () => {
@@ -66,7 +66,7 @@ describe('buildInjection', () => {
             injectionTemplate: 'A {{summary}} B {{summary}} C',
         });
 
-        const memoryText = '[CHRONOLOGY]\nsome memory';
+        const memoryText = 'some memory';
         const occurrences = injection.text.split(memoryText).length - 1;
         expect(occurrences).toBe(2);
     });
@@ -122,8 +122,7 @@ describe('buildMemoryBody', () => {
     it('returns the bare memory text with no template wrapping', () => {
         const body = buildMemoryBody([[{ text: 'The party reached the tavern.' }]]);
 
-        expect(body).toContain('[CHRONOLOGY]');
-        expect(body).toContain('The party reached the tavern.');
+        expect(body).toBe('The party reached the tavern.');
     });
 
     it('is the memory body of the same parts builder', () => {

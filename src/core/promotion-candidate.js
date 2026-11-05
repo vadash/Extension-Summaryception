@@ -252,7 +252,7 @@ function rejectPromotionSize({
     tooShort,
 }) {
     const diagnostics = buildRepairDiagnostics({
-        scope: 'Layer 1+ promotion',
+        scope: 'Layer 1 and deeper promotion',
         totalTokens: outputTokens.count,
         sections: [
             {

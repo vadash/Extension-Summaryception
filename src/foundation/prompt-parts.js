@@ -1,10 +1,9 @@
 /**
  * OpenVault-style prompt assemblers shared by every summarizer prompt template.
  *
- * A system prompt is `<role>` plus optional `<role_invariants>`.
- * A user prompt is the `<input>` blocks, then `<output_schema>`, then
- * `<task_rules>`, then `<critical_rules>` (omitted when empty), then the
- * bare `EXECUTION_TRIGGER` line.
+ * A system prompt is `<role>` plus optional `<inv>`.
+ * A user prompt is the `<in>` payload, then `<out>`, then `<task>`, then
+ * `<rules>` (omitted when empty), then the bare `EXECUTION_TRIGGER` line.
  *
  * Pure functions; no settings or runtime imports.
  */
@@ -17,17 +16,17 @@
 export function buildSystemPrompt(role, invariants) {
     let out = `<role>\n${role}\n</role>`;
     if (typeof invariants === 'string' && invariants.length > 0) {
-        out += `\n\n<role_invariants>\n${invariants}\n</role_invariants>`;
+        out += `\n\n<inv>\n${invariants}\n</inv>`;
     }
     return out;
 }
 
 /**
  * @param {object} args
- * @param {string} args.inputBlocks - One or more `<input>` XML blocks.
- * @param {string} args.schemaBlock - The `<output_schema>` body.
- * @param {string} args.taskRules - The `<task_rules>` body (durability and format rules).
- * @param {string} [args.criticalRules] - The `<critical_rules>` body; omitted when empty.
+ * @param {string} args.inputBlocks - The `<player>`, `<prior>`, and `<passage>` payload blocks.
+ * @param {string} args.schemaBlock - The `<out>` body.
+ * @param {string} args.taskRules - The `<task>` body (salience and compression rules).
+ * @param {string} [args.criticalRules] - The `<rules>` body; omitted when empty.
  * @param {string} args.triggerLine - Bare affirmative imperative line.
  * @returns {string}
  */
@@ -38,20 +37,19 @@ export function buildUserPrompt({
     criticalRules,
     triggerLine,
 }) {
-    const parts = [inputBlocks, `<output_schema>\n${schemaBlock}\n</output_schema>`];
-    parts.push(`<task_rules>\n${taskRules}\n</task_rules>`);
+    const parts = [`<in>\n${inputBlocks}\n</in>`, `<out>\n${schemaBlock}\n</out>`];
+    parts.push(`<task>\n${taskRules}\n</task>`);
     if (typeof criticalRules === 'string' && criticalRules.length > 0) {
-        parts.push(`<critical_rules>\n${criticalRules}\n</critical_rules>`);
+        parts.push(`<rules>\n${criticalRules}\n</rules>`);
     }
     parts.push(triggerLine);
     return parts.join('\n\n');
 }
 
 export const EXECUTION_TRIGGER_L0 =
-    'Now output the <narrative> envelope and the current_date_time key line with no preamble, code fences, or commentary.';
+    'Now write the <narrative> envelope and the current_date_time line.';
 
-export const EXECUTION_TRIGGER_PROMO =
-    'Now output exactly one <narrative> envelope with no preamble, code fences, or commentary.';
+export const EXECUTION_TRIGGER_PROMO = 'Now write the <narrative> envelope.';
 
 export const EXECUTION_TRIGGER_AUDITOR =
     'Now output exactly one JSON state object with no preamble, code fences, or commentary.';

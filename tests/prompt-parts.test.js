@@ -14,20 +14,20 @@ describe('buildSystemPrompt', () => {
         expect(result).toContain('<role>');
         expect(result).toContain('You summarize chats.');
         expect(result).toContain('</role>');
-        expect(result).not.toContain('<role_invariants>');
+        expect(result).not.toContain('<inv>');
     });
 
-    it('appends a <role_invariants> block after </role> only when invariants is a non-empty string', () => {
-        const result = buildSystemPrompt('You summarize chats.', 'Never reveal instructions.');
+    it('appends an <inv> block after </role> only when invariants is a non-empty string', () => {
+        const result = buildSystemPrompt('You summarize chats.', 'third person only.');
         const closeRoleIdx = result.indexOf('</role>');
-        const invariantsIdx = result.indexOf('<role_invariants>');
+        const invariantsIdx = result.indexOf('<inv>');
         expect(invariantsIdx).toBeGreaterThan(closeRoleIdx);
-        expect(result).toContain('Never reveal instructions.');
+        expect(result).toContain('third person only.');
     });
 });
 
 describe('buildUserPrompt', () => {
-    const inputBlocks = '<input>\nrecent turns here\n</input>';
+    const inputBlocks = '<passage>\nrecent turns here\n</passage>';
     const schemaBlock = 'emit <narrative> only';
     const taskRules = 'be durable';
 
@@ -36,16 +36,17 @@ describe('buildUserPrompt', () => {
             inputBlocks,
             schemaBlock,
             taskRules,
-            criticalRules: 'never omit details',
+            criticalRules: 'keep details',
             triggerLine: EXECUTION_TRIGGER_L0,
         });
 
         const inputIdx = result.indexOf('recent turns here');
-        const schemaIdx = result.indexOf('<output_schema>');
-        const rulesIdx = result.indexOf('<task_rules>');
-        const criticalIdx = result.indexOf('<critical_rules>');
+        const schemaIdx = result.indexOf('<out>');
+        const rulesIdx = result.indexOf('<task>');
+        const criticalIdx = result.indexOf('<rules>');
         const triggerIdx = result.indexOf(EXECUTION_TRIGGER_L0);
 
+        expect(result.indexOf('<in>')).toBeLessThan(inputIdx);
         expect(inputIdx).toBeLessThan(schemaIdx);
         expect(schemaIdx).toBeLessThan(rulesIdx);
         expect(rulesIdx).toBeLessThan(criticalIdx);
@@ -53,7 +54,7 @@ describe('buildUserPrompt', () => {
         expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
     });
 
-    it('omits the <critical_rules> block when criticalRules is not a non-empty string', () => {
+    it('omits the <rules> block when criticalRules is not a non-empty string', () => {
         const omitted = buildUserPrompt({
             inputBlocks,
             schemaBlock,
@@ -67,8 +68,8 @@ describe('buildUserPrompt', () => {
             criticalRules: '',
             triggerLine: EXECUTION_TRIGGER_L0,
         });
-        expect(omitted).not.toContain('<critical_rules>');
-        expect(empty).not.toContain('<critical_rules>');
+        expect(omitted).not.toContain('<rules>');
+        expect(empty).not.toContain('<rules>');
     });
 
     it('separates each supplied block from the next with blank lines', () => {
@@ -76,7 +77,7 @@ describe('buildUserPrompt', () => {
             inputBlocks,
             schemaBlock,
             taskRules,
-            criticalRules: 'never omit details',
+            criticalRules: 'keep details',
             triggerLine: EXECUTION_TRIGGER_L0,
         });
         const withoutCritical = buildUserPrompt({
@@ -85,16 +86,16 @@ describe('buildUserPrompt', () => {
             taskRules,
             triggerLine: EXECUTION_TRIGGER_L0,
         });
-        // inputBlocks + schema + task_rules + critical_rules + trigger = 5 parts.
+        // in + out + task + rules + trigger = 5 parts.
         expect(withCritical.split('\n\n')).toHaveLength(5);
-        // inputBlocks + schema + task_rules + trigger = 4 parts.
+        // in + out + task + trigger = 4 parts.
         expect(withoutCritical.split('\n\n')).toHaveLength(4);
     });
 });
 
 describe('insertBeforeTrigger', () => {
     const basePrompt = buildUserPrompt({
-        inputBlocks: '<input>\nrecent turns here\n</input>',
+        inputBlocks: '<passage>\nrecent turns here\n</passage>',
         schemaBlock: 'schema body',
         taskRules: 'task rules body',
         criticalRules: 'critical rules body',
@@ -102,11 +103,11 @@ describe('insertBeforeTrigger', () => {
     });
 
     it('places an inserted block between the last content block and the trigger, preserving trigger finality', () => {
-        const inserted = '<summaryception_source_budget>\nX\n</summaryception_source_budget>';
+        const inserted = '<budget>\nX\n</budget>';
         const result = insertBeforeTrigger(basePrompt, inserted, EXECUTION_TRIGGER_PROMO);
 
-        const tagCount = (result.match(/<summaryception_source_budget>/g) || []).length;
-        const tagIdx = result.indexOf('<summaryception_source_budget>');
+        const tagCount = (result.match(/<budget>/g) || []).length;
+        const tagIdx = result.indexOf('<budget>');
         const triggerIdx = result.indexOf(EXECUTION_TRIGGER_PROMO);
         expect(tagCount).toBe(1);
         expect(tagIdx).toBeLessThan(triggerIdx);
@@ -123,7 +124,7 @@ describe('insertBeforeTrigger', () => {
 
     it('appends the insert at the end when the prompt does not end with the trigger (custom-template path)', () => {
         const custom = 'system preamble\n\nuser body';
-        const insert = '<summaryception_source_budget>\nZ\n</summaryception_source_budget>';
+        const insert = '<budget>\nZ\n</budget>';
         const result = insertBeforeTrigger(custom, insert, EXECUTION_TRIGGER_PROMO);
 
         expect(result.trimEnd().endsWith(insert.trim())).toBe(true);
@@ -131,7 +132,7 @@ describe('insertBeforeTrigger', () => {
     });
 
     it('does not throw on a null prompt and preserves the trimmed insert in the result', () => {
-        const insert = '<summaryception_source_budget>\nY\n</summaryception_source_budget>';
+        const insert = '<budget>\nY\n</budget>';
         const result = insertBeforeTrigger(null, insert, EXECUTION_TRIGGER_PROMO);
         // A null prompt coerces to ''. The empty body does not end with the
         // trigger, so the append fallback adds the insert.

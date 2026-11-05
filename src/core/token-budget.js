@@ -83,15 +83,15 @@ export function buildSizeConstraintsBlock({ wrapperTag, targetLine, repairLine =
 export function buildLayer0BudgetHint({ targetTokens }) {
     const sentenceCap = computeSentenceCap('l0', targetTokens);
     return [
-        '<summaryception_source_budget>',
-        'Compress the source passage hard.',
+        '<budget>',
+        'source: compress the passage hard.',
         buildSizeTargetLine({
             label: '<narrative>',
             verb: 'write',
             cap: sentenceCap,
             unit: 'sentences',
         }),
-        '</summaryception_source_budget>',
+        '</budget>',
     ].join('\n');
 }
 

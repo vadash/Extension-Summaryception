@@ -74,7 +74,7 @@ describe('buildRepairDiagnostics', () => {
         const output = formatRepairDiagnostics(diagnostics);
         expect(output).toContain('JSON object: rejected.');
         expect(output).toContain('JSON object repair: emit JSON only.');
-        expect(output).not.toContain('<rejected_parse>');
+        expect(output).not.toContain('<rejected>');
     });
 
     it('defaults id from id -> name -> "section" and label from label -> id -> name -> "Section"', () => {
@@ -148,29 +148,20 @@ describe('getReductionGuidance', () => {
 });
 
 describe('formatRepairDiagnostics', () => {
-    it('wraps the body in the default wrapper tag and references the scope', () => {
+    it('wraps the body in the shared feedback wrapper and references the scope', () => {
         const diagnostics = buildRepairDiagnostics({ scope: 'Layer 0', sections: [] });
         const output = formatRepairDiagnostics(diagnostics);
-        expect(output.startsWith('<summaryception_repair_feedback>')).toBe(true);
-        expect(output.trimEnd().endsWith('</summaryception_repair_feedback>')).toBe(true);
+        expect(output.startsWith('<feedback>')).toBe(true);
+        expect(output.trimEnd().endsWith('</feedback>')).toBe(true);
         expect(output).toContain('Layer 0');
-    });
-
-    it('honors a custom wrapperTag', () => {
-        const diagnostics = buildRepairDiagnostics({ sections: [] });
-        const output = formatRepairDiagnostics(diagnostics, { wrapperTag: 'custom_tag' });
-        expect(output).toContain('<custom_tag>');
-        expect(output).toContain('</custom_tag>');
     });
 
     it('appends instructions inside the wrapper before closing it', () => {
         const diagnostics = buildRepairDiagnostics({ sections: [] });
         const output = formatRepairDiagnostics(diagnostics, {
-            instructions: ['Rewrite only rejected sections.'],
+            instructions: ['rewrite: rejected sections only.'],
         });
-        expect(output).toContain(
-            'Rewrite only rejected sections.\n</summaryception_repair_feedback>',
-        );
+        expect(output).toContain('rewrite: rejected sections only.\n</feedback>');
     });
 
     it('emits rejected blocks and repair instructions for failing sections, skipping empty text', () => {
@@ -188,25 +179,15 @@ describe('formatRepairDiagnostics', () => {
             ],
         });
         const output = formatRepairDiagnostics(diagnostics);
-        expect(output).toContain('<rejected_long>');
+        expect(output).toContain('<rejected>');
         expect(output).toContain('too much prose');
-        expect(output).toContain('</rejected_long>');
+        expect(output).toContain('</rejected>');
         expect(output).toContain('<narrative> repair: cut it down');
-        expect(output).not.toContain('<rejected_empty>');
+        // One failing section carries text, so exactly one body block appears.
+        expect((output.match(/<rejected>/g) || []).length).toBe(1);
     });
 
-    it('honors a custom rejectedSectionTagPrefix', () => {
-        const diagnostics = buildRepairDiagnostics({
-            sections: [{ id: 'long', actualTokens: 200, hardMaxTokens: 100, text: 'body' }],
-        });
-        const output = formatRepairDiagnostics(diagnostics, {
-            rejectedSectionTagPrefix: 'bad_',
-        });
-        expect(output).toContain('<bad_long>');
-        expect(output).toContain('</bad_long>');
-    });
-
-    it('emits preserve directives and blocks for passing sections with text or a preservation instruction', () => {
+    it('emits preserve directives and input blocks for passing sections with text or a preservation instruction', () => {
         const diagnostics = buildRepairDiagnostics({
             sections: [
                 { id: 'keep', label: '<narrative>', actualTokens: 10, text: 'keep me' },
@@ -219,24 +200,24 @@ describe('formatRepairDiagnostics', () => {
             ],
         });
         const output = formatRepairDiagnostics(diagnostics);
-        expect(output).toContain('Preserve <narrative> unchanged');
-        expect(output).toContain('<preserve_keep>');
+        expect(output).toContain('preserve: <narrative> unchanged.');
         expect(output).toContain('keep me');
-        expect(output).toContain('Preserve Note unchanged: verbatim');
+        expect(output).toContain('preserve: Note unchanged, verbatim');
+        expect((output.match(/<in>/g) || []).length).toBe(1);
     });
 
-    it('emits the rejected_draft block only when rejectedDraft is truthy and there are no violations', () => {
+    it('emits the rejected draft block only when rejectedDraft is truthy and there are no violations', () => {
         const clean = buildRepairDiagnostics({
             rejectedDraft: 'whole draft',
             sections: [{ id: 'ok', actualTokens: 10 }],
         });
-        expect(formatRepairDiagnostics(clean)).toContain('<rejected_draft>');
+        expect(formatRepairDiagnostics(clean)).toContain('<rejected>\nwhole draft');
 
         const withViolation = buildRepairDiagnostics({
             rejectedDraft: 'whole draft',
             sections: [{ id: 'long', actualTokens: 200, hardMaxTokens: 100 }],
         });
-        expect(formatRepairDiagnostics(withViolation)).not.toContain('<rejected_draft>');
+        expect(formatRepairDiagnostics(withViolation)).not.toContain('<rejected>');
     });
 });
 

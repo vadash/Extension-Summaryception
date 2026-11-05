@@ -95,11 +95,9 @@ export function buildLayer0SizeRepairFeedback({ diagnostics, reason, outputToken
             ],
         });
     return formatRepairDiagnostics(resolvedDiagnostics, {
-        wrapperTag: 'summaryception_l0_repair_feedback',
-        rejectedSectionTagPrefix: 'rejected_',
         instructions: [
-            'Aim for each section soft target, not merely its hard maximum. Rewrite only the rejected section or sections. Reproduce every preserved section exactly.',
-            'Output exactly one <narrative> envelope.',
+            'target: each section soft target, ahead of its hard maximum.',
+            'rewrite: the rejected sections only; every preserved section reproduced exactly.',
         ],
     });
 }
@@ -306,9 +304,9 @@ function buildLayer0SourceRangeLine(metadata = {}) {
         return '';
     }
     return (
-        `This passage covers chat messages ${range[0]}-${range[1]}. ` +
-        `Message ${range[1]} is the latest summarized message. ` +
-        'current_date_time must be the scene time at the end of that message.\n'
+        `passage range: chat messages ${range[0]}-${range[1]}.\n` +
+        `latest summarized message: ${range[1]}.\n` +
+        `current_date_time: the scene time at the end of message ${range[1]}.\n`
     );
 }
 
@@ -334,16 +332,15 @@ function appendPromotionPromptConstraints(prompt, settings, metadata = {}) {
     const repairLine = buildPromotionRepairLine(metadata, targetTokens);
 
     const block = buildSizeConstraintsBlock({
-        wrapperTag: 'summaryception_promotion_constraints',
+        wrapperTag: 'limits',
         targetLine,
         repairLine,
     });
     return insertBeforeTrigger(withSchemaCap, block, EXECUTION_TRIGGER_PROMO);
 }
 
-// Small cardinals for dual-framing the sentence cap in <output_schema>
-// (e.g. "AT MOST five (5)"). The lookup falls back to the digit for larger
-// values.
+// Small cardinals for dual-framing the sentence cap in <out> (e.g. "at most
+// five (5) sentences"). The lookup falls back to the digit for larger values.
 const SENTENCE_CAP_WORDS = [
     'zero',
     'one',
@@ -380,7 +377,7 @@ function fillSentenceCapPlaceholders(prompt, sentenceCap) {
  */
 function buildPromotionTargetExtra(metadata) {
     return Number(metadata.layerIndex) >= 1
-        ? 'This is a deep-layer fold: merge whole scenes into single outcome sentences; do not replay beats.'
+        ? 'Deep-layer fold: whole scenes merge into single outcome sentences; beat replay is cut.'
         : '';
 }
 
@@ -397,7 +394,7 @@ function buildPromotionRepairLine(metadata = {}, sliderTargetTokens) {
     const diagnostics =
         repair.diagnostics ||
         buildRepairDiagnostics({
-            scope: 'Layer 1+ promotion',
+            scope: 'Layer 1 and deeper promotion',
             totalTokens: outputTokens,
             sections: [
                 {
@@ -417,15 +414,12 @@ function buildPromotionRepairLine(metadata = {}, sliderTargetTokens) {
             ],
             rejectedDraft: rejected,
         });
-    const feedback = formatRepairDiagnostics(diagnostics, {
-        wrapperTag: 'summaryception_promotion_repair_feedback',
-        rejectedSectionTagPrefix: 'rejected_promotion_',
-    });
+    const feedback = formatRepairDiagnostics(diagnostics);
 
     if (tooShort) {
         return (
-            'Repair task: the rejected narrative over-merged and dropped durable beats. Expand the fold.\n' +
-            'Restore the dropped durable events, agreements, position changes, and unresolved hooks while keeping macro-level prose.\n' +
+            'repair: the rejected narrative over-merged and dropped durable beats. Expand the fold.\n' +
+            'restore: the dropped durable events, agreements, position changes, and unresolved hooks, in macro-level prose.\n' +
             feedback +
             '\n'
         );
@@ -439,12 +433,12 @@ function buildPromotionRepairLine(metadata = {}, sliderTargetTokens) {
         Number.isFinite(hardMaxTokens) &&
         outputTokens > hardMaxTokens &&
         sentences > 0
-            ? `Draft contained ${sentences} sentences; the limit is ${sentenceCap}. Delete at least ${Math.max(1, sentences - sentenceCap)} sentences. Output at most ${sentenceCap} sentences total.`
+            ? `draft: ${sentences} sentences, limit ${sentenceCap}. cut: at least ${Math.max(1, sentences - sentenceCap)} of them. output: at most ${sentenceCap} sentences total.`
             : '';
     return (
-        'Repair task: rewrite the rejected narrative toward the sentence cap.\n' +
+        'repair: rewrite the rejected narrative toward the sentence cap.\n' +
         (overMsg ? overMsg + '\n' : '') +
-        'Keep only macro-level durable chronology, current position, relationship/state changes, permanent rules, and unresolved hooks.\n' +
+        'keep: macro-level durable chronology, current position, relationship and state changes, permanent rules, and unresolved hooks.\n' +
         feedback +
         '\n'
     );

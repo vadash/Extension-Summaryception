@@ -62,35 +62,25 @@ export function getReductionGuidance(actualTokens, targetTokens) {
  * Render diagnostics for a prompt adapter while keeping the data contract shared.
  * @param {object} diagnostics
  * @param {object} [options]
- * @param {string} [options.wrapperTag]
- * @param {string} [options.rejectedSectionTagPrefix]
  * @param {string[]} [options.instructions]
  * @returns {string}
  */
-export function formatRepairDiagnostics(
-    diagnostics,
-    {
-        wrapperTag = 'summaryception_repair_feedback',
-        rejectedSectionTagPrefix = 'rejected_',
-        instructions = [],
-    } = {},
-) {
-    const wrapper = String(wrapperTag);
+export function formatRepairDiagnostics(diagnostics, { instructions = [] } = {}) {
     const source = diagnostics || {};
     const failing = (source.violations || []).filter(Boolean);
     const passing = (source.sections || []).filter((section) => !section.violation);
     const lines = [
-        `<${wrapper}>`,
-        `The previous ${source.scope || 'compression'} draft failed output validation.`,
+        '<feedback>',
+        `previous ${source.scope || 'compression'} draft: failed output validation.`,
     ];
 
     appendFailingRepairInstructions(lines, failing);
-    appendRejectedSectionBlocks(lines, failing, rejectedSectionTagPrefix);
+    appendRejectedSectionBlocks(lines, failing);
     appendPassingSectionGuidance(lines, passing);
     appendRejectedDraftFallback(lines, source, failing);
     lines.push(...instructions.filter(Boolean));
 
-    lines.push('</' + wrapper + '>');
+    lines.push('</feedback>');
     return lines.join('\n');
 }
 /**
@@ -113,7 +103,7 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
             const cap = computeSentenceCap(sourceBudget.layer ?? 'l0', sourceBudget.targetTokens);
             if (actual > cap) {
                 lines.push(
-                    `Your <narrative> section had ${actual} sentences; maximum ${cap}. Merge or drop the ${actual - cap} least-important.`,
+                    `narrative: ${actual} sentences, maximum ${cap}. cut: ${actual - cap} of the least important, merged or dropped.`,
                 );
             }
         }
@@ -178,13 +168,13 @@ function appendFailingRepairInstructions(lines, failing) {
     }
 }
 
-function appendRejectedSectionBlocks(lines, failing, prefix) {
+function appendRejectedSectionBlocks(lines, failing) {
     for (const section of failing) {
         const text = section.text.trim();
         if (!text) {
             continue;
         }
-        lines.push(`<${prefix}${section.id}>`, text, `</${prefix}${section.id}>`);
+        lines.push('<rejected>', text, '</rejected>');
     }
 }
 
@@ -195,10 +185,11 @@ function appendPassingSectionGuidance(lines, passing) {
             continue;
         }
         lines.push(
-            `Preserve ${section.label} unchanged${section.preservationInstruction ? `: ${section.preservationInstruction}` : '.'}`,
+            `preserve: ${section.label} unchanged${section.preservationInstruction ? `, ${section.preservationInstruction}` : '.'}`,
         );
         if (text) {
-            lines.push(`<preserve_${section.id}>`, text, `</preserve_${section.id}>`);
+            // Reference text handed back as input, so the retry can reproduce it.
+            lines.push('<in>', text, '</in>');
         }
     }
 }
@@ -212,6 +203,6 @@ function resolveSectionIdentity(section) {
 
 function appendRejectedDraftFallback(lines, source, failing) {
     if (source.rejectedDraft && failing.length === 0) {
-        lines.push('<rejected_draft>', source.rejectedDraft.trim(), '</rejected_draft>');
+        lines.push('<rejected>', source.rejectedDraft.trim(), '</rejected>');
     }
 }

@@ -12,16 +12,13 @@ import { makeSummarySettings, makeSummaryStore } from './test-helpers.js';
  * token counts below are string lengths of the assembled chronology.
  */
 
-const CHRONOLOGY_HEADER = '[CHRONOLOGY]\n';
-
 function snip(text) {
     return { text };
 }
 
 function totalTokens(layers) {
     const active = layers.filter((layer) => Array.isArray(layer) && layer.length > 0);
-    return `${CHRONOLOGY_HEADER}${active.map((layer) => layer.map((s) => s.text.trim()).join('\n')).join('\n')}`
-        .length;
+    return active.map((layer) => layer.map((s) => s.text.trim()).join('\n')).join('\n').length;
 }
 
 describe('buildPromotionPlan', () => {
@@ -38,7 +35,7 @@ describe('buildPromotionPlan', () => {
                     quota: 6000,
                     tokens: 81,
                     count: 2,
-                    totalTokens: 135,
+                    totalTokens: 122,
                     tokenBudgetExceeded: false,
                 },
                 {
@@ -46,7 +43,7 @@ describe('buildPromotionPlan', () => {
                     quota: 3000,
                     tokens: 40,
                     count: 1,
-                    totalTokens: 135,
+                    totalTokens: 122,
                     tokenBudgetExceeded: false,
                 },
             ],
@@ -54,7 +51,7 @@ describe('buildPromotionPlan', () => {
             candidate: null,
             retentionFloorViolated: false,
         });
-        expect(totalTokens([shallow, deep])).toBe(135);
+        expect(totalTokens([shallow, deep])).toBe(122);
     });
 
     it('drops the Layer 0 quota and skips empty layers when deep layers are active', async () => {
@@ -70,7 +67,7 @@ describe('buildPromotionPlan', () => {
                     quota: 5000,
                     tokens: 40,
                     count: 1,
-                    totalTokens: 94,
+                    totalTokens: 81,
                     tokenBudgetExceeded: false,
                 },
                 {
@@ -78,7 +75,7 @@ describe('buildPromotionPlan', () => {
                     quota: 2000,
                     tokens: 40,
                     count: 1,
-                    totalTokens: 94,
+                    totalTokens: 81,
                     tokenBudgetExceeded: false,
                 },
             ],
@@ -86,7 +83,7 @@ describe('buildPromotionPlan', () => {
             candidate: null,
             retentionFloorViolated: false,
         });
-        expect(totalTokens([shallow, [], deepest])).toBe(94);
+        expect(totalTokens([shallow, [], deepest])).toBe(81);
     });
 
     it('returns no quotas for an empty store', async () => {
@@ -138,7 +135,7 @@ describe('buildPromotionPlan', () => {
                     quota: 6000,
                     tokens: 5024,
                     count: 25,
-                    totalTokens: 15042,
+                    totalTokens: 15029,
                     tokenBudgetExceeded: true,
                 },
                 {
@@ -146,7 +143,7 @@ describe('buildPromotionPlan', () => {
                     quota: 3000,
                     tokens: 10004,
                     count: 5,
-                    totalTokens: 15042,
+                    totalTokens: 15029,
                     tokenBudgetExceeded: true,
                 },
             ],
@@ -169,7 +166,7 @@ describe('buildPromotionPlan', () => {
                     quota: 6000,
                     tokens: 401,
                     count: 2,
-                    totalTokens: 10419,
+                    totalTokens: 10406,
                     tokenBudgetExceeded: true,
                 },
                 {
@@ -177,7 +174,7 @@ describe('buildPromotionPlan', () => {
                     quota: 3000,
                     tokens: 10004,
                     count: 5,
-                    totalTokens: 10419,
+                    totalTokens: 10406,
                     tokenBudgetExceeded: true,
                 },
             ],
@@ -220,7 +217,7 @@ describe('buildPromotionPlan', () => {
                     quota: 24,
                     tokens: 1119,
                     count: 4,
-                    totalTokens: 1132,
+                    totalTokens: 1119,
                     tokenBudgetExceeded: true,
                 },
             ],
@@ -243,7 +240,7 @@ describe('buildPromotionPlan', () => {
                     quota: 24,
                     tokens: 559,
                     count: 2,
-                    totalTokens: 572,
+                    totalTokens: 559,
                     tokenBudgetExceeded: true,
                 },
             ],
