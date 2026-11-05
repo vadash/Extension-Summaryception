@@ -1,5 +1,16 @@
 import { defaultSettings, UI_MODES } from '../foundation/constants.js';
 import {
+    EXECUTION_TRIGGER_AUDITOR,
+    EXECUTION_TRIGGER_L0,
+    EXECUTION_TRIGGER_PROMO,
+} from '../foundation/prompt-parts.js';
+import {
+    LAYER0_RECALL_BODY,
+    LAYER0_REPAIR_RECALL_BODY,
+    PROMOTION_RECALL_BODY,
+    PROMOTION_REPAIR_RECALL_BODY,
+} from '../foundation/prompt-constants.js';
+import {
     AUDITOR_CHAIN,
     CONNECTION_ROUTES,
     NARRATIVE_CHAIN,
@@ -34,8 +45,11 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * or the live settings object.
  * @typedef {object} CallProfilePolicy
  * @property {string} systemPrompt - System prompt sent to the summarizer
- * @property {string} userPromptTemplate - User prompt template before substitution
- * @property {string} repairPromptTemplate - Template for the in-series Layer 0 repair retry; '' when the family has none
+ * @property {string} userPromptTemplate - Payload template before substitution
+ * @property {string} repairPromptTemplate - Payload template for the in-series repair retry; '' when the family has none
+ * @property {string} recallBody - Static recall body: compliance, leash, numbered tasks
+ * @property {string} repairRecallBody - Recall body of the in-series repair retry; '' when the family has none
+ * @property {string} triggerLine - Execution trigger closing the recall message
  * @property {string} label - Human-readable call label for usage and prompt logs
  * @property {'layer0' | 'l1plus'} healthBucket - Primary retry health bucket for this call family
  * @property {CallProfileRoute[]} routes - Ordered failover series; the request runner walks it in order
@@ -126,6 +140,9 @@ export function resolveCallProfile(settings, call = {}) {
                       defaultSettings.summarizerRepairPrompt,
                   )
                 : '',
+            recallBody: resolveRecallBody(call),
+            repairRecallBody: resolveRepairRecallBody(call),
+            triggerLine: resolveTriggerLine(call.kind),
             label: buildCallLabel(call),
             healthBucket: isPromotion ? HEALTH_BUCKETS.l1plus : HEALTH_BUCKETS.layer0,
             routes: resolveRouteSeries(settings, call.kind),
@@ -206,6 +223,57 @@ function resolveUserPromptTemplate(settings, call) {
         return getStringSetting(settings.auditorUserPrompt, defaultSettings.auditorUserPrompt);
     }
     return getStringSetting(settings.summarizerUserPrompt, defaultSettings.summarizerUserPrompt);
+}
+
+/**
+ * The family's recall body: one constant per family, shared by the first
+ * attempt and its repair retry. The Auditor carries none, so its request
+ * stays two messages (ADR-0033). Slice 3 turns this into an editable pair.
+ * @param {SummarizerCallMetadata} call
+ * @returns {string}
+ */
+function resolveRecallBody(call) {
+    if (call.kind === 'promotion') {
+        // A promotion repair dispatch picks its payload template here, so the
+        // recall tasks follow the same switch.
+        return call.promotionRepair ? PROMOTION_REPAIR_RECALL_BODY : PROMOTION_RECALL_BODY;
+    }
+    if (call.kind === 'auditor') {
+        return '';
+    }
+    return LAYER0_RECALL_BODY;
+}
+
+/**
+ * The repair recall body answers the same tasks with the failure first; only
+ * the Layer 0 family has a repair retry.
+ * @param {SummarizerCallMetadata} call
+ * @returns {string}
+ */
+function resolveRepairRecallBody(call) {
+    if (call.kind === 'promotion') {
+        return PROMOTION_REPAIR_RECALL_BODY;
+    }
+    if (call.kind === 'auditor') {
+        return '';
+    }
+    return LAYER0_REPAIR_RECALL_BODY;
+}
+
+/**
+ * The execution trigger is per family and never user-editable: the vocabulary
+ * it names is the output contract the validator enforces.
+ * @param {string} [kind]
+ * @returns {string}
+ */
+function resolveTriggerLine(kind) {
+    if (kind === 'promotion') {
+        return EXECUTION_TRIGGER_PROMO;
+    }
+    if (kind === 'auditor') {
+        return EXECUTION_TRIGGER_AUDITOR;
+    }
+    return EXECUTION_TRIGGER_L0;
 }
 
 /**

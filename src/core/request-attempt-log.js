@@ -56,6 +56,7 @@ function getAttemptLogStatus(result) {
  * @param {number} p.durationMs
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - User prompt sent to the summarizer
+ * @param {string} p.recall - The recall message closing the request
  * @param {string} p.cleanedResult - Cleaned summary text
  * @param {Error | null} p.error - Attempt error
  * @returns {void}
@@ -68,6 +69,7 @@ export function logLlmAttemptTransaction({
     durationMs,
     systemPrompt,
     prompt,
+    recall,
     cleanedResult,
     error: attemptError,
 }) {
@@ -92,6 +94,7 @@ export function logLlmAttemptTransaction({
                         attempt,
                         systemPrompt,
                         prompt,
+                        recall,
                     }),
                     null,
                     2,
@@ -126,18 +129,23 @@ export function logLlmAttemptTransaction({
  * @param {number} p.attempt
  * @param {string} p.systemPrompt
  * @param {string} p.prompt
+ * @param {string} p.recall
  * @returns {object}
  */
-function buildLlmInputLog({ label, routeLabel, attempt, systemPrompt, prompt }) {
+function buildLlmInputLog({ label, routeLabel, attempt, systemPrompt, prompt, recall }) {
+    const messages = [
+        { role: 'system', content: systemPrompt || '' },
+        { role: 'user', content: prompt || '' },
+    ];
+    if (recall) {
+        messages.push({ role: 'user', content: recall });
+    }
     return {
         type: 'summaryception.llm.input.v1',
         label,
         route: routeLabel,
         attempt: attempt + 1,
-        messages: [
-            { role: 'system', content: systemPrompt || '' },
-            { role: 'user', content: prompt || '' },
-        ],
+        messages,
     };
 }
 

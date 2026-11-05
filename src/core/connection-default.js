@@ -10,22 +10,28 @@ export const DefaultProvider = {
     // parameter. Timeout and Stop can only abandon the orphaned HTTP request.
     // Forward the signal when SillyTavern's GenerateRawParams gains one.
     cancellable: false,
-    async generate({ settings, systemPrompt, userPrompt }) {
-        return await sendViaDefault(systemPrompt, userPrompt, settings.summarizerResponseLength);
+    async generate({ settings, systemPrompt, userPrompt, recall }) {
+        return await sendViaDefault(
+            systemPrompt,
+            userPrompt,
+            settings.summarizerResponseLength,
+            recall,
+        );
     },
 };
 
 /**
  * Uses ST's built-in generateRaw(), which routes through the active connection.
  * @param {string} systemPrompt
- * @param {string} userPrompt
+ * @param {string} userPrompt - The payload message
  * @param {number} responseLength
+ * @param {string} [recall] - The recall message; appended as the last user turn
  * @returns {Promise<string>}
  */
-export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
+export async function sendViaDefault(systemPrompt, userPrompt, responseLength, recall = '') {
     /** @type {GenerateRawOptions} */
     const options = {
-        prompt: [{ role: 'user', content: userPrompt }],
+        prompt: buildRequestMessages(userPrompt, recall),
         systemPrompt,
         trimNames: false,
     };
@@ -55,4 +61,20 @@ export async function sendViaDefault(systemPrompt, userPrompt, responseLength) {
     }
 
     return result;
+}
+
+/**
+ * The user turns of one request: the payload, then the recall message when the
+ * call family carries one.
+ * @param {string} userPrompt
+ * @param {string} [recall]
+ * @returns {Array<{ role: 'user', content: string }>}
+ */
+function buildRequestMessages(userPrompt, recall) {
+    /** @type {Array<{ role: 'user', content: string }>} */
+    const messages = [{ role: 'user', content: userPrompt }];
+    if (recall) {
+        messages.push({ role: 'user', content: recall });
+    }
+    return messages;
 }

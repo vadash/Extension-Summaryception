@@ -8,13 +8,7 @@ import {
 } from './repair-diagnostics.js';
 import { parseNarrativeEnvelope } from './structural-headers.js';
 import {
-    insertBeforeTrigger,
-    EXECUTION_TRIGGER_L0,
-    EXECUTION_TRIGGER_PROMO,
-} from '../foundation/prompt-parts.js';
-import {
-    buildLayer0BudgetHint,
-    buildSizeConstraintsBlock,
+    LAYER0_BUDGET_HINT,
     buildSizeTargetLine,
     computeSentenceCap,
     getSourceTokenCount,
@@ -269,33 +263,87 @@ function rejectLayer0Size(diagnostics, sourceBudget = {}) {
 }
 
 /**
- * Add non-persisted compression constraints to the final prompt.
- * @param {string} prompt
+ * Build the payload-side provenance fragments for a compression call: the
+ * budget hint and the source-range lines. Numbers stay out of these; the
+ * sentence cap belongs to the recall limits.
  * @param {Partial<ExtensionSettings>} settings
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
- * @returns {string}
+ * @returns {string} Empty when the call carries no compression contract
  */
-export function appendLayer0PromptConstraints(prompt, settings, profile) {
-    if (!profile?.policy?.compression) {
-        return prompt;
-    }
-
-    if (profile.policy.promotionConstraints) {
-        return appendPromotionPromptConstraints(prompt, settings, profile.provenance);
+export function buildCompressionPayloadFragments(settings, profile) {
+    if (!profile?.policy?.compression || profile.policy.promotionConstraints) {
+        return '';
     }
 
     const sizeGuard = profile.policy.sizeGuard;
     if (!sizeGuard) {
-        return prompt;
+        return '';
     }
 
-    const insert = [
-        buildLayer0BudgetHint({ targetTokens: sizeGuard.target }),
-        buildLayer0SourceRangeLine(profile.provenance),
-    ]
+    return [LAYER0_BUDGET_HINT, buildLayer0SourceRangeLine(profile.provenance)]
         .filter(Boolean)
         .join('\n\n');
-    return insertBeforeTrigger(prompt, insert, EXECUTION_TRIGGER_L0);
+}
+
+/**
+ * Build the volatile lines of the recall `limits:` section: the sentence cap
+ * for both families, and the promotion repair reason when the attempt carries
+ * one. Everything here changes per call; the system message never does.
+ * @param {Partial<ExtensionSettings>} settings
+ * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
+ * @returns {string[]}
+ */
+export function buildCompressionLimits(settings, profile) {
+    if (!profile?.policy?.compression) {
+        return [];
+    }
+
+    if (profile.policy.promotionConstraints) {
+        return buildPromotionLimits(settings, profile.provenance);
+    }
+
+    const sizeGuard = profile.policy.sizeGuard;
+    if (!sizeGuard) {
+        return [];
+    }
+    return [
+        buildSizeTargetLine({
+            label: '<narrative>',
+            verb: 'write',
+            cap: computeSentenceCap('l0', sizeGuard.target),
+            unit: 'sentences',
+        }),
+    ];
+}
+
+/**
+ * @param {Partial<ExtensionSettings>} settings
+ * @param {import('./call-profile.js').SummarizerCallMetadata} metadata
+ * @returns {string[]}
+ */
+function buildPromotionLimits(settings, metadata = {}) {
+    const targetTokens = getLayer0SummaryTokenTarget(settings);
+    const layerIndex = Number(metadata.layerIndex);
+    const sentenceCap = computeSentenceCap(layerIndex >= 1 ? 'l2' : 'l1', targetTokens);
+    const targetLine = buildSizeTargetLine({
+        label: '<narrative>',
+        verb: 'merge into',
+        cap: sentenceCap,
+        unit: 'sentences',
+        extra: buildPromotionTargetExtra(metadata),
+    });
+    return splitLimitLines([targetLine, buildPromotionRepairLine(metadata, targetTokens)]);
+}
+
+/**
+ * @param {Array<string>} lines
+ * @returns {string[]}
+ */
+function splitLimitLines(lines) {
+    return lines
+        .flatMap((line) => String(line || '').split('\n'))
+        .map((line) => line.trimEnd())
+        .filter(Boolean);
 }
 
 function buildLayer0SourceRangeLine(metadata = {}) {
@@ -308,65 +356,6 @@ function buildLayer0SourceRangeLine(metadata = {}) {
         `latest summarized message: ${range[1]}.\n` +
         `current_date_time: the scene time at the end of message ${range[1]}.\n`
     );
-}
-
-/**
- * @param {string} prompt
- * @param {Partial<ExtensionSettings>} settings
- * @param {import('./call-profile.js').SummarizerCallMetadata} metadata
- * @returns {string}
- */
-function appendPromotionPromptConstraints(prompt, settings, metadata = {}) {
-    const targetTokens = getLayer0SummaryTokenTarget(settings);
-    const layerIndex = Number(metadata.layerIndex);
-    const sentenceCap = computeSentenceCap(layerIndex >= 1 ? 'l2' : 'l1', targetTokens);
-    const withSchemaCap = fillSentenceCapPlaceholders(prompt, sentenceCap);
-
-    const targetLine = buildSizeTargetLine({
-        label: '<narrative>',
-        verb: 'merge into',
-        cap: sentenceCap,
-        unit: 'sentences',
-        extra: buildPromotionTargetExtra(metadata),
-    });
-    const repairLine = buildPromotionRepairLine(metadata, targetTokens);
-
-    const block = buildSizeConstraintsBlock({
-        wrapperTag: 'limits',
-        targetLine,
-        repairLine,
-    });
-    return insertBeforeTrigger(withSchemaCap, block, EXECUTION_TRIGGER_PROMO);
-}
-
-// Small cardinals for dual-framing the sentence cap in <out> (e.g. "at most
-// five (5) sentences"). The lookup falls back to the digit for larger values.
-const SENTENCE_CAP_WORDS = [
-    'zero',
-    'one',
-    'two',
-    'three',
-    'four',
-    'five',
-    'six',
-    'seven',
-    'eight',
-    'nine',
-    'ten',
-];
-
-/**
- * Replace {{max_sentences}} / {{max_sentences_word}} schema placeholders with
- * the computed cap. No-op when the template omits them (e.g. repair prompt).
- * @param {string} prompt
- * @param {number} sentenceCap
- * @returns {string}
- */
-function fillSentenceCapPlaceholders(prompt, sentenceCap) {
-    const word = SENTENCE_CAP_WORDS[sentenceCap] || String(sentenceCap);
-    return prompt
-        .replaceAll('{{max_sentences_word}}', word)
-        .replaceAll('{{max_sentences}}', String(sentenceCap));
 }
 
 /**

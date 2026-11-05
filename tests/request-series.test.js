@@ -40,6 +40,8 @@ describe('Call Session runSeries outcomes', () => {
         const session = createAttemptSession({
             prompt: 'prompt',
             repairPrompt: 'repair',
+            recall: 'recall',
+            repairRecall: 'repair recall',
             signal: new AbortController().signal,
             profile: resolvedProfile,
             notify: makeNotifyRecorder(),
@@ -71,6 +73,8 @@ describe('Call Session runSeries outcomes', () => {
         expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledOnce();
         const call = connectionMocks.sendSummarizerRequest.mock.calls[0][0];
         expect(call.userPrompt).toBe('prompt');
+        // The recall message closes the request, after the payload.
+        expect(call.recall).toBe('recall');
         // The system prompt comes from the frozen Call Profile, not the params.
         expect(call.systemPrompt).toBe(profile.policy.systemPrompt);
         expect(call.settings).toBe(route.connection);
@@ -90,8 +94,28 @@ describe('Call Session runSeries outcomes', () => {
         expect(result.attempts).toBe(2);
         expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
         const repairCall = connectionMocks.sendSummarizerRequest.mock.calls[1][0];
-        // The retry consumed the repair prompt, not the original user prompt.
-        expect(repairCall.userPrompt.startsWith('repair')).toBe(true);
+        // The retry consumed the repair payload and its own recall message.
+        expect(repairCall.userPrompt).toBe('repair');
+        expect(repairCall.recall).toBe('repair recall');
+    });
+
+    it('lands the attempt feedback inside the recall block, above its limits', async () => {
+        vi.useFakeTimers();
+        const repairRecall =
+            '<recall>\nretry tasks\nlimits:\n<narrative>: write at most 3 sentences.\n</recall>\nNow write it.';
+        connectionMocks.sendSummarizerRequest
+            .mockResolvedValueOnce('location: dock')
+            .mockResolvedValueOnce(VALID_SUMMARY);
+
+        const pending = runSeries({ repairRecall });
+        await vi.runAllTimersAsync();
+        const result = await pending;
+
+        expect(result.status).toBe('completed');
+        const repairCall = connectionMocks.sendSummarizerRequest.mock.calls[1][0];
+        // A structural rejection reports no size feedback, so the recall block
+        // survives unchanged and keeps its trigger final.
+        expect(repairCall.recall).toBe(repairRecall);
     });
 
     it('stops with guard-stopped when the Easy context guard rejects the prompt', async () => {

@@ -1,7 +1,8 @@
 import { getName1 } from '../foundation/context.js';
 import { isTraceEnabled, trace } from '../foundation/logger.js';
+import { buildRecallBlock } from '../foundation/prompt-parts.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
-import { appendLayer0PromptConstraints } from './layer0-compression.js';
+import { buildCompressionLimits, buildCompressionPayloadFragments } from './layer0-compression.js';
 import { resolveCallProfile } from './call-profile.js';
 import { countTextTokens, formatTokenCount } from './token-count.js';
 
@@ -14,11 +15,18 @@ import { countTextTokens, formatTokenCount } from './token-count.js';
  */
 
 /**
- * Resolve the call profile once at dispatch and render its prompts. The
+ * @typedef {object} SummarizerRequestMessages
+ * @property {string} systemPrompt - The static system message for the family
+ * @property {string} payload - The first user message: `<in>` plus provenance fragments
+ * @property {string} recall - The last user message: recall body, limits, execution trigger
+ */
+
+/**
+ * Resolve the call profile once at dispatch and render its three messages. The
  * returned profile is frozen policy: the runner consumes it instead of
  * re-deriving per-attempt decisions from the live settings.
  * @param {SummarizerPipelineInputRequest} request
- * @returns {Promise<{ prompt: string, repairPrompt: string, profile: import('./call-profile.js').CallProfile }>}
+ * @returns {Promise<{ prompt: string, repairPrompt: string, systemPrompt: string, recall: string, repairRecall: string, profile: import('./call-profile.js').CallProfile }>}
  */
 export async function buildSummarizerPipelineInput({
     storyTxt,
@@ -28,26 +36,26 @@ export async function buildSummarizerPipelineInput({
 }) {
     const call = await buildUsageMetadata(metadata, storyTxt);
     const profile = resolveCallProfile(settings, call);
-    const prompt = buildSummarizerPrompt({
-        template: profile.policy.userPromptTemplate,
+    const substituted = substitutePlaceholders(profile.policy.userPromptTemplate, {
         storyTxt,
         contextStr,
-        settings,
-        profile,
     });
-    const repairPrompt = profile.policy.repairPromptTemplate
-        ? buildSummarizerPrompt({
-              template: profile.policy.repairPromptTemplate,
-              storyTxt,
-              contextStr,
-              settings,
-              profile,
-          })
-        : '';
 
+    // repairPrompt is the Layer 0 family's own retry template; promotion's
+    // repair retry swaps the recall tasks and keeps the same payload.
+    const repairTemplate = profile.policy.repairPromptTemplate;
     return {
-        prompt,
-        repairPrompt,
+        prompt: buildPayloadMessage(substituted, settings, profile),
+        repairPrompt: repairTemplate
+            ? buildPayloadMessage(
+                  substitutePlaceholders(repairTemplate, { storyTxt, contextStr }),
+                  settings,
+                  profile,
+              )
+            : '',
+        systemPrompt: profile.policy.systemPrompt,
+        recall: buildRecallMessage(profile.policy.recallBody, settings, profile),
+        repairRecall: buildRecallMessage(profile.policy.repairRecallBody, settings, profile),
         profile,
     };
 }
@@ -110,19 +118,44 @@ function hasSourceTokenMetadata(metadata = {}) {
 }
 
 /**
- * @param {object} p
- * @param {string} p.template - User prompt template
- * @param {string} p.storyTxt - Story text
- * @param {string} p.contextStr - Context text
- * @param {ExtensionSettings} p.settings - Active settings
- * @param {import('./call-profile.js').CallProfile} p.profile - Resolved call profile
+ * Fill the payload placeholders. replaceAll on purpose: every occurrence is
+ * replaced, because user templates may repeat one.
+ * @param {string} template
+ * @param {{ storyTxt: string, contextStr: string }} values
  * @returns {string}
  */
-function buildSummarizerPrompt({ template, storyTxt, contextStr, settings, profile }) {
-    // replaceAll on purpose: every placeholder occurrence is replaced; user templates may repeat one.
-    const prompt = template
+function substitutePlaceholders(template, { storyTxt, contextStr }) {
+    return template
         .replaceAll('{{player_name}}', getName1())
         .replaceAll('{{context_str}}', contextStr || '(none yet)')
         .replaceAll('{{story_txt}}', storyTxt);
-    return appendLayer0PromptConstraints(prompt, settings, profile);
+}
+
+/**
+ * The first user message: the substituted payload plus the call's provenance
+ * fragments (budget hint, source range).
+ * @param {string} template
+ * @param {ExtensionSettings} settings
+ * @param {import('./call-profile.js').CallProfile} profile
+ * @returns {string}
+ */
+function buildPayloadMessage(template, settings, profile) {
+    const fragments = buildCompressionPayloadFragments(settings, profile);
+    return fragments ? `${template.trimEnd()}\n\n${fragments}` : template;
+}
+
+/**
+ * The last user message: the family's recall body, the volatile limits, and
+ * the execution trigger on the final line.
+ * @param {string} body
+ * @param {ExtensionSettings} settings
+ * @param {import('./call-profile.js').CallProfile} profile
+ * @returns {string}
+ */
+function buildRecallMessage(body, settings, profile) {
+    return buildRecallBlock({
+        body,
+        limits: buildCompressionLimits(settings, profile),
+        triggerLine: profile.policy.triggerLine,
+    });
 }

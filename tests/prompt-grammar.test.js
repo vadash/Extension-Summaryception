@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
-    appendLayer0PromptConstraints,
+    buildCompressionLimits,
+    buildCompressionPayloadFragments,
     buildLayer0SizeRepairFeedback,
 } from '../src/core/layer0-compression.js';
 import {
@@ -10,11 +11,8 @@ import {
     buildStructuralRepairFeedback,
     formatRepairDiagnostics,
 } from '../src/core/repair-diagnostics.js';
-import {
-    buildLayer0BudgetHint,
-    buildSizeConstraintsBlock,
-    buildSizeTargetLine,
-} from '../src/core/token-budget.js';
+import { LAYER0_BUDGET_HINT, buildSizeTargetLine } from '../src/core/token-budget.js';
+import { buildRecallBlock } from '../src/foundation/prompt-parts.js';
 import {
     DEFAULT_INJECTION_TEMPLATE,
     DEFAULT_PROMOTION_REPAIR_PROMPT,
@@ -23,6 +21,12 @@ import {
     DEFAULT_SUMMARIZER_REPAIR_PROMPT,
     DEFAULT_SUMMARIZER_SYSTEM_PROMPT,
     DEFAULT_SUMMARIZER_USER_PROMPT,
+    LAYER0_RECALL_BODY,
+    LAYER0_REPAIR_RECALL_BODY,
+    PROMOTION_RECALL_BODY,
+    PROMOTION_REPAIR_RECALL_BODY,
+    RECALL_COMPLIANCE,
+    RECALL_LEASH,
     RECALL_REPEAT_INJECTION_TEMPLATE,
 } from '../src/foundation/prompt-constants.js';
 
@@ -44,6 +48,12 @@ const EXEMPT_LITERALS = [
     '[T]',
     '[S]',
 ];
+
+/** The final line of a message. */
+function lineOfTrigger(text) {
+    const lines = String(text).trimEnd().split('\n');
+    return lines[lines.length - 1].trim();
+}
 
 const ANCHOR_PATTERN = /\[[A-Z]-[A-Z]@YYYY-MM-DDTHH\]/g;
 const PLACEHOLDER_PATTERN = /\{\{[a-z_]+\}\}/g;
@@ -68,28 +78,39 @@ function tagNamesOf(text) {
 
 const settings = { layer0SummaryTokenTarget: 400 };
 
-const layer0PromptWithFragments = appendLayer0PromptConstraints(
-    DEFAULT_SUMMARIZER_USER_PROMPT,
-    settings,
-    resolveCallProfile(settings, { kind: 'layer0', sourceRange: [12, 34] }),
-);
+const layer0Profile = resolveCallProfile(settings, { kind: 'layer0', sourceRange: [12, 34] });
+const promotionProfile = resolveCallProfile(settings, {
+    kind: 'promotion',
+    layerIndex: 1,
+    sourceRange: [12, 34],
+    promotionRepair: {
+        reason: 'too-long',
+        outputTokens: 400,
+        targetTokens: 100,
+        hardMaxTokens: 120,
+        rejectedSummary: 'The ferry crossed at dawn. The party reached the tavern.',
+    },
+});
 
-const promotionPromptWithFragments = appendLayer0PromptConstraints(
-    DEFAULT_PROMOTION_USER_PROMPT,
-    settings,
-    resolveCallProfile(settings, {
-        kind: 'promotion',
-        layerIndex: 1,
-        sourceRange: [12, 34],
-        promotionRepair: {
-            reason: 'too-long',
-            outputTokens: 400,
-            targetTokens: 100,
-            hardMaxTokens: 120,
-            rejectedSummary: 'The ferry crossed at dawn. The party reached the tavern.',
-        },
-    }),
-);
+/** A payload message with its runtime provenance attached. */
+function payloadWith(settingsFor, profile) {
+    return `${profile.policy.userPromptTemplate}\n\n${buildCompressionPayloadFragments(
+        settingsFor,
+        profile,
+    )}`;
+}
+
+const layer0PromptWithFragments = payloadWith(settings, layer0Profile);
+const promotionPromptWithFragments = payloadWith(settings, promotionProfile);
+
+/** A recall message with its volatile limits attached. */
+function recallWith(settingsFor, profile, body) {
+    return buildRecallBlock({
+        body,
+        limits: buildCompressionLimits(settingsFor, profile),
+        triggerLine: profile.policy.triggerLine,
+    });
+}
 
 const defaultRepairFeedback = formatRepairDiagnostics(
     buildRepairDiagnostics({
@@ -133,19 +154,19 @@ const samples = [
     ['promotion repair prompt', DEFAULT_PROMOTION_REPAIR_PROMPT],
     ['injection template', DEFAULT_INJECTION_TEMPLATE],
     ['recall repeat injection template', RECALL_REPEAT_INJECTION_TEMPLATE],
-    ['layer0 budget hint', buildLayer0BudgetHint({ targetTokens: 400 })],
+    ['layer0 budget hint', LAYER0_BUDGET_HINT],
     [
         'size target line',
         buildSizeTargetLine({ label: '<narrative>', verb: 'write', cap: 5, unit: 'sentences' }),
     ],
-    [
-        'size constraints block',
-        buildSizeConstraintsBlock({
-            wrapperTag: 'limits',
-            targetLine: 'line',
-            repairLine: 'repair',
-        }),
-    ],
+    ['recall compliance', RECALL_COMPLIANCE],
+    ['recall leash', RECALL_LEASH],
+    ['layer0 recall body', LAYER0_RECALL_BODY],
+    ['layer0 repair recall body', LAYER0_REPAIR_RECALL_BODY],
+    ['promotion recall body', PROMOTION_RECALL_BODY],
+    ['promotion repair recall body', PROMOTION_REPAIR_RECALL_BODY],
+    ['layer0 recall message', recallWith(settings, layer0Profile, LAYER0_RECALL_BODY)],
+    ['promotion recall message', recallWith(settings, promotionProfile, PROMOTION_RECALL_BODY)],
     ['layer0 prompt with runtime fragments', layer0PromptWithFragments],
     ['promotion prompt with runtime fragments', promotionPromptWithFragments],
     ['default repair feedback', defaultRepairFeedback],
@@ -207,9 +228,9 @@ describe('dense prompt grammar', () => {
         expect(new Set(lines).size).toBe(lines.length);
     });
 
-    it('orders the layer0 user sections input, output contract, task, rules, trigger', () => {
-        const prompt = DEFAULT_SUMMARIZER_USER_PROMPT;
-        const order = ['<in>', '<out>', '<task>', '<rules>'];
+    it('orders the layer0 system sections role, inv, out, task, rules', () => {
+        const prompt = DEFAULT_SUMMARIZER_SYSTEM_PROMPT;
+        const order = ['<role>', '<inv>', '<out>', '<task>', '<rules>'];
         const indexes = order.map((tag) => prompt.indexOf(tag));
         for (const [index, tag] of order.entries()) {
             expect(indexes[index], `${tag} present`).toBeGreaterThan(-1);
@@ -219,5 +240,25 @@ describe('dense prompt grammar', () => {
                 );
             }
         }
+    });
+
+    it('orders the layer0 request messages payload, recall body, limits, trigger', () => {
+        const recall = recallWith(settings, layer0Profile, LAYER0_RECALL_BODY);
+        const request = [DEFAULT_SUMMARIZER_USER_PROMPT, recall].join('\n\n');
+
+        expect(layer0PromptWithFragments.indexOf('<in>')).toBeGreaterThan(-1);
+        expect(layer0PromptWithFragments.indexOf('</in>')).toBeLessThan(
+            layer0PromptWithFragments.indexOf('<budget>'),
+        );
+        expect(request.indexOf('<budget>')).toBeLessThan(request.indexOf(RECALL_COMPLIANCE));
+        expect(request.indexOf(RECALL_COMPLIANCE)).toBeLessThan(request.indexOf('limits:'));
+        expect(request.indexOf('limits:')).toBeLessThan(request.indexOf(lineOfTrigger(recall)));
+    });
+
+    it('keeps the system message free of the payload and the recall block', () => {
+        expect(DEFAULT_SUMMARIZER_SYSTEM_PROMPT).not.toContain('<in>');
+        expect(DEFAULT_SUMMARIZER_SYSTEM_PROMPT).not.toContain('<recall>');
+        expect(DEFAULT_SUMMARIZER_SYSTEM_PROMPT).not.toContain('{{max_sentences');
+        expect(DEFAULT_PROMOTION_SYSTEM_PROMPT).not.toContain('{{max_sentences');
     });
 });

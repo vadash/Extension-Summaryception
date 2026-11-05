@@ -3,33 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { defaultSettings } from '../src/foundation/constants.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
 import {
-    appendLayer0PromptConstraints,
+    buildCompressionLimits,
+    buildCompressionPayloadFragments,
     buildLayer0SizeRepairFeedback,
     getLayer0SummaryTokenBounds,
     getLayer0SummaryTokenTarget,
     validateLayer0OutputSize,
 } from '../src/core/layer0-compression.js';
-import {
-    EXECUTION_TRIGGER_L0,
-    EXECUTION_TRIGGER_PROMO,
-    buildUserPrompt,
-} from '../src/foundation/prompt-parts.js';
 import { LAYER_HARD_MAX_RATIO } from '../src/core/token-budget.js';
 import {
     getPromotionSummaryTokenHardMax,
     getPromotionSummaryTokenTarget,
 } from '../src/core/promotion-planner.js';
 import { installSummaryContext } from './test-helpers.js';
-
-function makeLayer0Prompt(triggerLine) {
-    return buildUserPrompt({
-        inputBlocks: '<source>chat</source>',
-        schemaBlock: 'schema',
-        taskRules: 'rules',
-        criticalRules: '',
-        triggerLine,
-    });
-}
 
 describe('getLayer0SummaryTokenTarget', () => {
     it('clamps a too-large target down and a too-small one up, preserving ordering', () => {
@@ -84,65 +70,111 @@ describe('getPromotionSummaryTokenHardMax', () => {
     });
 });
 
-describe('appendLayer0PromptConstraints', () => {
+describe('buildCompressionPayloadFragments', () => {
     const settings = { layer0SummaryTokenTarget: 200 };
 
-    it('returns the prompt unchanged when the call is not a compression call', () => {
-        const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
+    it('returns no fragment when the call is not a compression call', () => {
         expect(
-            appendLayer0PromptConstraints(
-                prompt,
+            buildCompressionPayloadFragments(
                 settings,
                 resolveCallProfile(settings, { kind: 'auditor' }),
             ),
-        ).toBe(prompt);
+        ).toBe('');
     });
 
-    it('inserts the narrative budget hint before the trigger and preserves L0 trigger finality', () => {
-        const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(
-            prompt,
+    it('carries the budget hint and no sentence cap', () => {
+        const fragments = buildCompressionPayloadFragments(
             settings,
             resolveCallProfile(settings, { kind: 'layer0' }),
         );
-        expect(result).toContain('<budget>');
-        expect(result).toContain('<narrative>');
-        expect(result).not.toContain('[STATE]');
-        expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
+
+        expect(fragments).toContain('<budget>');
+        expect(fragments).toContain('</budget>');
+        expect(fragments).not.toMatch(/at most \d+ sentences/);
+        expect(fragments).not.toContain('[STATE]');
     });
 
     it('references both source-range numbers when sourceRange is a [start, end] pair', () => {
-        const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(
-            prompt,
+        const fragments = buildCompressionPayloadFragments(
             settings,
             resolveCallProfile(settings, { kind: 'layer0', sourceRange: [12, 34] }),
         );
-        expect(result).toContain('12');
-        expect(result).toContain('34');
-        expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
+
+        expect(fragments).toContain('12');
+        expect(fragments).toContain('34');
     });
 
-    it('adds no source-range line for an absent or too-short range but keeps trigger finality', () => {
-        const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_L0);
-        const result = appendLayer0PromptConstraints(
-            prompt,
+    it('adds no source-range line for an absent or too-short range', () => {
+        const fragments = buildCompressionPayloadFragments(
             settings,
             resolveCallProfile(settings, { kind: 'layer0', sourceRange: [5] }),
         );
-        expect(result).not.toContain('passage range:');
-        expect(result.trimEnd().endsWith(EXECUTION_TRIGGER_L0)).toBe(true);
+
+        expect(fragments).not.toContain('passage range:');
+    });
+});
+
+describe('buildCompressionLimits', () => {
+    const settings = { layer0SummaryTokenTarget: 200 };
+
+    it('returns no limit lines when the call is not a compression call', () => {
+        expect(
+            buildCompressionLimits(settings, resolveCallProfile(settings, { kind: 'auditor' })),
+        ).toEqual([]);
     });
 
-    it('delegates promotion calls to the promotion path, differing from input and keeping the promotion trigger', () => {
-        const prompt = makeLayer0Prompt(EXECUTION_TRIGGER_PROMO);
-        const result = appendLayer0PromptConstraints(
-            prompt,
+    it('states the Layer 0 sentence cap in the limits', () => {
+        const limits = buildCompressionLimits(
             settings,
-            resolveCallProfile(settings, { kind: 'promotion', layerIndex: 0 }),
+            resolveCallProfile(settings, { kind: 'layer0' }),
         );
-        expect(result).not.toBe(prompt);
-        expect(result).toContain(EXECUTION_TRIGGER_PROMO);
+
+        expect(limits).toHaveLength(1);
+        expect(limits[0]).toMatch(/^<narrative>: write at most \d+ sentences\.$/);
+    });
+
+    it('scales the cap with the configured target', () => {
+        const small = buildCompressionLimits(
+            { layer0SummaryTokenTarget: 200 },
+            resolveCallProfile({ layer0SummaryTokenTarget: 200 }, { kind: 'layer0' }),
+        );
+        const large = buildCompressionLimits(
+            { layer0SummaryTokenTarget: 2000 },
+            resolveCallProfile({ layer0SummaryTokenTarget: 2000 }, { kind: 'layer0' }),
+        );
+
+        expect(small[0]).not.toBe(large[0]);
+    });
+
+    it('routes promotion calls to the promotion limits and keeps the target line first', () => {
+        const limits = buildCompressionLimits(
+            settings,
+            resolveCallProfile(settings, { kind: 'promotion', layerIndex: 1 }),
+        );
+
+        expect(limits[0]).toMatch(/^<narrative>: merge into at most \d+ sentences\./);
+        expect(limits[0]).toContain('Deep-layer fold');
+    });
+
+    it('renders the promotion repair reason after the target line', () => {
+        const limits = buildCompressionLimits(
+            settings,
+            resolveCallProfile(settings, {
+                kind: 'promotion',
+                layerIndex: 0,
+                promotionRepair: {
+                    reason: 'too-long',
+                    outputTokens: 900,
+                    hardMaxTokens: 300,
+                    targetTokens: 200,
+                    rejectedSummary: 'One long sentence about the scene replay.',
+                },
+            }),
+        );
+
+        const repairIndex = limits.findIndex((line) => line.startsWith('repair:'));
+        expect(repairIndex).toBeGreaterThan(0);
+        expect(limits[0]).toMatch(/^<narrative>: merge into at most/);
     });
 });
 

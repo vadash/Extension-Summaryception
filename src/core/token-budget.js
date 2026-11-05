@@ -63,37 +63,15 @@ export function buildSizeTargetLine({ label, cap, unit, verb = '', extra = '' })
 }
 
 /**
- * Format the standalone size-constraints block appended to a prompt.
- * @param {object} p
- * @param {string} p.wrapperTag
- * @param {string} p.targetLine
- * @param {string} [p.repairLine]
- * @returns {string}
+ * The Layer 0 source budget block. The sentence cap lives in the recall
+ * limits, so the payload stays number-free and identical for every call of
+ * the family.
  */
-export function buildSizeConstraintsBlock({ wrapperTag, targetLine, repairLine = '' }) {
-    return `<${wrapperTag}>\n${targetLine}\n${repairLine}</${wrapperTag}>`;
-}
-
-/**
- * Build the Layer 0 model-countable source budget block.
- * @param {object} p
- * @param {number} p.targetTokens
- * @returns {string}
- */
-export function buildLayer0BudgetHint({ targetTokens }) {
-    const sentenceCap = computeSentenceCap('l0', targetTokens);
-    return [
-        '<budget>',
-        'source: compress the passage hard.',
-        buildSizeTargetLine({
-            label: '<narrative>',
-            verb: 'write',
-            cap: sentenceCap,
-            unit: 'sentences',
-        }),
-        '</budget>',
-    ].join('\n');
-}
+export const LAYER0_BUDGET_HINT = [
+    '<budget>',
+    'source: compress the passage hard.',
+    '</budget>',
+].join('\n');
 
 /**
  * Resolve the source-side token count for a summarizer call.

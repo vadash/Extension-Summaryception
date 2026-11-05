@@ -27,7 +27,7 @@ import {
 } from './request-attempt-log.js';
 import { processSummarizerResponse } from './summarizer-output.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
-import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-parts.js';
+import { appendRecallFeedback } from '../foundation/prompt-parts.js';
 
 /**
  * One attempt's settled outcome in the attempt protocol's vocabulary. A Route
@@ -62,30 +62,33 @@ import { EXECUTION_TRIGGER_L0, insertBeforeTrigger } from '../foundation/prompt-
  */
 
 /**
- * @param {string} prompt
- * @param {string} repairFeedback
- * @returns {string}
+ * The repair retry swaps both halves of the question: the payload template and
+ * the recall body. The attempt feedback lands inside the recall block, above
+ * its limits, so the execution trigger stays the final line.
+ * @param {object} p
+ * @param {string} p.prompt - Base payload message
+ * @param {string} p.repairPrompt - Repair payload message
+ * @param {string} p.recall - Base recall message
+ * @param {string} p.repairRecall - Repair recall message
+ * @param {boolean} p.useRepairPrompt - Whether the repair retry is active
+ * @param {string} p.repairFeedback - Attempt-local feedback from the rejected draft
+ * @returns {{ prompt: string, recall: string }}
  */
-function appendRepairFeedback(prompt, repairFeedback) {
-    const feedback = String(repairFeedback || '').trim();
-    if (!feedback) {
-        return prompt;
-    }
-    return insertBeforeTrigger(prompt, feedback, EXECUTION_TRIGGER_L0);
-}
-
-/**
- * @param {string} basePrompt
- * @param {string} repairPrompt
- * @param {boolean} useRepairPrompt
- * @param {string} repairFeedback
- * @returns {string}
- */
-function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFeedback) {
+function buildAttemptMessages({
+    prompt,
+    repairPrompt,
+    recall,
+    repairRecall,
+    useRepairPrompt,
+    repairFeedback,
+}) {
     if (useRepairPrompt && repairPrompt) {
-        return appendRepairFeedback(repairPrompt, repairFeedback);
+        return {
+            prompt: repairPrompt,
+            recall: appendRecallFeedback(repairRecall, repairFeedback),
+        };
     }
-    return basePrompt;
+    return { prompt, recall };
 }
 
 /**
@@ -95,8 +98,10 @@ function buildAttemptPrompt(basePrompt, repairPrompt, useRepairPrompt, repairFee
  * without threading the facts twice; the repair switch, the derived session
  * state, never appears here.
  * @typedef {object} CallSessionFacts
- * @property {string} prompt - Fully substituted user prompt.
- * @property {string} repairPrompt - Fully substituted repair prompt ('' when the call validates no repair).
+ * @property {string} prompt - Fully substituted payload message.
+ * @property {string} repairPrompt - Fully substituted repair payload ('' when the call validates no repair).
+ * @property {string} recall - The recall message closing the request.
+ * @property {string} repairRecall - The repair attempt's recall message.
  * @property {AbortSignal} signal - Abort signal.
  * @property {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch.
  * @property {import('./notify.js').NotifyAdapter} notify - Notify adapter for mid-run notices.
@@ -130,7 +135,7 @@ export function createAttemptSession(facts) {
  * @returns {Promise<RouteSeriesResult>}
  */
 async function runSeriesForSession(
-    { prompt, repairPrompt, signal, profile, notify, usage },
+    { prompt, repairPrompt, recall, repairRecall, signal, profile, notify, usage },
     route,
     { routeLabel, maxRetries },
 ) {
@@ -150,14 +155,17 @@ async function runSeriesForSession(
             debug(`${routeLabel} retry attempt ${attempt}/${maxRetries}`);
         }
 
-        const attemptPromptText = buildAttemptPrompt(
+        const messages = buildAttemptMessages({
             prompt,
             repairPrompt,
+            recall,
+            repairRecall,
             useRepairPrompt,
             repairFeedback,
-        );
+        });
         const attemptResult = await runLoggedAttempt({
-            prompt: attemptPromptText,
+            prompt: messages.prompt,
+            recall: messages.recall,
             signal,
             attempt,
             profile,
@@ -242,6 +250,7 @@ function logRetryStopReason(reason, maxRetries) {
  * Provider throws are classified onto the attempt vocabulary.
  * @param {object} p
  * @param {string} p.prompt - Fully substituted user prompt for this attempt.
+ * @param {string} p.recall - The recall message closing the request.
  * @param {AbortSignal} p.signal - Abort signal for the request.
  * @param {number} p.attempt - Zero-based attempt index.
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch.
@@ -254,6 +263,7 @@ function logRetryStopReason(reason, maxRetries) {
  */
 async function runLoggedAttempt({
     prompt,
+    recall,
     signal,
     attempt,
     profile,
@@ -270,6 +280,7 @@ async function runLoggedAttempt({
     try {
         attemptResult = await runAttempt({
             prompt,
+            recall,
             signal,
             profile,
             connection,
@@ -290,6 +301,7 @@ async function runLoggedAttempt({
             durationMs: Date.now() - startedAt,
             systemPrompt: profile.policy.systemPrompt,
             prompt,
+            recall,
             cleanedResult: logState.cleanedResult,
             error: logState.error,
         });
@@ -302,6 +314,7 @@ async function runLoggedAttempt({
  * processing. Throws on provider errors; the series classifies them.
  * @param {object} p
  * @param {string} p.prompt - Fully substituted user prompt.
+ * @param {string} p.recall - The recall message closing the request.
  * @param {AbortSignal} p.signal - Abort signal for the request.
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch.
  * @param {ExtensionSettings} p.connection - Resolved connection settings for this route.
@@ -310,7 +323,16 @@ async function runLoggedAttempt({
  * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into.
  * @returns {Promise<AttemptResult>}
  */
-async function runAttempt({ prompt, signal, profile, connection, timeoutMs, notify, usage }) {
+async function runAttempt({
+    prompt,
+    recall,
+    signal,
+    profile,
+    connection,
+    timeoutMs,
+    notify,
+    usage,
+}) {
     // One read-through: the frozen Call Profile is the only source of the
     // system prompt; no helper receives it as a second, parallel fact.
     const systemPrompt = profile.policy.systemPrompt;
@@ -319,16 +341,17 @@ async function runAttempt({ prompt, signal, profile, connection, timeoutMs, noti
         return guardFailure;
     }
 
-    await traceSummarizerRequest({ connection, systemPrompt, prompt });
+    await traceSummarizerRequest({ connection, systemPrompt, prompt, recall });
     const rawResult = await sendAttemptRequest({
         connection,
         systemPrompt,
         prompt,
+        recall,
         signal,
         timeoutMs,
     });
     trace('  sendSummarizerRequest returned:', rawResult?.substring?.(0, 50));
-    return await processAttemptResult({ rawResult, prompt, profile, notify, usage });
+    return await processAttemptResult({ rawResult, prompt, recall, profile, notify, usage });
 }
 
 /**
@@ -361,11 +384,12 @@ async function getEasyContextGuardFailure({ prompt, profile, notify }) {
  * @param {ExtensionSettings} p.connection - Resolved connection settings for this route
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
  * @param {string} p.prompt - Fully substituted user prompt
+ * @param {string} p.recall - The recall message closing the request
  * @param {AbortSignal} p.signal - Abort signal for the request
  * @param {number} p.timeoutMs - Attempt timeout in milliseconds
  * @returns {Promise<string>} Raw provider output
  */
-async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, timeoutMs }) {
+async function sendAttemptRequest({ connection, systemPrompt, prompt, recall, signal, timeoutMs }) {
     const timeoutRetryable = isCancellableConnection(connection);
     const abortContext = createAttemptAbortContext(signal, timeoutMs, timeoutRetryable);
 
@@ -375,6 +399,7 @@ async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, ti
                 settings: connection,
                 systemPrompt,
                 userPrompt: prompt,
+                recall,
                 signal: abortContext.signal,
             }),
             abortContext.promise,
@@ -387,13 +412,14 @@ async function sendAttemptRequest({ connection, systemPrompt, prompt, signal, ti
 /**
  * @param {object} p
  * @param {string} p.rawResult - Raw provider output
- * @param {string} p.prompt - Fully substituted user prompt
+ * @param {string} p.prompt - Fully substituted payload message
+ * @param {string} p.recall - The recall message closing the request
  * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
  * @param {import('./notify.js').NotifyAdapter} p.notify
  * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into
  * @returns {Promise<AttemptResult>}
  */
-async function processAttemptResult({ rawResult, prompt, profile, notify, usage }) {
+async function processAttemptResult({ rawResult, prompt, recall, profile, notify, usage }) {
     const processed = await processSummarizerResponse(rawResult, profile, notify);
     if (processed.status !== 'success') {
         logProcessedAttemptFailure(processed.status);
@@ -409,6 +435,7 @@ async function processAttemptResult({ rawResult, prompt, profile, notify, usage 
     await usage.record({
         systemPrompt: profile.policy.systemPrompt,
         prompt,
+        recall,
         summary: processed.text,
         profile,
     });
@@ -430,15 +457,16 @@ function logProcessedAttemptFailure(status) {
  * @param {object} p
  * @param {ExtensionSettings} p.connection - Resolved connection settings for this route
  * @param {string} p.systemPrompt - System prompt sent to the summarizer
- * @param {string} p.prompt - Fully substituted user prompt
+ * @param {string} p.prompt - Fully substituted payload message
+ * @param {string} p.recall - The recall message closing the request
  * @returns {Promise<void>}
  */
-async function traceSummarizerRequest({ connection, systemPrompt, prompt }) {
+async function traceSummarizerRequest({ connection, systemPrompt, prompt, recall }) {
     if (!isTraceEnabled()) {
         return;
     }
 
-    const promptTokens = await countTextTokens(prompt);
+    const promptTokens = await countTextTokens(`${prompt}\n\n${recall}`);
     trace('  About to call sendSummarizerRequest with:', {
         connectionSource: connection.connectionSource,
         summarizerSystemPrompt: systemPrompt?.substring(0, 50),

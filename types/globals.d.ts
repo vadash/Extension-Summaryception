@@ -207,6 +207,7 @@ interface ConnectionGenerateParams {
     settings: ExtensionSettings;
     systemPrompt: string;
     userPrompt: string;
+    recall?: string;
     signal?: AbortSignal;
 }
 

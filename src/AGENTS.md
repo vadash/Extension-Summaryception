@@ -41,9 +41,10 @@
 
 ## Prompt
 
-- Prompt sections have a fixed order: `<in>`, `<out>`, `<task>`, `<rules>`, trigger.
-- The bare imperative trigger is the final prompt line.
-- Insert dynamic budget and repair blocks above the trigger.
+- A summarizer request is three messages: the static system tags, the `<in>` payload, then the per-family recall block (ADR-0033).
+- The system message is identical for every call of a family; numbers live in the recall `limits:` section.
+- The bare imperative trigger is the final line of the recall block and appears nowhere else.
+- Repair feedback lands inside the recall block above its limits.
 - Budget hints use countable units such as sentences and lines.
 - State schema content follows enabled state categories.
 - Keep token limits out of state category definitions.

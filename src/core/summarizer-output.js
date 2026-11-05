@@ -1,5 +1,5 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
-import { warn } from '../foundation/logger.js';
+import { debug, warn } from '../foundation/logger.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { validateLayer0OutputSize, validateLayer0Structure } from './layer0-compression.js';
 import {
@@ -8,8 +8,11 @@ import {
     findRefusalPattern,
 } from './refusal-guard.js';
 import { silentAdapter } from './notify.js';
-import { parseNarrativeEnvelope } from './structural-headers.js';
-import { normalizeStructuralHeaderLines } from './structural-headers.js';
+import {
+    normalizeStructuralHeaderLines,
+    parseNarrativeEnvelope,
+    stripLeadingThinkRegion,
+} from './structural-headers.js';
 import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token-budget.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
@@ -27,6 +30,14 @@ const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
  */
 function cleanSummarizerOutput(raw) {
     let text = raw;
+
+    const thinkRegion = stripLeadingThinkRegion(text);
+    if (thinkRegion.stripped) {
+        // A leaked reasoning step is reported, not rejected: the envelope
+        // after it is the answer the model actually settled on.
+        debug('Stripped one leading think region from the summarizer response.');
+        text = thinkRegion.text;
+    }
 
     const s = getEffectiveSettings();
 

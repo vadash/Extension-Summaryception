@@ -9,11 +9,12 @@ import { trace, warn } from '../foundation/logger.js';
  */
 export const ProfileProvider = {
     cancellable: true,
-    async generate({ settings, systemPrompt, userPrompt, signal }) {
+    async generate({ settings, systemPrompt, userPrompt, recall, signal }) {
         return await sendViaProfile({
             profileId: settings.connectionProfileId,
             systemPrompt,
             userPrompt,
+            recall,
             maxTokens: settings.summarizerResponseLength,
             signal,
         });
@@ -24,7 +25,8 @@ export const ProfileProvider = {
  * @typedef {object} ProfileRequestParams
  * @property {string} profileId - The connection profile identifier
  * @property {string} systemPrompt - The system prompt
- * @property {string} userPrompt - The user prompt
+ * @property {string} userPrompt - The payload message
+ * @property {string} [recall] - The recall message; appended as the last user turn
  * @property {number} [maxTokens] - Max tokens for the response, or 0 to use the profile preset
  * @property {AbortSignal} [signal] - Optional request abort signal
  */
@@ -38,6 +40,7 @@ export async function sendViaProfile({
     profileId,
     systemPrompt,
     userPrompt,
+    recall = '',
     maxTokens = 0,
     signal,
 }) {
@@ -56,6 +59,9 @@ export async function sendViaProfile({
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
         ];
+        if (recall) {
+            messages.push({ role: 'user', content: recall });
+        }
 
         const tokenLimit = maxTokens && maxTokens > 0 ? maxTokens : undefined;
         // Host preset and instruct injection must stay off: the summarizer

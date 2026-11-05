@@ -28,8 +28,9 @@ export const providers = Object.freeze({
 /**
  * @typedef {object} SummarizerProviderRequest
  * @property {ExtensionSettings} settings - The resolved route connection settings
- * @property {string} systemPrompt - The system prompt
- * @property {string} userPrompt - The user prompt
+ * @property {string} systemPrompt - The static system message
+ * @property {string} userPrompt - The payload message
+ * @property {string} [recall] - The recall message closing the request; absent keeps two messages
  * @property {AbortSignal} [signal] - Optional request abort signal
  */
 
@@ -39,12 +40,19 @@ export const providers = Object.freeze({
  * @returns {Promise<string>} The generated response text
  * @throws {ConnectionError|Error} If the request fails
  */
-export async function sendSummarizerRequest({ settings, systemPrompt, userPrompt, signal }) {
+export async function sendSummarizerRequest({
+    settings,
+    systemPrompt,
+    userPrompt,
+    recall,
+    signal,
+}) {
     const provider = getConnectionProvider(settings.connectionSource);
     return await provider.generate({
         settings,
         systemPrompt,
         userPrompt,
+        recall,
         signal,
     });
 }

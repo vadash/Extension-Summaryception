@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-    buildLayer0BudgetHint,
-    buildSizeConstraintsBlock,
+    LAYER0_BUDGET_HINT,
     buildSizeTargetLine,
     computeSentenceCap,
     getSourceTokenCount,
@@ -85,42 +84,19 @@ describe('buildSizeTargetLine', () => {
     });
 });
 
-describe('buildSizeConstraintsBlock', () => {
-    it('wraps the target and repair lines between matching tags', () => {
-        const result = buildSizeConstraintsBlock({
-            wrapperTag: 'limits',
-            targetLine: 'L',
-            repairLine: 'R',
-        });
-        expect(result.startsWith('<limits>\nL')).toBe(true);
-        expect(result).toContain('R</limits>');
-        expect(result.endsWith('</limits>')).toBe(true);
-    });
-
-    it('still closes the wrapper when the repair line is omitted', () => {
-        const result = buildSizeConstraintsBlock({
-            wrapperTag: 'limits',
-            targetLine: 'L',
-        });
-        expect(result.endsWith('</limits>')).toBe(true);
-    });
-});
-
-describe('buildLayer0BudgetHint', () => {
-    it('wraps the narrative sentence cap and carries no token figures', () => {
-        const result = buildLayer0BudgetHint({ targetTokens: 250 });
+describe('LAYER0_BUDGET_HINT', () => {
+    it('wraps the source directive and carries no token figures and no sentence cap', () => {
+        const result = LAYER0_BUDGET_HINT;
         expect(result).toContain('<budget>');
         expect(result).toContain('</budget>');
-        expect(result).toContain('<narrative>');
-        expect(result).toContain('sentences');
+        expect(result).toContain('source:');
+        // The sentence cap belongs to the recall limits, so a family's payload
+        // is identical for every call (ADR-0033).
+        expect(result).not.toMatch(/at most \d+ sentences/);
+        expect(result).not.toContain('<narrative>');
         expect(result).not.toContain('[STATE]');
         // The model cannot count tokens, so none should appear in the hint.
         expect(/\d+\s*tokens?/i.test(result)).toBe(false);
-    });
-
-    it('scales the cap with the slider target through computeSentenceCap', () => {
-        const result = buildLayer0BudgetHint({ targetTokens: 2000 });
-        expect(result).toContain(`at most ${computeSentenceCap('l0', 2000)} sentences`);
     });
 });
 

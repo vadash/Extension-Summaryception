@@ -47,7 +47,7 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * module state.
  * @typedef {object} UsageLedger
  * @property {function(string, function(): Promise<*>): Promise<*>} withRun - Runs work inside a usage accounting scope.
- * @property {(input: { systemPrompt: string, prompt: string, summary: string, profile: import('./call-profile.js').CallProfile }) => Promise<SummarizerTokenUsage>} record - Estimates one successful LLM call and appends it to every open run.
+ * @property {(input: { systemPrompt: string, prompt: string, recall?: string, summary: string, profile: import('./call-profile.js').CallProfile }) => Promise<SummarizerTokenUsage>} record - Estimates one successful LLM call and appends it to every open run.
  * @property {(systemPrompt: string, userPrompt: string, completionText: string) => Promise<SummarizerTokenUsage>} estimate - Estimates prompt and completion tokens with the active tokenizer.
  */
 
@@ -131,13 +131,14 @@ export function createUsageLedger() {
      * no open run the call logs on its own.
      * @param {object} input
      * @param {string} input.systemPrompt - System prompt sent to the summarizer
-     * @param {string} input.prompt - Fully substituted user prompt
+     * @param {string} input.prompt - Fully substituted payload message
+     * @param {string} [input.recall] - The recall message closing the request
      * @param {string} input.summary - Cleaned summarizer response
      * @param {import('./call-profile.js').CallProfile} input.profile - Resolved call profile
      * @returns {Promise<SummarizerTokenUsage>}
      */
-    async function record({ systemPrompt, prompt, summary, profile }) {
-        const usage = await estimate(systemPrompt, prompt, summary);
+    async function record({ systemPrompt, prompt, recall = '', summary, profile }) {
+        const usage = await estimate(systemPrompt, buildUserMessage(prompt, recall), summary);
 
         /** @type {SummarizerUsageEntry | null} */
         let logEntry = null;
@@ -178,6 +179,11 @@ export function createUsageLedger() {
     }
 
     return { withRun, record, estimate };
+}
+
+/** The user turns of one request, joined so one tokenizer call measures them. */
+function buildUserMessage(prompt, recall) {
+    return recall ? `${prompt || ''}\n\n${recall}` : `${prompt || ''}`;
 }
 
 /**

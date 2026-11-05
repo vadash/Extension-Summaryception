@@ -103,20 +103,33 @@ export class RequestRunner {
     /**
      * Run retry attempts until success, abort, non-retryable error, or exhaustion.
      * @param {object} p
-     * @param {string} p.prompt - Fully substituted user prompt
-     * @param {string} p.repairPrompt - Fully substituted Layer 0 repair prompt
+     * @param {string} p.prompt - Fully substituted payload message
+     * @param {string} p.repairPrompt - Fully substituted Layer 0 repair payload
+     * @param {string} p.recall - The recall message closing the request
+     * @param {string} p.repairRecall - The repair attempt's recall message
      * @param {AbortSignal} p.signal - Abort signal
      * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
      * @param {import('./notify.js').NotifyAdapter} [p.notify] - Notify adapter for mid-run notices; defaults to the silent adapter
      * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger the Call Session records token usage into
      * @returns {Promise<import('./run-outcome.js').RunOutcome>} Structured outcome; `completed` carries the summary text and the resolved profile.
      */
-    async run({ prompt, repairPrompt, signal, profile, notify = silentAdapter, usage }) {
+    async run({
+        prompt,
+        repairPrompt,
+        recall,
+        repairRecall,
+        signal,
+        profile,
+        notify = silentAdapter,
+        usage,
+    }) {
         // One Call Session per summarizer call: it carries the call facts
         // across every route cycle and hop; the failure budget stays here.
         const session = createAttemptSession({
             prompt,
             repairPrompt,
+            recall,
+            repairRecall,
             signal,
             profile,
             notify,

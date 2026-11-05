@@ -30,6 +30,48 @@ export function parseNarrativeEnvelope(text) {
     };
 }
 
+// Exactly one leading reasoning region, written as a tag pair whose name is
+// the model-facing marker. A model that leaks its reasoning step before the
+// envelope still produced a valid answer, so the region is removed before
+// validation instead of failing the call (ADR-0033). Closed first, then an
+// unclosed region running to the envelope open. Built from parts so the tag
+// spelling lives in one place.
+const THINK_OPEN = '<' + 'think' + '>';
+const THINK_CLOSE = '<' + '/think' + '>';
+const LEADING_THINK_CLOSED_RE = new RegExp(
+    `^\\s*${THINK_OPEN}([\\s\\S]*?)${THINK_CLOSE}[^\\S\\r\\n]*\\r?\\n?`,
+    'i',
+);
+const LEADING_THINK_UNCLOSED_RE = new RegExp(`^\\s*${THINK_OPEN}[\\s\\S]*?(?=<narrative>)`, 'i');
+
+/**
+ * Strip at most one leading reasoning region from a raw model response.
+ *
+ * A region whose content reaches a second open tag is not a clean leading
+ * region: stripping it would swallow the envelope, so the text is returned
+ * untouched and the normal reject path applies.
+ * @param {string} text - Raw summarizer output
+ * @returns {{ text: string, stripped: boolean }}
+ */
+export function stripLeadingThinkRegion(text) {
+    const source = String(text ?? '');
+    const closed = LEADING_THINK_CLOSED_RE.exec(source);
+    if (closed) {
+        if (closed[1].toLowerCase().includes(THINK_OPEN.toLowerCase())) {
+            return { text: source, stripped: false };
+        }
+        return { text: source.slice(closed[0].length), stripped: true };
+    }
+    const unclosed = LEADING_THINK_UNCLOSED_RE.exec(source);
+    if (unclosed) {
+        return { text: source.slice(unclosed[0].length), stripped: true };
+    }
+    return { text: source, stripped: false };
+}
+
+/** The model-facing tag names this module owns, for callers building text. */
+export const REASONING_TAG = Object.freeze({ open: THINK_OPEN, close: THINK_CLOSE });
+
 // Line-start tag drift for the envelope pair, normalized the same way
 // bracket headers always were: lowercase-out, own line, one newline after.
 // Legacy bracket headers arriving in model output normalize into the envelope.
