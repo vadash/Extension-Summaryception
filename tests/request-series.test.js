@@ -11,7 +11,9 @@ vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
 import { NOTIFY_EVENTS, UI_MODES } from '../src/foundation/constants.js';
 import { RETRY_CONFIG } from '../src/foundation/retry.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
+import { countSentences } from '../src/core/repair-diagnostics.js';
 import { createAttemptSession } from '../src/core/request-series.js';
+import { computeSentenceCap } from '../src/core/token-budget.js';
 import { makeNotifyRecorder, makeSummarySettings, makeUsageLedger } from './test-helpers.js';
 
 const usageLedger = await makeUsageLedger();
@@ -119,6 +121,41 @@ describe('Call Session runSeries outcomes', () => {
         expect(repairCall.recall).toContain('current_date_time:');
         expect(repairCall.recall).toContain('limits:');
         expect(repairCall.recall.endsWith('Now write it.')).toBe(true);
+    });
+
+    it('tightens the L0 sentence cap on the retry above limits with the trigger last', async () => {
+        vi.useFakeTimers();
+        const repairRecall =
+            '<recall>\nretry tasks\nlimits:\n<narrative>: write at most 10 sentences.\n</recall>\nNow write it.';
+        // Twelve rejected sentences against the default profile cap of 10:
+        // the retry writes at most 9 and cuts at least 3.
+        const rejectedDraft = Array.from(
+            { length: 12 },
+            (_v, i) => `Beat ${i} holds the line.`,
+        ).join(' ');
+        connectionMocks.sendSummarizerRequest
+            .mockResolvedValueOnce(rejectedDraft)
+            .mockResolvedValueOnce(VALID_SUMMARY);
+
+        const { session, profile, route, hop } = makeSession({ repairRecall });
+        const pending = session.runSeries(route, hop);
+        await vi.runAllTimersAsync();
+        const result = await pending;
+
+        expect(result.status).toBe('completed');
+        const calls = connectionMocks.sendSummarizerRequest.mock.calls;
+        expect(calls).toHaveLength(2);
+        // First attempt recall stays byte-identical: no tightening without a rejection.
+        expect(calls[0][0].recall).toBe('recall');
+        const retryRecall = String(calls[1][0].recall);
+        const expectedCap = computeSentenceCap('l0', profile.policy.sizeGuard.target);
+        const retryCap = Math.max(5, expectedCap - 1);
+        const rejectedCount = countSentences(rejectedDraft);
+        const expectedCut = Math.max(1, rejectedCount - retryCap);
+        const tightening = `tighten: attempt 1, prior caps superseded, write at most ${retryCap} sentences; ${rejectedCount}-sentence draft -> ${retryCap}-sentence rewrite, cut at least ${expectedCut} weakest beats whole, survivor wording kept.`;
+        expect(retryRecall).toContain(tightening);
+        expect(retryRecall.indexOf('tighten:')).toBeLessThan(retryRecall.indexOf('limits:'));
+        expect(retryRecall.endsWith('Now write it.')).toBe(true);
     });
 
     it('stops with guard-stopped when the Easy context guard rejects the prompt', async () => {

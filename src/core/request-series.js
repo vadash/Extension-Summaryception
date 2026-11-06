@@ -28,6 +28,7 @@ import {
 import { processSummarizerResponse } from './summarizer-output.js';
 import { countTextTokens, formatTokenCount, formatTokenValue } from './token-count.js';
 import { appendRecallFeedback } from '../foundation/prompt-parts.js';
+import { buildLayer0RetryTighteningLine, resolveL0RetryBaseCap } from './repair-diagnostics.js';
 
 /**
  * One attempt's settled outcome in the attempt protocol's vocabulary. A Route
@@ -72,6 +73,7 @@ import { appendRecallFeedback } from '../foundation/prompt-parts.js';
  * @param {string} p.repairRecall - Repair recall message
  * @param {boolean} p.useRepairPrompt - Whether the repair retry is active
  * @param {string} p.repairFeedback - Attempt-local feedback from the rejected draft
+ * @param {string} [p.tighteningLine] - Layer 0 retry cap line; empty omits it
  * @returns {{ prompt: string, recall: string }}
  */
 function buildAttemptMessages({
@@ -81,11 +83,16 @@ function buildAttemptMessages({
     repairRecall,
     useRepairPrompt,
     repairFeedback,
+    tighteningLine = '',
 }) {
+    const feedback = [String(repairFeedback ?? ''), String(tighteningLine ?? '')]
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join('\n');
     if (useRepairPrompt && repairPrompt) {
         return {
             prompt: repairPrompt,
-            recall: appendRecallFeedback(repairRecall, repairFeedback),
+            recall: appendRecallFeedback(repairRecall, feedback),
         };
     }
     return { prompt, recall };
@@ -144,6 +151,7 @@ async function runSeriesForSession(
     let attempts = 0;
     let useRepairPrompt = false;
     let repairFeedback = '';
+    let rejectedDraft = '';
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (signal.aborted) {
@@ -162,6 +170,11 @@ async function runSeriesForSession(
             repairRecall,
             useRepairPrompt,
             repairFeedback,
+            tighteningLine: buildLayer0RetryTighteningLine({
+                attempt,
+                baseCap: resolveL0RetryBaseCap(profile),
+                rejectedDraft,
+            }),
         });
         const attemptResult = await runLoggedAttempt({
             prompt: messages.prompt,
@@ -196,6 +209,10 @@ async function runSeriesForSession(
         if (stopReason) {
             logRetryStopReason(stopReason, maxRetries);
             return settleStop(attemptResult, lastError, attempts);
+        }
+
+        if (attemptResult.status === 'rejected') {
+            rejectedDraft = attemptResult.text || '';
         }
 
         if (shouldSwitchToRepairPrompt({ attemptResult, attempt, maxRetries, repairPrompt })) {

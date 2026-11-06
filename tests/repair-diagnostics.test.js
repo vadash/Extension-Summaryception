@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    buildLayer0RetryTighteningLine,
     buildRepairDiagnostics,
     buildStructuralRepairFeedback,
     countSentences,
     formatRepairDiagnostics,
     getReductionGuidance,
+    resolveL0RetryBaseCap,
+    resolveLayer0RetryCap,
 } from '../src/core/repair-diagnostics.js';
 import { computeSentenceCap } from '../src/core/token-budget.js';
 
@@ -302,5 +305,66 @@ describe('buildStructuralRepairFeedback', () => {
         });
         const feedback = buildStructuralRepairFeedback(diagnostics, sourceBudget);
         expect(feedback.split('\n')).toHaveLength(2);
+    });
+});
+
+describe('layer0 retry tightening', () => {
+    function sentences(count) {
+        return Array.from({ length: count }, (_v, i) => `Beat ${i} holds.`).join(' ');
+    }
+
+    it('schedules caps 8, 7, 6, 5 with floor for base 8', () => {
+        expect([
+            resolveLayer0RetryCap(8, 0),
+            resolveLayer0RetryCap(8, 1),
+            resolveLayer0RetryCap(8, 2),
+            resolveLayer0RetryCap(8, 3),
+        ]).toEqual([8, 7, 6, 5]);
+        expect(resolveLayer0RetryCap(8, 4)).toBe(5);
+        expect(resolveLayer0RetryCap(8, 9)).toBe(5);
+    });
+
+    it('emits a counted substitution line on retry attempts', () => {
+        const line = buildLayer0RetryTighteningLine({
+            attempt: 2,
+            baseCap: 8,
+            rejectedDraft: sentences(12),
+        });
+
+        expect(line).toContain('tighten: attempt 2');
+        expect(line).toContain('write at most 6 sentences');
+        expect(line).toContain('12-sentence draft -> 6-sentence rewrite');
+        expect(line).toContain('cut at least 6');
+    });
+
+    it('omits the line on the first attempt or without a rejected draft', () => {
+        expect(
+            buildLayer0RetryTighteningLine({
+                attempt: 0,
+                baseCap: 8,
+                rejectedDraft: sentences(12),
+            }),
+        ).toBe('');
+        expect(buildLayer0RetryTighteningLine({ attempt: 1, baseCap: 8, rejectedDraft: '' })).toBe(
+            '',
+        );
+    });
+
+    it('derives the base cap from the frozen profile only, skipping non-L0 calls', async () => {
+        const { resolveCallProfile } = await import('../src/core/call-profile.js');
+        const layer0 = resolveCallProfile({ layer0SummaryTokenTarget: 200 }, { kind: 'layer0' });
+        expect(resolveL0RetryBaseCap(layer0)).toBe(
+            computeSentenceCap('l0', layer0.policy.sizeGuard.target),
+        );
+        expect(
+            resolveL0RetryBaseCap(
+                resolveCallProfile({ layer0SummaryTokenTarget: 200 }, { kind: 'promotion' }),
+            ),
+        ).toBeNull();
+        expect(
+            resolveL0RetryBaseCap(
+                resolveCallProfile({ layer0SummaryTokenTarget: 200 }, { kind: 'auditor' }),
+            ),
+        ).toBeNull();
     });
 });

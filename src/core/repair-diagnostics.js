@@ -112,9 +112,68 @@ export function buildStructuralRepairFeedback(diagnostics = {}, sourceBudget = {
     return lines.join('\n');
 }
 
+/** Floor for the Layer 0 retry sentence cap: retries tighten but never below this. */
+export const LAYER0_RETRY_CAP_FLOOR = 5;
+
 /**
- * @param {string} text
+ * Resolve the Layer 0 retry sentence cap for a zero-based attempt index.
+ * Pure; the caller derives baseCap from the frozen Call Profile.
+ * @param {number} baseCap - Sentence cap for the first attempt
+ * @param {number} attempt - Zero-based attempt index
  * @returns {number}
+ */
+export function resolveLayer0RetryCap(baseCap, attempt) {
+    const base = Number.isFinite(baseCap) ? Math.trunc(baseCap) : LAYER0_RETRY_CAP_FLOOR;
+    const step = Number.isFinite(attempt) ? Math.trunc(attempt) : 0;
+    return Math.max(LAYER0_RETRY_CAP_FLOOR, base - step);
+}
+
+/**
+ * Build one Layer 0 retry tightening line for the recall above its limits.
+ * Pure; no settings reads. Empty when the attempt needs no tightening.
+ * @param {object} p
+ * @param {number} p.attempt - Zero-based attempt index
+ * @param {number | null} [p.baseCap] - Sentence cap for the first attempt; null when not an L0 size-guard call
+ * @param {string} p.rejectedDraft - Last rejected draft text
+ * @returns {string}
+ */
+export function buildLayer0RetryTighteningLine({ attempt, baseCap, rejectedDraft }) {
+    if (!Number.isFinite(attempt) || attempt < 1) {
+        return '';
+    }
+    if (!Number.isFinite(baseCap)) {
+        return '';
+    }
+    const base = /** @type {number} */ (baseCap);
+    const rejected = countSentences(rejectedDraft);
+    if (!rejected) {
+        return '';
+    }
+    const newCap = resolveLayer0RetryCap(base, attempt);
+    const cut = Math.max(1, rejected - newCap);
+    return (
+        `tighten: attempt ${Math.trunc(attempt)}, prior caps superseded, ` +
+        `write at most ${newCap} sentences; ${rejected}-sentence draft -> ${newCap}-sentence rewrite, ` +
+        `cut at least ${cut} weakest beats whole, survivor wording kept.`
+    );
+}
+/**
+ * Derive the Layer 0 retry base cap from the frozen Call Profile only.
+ * Null when the call is not a Layer 0 compression call: no sizeGuard,
+ * or promotion constraints. Pure; never reads settings.
+ * @param {import('./call-profile.js').CallProfile} [profile] - Call profile resolved at dispatch
+ * @returns {number | null}
+ */
+export function resolveL0RetryBaseCap(profile) {
+    const policy = profile?.policy;
+    if (!policy || !policy.sizeGuard || policy.promotionConstraints) {
+        return null;
+    }
+    return computeSentenceCap('l0', policy.sizeGuard.target);
+}
+
+/**
+ *
  */
 export function countSentences(text) {
     const trimmed = String(text || '').trim();
