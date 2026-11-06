@@ -54,14 +54,32 @@ export const AUDITOR_DISCOVERY_RULE =
 const CORE_MOMENT_TYPES = 'firsts, shifts, breaks, and unpaid choices';
 
 const LANGUAGE_RULE =
-    'language: English output; Chinese prose and Han ideographs -> dropped. short non-English names, titles, quoted terms, and source phrases -> kept.';
+    'language: English output; Chinese prose and Han ideographs -> dropped. quoted dialogue and source phrases -> original script verbatim; transliteration or translation -> dropped. short non-English names and titles -> kept.';
 
 const DECLINED_MARKER_RULE =
     'refusal: refusing or unable to summarize -> output only <declined>your reason</declined> and nothing else, outside the <narrative> envelope.';
 
 const ANTI_RUN_ON_RULE =
     'sentence shape: short and direct, two actions per sentence at most.\n' +
-    'action chain joined with commas, semicolons, or conjunctions -> separate sentences.';
+    'action chain joined with commas, semicolons, or conjunctions -> separate sentences.\n' +
+    'clause pair joined by semicolon or em dash -> two sentences.';
+
+/**
+ * Construction-family substitutions shared by the Layer 0 and promotion
+ * families: each rule names one sentence-construction family and substitutes
+ * its replacement, the only style-rule shape these prompts carry (ADR-0034).
+ */
+const STYLE_RULES =
+    'tricolons (three parallel items or clauses) -> pairs or single statements.\n' +
+    'apophasis (negative framing: did not flinch) -> affirmative act: stood steady.\n' +
+    'litotes (double negative: less than confident) -> direct descriptor: hunched.\n' +
+    'melodrama formula (one-word punchline, stacked negatives) -> grounded outcome.\n' +
+    'anaphora and pronoun-verb loops -> varied sentence openings.\n' +
+    'personification (living acts for objects) -> literal state: the room was humid.\n' +
+    'medical term (quadriceps, sternum, cervix) -> ordinary word: thigh, chest, womb.\n' +
+    'excess similes and metaphors -> concrete physical description.\n' +
+    'verbless fragment -> complete clause.\n' +
+    'genitive of chain (the sound of him) -> Saxon genitive (his sound) or active verb.';
 
 const LAYER0_INPUT_BLOCKS = `<player>
 {{player_name}}
@@ -88,6 +106,9 @@ durable beat: kept once, reworded shorter; the present situation still depends o
 keep: firsts (first vulnerability, first touch, first broken rule), shifts (trust, power, attraction, perception that changes and stays changed), breaks (a mask drops, distance collapses), unpaid choices; without them a current emotion or relationship state reads as arbitrary.
 old material -> harder cut; repeated action, physical interaction, dialogue loop -> one outcome sentence.
 omit: brands, shopping routes, meals, clothing, poses, body mechanics, ordinary props, small talk, temporary physical conditions, momentary mood and arousal, completed errands, resolved hooks, physiological and sex counters, consumed food and drink, soiled or disposed temporary items, inventory lists, status flags.
+somatic tally: finish counts, durations, size comparisons -> the one durable shift they prove, stated once; owed debt, deadline, pending obligation -> numbers kept.
+comparative framing (for the first time, first of her life, more than any) -> at most one per narrative; a second fact of that kind -> plain statement.
+phrasing repeated from <prior> -> reworded.
 lasting decision, rule, resource, injury, or open hook -> its scene detail kept.
 cause-to-effect chain: the link that explains how the present situation came to be.
 source "you" -> <player>.
@@ -102,6 +123,7 @@ narrative opening: the events themselves, not the anchor date restated.
 new day in the passage -> the derived current_date_time; passage without an explicit time -> the prior value carried forward.
 raw bracket headers and passage timestamps -> normalized source for the value.
 ${ANTI_RUN_ON_RULE}
+${STYLE_RULES}
 preamble, commentary, markdown fences, bullets, tables, prose after the current_date_time line -> dropped.
 ${DECLINED_MARKER_RULE}`;
 
@@ -131,6 +153,9 @@ named detail -> kept only when it changes later behavior; one-off item names, ga
 profile facts: origins, hometowns, backstory, personality traits, age, species, nationality, static job descriptions -> dropped.
 trivia: physiological and sex counters, consumed food and drink, soiled or used temporary items, momentary pose, arousal, and mood counters -> dropped.
 obligation counter still owed, pending, or named by an open hook -> kept.
+somatic tally: finish counts, durations, size comparisons -> the one durable shift they prove, stated once.
+comparative framing (for the first time, first of her life, more than any) -> at most one per fold; a second fact of that kind -> plain statement.
+phrasing repeated from <prior> -> reworded.
 minor inventory items, temporary rules, transient positions, stale scene facts -> dropped.
 baseline: <prior> is immutable established history; a re-summarized prior event, a duplicated prior date -> dropped.
 delta: only the new events inside <passage>.
@@ -152,6 +177,7 @@ repeated related beats -> one cumulative state change, boundary, rule, or outcom
 ${PROMOTION_MODERATE_MACRO_RULES}`;
 
 const PROMOTION_CRITICAL_RULES = `${ANTI_RUN_ON_RULE}
+${STYLE_RULES}
 preamble, commentary, markdown, key-value lines, tables, bullets, structured state syntax -> dropped.
 ${DECLINED_MARKER_RULE}`;
 

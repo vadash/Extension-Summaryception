@@ -252,6 +252,26 @@ The one dense convention every prompt Summaryception authors follows: `key: valu
 Code: `src/foundation/prompt-constants.js`, assembler `src/foundation/prompt-parts.js`
 _Avoid_: prompt style, formatting rules
 
+**Somatic Tally**:
+A running count of repeated physical or sexual events a Snippet would otherwise carry: finish counts, durations, size comparisons. Dropped; the durable shift it proves is kept once, and only numbers the story tracks as stakes — owed debts, deadlines, pending obligations — stay.
+Code: task rules in `src/foundation/prompt-constants.js`
+_Avoid_: sex counter, body count, record list
+
+**Verbatim Quote**:
+A Passage phrase a Snippet carries as quoted dialogue or a source phrase in its original language and script. Transliteration or translation breaks the quote; the original script is the only kept form.
+Code: language rules in `src/foundation/prompt-constants.js`
+_Avoid_: transliterated quote, localized quote
+
+**Construction Rule**:
+The only style-rule shape the summarizer prompts use: a rule naming one sentence-construction family and substituting its replacement (tricolons -> pairs). Vocabulary ban lists are deliberately absent from these prompts (ADR-0034).
+Code: critical rules in `src/foundation/prompt-constants.js`
+_Avoid_: word list, slop list, banned vocabulary
+
+**Formula Echo**:
+Reuse of one comparative construction family across consecutive Snippets — a first-ever framing, a never-had-ever comparison, a duration record — restyling fresh facts with the same shape. Held by a per-Snippet framing cap and rewording against prior memory.
+Code: task rules in `src/foundation/prompt-constants.js`
+_Avoid_: parroting, slop
+
 **Recall Block**:
 The last message of a summarizer request: a per-family checklist of numbered one-line tasks the model answers before writing, then the volatile limits, then the execution trigger as its final line. It states almost no new rules; it makes the model visit the rules the system message already holds. The body is an editable Prompt Profile per family; the limits and the trigger stay automatic.
 Code: `src/foundation/prompt-parts.js`; settings `layer0RecallBody` / `promotionRecallBody`
