@@ -24,6 +24,13 @@ describe('summarizer output rejection payloads', () => {
         expect(result.status).toBe('integrity-rejected');
         expect(result.error.retryable).toBe(true);
         expect(result.text).toBe(raw);
+        expect(typeof result.repairFeedback).toBe('string');
+        expect(result.repairFeedback.length).toBeGreaterThan(0);
+        expect(result.repairFeedback).toContain('<narrative>');
+        expect(result.repairFeedback).toContain('current_date_time:');
+        for (const line of result.repairFeedback.split('\n').filter(Boolean)) {
+            expect(line).toContain(':');
+        }
     });
 
     it('keeps the cleaned LLM output on a CN-policy rejection', async () => {

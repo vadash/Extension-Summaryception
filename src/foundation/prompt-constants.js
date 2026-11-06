@@ -95,7 +95,7 @@ const LAYER0_INPUT_BLOCKS = `<player>
 
 const LAYER0_SCHEMA_BLOCK = `envelope: exactly one <narrative> block.
 body: one dense chronological paragraph of events, actions, dialogue, outcomes, and the core emotional moments.
-trailer: one current_date_time line after the envelope, in the form YYYY-MM-DD HH ddd (2024-07-04 16 Thu).
+trailer: one current_date_time line after the envelope, in the form YYYY-MM-DD HH ddd (current_date_time: 2024-07-04 16 Thu).
 clock: 24-hour, hour-level precision; ddd derived from the ISO date; minutes -> dropped.`;
 
 const LAYER0_TASK_RULES = `source: <passage>, read in full before writing; a summary of its tail alone is a failed read.

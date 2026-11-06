@@ -113,9 +113,12 @@ describe('Call Session runSeries outcomes', () => {
 
         expect(result.status).toBe('completed');
         const repairCall = connectionMocks.sendSummarizerRequest.mock.calls[1][0];
-        // A structural rejection reports no size feedback, so the recall block
-        // survives unchanged and keeps its trigger final.
-        expect(repairCall.recall).toBe(repairRecall);
+        // An integrity rejection teaches the output contract, so the recall
+        // block carries the feedback above its limits and keeps its trigger final.
+        expect(repairCall.recall).toContain('<narrative>');
+        expect(repairCall.recall).toContain('current_date_time:');
+        expect(repairCall.recall).toContain('limits:');
+        expect(repairCall.recall.endsWith('Now write it.')).toBe(true);
     });
 
     it('stops with guard-stopped when the Easy context guard rejects the prompt', async () => {

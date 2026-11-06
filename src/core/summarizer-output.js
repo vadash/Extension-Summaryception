@@ -329,7 +329,8 @@ export async function processSummarizerResponse(rawResult, profile, notify = sil
             status: 'integrity-rejected',
             text: chinesePolicyResult.text,
             error: integrityResult.error,
-            repairFeedback: '',
+            repairFeedback:
+                'contract: one <narrative> envelope plus one current_date_time line after it and nothing else\ncurrent_date_time: YYYY-MM-DD HH ddd',
         };
     }
 

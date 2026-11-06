@@ -24,6 +24,9 @@ const MAX_LAYER0_TARGET_TOKENS = 700;
 
 /** After the close tag only whitespace or one scene-time key line is legal. */
 const SCENE_TIME_TAIL_LINE_RE = /^[^\S\r\n]*current_date_time[^\S\r\n]*[:=][^\S\r\n]*\S/i;
+/** Bare tail date line with required hour, optional minutes, optional weekday. */
+const BARE_SCENE_TIME_TAIL_LINE_RE =
+    /^[^\S\r\n]*\d{4}-\d{2}-\d{2}[^\S\r\n]+\d{2}(?::\d{2})?(?:[^\S\r\n]+[A-Za-z]{3})?[^\S\r\n]*$/;
 
 /**
  * Normalize the configured Layer 0 summary target.
@@ -222,7 +225,9 @@ export function validateLayer0Structure(text) {
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter(Boolean);
-    const sceneTimeLines = tailLines.filter((line) => SCENE_TIME_TAIL_LINE_RE.test(line));
+    const sceneTimeLines = tailLines.filter(
+        (line) => SCENE_TIME_TAIL_LINE_RE.test(line) || BARE_SCENE_TIME_TAIL_LINE_RE.test(line),
+    );
     if (tailLines.length !== sceneTimeLines.length || sceneTimeLines.length > 1) {
         return 'prose after </narrative>';
     }

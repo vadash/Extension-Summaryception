@@ -14,6 +14,8 @@ const WEEKDAY_NAMES = Object.freeze(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', '
 const CURRENT_DATE_TIME_RE =
     /^\s*(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2})(?::\d{2})?)?(?:\s+([A-Za-z]{3}))?\s*$/;
 const SCENE_TIME_LINE_RE = /^[^\S\r\n]*current_date_time[^\S\r\n]*[:=][^\S\r\n]*(.+)$/i;
+const BARE_SCENE_TIME_LINE_RE =
+    /^[^\S\r\n]*\d{4}-\d{2}-\d{2}[^\S\r\n]+\d{2}(?::\d{2})?(?:[^\S\r\n]+[A-Za-z]{3})?[^\S\r\n]*$/;
 
 /**
  * Parse a generated Layer 0 snippet into its narrative prose and scene time.
@@ -49,7 +51,8 @@ export function parseSnippet(text) {
  */
 function stripTrailingSceneTime(body) {
     const lines = String(body || '').split(/\r?\n/);
-    if (SCENE_TIME_LINE_RE.test(lines[lines.length - 1] || '')) {
+    const lastLine = lines[lines.length - 1] || '';
+    if (SCENE_TIME_LINE_RE.test(lastLine) || BARE_SCENE_TIME_LINE_RE.test(lastLine)) {
         return lines.slice(0, -1).join('\n').trimEnd();
     }
     return body;
@@ -62,8 +65,15 @@ function stripTrailingSceneTime(body) {
  */
 function readSceneTime(span) {
     const lines = String(span || '').split(/\r?\n/);
-    const sceneTimeMatch = SCENE_TIME_LINE_RE.exec(lines[lines.length - 1] || '');
-    return sceneTimeMatch ? normalizeCurrentDateTime(sceneTimeMatch[1].trim()) : undefined;
+    const lastLine = lines[lines.length - 1] || '';
+    const sceneTimeMatch = SCENE_TIME_LINE_RE.exec(lastLine);
+    if (sceneTimeMatch) {
+        return normalizeCurrentDateTime(sceneTimeMatch[1].trim());
+    }
+    if (BARE_SCENE_TIME_LINE_RE.test(lastLine)) {
+        return normalizeCurrentDateTime(lastLine.trim());
+    }
+    return undefined;
 }
 
 /**
