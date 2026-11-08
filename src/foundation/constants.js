@@ -47,12 +47,14 @@ export const BATCH_PROGRESS = Object.freeze({
  * Stable transient event kinds emitted on the notify adapter (ADR-0019); the
  * entry adapter maps each kind to a user notice. Core carries these ids, never
  * prose.
- * @type {{ RUN_ABORTED: string, RUN_FAILED: string, EASY_GUARD_BLOCKED: string, RETRY_WAIT: string, ROUTE_CYCLE_WAIT: string, LANGUAGE_MIX_RETRY: string, PROMOTION_STARTED: string }}
+ * @type {{ RUN_ABORTED: string, RUN_FAILED: string, EASY_GUARD_BLOCKED: string, MICROFICHE_READER_BLOCKED: string, MICROFICHE_GEOMETRY_BLOCKED: string, RETRY_WAIT: string, ROUTE_CYCLE_WAIT: string, LANGUAGE_MIX_RETRY: string, PROMOTION_STARTED: string }}
  */
 export const NOTIFY_EVENTS = Object.freeze({
     RUN_ABORTED: 'run-aborted',
     RUN_FAILED: 'run-failed',
     EASY_GUARD_BLOCKED: 'easy-guard-blocked',
+    MICROFICHE_READER_BLOCKED: 'microfiche-reader-blocked',
+    MICROFICHE_GEOMETRY_BLOCKED: 'microfiche-geometry-blocked',
     RETRY_WAIT: 'retry-wait',
     ROUTE_CYCLE_WAIT: 'route-cycle-wait',
     LANGUAGE_MIX_RETRY: 'language-mix-retry',
@@ -62,6 +64,7 @@ export const NOTIFY_EVENTS = Object.freeze({
 export const MEMORY_MODES = Object.freeze({
     BALANCED: 'balanced',
     PREFIX_CACHE: 'prefix_cache',
+    MICROFICHE: 'microfiche',
     CUSTOM: 'custom',
 });
 // Unknown modes fall back to the standard route: only presets with atomicPartitions take the atomic path.
@@ -76,6 +79,13 @@ export const MEMORY_MODE_PRESETS = Object.freeze({
         queuedTokenBudget: 16000,
         atomicPartitions: true,
     }),
+    // Microfiche renders the same retained context as images, so it keeps the
+    // Prefix Cache budgets; switching modes changes the render path only, never retention.
+    [MEMORY_MODES.MICROFICHE]: Object.freeze({
+        verbatimTokenBudget: 20000,
+        queuedTokenBudget: 16000,
+        atomicPartitions: true,
+    }),
 });
 
 /**
@@ -83,7 +93,11 @@ export const MEMORY_MODE_PRESETS = Object.freeze({
  * `custom` is intentionally excluded: it carries no preset.
  * @type {ReadonlyArray<string>}
  */
-const SELECTABLE_MEMORY_MODES = Object.freeze([MEMORY_MODES.BALANCED, MEMORY_MODES.PREFIX_CACHE]);
+export const SELECTABLE_MEMORY_MODES = Object.freeze([
+    MEMORY_MODES.BALANCED,
+    MEMORY_MODES.PREFIX_CACHE,
+    MEMORY_MODES.MICROFICHE,
+]);
 
 /**
  * Apply a mode's initial retention preset to settings. Every mode transition
@@ -105,6 +119,164 @@ export function applyMemoryModePreset(settings, mode) {
     settings.queuedTokenBudget = preset.queuedTokenBudget;
     settings.atomicPartitions = preset.atomicPartitions;
     return true;
+}
+/**
+ * Stamp a Microfiche geometry preset into the explicit render knobs. A named
+ * preset overwrites the explicit geometry with the preset shape, so custom
+ * keeps the current values and only flips the selector.
+ * @param {ExtensionSettings} settings
+ * @param {string} name
+ * @returns {boolean} true when settings were mutated, false otherwise.
+ */
+export function applyMicroficheGeometryPreset(settings, name) {
+    const key = String(name);
+    if (!MICROFICHE_GEOMETRY_NAMES.includes(key)) {
+        return false;
+    }
+    if (key === 'custom') {
+        if (settings.microficheGeometry === 'custom') {
+            return false;
+        }
+        settings.microficheGeometry = 'custom';
+        return true;
+    }
+    const preset =
+        /** @type {{ font: string, cellWidth: number, cellHeight: number, stretch: boolean, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} */ (
+            MICROFICHE_GEOMETRY_PRESETS[/** @type {'gemini'|'deepseek'|'glm'} */ (key)]
+        );
+    let changed = settings.microficheGeometry !== key;
+    changed = stampMicroficheGeometryValues(settings, preset) || changed;
+    settings.microficheGeometry = /** @type {'gemini'|'deepseek'|'glm'|'custom'} */ (key);
+    return changed;
+}
+
+/**
+ * Load a catalogue shape as the custom starting point. The shape values land
+ * in the explicit knobs and the selector flips to custom for hand-tuning.
+ * @param {ExtensionSettings} settings
+ * @param {string} preset
+ * @returns {boolean} true when settings were mutated, false otherwise.
+ */
+export function applyMicroficheShapeAsCustom(settings, preset) {
+    const shape = MICROFICHE_SHAPES.find((candidate) => candidate.preset === preset);
+    if (!shape) {
+        return false;
+    }
+    let changed = settings.microficheGeometry !== 'custom';
+    changed =
+        stampMicroficheGeometryValues(settings, MICROFICHE_GEOMETRY_PRESETS[shape.preset]) ||
+        changed;
+    settings.microficheGeometry = 'custom';
+    return changed;
+}
+
+/**
+ * Copy one geometry preset's render knobs into the explicit settings keys.
+ * @param {ExtensionSettings} settings
+ * @param {{ font: string, cellWidth: number, cellHeight: number, stretch: boolean, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} preset
+ * @returns {boolean} true when a knob changed.
+ */
+function stampMicroficheGeometryValues(settings, preset) {
+    const next = {
+        microficheFont: preset.font,
+        microficheCellWidth: preset.cellWidth,
+        microficheCellHeight: preset.cellHeight,
+        microficheStretch: preset.stretch,
+        microficheVariant: preset.variant,
+        microficheStopwordDim: preset.stopwordDim,
+        microficheColumns: preset.columns,
+        microficheLineRepeat: preset.lineRepeat,
+        microficheFrameSize: preset.frameSize,
+    };
+    let changed = false;
+    for (const [key, value] of Object.entries(next)) {
+        if (settings[key] !== value) {
+            settings[key] = value;
+            changed = true;
+        }
+    }
+    return changed;
+}
+/**
+ * Microfiche geometry catalogue: named render shapes with the host readers
+ * that can serve them. The finder list mirrors the presets so the model-name
+ * lookup can suggest a starting shape; `custom` unlocks explicit geometry.
+ */
+export const MICROFICHE_FONTS = Object.freeze(['5x8', '8x8', '6x12', '8x13', 'silver']);
+export const MICROFICHE_VARIANTS = Object.freeze(['bw', 'sent']);
+export const MICROFICHE_GEOMETRY_NAMES = Object.freeze(['gemini', 'deepseek', 'glm', 'custom']);
+export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
+    gemini: Object.freeze({
+        font: '8x8',
+        cellWidth: 8,
+        cellHeight: 22,
+        stretch: false,
+        variant: 'bw',
+        stopwordDim: false,
+        columns: 1,
+        lineRepeat: 1,
+        frameSize: 2048,
+        readers: Object.freeze(['gemini']),
+    }),
+    deepseek: Object.freeze({
+        font: '8x8',
+        cellWidth: 8,
+        cellHeight: 22,
+        stretch: false,
+        variant: 'bw',
+        stopwordDim: false,
+        columns: 1,
+        lineRepeat: 1,
+        frameSize: 1568,
+        readers: Object.freeze(['deepseek']),
+    }),
+    glm: Object.freeze({
+        font: '8x13',
+        cellWidth: 8,
+        cellHeight: 16,
+        stretch: false,
+        variant: 'bw',
+        stopwordDim: false,
+        columns: 1,
+        lineRepeat: 1,
+        frameSize: 1568,
+        readers: Object.freeze(['glm']),
+    }),
+    custom: null,
+});
+function microficheShape(id, label, preset, match) {
+    return Object.freeze({
+        id,
+        label,
+        preset,
+        match: Object.freeze(match),
+        ...MICROFICHE_GEOMETRY_PRESETS[preset],
+    });
+}
+export const MICROFICHE_SHAPES = Object.freeze([
+    microficheShape('gemini', 'Gemini', 'gemini', ['gemini']),
+    microficheShape('deepseek', 'DeepSeek', 'deepseek', ['deepseek']),
+    microficheShape('glm', 'GLM', 'glm', ['glm']),
+]);
+/**
+ * Suggest up to three shapes for a model name by case-insensitive substring
+ * match over the shape id, label, preset, and family names. An empty query
+ * returns every shape in preset order.
+ * @param {unknown} query - Model-name text from the lookup box.
+ * @returns {Array<object>} Up to three matching shapes, never the live catalogue.
+ */
+export function lookupModelShapes(query) {
+    const needle = String(query ?? '')
+        .trim()
+        .toLowerCase();
+    if (!needle) {
+        return [...MICROFICHE_SHAPES];
+    }
+    return MICROFICHE_SHAPES.filter((shape) =>
+        [shape.id, shape.label, shape.preset, ...shape.match].some((field) =>
+            String(field).toLowerCase().includes(needle),
+        ),
+    ).slice(0, 3);
 }
 
 export const UI_MODES = Object.freeze({
@@ -153,6 +325,13 @@ export const SLIDER_LIMITS = Object.freeze({
     fallbackSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     auditorSummarizerResponseLength: Object.freeze({ MIN: 0, MAX: null, STEP: 100 }),
     customMemoryDepth: Object.freeze({ MIN: 0, MAX: 10000, STEP: 1 }),
+    microficheKeepRaw: Object.freeze({ MIN: 0, MAX: 10, STEP: 1 }),
+    microficheImageCap: Object.freeze({ MIN: 1, MAX: 80, STEP: 1 }),
+    microficheCellWidth: Object.freeze({ MIN: 5, MAX: 16, STEP: 1 }),
+    microficheCellHeight: Object.freeze({ MIN: 6, MAX: 22, STEP: 1 }),
+    microficheLineRepeat: Object.freeze({ MIN: 1, MAX: 2, STEP: 1 }),
+    microficheColumns: Object.freeze({ MIN: 1, MAX: 2, STEP: 1 }),
+    microficheFrameSize: Object.freeze({ MIN: 512, MAX: 2608, STEP: 8 }),
 });
 
 export const MASK_USER_ROLE_MODES = Object.freeze({
@@ -251,6 +430,20 @@ export const defaultSettings = Object.freeze({
     queuedTokenBudget: 6000,
     // Stamped from the memory-mode preset on mode transitions/reset.
     atomicPartitions: false,
+    // Microfiche render knobs; they tune the image render only, never retention.
+    microficheKeepRaw: 2,
+    microficheImageCap: 8,
+    microficheFont: '8x8',
+    microficheCellWidth: 8,
+    microficheCellHeight: 22,
+    microficheStretch: false,
+    microficheVariant: 'bw',
+    microficheStopwordDim: false,
+    microficheColumns: 1,
+    microficheLineRepeat: 1,
+    microficheFrameSize: 2048,
+    microficheModelName: '',
+    microficheGeometry: 'gemini',
     memoryTokenBudget: 10000,
     snippetsPerLayer: 24,
     snippetsPerPromotion: 3,

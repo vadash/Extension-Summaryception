@@ -111,6 +111,20 @@ interface ExtensionSettings {
     verbatimTokenBudget: number;
     queuedTokenBudget: number;
     atomicPartitions: boolean;
+    // Image render knobs for the Microfiche memory mode; retention budgets stay in the mode presets.
+    microficheKeepRaw: number;
+    microficheImageCap: number;
+    microficheFont: '5x8' | '8x8' | '6x12' | '8x13' | 'silver';
+    microficheCellWidth: number;
+    microficheCellHeight: number;
+    microficheStretch: boolean;
+    microficheVariant: 'bw' | 'sent';
+    microficheStopwordDim: boolean;
+    microficheColumns: 1 | 2;
+    microficheLineRepeat: 1 | 2;
+    microficheFrameSize: number;
+    microficheModelName: string;
+    microficheGeometry: 'gemini' | 'deepseek' | 'glm' | 'custom';
     memoryTokenBudget: number;
     snippetsPerLayer: number;
     snippetsPerPromotion: number;

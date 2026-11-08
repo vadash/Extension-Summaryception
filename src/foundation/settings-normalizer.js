@@ -4,12 +4,67 @@ import {
     MEMORY_MODE_PRESETS,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
+    MICROFICHE_FONTS,
+    MICROFICHE_GEOMETRY_NAMES,
+    MICROFICHE_VARIANTS,
     PROMPT_SETTING_KEYS,
     SLIDER_LIMITS,
     defaultSettings,
 } from './constants.js';
 import { CONNECTION_ROUTES, getRouteTimeoutLimits } from './connection-routes.js';
 import { clampInteger, clampToStep } from './numeric.js';
+/**
+ * Normalize the Microfiche render knobs in place. Bounds declare once in the
+ * slider-limits map; this pass only enforces them, same as the retention
+ * budgets.
+ * @param {ExtensionSettings} settings - Settings object mutated in place.
+ * @returns {boolean} Whether settings were changed.
+ */
+function normalizeMicroficheSettings(settings) {
+    let changed = false;
+    for (const key of [
+        'microficheKeepRaw',
+        'microficheImageCap',
+        'microficheCellWidth',
+        'microficheCellHeight',
+        'microficheLineRepeat',
+        'microficheColumns',
+        'microficheFrameSize',
+    ]) {
+        const { MIN, MAX, STEP } = SLIDER_LIMITS[key];
+        const clamped =
+            STEP === 1
+                ? clampInteger(settings[key], MIN, MAX)
+                : clampToStep(settings[key], MIN, MAX, STEP);
+        if (settings[key] !== clamped) {
+            settings[key] = clamped;
+            changed = true;
+        }
+    }
+    const settingsRecord = asSettingsRecord(settings);
+    for (const [key, values] of /** @type {Array<[string, ReadonlyArray<string>]>} */ ([
+        ['microficheFont', MICROFICHE_FONTS],
+        ['microficheVariant', MICROFICHE_VARIANTS],
+        ['microficheGeometry', MICROFICHE_GEOMETRY_NAMES],
+    ])) {
+        if (!isSettingValue(values, settingsRecord[key])) {
+            settingsRecord[key] = defaultSettings[/** @type {keyof ExtensionSettings} */ (key)];
+            changed = true;
+        }
+    }
+    for (const key of ['microficheStretch', 'microficheStopwordDim']) {
+        const value = settings[key] === true;
+        if (settings[key] !== value) {
+            settings[key] = value;
+            changed = true;
+        }
+    }
+    if (typeof settings.microficheModelName !== 'string') {
+        settings.microficheModelName = '';
+        changed = true;
+    }
+    return changed;
+}
 
 /**
  * The read-time Settings Normalization pass: the one place a
@@ -31,6 +86,7 @@ const PROMPT_PRESET_VALUES = Object.freeze(['narrative', 'continuity', 'custom']
  */
 export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
     const memorySettingsNormalized = normalizeMemorySettings(settings);
+    const microficheSettingsNormalized = normalizeMicroficheSettings(settings);
     const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
     normalizeVerbatimWindowSettings(settings);
     normalizeRequestTimeouts(settings);
@@ -38,6 +94,7 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
     const promptSettingsNormalized = normalizePromptSettings(settings);
     return (
         memorySettingsNormalized ||
+        microficheSettingsNormalized ||
         roleMaskSettingsNormalized ||
         continuitySettingsNormalized ||
         promptSettingsNormalized
@@ -56,7 +113,7 @@ function normalizeMemorySettings(settings) {
         settings.memoryMode = MEMORY_MODES.PREFIX_CACHE;
         changed = true;
     }
-    const validModes = [MEMORY_MODES.BALANCED, MEMORY_MODES.PREFIX_CACHE];
+    const validModes = [MEMORY_MODES.BALANCED, MEMORY_MODES.PREFIX_CACHE, MEMORY_MODES.MICROFICHE];
     if (!isSettingValue(validModes, settings.memoryMode)) {
         settings.memoryMode = defaultSettings.memoryMode;
         changed = true;
