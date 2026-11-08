@@ -347,6 +347,18 @@ const NOTIFY_TRANSIENT_VIEWS = {
             TOAST_TITLE,
             { timeOut: 10000 },
         ),
+    [NOTIFY_EVENTS.MICROFICHE_READER_BLOCKED]: () =>
+        toastr.error(
+            'Microfiche mode blocked: the active connection cannot inline images. Switch the connection or leave Microfiche mode.',
+            TOAST_TITLE,
+            { timeOut: 10000 },
+        ),
+    [NOTIFY_EVENTS.MICROFICHE_GEOMETRY_BLOCKED]: () =>
+        toastr.error(
+            'Microfiche mode blocked: the custom geometry has no curated readers. Pick a preset geometry.',
+            TOAST_TITLE,
+            { timeOut: 10000 },
+        ),
     [NOTIFY_EVENTS.RETRY_WAIT]: (event) =>
         toastr.warning(
             `Summarizer request failed. Retrying (attempt ${(event.attempt ?? 0) + 1} of ${event.maxRetries ?? 0})...`,

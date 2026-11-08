@@ -62,13 +62,20 @@ import { registerSlashCommands } from './src/entry/commands.js';
     const notify = createToastrNotifyAdapter();
     const usage = createUsageLedger();
     const dispatch = createSummarizerDispatch({ usage });
-    const queue = createSummarizerQueue({ gate, notify, dispatch, usage });
+    const queue = createSummarizerQueue({
+        gate,
+        notify,
+        dispatch,
+        usage,
+        microficheHost: { canInlineImages: false },
+    });
     const manualRunnerDeps = {
         queue,
         refreshUi,
         withRun: usage.withRun,
         gate,
         dispatch: dispatch.call,
+        microficheHost: { canInlineImages: false },
     };
     const continuityAuditor = createContinuityAuditor({
         dispatch: dispatch.call,

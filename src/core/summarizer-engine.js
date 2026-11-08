@@ -8,6 +8,7 @@ import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { drainPromotionOverflow } from './summarizer-promotion.js';
 import { flushPendingChatSave } from './persist-state.js';
 import { deriveManualRunOutcome } from './run-outcome.js';
+import { gateMicroficheMode } from './microfiche-gate.js';
 import { formatTokenValue } from './token-count.js';
 import {
     buildAutoSummaryRoutePlan,
@@ -45,14 +46,28 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @property {import('./summarizer-usage.js').UsageLedger['withRun']} withRun - Runs work inside a usage accounting scope.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate every prompt mutation of the run crosses.
  * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs every summarizer request.
+ * @property {{ canInlineImages?: boolean }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
+ */
+
+/**
+ * Options the automatic cycle threads through to the Microfiche gate.
+ * @typedef {object} ElasticAutoCycleOptions
+ * @property {() => void} [refreshUi] - Refreshes visible extension UI state.
+ * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress notices; absent runs stay silent.
+ * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the automatic cycle crosses.
+ * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs the automatic cycle.
+ * @property {{ canInlineImages?: boolean }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
  */
 
 /**
  * @param {import('./summarizer-queue.js').SummarizerQueueContext} queue
- * @param {{ refreshUi?: () => void, notify?: import('./notify.js').NotifyAdapter, gate: import('./foreground-gate.js').ForegroundGate, dispatch: import('./summarizer-request.js').SummarizerDispatch['call'] }} opts
+ * @param {ElasticAutoCycleOptions} opts
  * @returns {Promise<import('./run-outcome.js').SummarizationRunOutcome>}
  */
-export async function runElasticAutoCycle(queue, { refreshUi, notify, gate, dispatch }) {
+export async function runElasticAutoCycle(
+    queue,
+    { refreshUi, notify, gate, dispatch, microficheHost = { canInlineImages: false } },
+) {
     if ((await gate.promptWorkGate('auto worker', { refreshUi })) === 'blocked') {
         queue.setPhase('paused');
         return { status: 'blocked' };
@@ -62,6 +77,11 @@ export async function runElasticAutoCycle(queue, { refreshUi, notify, gate, disp
     if (!s.enabled || s.autoPaused) {
         queue.setPhase('paused');
         return { status: 'idle' };
+    }
+
+    if (!gateMicroficheMode({ settings: s, host: microficheHost, notify }).ok) {
+        queue.setPhase('paused');
+        return { status: 'blocked' };
     }
 
     const prepared = await prepareSummaryCycle();
@@ -102,6 +122,16 @@ export async function runManual(deps, strategy, options = {}) {
     }
     return await deps.withRun(manualStrategy.usageLabel, async () => {
         if (!(await prepareManualRun(deps, `manual ${strategy.toLowerCase()}`))) {
+            return deriveManualRunOutcome({ ...createManualRunTally(), blocked: true });
+        }
+
+        if (
+            !gateMicroficheMode({
+                settings: getEffectiveSettings(),
+                host: deps.microficheHost ?? { canInlineImages: false },
+                notify: options.notify,
+            }).ok
+        ) {
             return deriveManualRunOutcome({ ...createManualRunTally(), blocked: true });
         }
 
