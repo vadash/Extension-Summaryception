@@ -2,6 +2,9 @@ import {
     TOAST_TITLE,
     MASK_USER_ROLE_MODES,
     applyMemoryModePreset,
+    applyMicroficheGeometryPreset,
+    applyMicroficheShapeAsCustom,
+    lookupModelShapes,
     RECALL_REPEAT_INJECTION_TEMPLATE,
     UI_MODES,
     defaultSettings,
@@ -108,6 +111,20 @@ function bindToggleHandlers(queue) {
         '#sc_continuity_enabled',
     ].join(', ');
     bindDataSettingElements(plainToggles, { eventName: 'change' });
+    // Microfiche render knobs: the markup declares each key, so the
+    // data-attribute engine binds them. Geometry owns a separate change
+    // handler below because a named preset stamps the explicit knobs.
+    bindDataSettingElements(
+        [
+            '#sc_microfiche_font',
+            '#sc_microfiche_variant',
+            '#sc_microfiche_columns',
+            '#sc_microfiche_model_name',
+            '#sc_microfiche_stretch',
+            '#sc_microfiche_stopword_dim',
+        ].join(', '),
+        { eventName: 'change' },
+    );
 
     bindDocumentSetting({
         eventName: 'change',
@@ -141,6 +158,13 @@ function bindToggleHandlers(queue) {
             saveAndRefreshUi();
         },
     );
+    $(document).on('change', '#sc_microfiche_geometry', function () {
+        const settings = getSettings();
+        if (!applyMicroficheGeometryPreset(settings, String($(this).val()))) {
+            return;
+        }
+        saveAndRefreshUi();
+    });
     bindCustomPlacementHandlers();
 }
 
@@ -323,6 +347,36 @@ function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_import', () => triggerImport(notify, gate));
 
     $(document).on('click', '#sc_reset_defaults', onResetDefaults);
+    $(document).on('click', '#sc_microfiche_lookup', () => {
+        const query = String($('#sc_microfiche_model_name').val() ?? '');
+        const shapes = lookupModelShapes(query);
+        const $results = $('#sc_microfiche_shapes');
+        $results.empty();
+        if (shapes.length === 0) {
+            $results.append($('<small class="sc-hint">No matching shape.</small>'));
+            return;
+        }
+        for (const shape of shapes) {
+            $results.append(
+                $('<button type="button" class="menu_button"></button>')
+                    .attr('data-sc-microfiche-shape', shape.preset)
+                    .text(shape.label),
+            );
+        }
+    });
+
+    $(document).on('click', '[data-sc-microfiche-shape]', function () {
+        const settings = getSettings();
+        if (
+            !applyMicroficheShapeAsCustom(
+                settings,
+                String($(this).attr('data-sc-microfiche-shape')),
+            )
+        ) {
+            return;
+        }
+        saveAndRefreshUi();
+    });
 
     $(document).on('click', '#sc_insert_recall_template', function () {
         if (

@@ -28,6 +28,29 @@ function parseInputs(html) {
     return inputs;
 }
 
+/**
+ * Scan select blocks with the same plain-regex approach: numeric selects carry
+ * data-sc-type="number" and expose their bound as option values.
+ * @param {string} html - Raw settings template source
+ * @returns {Array<{id: string|null, type: string|null, key: string|null, options: Array<number>}>}
+ */
+function parseSelects(html) {
+    const selects = [];
+    for (const block of html.match(/<select\b[^>]*>[\s\S]*?<\/select>/g) ?? []) {
+        const open = block.match(/<select\b[^>]*>/)?.[0] ?? '';
+        const attr = (name) => open.match(new RegExp(`(?<![\\w-])${name}="([^"]*)"`))?.[1] ?? null;
+        selects.push({
+            id: attr('id'),
+            type: attr('data-sc-type'),
+            key: attr('data-sc-slider-setting') ?? attr('data-sc-setting'),
+            options: [...block.matchAll(/<option\b[^>]*value="([^"]*)"[^>]*>/g)].map((match) =>
+                Number(match[1]),
+            ),
+        });
+    }
+    return selects;
+}
+
 /** @param {string|null} raw - Attribute value; absent attributes stay null */
 const num = (raw) => (raw === null ? null : Number(raw));
 
@@ -41,12 +64,16 @@ function decodeDefault(raw) {
 }
 
 describe('settings.html bounds agreement', () => {
-    const inputs = parseInputs(readFileSync(SETTINGS_HTML_URL, 'utf8'));
+    const html = readFileSync(SETTINGS_HTML_URL, 'utf8');
+    const inputs = parseInputs(html);
+    const selects = parseSelects(html);
     // Registry-governed controls. Range sliders carry data-sc-slider-setting.
     // Numeric steppers carry data-sc-setting.
     const boundsControls = inputs.filter(
         (el) => (el.type === 'range' || el.type === 'number') && el.key !== null,
     );
+    // Numeric selects carry data-sc-type="number" and expose their range as options.
+    const selectBoundsControls = selects.filter((el) => el.type === 'number' && el.key !== null);
     // Sliders and their partner text displays, wherever a default is rendered.
     const defaultValueBearers = inputs.filter(
         (el) =>
@@ -56,9 +83,9 @@ describe('settings.html bounds agreement', () => {
     );
 
     it('covers exactly the slider keys present in settings.html, both directions', () => {
-        expect([...new Set(boundsControls.map((el) => el.key))].sort()).toEqual(
-            Object.keys(SLIDER_LIMITS).sort(),
-        );
+        expect(
+            [...new Set([...boundsControls, ...selectBoundsControls].map((el) => el.key))].sort(),
+        ).toEqual(Object.keys(SLIDER_LIMITS).sort());
     });
 
     it('matches every min/max/step attribute to the registry bounds', () => {
@@ -71,6 +98,28 @@ describe('settings.html bounds agreement', () => {
             expect(num(el.min), `#${el.id} (${el.key}) min`).toBe(limits.MIN);
             expect(num(el.max), `#${el.id} (${el.key}) max`).toBe(limits.MAX);
             expect(num(el.step), `#${el.id} (${el.key}) step`).toBe(limits.STEP);
+        }
+    });
+
+    it('matches every numeric select option list to the registry stepped range', () => {
+        expect(selectBoundsControls.length).toBeGreaterThan(0);
+        for (const el of selectBoundsControls) {
+            const limits = SLIDER_LIMITS[el.key];
+            expect(
+                limits,
+                `settings.html #${el.id}: key "${el.key}" missing from SLIDER_LIMITS`,
+            ).toBeDefined();
+            if (limits.MAX === null) {
+                continue;
+            }
+            const expected = [];
+            for (let value = limits.MIN; value <= limits.MAX; value += limits.STEP) {
+                expected.push(value);
+            }
+            expect(
+                [...el.options].sort((a, b) => a - b),
+                `#${el.id} (${el.key}) options`,
+            ).toEqual(expected);
         }
     });
 

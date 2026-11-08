@@ -162,16 +162,22 @@ async function getWorkerLabel(s, work, busy) {
     return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
 }
 
-function syncMemoryModeControls(s) {
+/**
+ *
+ */
+export function syncMemoryModeControls(s) {
     const isPrefixCache = s.memoryMode === MEMORY_MODES.PREFIX_CACHE;
+    const isMicrofiche = s.memoryMode === MEMORY_MODES.MICROFICHE;
     const isMacroOnly = s.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY;
     $('#sc_custom_memory_depth_row').toggle(s.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT);
     $('#sc_custom_memory_role_row').toggle(!isMacroOnly);
     $('#sc_macro_memory_note').toggle(isMacroOnly);
     $('#sc_memory_help_balanced').toggle(s.memoryMode === MEMORY_MODES.BALANCED);
     $('#sc_memory_help_prefix_cache').toggle(isPrefixCache);
+    $('#sc_memory_help_microfiche').toggle(isMicrofiche);
     $('#sc_manual_cache_warning').toggle(isPrefixCache);
     $('.sc-cache-mode-row').toggle(isPrefixCache);
+    $('.sc-microfiche-mode-row').toggle(isMicrofiche);
 }
 
 async function renderBudgetStatus(s, work, memoryUsage) {

@@ -32,6 +32,14 @@ const MEMORY_MODE_HELP = Object.freeze({
         when: 'Use it when cached input is cheaper and your provider can reuse a partial prompt prefix.',
         risk: 'The prompt is larger, and a summary flush starts a new cache prefix. Normal lorebooks need no changes.',
     },
+    microfiche: {
+        title: 'Microfiche',
+        short: 'Renders retained context as images instead of text.',
+        controlsText:
+            'Keeps the Prefix Cache 32k retention budgets and renders the same context as images.',
+        when: 'Use it when the host can inline images and the geometry has curated readers.',
+        risk: 'Custom geometry has no curated readers and blocks the mode instead of falling back to text.',
+    },
 });
 
 const memoryModeHelp = ({ selector, controls, mode }) =>
@@ -466,6 +474,14 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'memory_mode_microfiche',
+        memoryModeHelp({
+            selector: selectorFor('sc_memory_mode_microfiche'),
+            controls: [controlFor('sc_memory_mode_microfiche')],
+            mode: 'microfiche',
+        }),
+    ],
+    [
         'custom_memory_position',
         basicHelp({
             selector: selectorFor('sc_custom_memory_position'),
@@ -531,6 +547,14 @@ const HELP_ENTRIES = [
             selector: selectorFor('sc_easy_memory_mode_prefix_cache'),
             controls: [controlFor('sc_easy_memory_mode_prefix_cache')],
             mode: 'prefix_cache',
+        }),
+    ],
+    [
+        'easy_memory_mode_microfiche',
+        memoryModeHelp({
+            selector: selectorFor('sc_easy_memory_mode_microfiche'),
+            controls: [controlFor('sc_easy_memory_mode_microfiche')],
+            mode: 'microfiche',
         }),
     ],
     [

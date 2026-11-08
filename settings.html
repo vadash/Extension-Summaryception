@@ -143,6 +143,14 @@
                                 <label for="sc_easy_queued_token_budget"><span>Queued Chat</span><small class="sc-hint">Older raw chat queued for summarization after Recent + Queued is full.</small></label>
                                 <div class="sc-slider-row"><input type="range" id="sc_easy_queued_token_budget" min="4000" max="64000" step="1000" data-sc-slider-setting="queuedTokenBudget" data-sc-partner-input="#sc_easy_queued_token_budget_val" /><input id="sc_easy_queued_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" data-sc-slider-setting="queuedTokenBudget" data-sc-partner-input="#sc_easy_queued_token_budget" /></div>
                             </div>
+                            <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                <label for="sc_easy_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">Raw text lines kept beside each rendered image. Microfiche only.</small></label>
+                                <div class="sc-slider-row"><input type="range" id="sc_easy_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw_val" /><input id="sc_easy_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="2" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw" /></div>
+                            </div>
+                            <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                <label for="sc_easy_microfiche_image_cap"><span>Image Cap</span><small class="sc-hint">Most images rendered per call. Microfiche only.</small></label>
+                                <div class="sc-slider-row"><input type="range" id="sc_easy_microfiche_image_cap" min="1" max="80" step="1" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_easy_microfiche_image_cap_val" /><input id="sc_easy_microfiche_image_cap_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_easy_microfiche_image_cap" /></div>
+                            </div>
                         </div>
                         <div class="sc-tuning-group">
                             <div class="sc-tuning-title">
@@ -165,6 +173,14 @@
                                         <small class="sc-hint">For normal caches that can reuse the unchanged start of a prompt even when the tail changes.</small>
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_prefix_cache" name="sc_easy_memory_mode" value="prefix_cache" data-sc-setting="memoryMode" />
+                                </label>
+                                <label class="checkbox_label sc-toggle-row" for="sc_easy_memory_mode_microfiche">
+                                    <span class="sc-toggle-icon fa-solid fa-film"></span>
+                                    <span class="sc-toggle-copy">
+                                        <span class="sc-toggle-title">Microfiche</span>
+                                        <small class="sc-hint">Renders retained context as images instead of text. Same budgets as Prefix Cache.</small>
+                                    </span>
+                                    <input type="radio" id="sc_easy_memory_mode_microfiche" name="sc_easy_memory_mode" value="microfiche" data-sc-setting="memoryMode" />
                                 </label>
                             </div>
                         </div>
@@ -620,6 +636,14 @@
                                 </span>
                                 <input type="radio" id="sc_memory_mode_prefix_cache" name="sc_memory_mode" value="prefix_cache" data-sc-setting="memoryMode" />
                             </label>
+                            <label class="checkbox_label sc-mode-card" for="sc_memory_mode_microfiche">
+                                <span class="sc-toggle-icon fa-solid fa-film"></span>
+                                <span class="sc-toggle-copy">
+                                    <span class="sc-toggle-title">Microfiche</span>
+                                    <small class="sc-hint">Renders retained context as images instead of text. Same budgets as Prefix Cache.</small>
+                                </span>
+                                <input type="radio" id="sc_memory_mode_microfiche" name="sc_memory_mode" value="microfiche" data-sc-setting="memoryMode" />
+                            </label>
                         </div>
                     </div>
                     <div id="sc_memory_help_balanced" class="sc-note">
@@ -629,6 +653,10 @@
                     <div id="sc_memory_help_prefix_cache" class="sc-note" style="display: none;">
                         <span class="fa-solid fa-circle-info"></span>
                         <small>Prefix Cache lets live chat grow to 32k. Most providers can reuse the longest unchanged prefix, so a changed tail still reuses the shared start. Normal lorebooks work as usual. Context is larger, and a summary flush starts a new cache prefix.</small>
+                    </div>
+                    <div id="sc_memory_help_microfiche" class="sc-note" style="display: none;">
+                        <span class="fa-solid fa-circle-info"></span>
+                        <small>Microfiche renders the same retained context as images, so it keeps the Prefix Cache 32k budgets and changes the render path only, never retention. The host must inline images and the geometry needs curated readers.</small>
                     </div>
                 </section>
                 <section id="sc_continuity_section" class="sc-section" style="display: none;">
@@ -878,6 +906,86 @@
                                             <input type="range" id="sc_cache_ttl" min="5" max="240" step="5" data-sc-slider-setting="cacheTtlMinutes" data-sc-partner-input="#sc_cache_ttl_val" />
                                             <input id="sc_cache_ttl_val" class="text_pole sc-val" type="text" inputmode="numeric" value="30" data-sc-slider-setting="cacheTtlMinutes" data-sc-partner-input="#sc_cache_ttl" />
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="sc-tuning-group">
+                                    <div class="sc-tuning-title">
+                                        <span class="fa-solid fa-film"></span>
+                                        <span>Microfiche</span>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">RAW text lines kept beside each rendered image. Microfiche only.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw_val" /><input id="sc_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="2" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_image_cap"><span>Image Cap</span><small class="sc-hint">Most images rendered per call. Microfiche only.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_image_cap" min="1" max="80" step="1" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap_val" /><input id="sc_microfiche_image_cap_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_geometry"><span>Geometry</span><small class="sc-hint">Named render shape. A preset stamps the explicit knobs below. Custom unlocks hand-tuning.</small></label>
+                                        <select id="sc_microfiche_geometry" class="text_pole" data-sc-setting="microficheGeometry">
+                                            <option value="gemini">Gemini</option>
+                                            <option value="deepseek">DeepSeek</option>
+                                            <option value="glm">GLM</option>
+                                            <option value="custom">Custom</option>
+                                        </select>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_model_name"><span>Model Name</span><small class="sc-hint">Look up a model name to load its shape as the custom starting point.</small></label>
+                                        <input id="sc_microfiche_model_name" class="text_pole" type="text" data-sc-setting="microficheModelName" />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <span></span>
+                                        <div class="sc-button-row"><button id="sc_microfiche_lookup" class="menu_button" type="button"><i class="fa-solid fa-magnifying-glass"></i><span>Find Shape</span></button></div>
+                                        <div id="sc_microfiche_shapes"></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_font"><span>Font</span><small class="sc-hint">Glyph set used to render images.</small></label>
+                                        <select id="sc_microfiche_font" class="text_pole" data-sc-setting="microficheFont">
+                                            <option value="5x8">5x8</option>
+                                            <option value="8x8">8x8</option>
+                                            <option value="6x12">6x12</option>
+                                            <option value="8x13">8x13</option>
+                                            <option value="silver">silver</option>
+                                        </select>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_cell_width"><span>Cell Width</span><small class="sc-hint">Pixels per glyph cell across.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_width" min="5" max="16" step="1" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width_val" /><input id="sc_microfiche_cell_width_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_cell_height"><span>Cell Height</span><small class="sc-hint">Pixels per glyph cell down.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_height" min="6" max="22" step="1" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height_val" /><input id="sc_microfiche_cell_height_val" class="text_pole sc-val" type="text" inputmode="numeric" value="22" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_line_repeat"><span>Line Repeat</span><small class="sc-hint">Repeated lines per text row.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_line_repeat" min="1" max="2" step="1" data-sc-slider-setting="microficheLineRepeat" data-sc-partner-input="#sc_microfiche_line_repeat_val" /><input id="sc_microfiche_line_repeat_val" class="text_pole sc-val" type="text" inputmode="numeric" value="1" data-sc-slider-setting="microficheLineRepeat" data-sc-partner-input="#sc_microfiche_line_repeat" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_frame_size"><span>Frame Size</span><small class="sc-hint">Pixels per rendered frame.</small></label>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_frame_size" min="512" max="2608" step="8" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size_val" /><input id="sc_microfiche_frame_size_val" class="text_pole sc-val" type="text" inputmode="numeric" value="2048" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size" /></div>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_stretch"><span>Stretch</span><small class="sc-hint">Stretch glyphs to fill the cell.</small></label>
+                                        <input id="sc_microfiche_stretch" type="checkbox" data-sc-setting="microficheStretch" />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_variant"><span>Variant</span><small class="sc-hint">Render palette.</small></label>
+                                        <select id="sc_microfiche_variant" class="text_pole" data-sc-setting="microficheVariant">
+                                            <option value="bw">bw</option>
+                                            <option value="sent">sent</option>
+                                        </select>
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_stopword_dim"><span>Dim Stopwords</span><small class="sc-hint">Dim stopwords in the render.</small></label>
+                                        <input id="sc_microfiche_stopword_dim" type="checkbox" data-sc-setting="microficheStopwordDim" />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_columns"><span>Columns</span><small class="sc-hint">Image columns per frame.</small></label>
+                                        <select id="sc_microfiche_columns" class="text_pole" data-sc-setting="microficheColumns" data-sc-type="number">
+                                            <option value="1">1</option>
+                                            <option value="2">2</option>
+                                        </select>
                                     </div>
                                 </div>
                                 <div class="sc-tuning-group">
