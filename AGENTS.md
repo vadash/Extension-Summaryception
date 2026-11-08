@@ -11,8 +11,8 @@
 
 ## Commands
 
-- `npm test` runs the suite.
-- The pre-commit hook runs the type gate, formats the whole repo, then stages every change. Keep the tree free of unrelated edits before a commit.
+- `tsc --noEmit` is the type gate; `npm test` the suite; `npm run lint` the lint.
+- The pre-commit hook runs the type gate, formats the whole repo, stages every change, then runs the suite. Keep the tree free of unrelated edits before a commit.
 
 ## Documentation
 
