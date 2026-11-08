@@ -8,6 +8,7 @@ import { syncGhosting } from '../core/ghosting.js';
 import { isAuditorTriggerMessage } from '../core/continuity-audit.js';
 import { discardCheckpoint } from '../core/continuity-checkpoint.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
+import { expandMicrofichePromptChat } from '../core/microfiche-transport.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
@@ -31,6 +32,11 @@ export function onChatCompletionPromptReady(...args) {
     const chat = /** @type {{ chat?: unknown }} */ (eventData).chat;
     if (!Array.isArray(chat)) {
         return;
+    }
+    try {
+        expandMicrofichePromptChat(chat);
+    } catch (_e) {
+        // Best effort: prefix bookkeeping below must keep its order and verdicts.
     }
 
     const nextHashes = chat.map((section) => hashPromptSection(section));
