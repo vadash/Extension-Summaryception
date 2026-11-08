@@ -110,6 +110,7 @@ interface ExtensionSettings {
     minSummaryBudget: number;
     verbatimTokenBudget: number;
     queuedTokenBudget: number;
+    atomicPartitions: boolean;
     memoryTokenBudget: number;
     snippetsPerLayer: number;
     snippetsPerPromotion: number;

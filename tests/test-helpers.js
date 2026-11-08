@@ -1,4 +1,4 @@
-import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { MEMORY_MODES, MEMORY_MODE_PRESETS } from '../src/foundation/constants.js';
 import { createForegroundGate } from '../src/core/foreground-gate.js';
 import { initChatPersistence } from '../src/core/persist-state.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
@@ -136,6 +136,7 @@ export function makeSummarySettings(overrides = {}) {
         enabled: true,
         uiMode: 'advanced',
         memoryMode: 'balanced',
+        atomicPartitions: false,
         customMemoryPosition: 'in_prompt',
         customMemoryRole: 'system',
         customMemoryDepth: 0,
@@ -156,6 +157,7 @@ export function makeSummarySettings(overrides = {}) {
 export function cacheSettings(overrides = {}) {
     return makeSummarySettings({
         memoryMode: MEMORY_MODES.PREFIX_CACHE,
+        atomicPartitions: true,
         cacheTtlMinutes: 30,
         minSummaryTurns: 3,
         ...overrides,
@@ -178,6 +180,7 @@ export function windowSettings(overrides = {}) {
 export function readySettings(memoryMode) {
     return makeSummarySettings({
         memoryMode,
+        atomicPartitions: MEMORY_MODE_PRESETS[memoryMode]?.atomicPartitions === true,
         verbatimTokenBudget: 100,
         queuedTokenBudget: 500,
         minSummaryBudget: 3000,

@@ -1,6 +1,7 @@
 import {
     MASK_USER_ROLE_MODES,
     MEMORY_MODES,
+    MEMORY_MODE_PRESETS,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     PROMPT_SETTING_KEYS,
@@ -58,6 +59,12 @@ function normalizeMemorySettings(settings) {
     const validModes = [MEMORY_MODES.BALANCED, MEMORY_MODES.PREFIX_CACHE];
     if (!isSettingValue(validModes, settings.memoryMode)) {
         settings.memoryMode = defaultSettings.memoryMode;
+        changed = true;
+    }
+    // Old stores backfilled false would drop prefix_cache users to the standard route (R6).
+    const atomicPartitions = MEMORY_MODE_PRESETS[settings.memoryMode]?.atomicPartitions === true;
+    if (settings.atomicPartitions !== atomicPartitions) {
+        settings.atomicPartitions = atomicPartitions;
         changed = true;
     }
     for (const route of Object.values(CONNECTION_ROUTES)) {

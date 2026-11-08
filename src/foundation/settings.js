@@ -149,6 +149,7 @@ export function resetSettingsToDefaults() {
     const retentionPreset = MEMORY_MODE_PRESETS[s.memoryMode] || MEMORY_MODE_PRESETS.balanced;
     s.verbatimTokenBudget = retentionPreset.verbatimTokenBudget;
     s.queuedTokenBudget = retentionPreset.queuedTokenBudget;
+    s.atomicPartitions = retentionPreset.atomicPartitions;
 
     // Debug output deliberately re-enables on reset so F12 diagnostics stay available.
     s.debugMode = true;

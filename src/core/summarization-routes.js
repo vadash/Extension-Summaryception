@@ -1,4 +1,3 @@
-import { MEMORY_MODES } from '../foundation/constants.js';
 import { buildChatWindowPlan } from './chat-window-planner.js';
 import { getSlopBreakerPlan } from './slop-breaker.js';
 
@@ -51,7 +50,7 @@ export const SUMMARY_COMMIT_MODES = Object.freeze({
  */
 export async function buildAutoSummaryRoutePlan(chat, store, settings) {
     const plan = await buildChatWindowPlan(chat, store, settings);
-    const atomic = settings.memoryMode === MEMORY_MODES.PREFIX_CACHE;
+    const atomic = settings.atomicPartitions === true;
     if (atomic) {
         return {
             route: SUMMARY_ROUTES.CACHE_AUTO,

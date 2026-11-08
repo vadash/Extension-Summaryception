@@ -64,14 +64,17 @@ export const MEMORY_MODES = Object.freeze({
     PREFIX_CACHE: 'prefix_cache',
     CUSTOM: 'custom',
 });
+// Unknown modes fall back to the standard route: only presets with atomicPartitions take the atomic path.
 export const MEMORY_MODE_PRESETS = Object.freeze({
     [MEMORY_MODES.BALANCED]: Object.freeze({
         verbatimTokenBudget: 22000,
         queuedTokenBudget: 6000,
+        atomicPartitions: false,
     }),
     [MEMORY_MODES.PREFIX_CACHE]: Object.freeze({
         verbatimTokenBudget: 20000,
         queuedTokenBudget: 16000,
+        atomicPartitions: true,
     }),
 });
 
@@ -100,6 +103,7 @@ export function applyMemoryModePreset(settings, mode) {
     settings.memoryMode = mode;
     settings.verbatimTokenBudget = preset.verbatimTokenBudget;
     settings.queuedTokenBudget = preset.queuedTokenBudget;
+    settings.atomicPartitions = preset.atomicPartitions;
     return true;
 }
 
@@ -245,6 +249,8 @@ export const defaultSettings = Object.freeze({
     minSummaryBudget: 16000,
     verbatimTokenBudget: 22000,
     queuedTokenBudget: 6000,
+    // Stamped from the memory-mode preset on mode transitions/reset.
+    atomicPartitions: false,
     memoryTokenBudget: 10000,
     snippetsPerLayer: 24,
     snippetsPerPromotion: 3,
