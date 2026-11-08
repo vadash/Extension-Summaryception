@@ -11,6 +11,7 @@ import {
 import {
     buildMicrofichePageTexts,
     geometry,
+    resolveMicroficheEffectiveCap,
     resolveMicroficheShape,
     splitKeepRaw,
 } from '../src/core/microfiche-paginate.js';
@@ -298,6 +299,34 @@ describe('microfiche buildMicrofichePageTexts', () => {
                 }
             }
         }
+    });
+});
+
+describe('microfiche buildMicrofichePageTexts with an effective cap', () => {
+    it('keeps pages past the cap as raw text in chronological order', () => {
+        const tiny = geminiShape({ frameSize: 64 });
+        const snippets = ['aaa bbb ccc', 'ddd eee fff', 'ggg hhh iii', 'jjj kkk lll'];
+        const uncapped = buildMicrofichePageTexts(snippets, tiny, 0);
+        expect(uncapped.imageTexts.length).toBeGreaterThan(1);
+        const overflow = buildMicrofichePageTexts(snippets, tiny, 0, 1);
+        expect(overflow.imageTexts).toEqual(uncapped.imageTexts.slice(0, 1));
+        expect(overflow.rawTexts.join('\n')).toContain(
+            stripDimMarkers(uncapped.imageTexts.slice(1).join('\n')),
+        );
+    });
+
+    it('sends every page to raw text when the cap is zero', () => {
+        const tiny = geminiShape({ frameSize: 64 });
+        const snippets = ['aaa bbb ccc', 'ddd eee fff'];
+        const result = buildMicrofichePageTexts(snippets, tiny, 0, 0);
+        expect(result.imageTexts).toEqual([]);
+        expect(result.rawTexts.length).toBeGreaterThan(0);
+    });
+
+    it('resolves the cap from slider, host, and preset budgets', () => {
+        expect(resolveMicroficheEffectiveCap(8, 3, 200)).toBe(3);
+        expect(resolveMicroficheEffectiveCap(8, 80, 5)).toBe(5);
+        expect(resolveMicroficheEffectiveCap('bogus', -1, Number.NaN)).toBe(0);
     });
 });
 

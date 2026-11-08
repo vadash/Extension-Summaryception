@@ -261,6 +261,8 @@ describe('microfiche geometry catalogue', () => {
             columns: 1,
             lineRepeat: 1,
             frameSize: 2048,
+            frameTokenEstimate: 1120,
+            imageBudget: 200,
             readers: ['gemini'],
         });
         expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek).toEqual({
@@ -273,6 +275,7 @@ describe('microfiche geometry catalogue', () => {
             columns: 1,
             lineRepeat: 1,
             frameSize: 1568,
+            frameTokenEstimate: 994,
             readers: ['deepseek'],
         });
         expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm).toEqual({
@@ -285,9 +288,39 @@ describe('microfiche geometry catalogue', () => {
             columns: 1,
             lineRepeat: 1,
             frameSize: 1568,
+            frameTokenEstimate: 3136,
+            imageBudget: 5,
             readers: ['glm'],
         });
         expect(constants.MICROFICHE_GEOMETRY_PRESETS.custom).toBeNull();
+    });
+
+    it('resolves billing and budgets from the preset name, never from knobs', () => {
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.gemini.frameTokenEstimate).toBe(1120);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.gemini.imageBudget).toBe(200);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek.frameTokenEstimate).toBe(994);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek.imageBudget).toBeUndefined();
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate).toBe(3136);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm.imageBudget).toBe(5);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.custom).toBeNull();
+    });
+
+    it('stamps render knobs only, never billing or budget', () => {
+        const settings = {
+            ...defaultSettings,
+            microficheGeometry: 'custom',
+            microficheFrameSize: 512,
+        };
+        expect(constants.applyMicroficheGeometryPreset(settings, 'glm')).toBe(true);
+        expect(settings.microficheGeometry).toBe('glm');
+        expect(settings.microficheFrameSize).toBe(1568);
+        expect(settings).not.toHaveProperty('frameTokenEstimate');
+        expect(settings).not.toHaveProperty('imageBudget');
+        const customStart = { ...defaultSettings, microficheGeometry: 'gemini' };
+        expect(constants.applyMicroficheShapeAsCustom(customStart, 'deepseek')).toBe(true);
+        expect(customStart.microficheGeometry).toBe('custom');
+        expect(customStart).not.toHaveProperty('frameTokenEstimate');
+        expect(customStart).not.toHaveProperty('imageBudget');
     });
 
     it('holds three finder shapes mirroring the presets', () => {

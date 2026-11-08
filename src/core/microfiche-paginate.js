@@ -269,6 +269,26 @@ function docPages(normalized, geo, wideCells) {
 }
 
 /**
+ * Fewest images the slider, host, and preset budgets all allow. Absent
+ * budgets read as unbounded, garbage reads as zero so overflow stays text.
+ * @param {unknown} sliderCap - Slider images-per-injection cap.
+ * @param {unknown} hostBudget - Host adapter image budget, if any.
+ * @param {unknown} presetBudget - Preset image budget, if any.
+ * @returns {number} Effective image cap, floored at zero.
+ */
+export function resolveMicroficheEffectiveCap(sliderCap, hostBudget, presetBudget) {
+    const candidates = [sliderCap, hostBudget, presetBudget]
+        .filter((value) => value !== undefined && value !== null)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+        .map((value) => Math.max(0, Math.floor(value)));
+    if (candidates.length === 0) {
+        return 0;
+    }
+    return Math.min(...candidates);
+}
+
+/**
  * Split oldest-first snippet texts: the oldest paginate to images, the
  * newest K stay raw. keepRaw 0 means all-to-images; keepRaw past the input
  * length keeps everything raw.
@@ -288,12 +308,15 @@ export function splitKeepRaw(textsOldestFirst, keepRaw) {
  * chronological order, paginate to frame capacity, then stopword-dim after
  * pagination so capacity math never sees the zero-width markers. Emits
  * strings only; the Canvas2D slice turns each into a { dataUrl, text } page.
+ * Pages past the effective cap stay in rawTexts in chronological order, so
+ * overflow stays text and nothing drops silently.
  * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
  * @param {MicroficheShape} shape - Resolved render shape.
  * @param {number} keepRaw - Newest texts kept as raw text.
+ * @param {unknown} [effectiveCap] - Optional image-page budget; absent means uncapped.
  * @returns {MicrofichePageSplit} Page texts for images plus raw texts.
  */
-export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw) {
+export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effectiveCap) {
     const split = splitKeepRaw(textsOldestFirst, keepRaw);
     const joined = normalize(
         split.imageTexts.filter((text) => typeof text === 'string').join('\n'),
@@ -311,10 +334,19 @@ export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw) {
     // A dim span cut by a page edge must reopen on the next page, or the
     // remainder of that page prints bright. Track it across pages here.
     let dimOpen = false;
-    const imageTexts = rawPages.map((page) => {
+    const paged = rawPages.map((page) => {
         const carried = dimOpen ? '\u000e' + page : page;
         dimOpen = carried.lastIndexOf('\u000e') > carried.lastIndexOf('\u000f');
         return shape.stopwordDim ? dimStopwords(carried) : carried;
     });
-    return { imageTexts, rawTexts: split.rawTexts };
+    if (effectiveCap === undefined || effectiveCap === null) {
+        return { imageTexts: paged, rawTexts: split.rawTexts };
+    }
+    const cap = Number.isFinite(Number(effectiveCap))
+        ? Math.max(0, Math.floor(Number(effectiveCap)))
+        : 0;
+    return {
+        imageTexts: paged.slice(0, cap),
+        rawTexts: [...paged.slice(cap), ...split.rawTexts],
+    };
 }

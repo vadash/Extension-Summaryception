@@ -216,6 +216,8 @@ export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
         columns: 1,
         lineRepeat: 1,
         frameSize: 2048,
+        frameTokenEstimate: 1120,
+        imageBudget: 200,
         readers: Object.freeze(['gemini']),
     }),
     deepseek: Object.freeze({
@@ -228,6 +230,7 @@ export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
         columns: 1,
         lineRepeat: 1,
         frameSize: 1568,
+        frameTokenEstimate: 994,
         readers: Object.freeze(['deepseek']),
     }),
     glm: Object.freeze({
@@ -240,6 +243,8 @@ export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
         columns: 1,
         lineRepeat: 1,
         frameSize: 1568,
+        frameTokenEstimate: 3136,
+        imageBudget: 5,
         readers: Object.freeze(['glm']),
     }),
     custom: null,

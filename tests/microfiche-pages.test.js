@@ -4,6 +4,7 @@ import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
     geometry,
+    resolveMicroficheEffectiveCap,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
 import { drawMicrofichePage } from '../src/core/microfiche-render.js';
@@ -106,6 +107,52 @@ describe('microfiche splitMicroficheSnippets', () => {
         expect(splitMicroficheSnippets(['a', 'b'], 9)).toEqual({
             imageSource: [],
             rawTail: ['a', 'b'],
+        });
+    });
+});
+
+describe('microfiche resolveMicroficheEffectiveCap', () => {
+    it('takes the smallest finite non-negative budget', () => {
+        expect(resolveMicroficheEffectiveCap(8, undefined, 200)).toBe(8);
+        expect(resolveMicroficheEffectiveCap(8, 3, 200)).toBe(3);
+        expect(resolveMicroficheEffectiveCap(8, 10, 5)).toBe(5);
+    });
+
+    it('floors to an integer at or above zero', () => {
+        expect(resolveMicroficheEffectiveCap(2.9, undefined, undefined)).toBe(2);
+        expect(resolveMicroficheEffectiveCap(-4, 8, 200)).toBe(0);
+        expect(resolveMicroficheEffectiveCap('bogus', -1, Number.NaN)).toBe(0);
+    });
+
+    it('ignores absent budgets and keeps the slider cap', () => {
+        expect(resolveMicroficheEffectiveCap(8, undefined, undefined)).toBe(8);
+        expect(resolveMicroficheEffectiveCap(8, null, null)).toBe(8);
+    });
+});
+
+describe('microfiche splitMicroficheSnippets with an effective cap', () => {
+    it('caps image pages and keeps the overflow as raw text in order', () => {
+        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 0, 2)).toEqual({
+            imageSource: ['a', 'b'],
+            rawTail: ['c', 'd'],
+        });
+        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 1, 1)).toEqual({
+            imageSource: ['a'],
+            rawTail: ['b', 'c', 'd'],
+        });
+    });
+
+    it('sends everything raw when the cap is zero', () => {
+        expect(splitMicroficheSnippets(['a', 'b'], 0, 0)).toEqual({
+            imageSource: [],
+            rawTail: ['a', 'b'],
+        });
+    });
+
+    it('behaves as before when the cap is absent', () => {
+        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 2)).toEqual({
+            imageSource: ['a', 'b'],
+            rawTail: ['c', 'd'],
         });
     });
 });
@@ -232,6 +279,9 @@ describe('microfiche hashMicroficheShape', () => {
             hashMicroficheShape(geminiShape({ variant: 'sent' })),
         );
         expect(hashMicroficheShape({ ...shape, frameTokenEstimate: 999 })).toBe(
+            hashMicroficheShape(shape),
+        );
+        expect(hashMicroficheShape({ ...shape, frameTokenEstimate: 3136, imageBudget: 5 })).toBe(
             hashMicroficheShape(shape),
         );
     });
