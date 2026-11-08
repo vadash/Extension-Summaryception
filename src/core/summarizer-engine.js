@@ -46,7 +46,7 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @property {import('./summarizer-usage.js').UsageLedger['withRun']} withRun - Runs work inside a usage accounting scope.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate every prompt mutation of the run crosses.
  * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs every summarizer request.
- * @property {{ canInlineImages?: boolean }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
+ * @property {{ canInlineImages?: boolean, imageBudget?: unknown }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
  */
 
 /**
@@ -56,7 +56,7 @@ export const ELASTIC_STRATEGIES = Object.freeze({
  * @property {import('./notify.js').NotifyAdapter} [notify] - Adapter for progress notices; absent runs stay silent.
  * @property {import('./foreground-gate.js').ForegroundGate} gate - Foreground Gate the automatic cycle crosses.
  * @property {import('./summarizer-request.js').SummarizerDispatch['call']} dispatch - Summarizer Dispatch whose call runs the automatic cycle.
- * @property {{ canInlineImages?: boolean }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
+ * @property {{ canInlineImages?: boolean, imageBudget?: unknown }} [microficheHost] - Injected image-inline capability probe the Microfiche gate reads.
  */
 
 /**

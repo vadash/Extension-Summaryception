@@ -1,6 +1,7 @@
 // Microfiche pagination: explicit-knob shape, grid capacity, word wrap, and
 // the oldest-to-images / newest-K-text split. Pure string math, no DOM.
 
+import { MICROFICHE_GEOMETRY_PRESETS as MICROFICHE_PRESETS } from '../foundation/constants.js';
 import { dimStopwords, normalize } from './microfiche-normalize.js';
 
 /**
@@ -349,4 +350,34 @@ export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effec
         imageTexts: paged.slice(0, cap),
         rawTexts: [...paged.slice(cap), ...split.rawTexts],
     };
+}
+
+/**
+ * Page-build call site: resolve the shape from explicit knobs, the preset
+ * budget from the selected preset name, then the effective cap from the
+ * slider, host, and preset budgets. Custom carries no preset budget.
+ * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
+ * @param {Record<string, unknown>} settings - Settings carrying knobs, slider cap, and preset name.
+ * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @returns {MicrofichePageSplit} Page texts for images plus raw texts.
+ */
+export function buildMicrofichePageTextsFromSettings(textsOldestFirst, settings, host = null) {
+    const source = settings ?? {};
+    const shape = resolveMicroficheShape(source);
+    const keepRaw = Number(source.microficheKeepRaw);
+    const geometryName = String(source.microficheGeometry ?? '');
+    const preset =
+        geometryName === 'custom' || !(geometryName in MICROFICHE_PRESETS)
+            ? null
+            : MICROFICHE_PRESETS[/** @type {'gemini' | 'deepseek' | 'glm'} */ (geometryName)];
+    const presetBudget =
+        preset !== null && 'imageBudget' in preset
+            ? /** @type {{ imageBudget?: unknown }} */ (preset).imageBudget
+            : undefined;
+    const effectiveCap = resolveMicroficheEffectiveCap(
+        source.microficheImageCap,
+        host?.imageBudget,
+        presetBudget,
+    );
+    return buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effectiveCap);
 }

@@ -5,14 +5,17 @@ import { describe, expect, it } from 'vitest';
 import {
     MEMORY_MODES,
     MICROFICHE_GEOMETRY_PRESETS,
-    SLIDER_LIMITS,
     applyMicroficheGeometryPreset,
     applyMicroficheShapeAsCustom,
     defaultSettings,
     lookupModelShapes,
 } from '../src/foundation/constants.js';
+import { buildInjection, measureInjection } from '../src/core/memory-injection.js';
+import { estimateContextPreview } from '../src/core/token-budget.js';
+import { countTextTokens } from '../src/core/token-count.js';
+import { getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
-import { installSummaryContext } from './test-helpers.js';
+import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
 
 const HTML = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
 
@@ -112,27 +115,142 @@ describe('microfiche geometry presets', () => {
     it('toggles the microfiche rows only on the microfiche mode', async () => {
         const { syncMemoryModeControls } = await import('../src/entry/ui.js');
         const toggles = {};
-        const visible = new Set();
         globalThis.$ = (selector) => ({
             toggle(shown) {
                 toggles[selector] = shown;
-                if (shown) {
-                    visible.add(selector);
-                }
             },
             is: () => false,
+            prop() {},
         });
 
-        syncMemoryModeControls({ memoryMode: MEMORY_MODES.MICROFICHE });
+        syncMemoryModeControls({
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'gemini',
+        });
         expect(toggles['.sc-microfiche-mode-row']).toBe(true);
         expect(toggles['.sc-cache-mode-row']).toBe(false);
         expect(toggles['#sc_memory_help_microfiche']).toBe(true);
         expect(toggles['#sc_memory_help_prefix_cache']).toBe(false);
 
-        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED });
+        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED, microficheGeometry: 'custom' });
         expect(toggles['.sc-microfiche-mode-row']).toBe(false);
         expect(toggles['#sc_memory_help_microfiche']).toBe(false);
         delete globalThis.$;
-        expect(SLIDER_LIMITS.microficheKeepRaw.MIN).toBe(0);
+    });
+
+    it('locks explicit geometry inputs unless the geometry is custom', async () => {
+        const { syncMemoryModeControls } = await import('../src/entry/ui.js');
+        const seen = {};
+        globalThis.$ = (selector) => ({
+            toggle() {},
+            is: () => false,
+            prop(name, value) {
+                if (value === undefined) {
+                    return seen[`${selector}:${name}`];
+                }
+                seen[`${selector}:${name}`] = value;
+                return this;
+            },
+        });
+        const locked = [
+            '#sc_microfiche_font',
+            '#sc_microfiche_cell_width',
+            '#sc_microfiche_cell_height',
+            '#sc_microfiche_stretch',
+            '#sc_microfiche_variant',
+            '#sc_microfiche_stopword_dim',
+            '#sc_microfiche_columns',
+            '#sc_microfiche_line_repeat',
+            '#sc_microfiche_frame_size',
+        ];
+        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED, microficheGeometry: 'gemini' });
+        for (const selector of locked) {
+            expect(seen[`${selector}:disabled`]).toBe(true);
+        }
+        expect(seen['#sc_microfiche_geometry:disabled']).toBeUndefined();
+        expect(seen['#sc_microfiche_model_name:disabled']).toBeUndefined();
+        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED, microficheGeometry: 'custom' });
+        for (const selector of locked) {
+            expect(seen[`${selector}:disabled`]).toBe(false);
+        }
+        delete globalThis.$;
+    });
+
+    it('renders every looked-up shape and loads the clicked shape as custom', async () => {
+        installSummaryContext({
+            settings: { microficheModelName: '', microficheGeometry: 'gemini' },
+        });
+        globalThis.document = {};
+        const dom = createJQueryHarness();
+        const created = [];
+        const inner = dom.$;
+        globalThis.$ = (target) => {
+            const element = inner(target);
+            if (typeof target === 'string' && target.startsWith('<button')) {
+                created.push(element);
+            }
+            return element;
+        };
+        const { bindUIEvents } = await import('../src/entry/ui-events.js');
+        const { gate } = makeForegroundGate();
+        bindUIEvents({
+            notify: null,
+            gate,
+            queue: { request: async () => {} },
+            manualRunnerDeps: { queue: { isBusy: () => false } },
+        });
+        dom.element('#sc_microfiche_model_name').val('');
+        dom.trigger('click', '#sc_microfiche_lookup');
+        expect(created.map((button) => button.attr('data-sc-microfiche-shape'))).toEqual([
+            'gemini',
+            'deepseek',
+            'glm',
+        ]);
+        const glmButton = created.find(
+            (button) => button.attr('data-sc-microfiche-shape') === 'glm',
+        );
+        dom.trigger('click', '[data-sc-microfiche-shape]', glmButton);
+        expect(getSettings().microficheGeometry).toBe('custom');
+        expect(getSettings().microficheFrameSize).toBe(MICROFICHE_GEOMETRY_PRESETS.glm.frameSize);
+        delete globalThis.$;
+        delete globalThis.document;
+    });
+
+    it('keeps preview numbers identical across microfiche geometries', async () => {
+        installSummaryContext();
+        const layers = [[{ text: 'The ferry crossed at dawn.' }]];
+        const template = { injectionTemplate: 'A {{summary}} B' };
+        const geminiInjection = buildInjection(layers, template);
+        const customInjection = buildInjection(layers, template);
+        expect(customInjection.text).toBe(geminiInjection.text);
+        const [geminiUsage, customUsage] = await Promise.all([
+            measureInjection(geminiInjection),
+            measureInjection(customInjection),
+        ]);
+        expect(customUsage.total).toEqual(geminiUsage.total);
+        const expected = await countTextTokens(geminiInjection.text);
+        expect(geminiUsage.total.count).toBe(expected.count);
+        const budgets = {
+            memoryTokenBudget: 10000,
+            verbatimTokenBudget: 16000,
+            queuedTokenBudget: 32000,
+            minSummaryBudget: 6000,
+            maxL0SourceTokens: 24000,
+            snippetsPerPromotion: 3,
+            layer0SummaryTokenTarget: 280,
+        };
+        expect(
+            estimateContextPreview({
+                ...budgets,
+                microficheGeometry: 'glm',
+                microficheImageCap: 5,
+            }),
+        ).toEqual(
+            estimateContextPreview({
+                ...budgets,
+                microficheGeometry: 'custom',
+                microficheImageCap: 80,
+            }),
+        );
     });
 });

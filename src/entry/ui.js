@@ -162,12 +162,29 @@ async function getWorkerLabel(s, work, busy) {
     return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
 }
 
+const MICROFICHE_GEOMETRY_INPUTS = Object.freeze([
+    '#sc_microfiche_font',
+    '#sc_microfiche_cell_width',
+    '#sc_microfiche_cell_width_val',
+    '#sc_microfiche_cell_height',
+    '#sc_microfiche_cell_height_val',
+    '#sc_microfiche_stretch',
+    '#sc_microfiche_variant',
+    '#sc_microfiche_stopword_dim',
+    '#sc_microfiche_columns',
+    '#sc_microfiche_line_repeat',
+    '#sc_microfiche_line_repeat_val',
+    '#sc_microfiche_frame_size',
+    '#sc_microfiche_frame_size_val',
+]);
 /**
- *
+ * Sync panel visibility plus the Microfiche control locks. Named presets stamp
+ * the explicit geometry knobs, so those inputs stay disabled until custom unlocks them.
  */
 export function syncMemoryModeControls(s) {
     const isPrefixCache = s.memoryMode === MEMORY_MODES.PREFIX_CACHE;
     const isMicrofiche = s.memoryMode === MEMORY_MODES.MICROFICHE;
+    const isCustomGeometry = s.microficheGeometry === 'custom';
     const isMacroOnly = s.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY;
     $('#sc_custom_memory_depth_row').toggle(s.customMemoryPosition === MEMORY_POSITIONS.IN_CHAT);
     $('#sc_custom_memory_role_row').toggle(!isMacroOnly);
@@ -178,6 +195,19 @@ export function syncMemoryModeControls(s) {
     $('#sc_manual_cache_warning').toggle(isPrefixCache);
     $('.sc-cache-mode-row').toggle(isPrefixCache);
     $('.sc-microfiche-mode-row').toggle(isMicrofiche);
+    syncMicroficheGeometryLock(isCustomGeometry);
+}
+
+/**
+ * Lock the explicit geometry knobs behind the custom selector. Named presets
+ * stamp these knobs, so the inputs stay read-only until custom unlocks them.
+ * @param {boolean} unlocked - True when the custom geometry is selected.
+ * @returns {void}
+ */
+function syncMicroficheGeometryLock(unlocked) {
+    for (const selector of MICROFICHE_GEOMETRY_INPUTS) {
+        $(selector).prop('disabled', !unlocked);
+    }
 }
 
 async function renderBudgetStatus(s, work, memoryUsage) {

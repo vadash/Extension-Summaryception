@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
+    buildMicrofichePageTextsFromSettings,
     geometry,
     resolveMicroficheEffectiveCap,
     resolveMicroficheShape,
@@ -127,6 +128,44 @@ describe('microfiche resolveMicroficheEffectiveCap', () => {
     it('ignores absent budgets and keeps the slider cap', () => {
         expect(resolveMicroficheEffectiveCap(8, undefined, undefined)).toBe(8);
         expect(resolveMicroficheEffectiveCap(8, null, null)).toBe(8);
+    });
+});
+
+describe('microfiche buildMicrofichePageTexts from settings', () => {
+    const knobs = {
+        ...GEMINI_KNOBS,
+        microficheKeepRaw: 0,
+        microficheImageCap: 8,
+        microficheGeometry: 'gemini',
+    };
+    const tiny = { ...knobs, microficheFrameSize: 64 };
+    const snippets = ['aaa bbb ccc', 'ddd eee fff', 'ggg hhh iii', 'jjj kkk lll'];
+
+    it('caps image pages at the slider with unbounded host and preset budgets', () => {
+        const built = buildMicrofichePageTextsFromSettings(snippets, tiny, {});
+        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(tiny), 0);
+        expect(built.imageTexts).toEqual(uncapped.imageTexts.slice(0, 8));
+        expect(built.rawTexts.join('\n')).toContain(uncapped.imageTexts.slice(8).join('\n'));
+    });
+
+    it('takes the min of slider, host, and preset budgets with overflow as text', () => {
+        const hostCapped = buildMicrofichePageTextsFromSettings(snippets, tiny, { imageBudget: 1 });
+        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(tiny), 0);
+        expect(hostCapped.imageTexts).toEqual(uncapped.imageTexts.slice(0, 1));
+        expect(hostCapped.rawTexts.join('\n')).toContain(uncapped.imageTexts.slice(1).join('\n'));
+        const glmKnobs = { ...tiny, microficheGeometry: 'glm', microficheImageCap: 80 };
+        const glmBuilt = buildMicrofichePageTextsFromSettings(snippets, glmKnobs, {});
+        const glmUncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(glmKnobs), 0);
+        expect(glmBuilt.imageTexts).toEqual(glmUncapped.imageTexts.slice(0, 5));
+        expect(glmBuilt.rawTexts.join('\n')).toContain(glmUncapped.imageTexts.slice(5).join('\n'));
+    });
+
+    it('reads no preset budget for custom geometry', () => {
+        const customKnobs = { ...tiny, microficheGeometry: 'custom', microficheImageCap: 2 };
+        const built = buildMicrofichePageTextsFromSettings(snippets, customKnobs, {});
+        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(customKnobs), 0);
+        expect(built.imageTexts).toEqual(uncapped.imageTexts.slice(0, 2));
+        expect(built.imageTexts.length).toBe(2);
     });
 });
 

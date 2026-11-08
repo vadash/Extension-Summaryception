@@ -31,7 +31,7 @@ export function resolveMicroficheReaders(settings) {
 }
 
 /**
- * @param {{ settings?: ExtensionSettings | null, host?: { canInlineImages?: unknown } | null }} [input]
+ * @param {{ settings?: ExtensionSettings | null, host?: { canInlineImages?: unknown, imageBudget?: unknown } | null }} [input]
  * @returns {{ ok: true } | { ok: false, reason: 'no-readers' | 'no-vision' }}
  */
 export function checkMicroficheReadiness({ settings = null, host = null } = {}) {
@@ -48,7 +48,7 @@ export function checkMicroficheReadiness({ settings = null, host = null } = {}) 
 }
 
 /**
- * @param {{ settings?: ExtensionSettings | null, host?: { canInlineImages?: unknown } | null, notify?: import('./notify.js').NotifyAdapter | null }} [input]
+ * @param {{ settings?: ExtensionSettings | null, host?: { canInlineImages?: unknown, imageBudget?: unknown } | null, notify?: import('./notify.js').NotifyAdapter | null }} [input]
  * @returns {{ ok: true } | { ok: false, reason: 'no-readers' | 'no-vision' }}
  */
 export function gateMicroficheMode({ settings = null, host = null, notify = null } = {}) {

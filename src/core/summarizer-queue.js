@@ -265,7 +265,7 @@ function isQueuePhase(phase) {
  * @param {import('./notify.js').NotifyAdapter} [p.notify]
  * @param {import('./summarizer-request.js').SummarizerDispatch} p.dispatch - Summarizer Dispatch; its call runs the automatic cycle, its abort/isLive feed the queue.
  * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger whose withRun scopes the worker drain.
- * @param {{ canInlineImages?: boolean }} [p.microficheHost] - Injected image-inline capability probe.
+ * @param {{ canInlineImages?: boolean, imageBudget?: unknown }} [p.microficheHost] - Injected image-inline capability probe.
  * @returns {SummarizerQueue}
  */
 export function createSummarizerQueue({
