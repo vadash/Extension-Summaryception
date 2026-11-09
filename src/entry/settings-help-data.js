@@ -251,6 +251,32 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'guard_mask',
+        basicHelp({
+            selector: selectorFor('sc_guard_mask'),
+            title: 'Gemini Argoon $$ jailbreak',
+            short: 'Replaces spaces with $$ in chat text sent to the main story model. Storage and the summarizer keep normal text.',
+            controls: [controlFor('sc_guard_mask')],
+            controlsText:
+                'Rewrites the chat text of every outgoing main story request with spaces replaced by $$. The mask never touches saved chat or any summarizer request.',
+            when: 'Turn it on when your Gemini jailbreak expects the $$ form in the main story prompt.',
+            risk: 'Every space becomes two characters, so the main request grows and the model may echo $$ in its reply.',
+        }),
+    ],
+    [
+        'guard_mask_memory',
+        basicHelp({
+            selector: selectorFor('sc_guard_mask_memory'),
+            title: 'Gemini Argoon $$ jailbreak for memory',
+            short: 'Sends stored memories with $$ to the main story model. Needs the main toggle on. Preview shows the masked form.',
+            controls: [controlFor('sc_guard_mask_memory')],
+            controlsText:
+                'Applies the same $$ mask to the stored memory block inside the outgoing main story request, so the masked preview matches what the model receives. It does nothing while the main toggle is off, and its own setting is kept for later.',
+            when: 'Turn it on when the jailbreak also needs the injected memories in masked form.',
+            risk: 'The memory block grows on every space, which costs context tokens against the main model budget.',
+        }),
+    ],
+    [
         'mask_user_role_as_assistant',
         basicHelp({
             selector: selectorFor('sc_mask_user_role_as_assistant'),

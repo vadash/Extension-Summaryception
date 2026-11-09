@@ -28,6 +28,7 @@ import {
     bindSliderSettingPairs,
     readChecked,
     readString,
+    syncGuardMaskControls,
     syncRoleMaskModeControl,
 } from './ui-bind.js';
 import { bindManualRunControls } from './ui-manual-run.js';
@@ -108,9 +109,14 @@ function bindToggleHandlers(queue) {
         '#sc_apply_regex_scripts',
         '#sc_hide_non_text_messages',
         '#sc_strip_chinese_ideographs',
+        '#sc_guard_mask',
+        '#sc_guard_mask_memory',
         '#sc_continuity_enabled',
     ].join(', ');
-    bindDataSettingElements(plainToggles, { eventName: 'change' });
+    bindDataSettingElements(plainToggles, {
+        eventName: 'change',
+        afterSave: (settings) => syncGuardMaskControls(Boolean(settings.guardMask)),
+    });
     // Microfiche render knobs: the markup declares each key, so the
     // data-attribute engine binds them. Geometry owns a separate change
     // handler below because a named preset stamps the explicit knobs.

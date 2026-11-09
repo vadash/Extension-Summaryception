@@ -42,6 +42,11 @@ describe('getSettings', () => {
         installSummaryContext({ settings: {} });
         expect(getSettings().cacheTtlMinutes).toBe(defaultSettings.cacheTtlMinutes);
     });
+
+    it('ships both Guard Mask toggles off by default', () => {
+        expect(defaultSettings.guardMask).toBe(false);
+        expect(defaultSettings.guardMaskMemory).toBe(false);
+    });
 });
 
 describe('memory mode transitions', () => {

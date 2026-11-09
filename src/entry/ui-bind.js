@@ -324,6 +324,16 @@ export function syncRoleMaskModeControl(enabled) {
 }
 
 /**
+ * Gate the memory mask on the main mask without clearing its stored value, so
+ * turning the main mask back on restores the user's memory choice.
+ * @param {boolean} enabled
+ * @returns {void}
+ */
+export function syncGuardMaskControls(enabled) {
+    $('#sc_guard_mask_memory').prop('disabled', !enabled);
+}
+
+/**
  * @param {SettingBinding} binding
  * @param {object} $source jQuery-wrapped source element
  * @returns {void}

@@ -710,6 +710,22 @@
                             </span>
                             <input type="checkbox" id="sc_strip_chinese_ideographs" data-sc-setting="stripChineseIdeographs" />
                         </label>
+                        <label class="checkbox_label sc-toggle-row" for="sc_guard_mask">
+                            <span class="sc-toggle-icon fa-solid fa-mask"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Gemini Argoon $$ jailbreak</span>
+                                <small class="sc-hint">Replaces spaces with $$ in chat text sent to the main story model. Storage and the summarizer keep normal text.</small>
+                            </span>
+                            <input type="checkbox" id="sc_guard_mask" data-sc-setting="guardMask" />
+                        </label>
+                        <label class="checkbox_label sc-toggle-row" for="sc_guard_mask_memory">
+                            <span class="sc-toggle-icon fa-solid fa-box-archive"></span>
+                            <span class="sc-toggle-copy">
+                                <span class="sc-toggle-title">Gemini Argoon $$ jailbreak for memory</span>
+                                <small class="sc-hint">Sends stored memories with $$ to the main story model. Needs the main toggle on. Preview shows the masked form.</small>
+                            </span>
+                            <input type="checkbox" id="sc_guard_mask_memory" data-sc-setting="guardMaskMemory" />
+                        </label>
                         <label class="checkbox_label sc-toggle-row" for="sc_mask_user_role_as_assistant">
                             <span class="sc-toggle-icon fa-solid fa-user-secret"></span>
                             <span class="sc-toggle-copy">

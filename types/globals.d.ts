@@ -152,6 +152,8 @@ interface ExtensionSettings {
     promotionPromptPreset: string;
     hideNonTextMessages: boolean;
     stripChineseIdeographs: boolean;
+    guardMask: boolean;
+    guardMaskMemory: boolean;
     maskUserRoleAsAssistant: boolean;
     maskUserRoleMode: 'marker_first' | 'rewrite_all' | 'marker_last' | 'keep_last_user';
     stripPatterns: string[];

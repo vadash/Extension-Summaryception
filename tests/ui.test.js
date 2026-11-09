@@ -7,6 +7,7 @@ import {
     bindDataSettingElements,
     bindSliderSettingPairs,
     readLines,
+    syncGuardMaskControls,
 } from '../src/entry/ui-bind.js';
 import { initConnectionUI, syncConnectionPanels } from '../src/entry/ui-connection.js';
 import { getSettings } from '../src/foundation/settings.js';
@@ -283,6 +284,38 @@ describe('connection route panels', () => {
         syncConnectionPanels(settings);
 
         expect(dom.element('#summaryception_auditor_profile_settings').isVisible()).toBe(true);
+    });
+});
+
+describe('Guard Mask gating', () => {
+    const MEMORY_MASK_ATTRS = {
+        '#sc_guard_mask_memory': { type: 'checkbox', 'data-sc-setting': 'guardMaskMemory' },
+    };
+
+    beforeEach(() => {
+        installSummaryContext({ settings: { guardMask: false, guardMaskMemory: true } });
+    });
+    afterEach(() => {
+        delete globalThis.document;
+    });
+
+    it('disables the memory mask while the main mask is off and keeps its stored value', () => {
+        const dom = createJQueryHarness({ attributes: MEMORY_MASK_ATTRS });
+        globalThis.$ = dom.$;
+
+        syncGuardMaskControls(false);
+
+        expect(dom.element('#sc_guard_mask_memory').prop('disabled')).toBe(true);
+        expect(getSettings().guardMaskMemory).toBe(true);
+    });
+
+    it('enables the memory mask when the main mask is on', () => {
+        const dom = createJQueryHarness({ attributes: MEMORY_MASK_ATTRS });
+        globalThis.$ = dom.$;
+
+        syncGuardMaskControls(true);
+
+        expect(dom.element('#sc_guard_mask_memory').prop('disabled')).toBe(false);
     });
 });
 

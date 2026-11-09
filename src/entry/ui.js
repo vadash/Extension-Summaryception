@@ -16,7 +16,7 @@ import { formatCompactTokenCount } from '../core/token-count.js';
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
-import { syncAllSettingsToDOM, syncRoleMaskModeControl } from './ui-bind.js';
+import { syncAllSettingsToDOM, syncGuardMaskControls, syncRoleMaskModeControl } from './ui-bind.js';
 import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
 import {
@@ -50,6 +50,7 @@ export async function updateUI({ queue }) {
         syncEnabledContent(enabledContent);
 
         syncRoleMaskModeControl(s.maskUserRoleAsAssistant);
+        syncGuardMaskControls(Boolean(s.guardMask));
         const work = await describeAutoWork(getChat(), store, effectiveSettings).catch(() => null);
         const ghostedCount = countGhostedMessages();
         const metrics = {

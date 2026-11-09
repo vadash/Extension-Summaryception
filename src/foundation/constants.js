@@ -480,6 +480,8 @@ export const defaultSettings = Object.freeze({
     // model and leave gaps in the hidden range that still cost context.
     hideNonTextMessages: true,
     stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
+    guardMask: false, // true = replace spaces with $$ in outgoing main story chat text
+    guardMaskMemory: false, // true = also mask stored memory in that request; needs guardMask
     maskUserRoleAsAssistant: false, // true = rewrite outgoing user-role request blocks as assistant
     maskUserRoleMode: MASK_USER_ROLE_MODES.MARKER_FIRST,
 
