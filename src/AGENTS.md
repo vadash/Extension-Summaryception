@@ -38,7 +38,7 @@
 - Macro-only placement exposes assembled memory for custom prompt layouts.
 - Refresh state-derived snippet metadata after any manual Layer 0 snippet edit.
 - Snippet regeneration target resolution is one shared resolver for UI and runner. Keep its status set stable; UI toasts map each status.
-- Microfiche readers read page N through the one page source seam in `src/core/microfiche-pages.js`; split, cache key/eviction, and canvas capture stay behind it.
+- Microfiche readers read page N through the one page source seam in `src/core/microfiche-pages.js`; split, the Raw Seal, cache clearing on epoch or geometry drift and on chat switch, and canvas capture stay behind it.
 
 ## Prompt
 

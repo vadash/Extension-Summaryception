@@ -36,6 +36,7 @@ const SHAPE_HASH_KEYS = [
  * @property {(input: MicrofichePageSourceInput) => void} update - Seal the plan for the epoch, then warm every sealed page.
  * @property {(pageIndex: number) => MicrofichePage | undefined} readPage - Read one page by index.
  * @property {() => number} size - Cached page count.
+ * @property {() => void} reset - Drop the sealed plan and every cached page, for a chat switch where the epoch can repeat.
  */
 
 /**
@@ -78,8 +79,9 @@ export function renderMicrofichePages(imageTexts, shape, canvasFactory) {
 
 /**
  * Build the one page source: readers bind a plan with update, then ask for a
- * page index. The cache is tab memory only and dies with the instance, so a
- * chat switch or reload that rebuilds the owner needs no explicit clear.
+ * page index. The cache is tab memory only. Epoch and geometry drift clear it,
+ * and a chat switch calls reset because each chat's mutation epoch starts at
+ * zero and can repeat the epoch this chat sealed.
  * @param {{
  *   canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null,
  *   renderPage?: ((text: string, shape: import('./microfiche-geometry.js').MicroficheShape) => MicrofichePage) | null,
@@ -166,5 +168,16 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         return pages.size;
     }
 
-    return { update, readPage, size };
+    /**
+     * Drop the sealed plan and every cached page. A chat switch calls this
+     * because the next chat's epoch can equal the sealed one, so epoch
+     * equality alone cannot prove the pixels belong to the loaded chat.
+     * @returns {void}
+     */
+    function reset() {
+        sealed = null;
+        pages.clear();
+    }
+
+    return { update, readPage, size, reset };
 }

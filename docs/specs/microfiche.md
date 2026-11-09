@@ -80,6 +80,8 @@ enforcement (#55:73). Bounds agreement with the settings template is pinned by
 | --- | --- | --- | --- | --- |
 | `microficheKeepRaw` | integer | 0-10 step 1 | 2 | newest-K Snippets kept as text; 0 means everything outside the Verbatim Window renders to images (#55:59, #55:26-27) |
 | `microficheImageCap` | integer | 1-80 step 1 | 8 | images per injection; effective cap is min(slider, host image budget, preset budget); overflow stays text (#55:60, #55:28-29) |
+| `microficheMemoryImages` | boolean | - | false | send summary memory as rendered images; off keeps memory as text |
+| `microficheFrozenRawImages` | boolean | - | false | send the frozen raw chat slice as rendered images; off keeps raw chat as text |
 | `microficheFont` | enum | `5x8`, `8x8`, `6x12`, `8x13`, `silver` | per-model winner | glyph font, 1:1 with the reference Shape set (#55:61) |
 | `microficheCellWidth` | integer | 5-16 step 1 | per-model winner | glyph cell width (#55:62) |
 | `microficheCellHeight` | integer | 6-22 step 1 | per-model winner | glyph cell height (#55:63) |
@@ -139,8 +141,9 @@ the sealed list is the cap, and a reader never slices it itself (#55:81-84).
 Set-level reuse falls out of per-page hits (#55:83).
 
 An epoch bump or a geometry change (the shape hash covers geometry keys only)
-clears the map and reseals; chat switch and reload kill the instance-held
-cache (#55:84). The built injection text is not a key and never touches
+clears the map and reseals. Chat switch calls the writer's reset, because each
+chat's epoch starts at zero and can repeat the sealed one; reload rebuilds the
+instance (#55:84). The built injection text is not a key and never touches
 pixels, and no eviction policy runs inside an epoch. No timer, no persistence,
 no byte accounting (#55:84); tab memory only.
 

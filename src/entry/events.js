@@ -192,12 +192,15 @@ function gatherAuditInputs(gate, notify) {
 }
 
 /**
- * Reconciles the loaded chat before any automatic cycle can read it.
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
+ * Reconciles the loaded chat before any automatic cycle can read it. The
+ * switch also clears the Microfiche page source, because mutation epochs are
+ * per chat and the new chat can repeat the epoch the previous chat sealed.
+ * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue, resetMicrofichePages: () => void }} deps
  * @returns {void}
  */
-export function onChatChanged({ gate, queue }) {
+export function onChatChanged({ gate, queue, resetMicrofichePages }) {
     trace('Chat changed.');
+    resetMicrofichePages();
     recoverPromptFreeze('chat change', gate);
     scheduleLoadedChatReconciliation(gate, queue);
 }

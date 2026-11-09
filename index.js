@@ -139,7 +139,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
             gate,
         }),
     );
-    eventSource.on(eventTypes.CHAT_CHANGED, () => onChatChanged({ gate, queue }));
+    eventSource.on(eventTypes.CHAT_CHANGED, () =>
+        onChatChanged({ gate, queue, resetMicrofichePages: writer.resetMicrofichePages }),
+    );
     eventSource.on(eventTypes.GENERATION_STARTED, (...args) =>
         onGenerationStarted(args, { gate, queue }),
     );

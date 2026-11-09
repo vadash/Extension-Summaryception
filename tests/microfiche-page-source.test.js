@@ -10,7 +10,7 @@ import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource } from '../src/core/microfiche-pages.js';
 import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
-import { onChatCompletionPromptReady } from '../src/entry/events.js';
+import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
 
@@ -439,6 +439,51 @@ describe('memory injection writer render cache', () => {
         const after = readAllPages(writer);
         expect(after[0].text).toContain('brand new detail');
         expect(after[0].text).not.toBe(before[0].text);
+    });
+
+    it('clears sealed pages on a chat switch that repeats the epoch', () => {
+        vi.useFakeTimers();
+        try {
+            const setExtensionPrompt = vi.fn();
+            installMicroficheContext({ setExtensionPrompt });
+            const factory = makeFakeFactory();
+            const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+            writer.update();
+            const firstChatPages = readAllPages(writer);
+            expect(firstChatPages.length).toBeGreaterThan(0);
+            expect(getSummaryStoreMutationEpoch(getChatStore())).toBe(0);
+
+            // A new chat starts its own epoch at zero, so the switch repeats
+            // the epoch the first chat already sealed. The chat-switch reset
+            // is the only signal that those pixels belong to another chat.
+            installMicroficheContext({
+                setExtensionPrompt,
+                layers: [
+                    [
+                        {
+                            text: 'Chat B ' + 'replacement memory words '.repeat(80),
+                            sourceMessageIds: ['chat-b-message'],
+                        },
+                    ],
+                ],
+            });
+            expect(getSummaryStoreMutationEpoch(getChatStore())).toBe(0);
+
+            onChatChanged({
+                gate: { heal: vi.fn(async () => {}) },
+                queue: { isRequestLive: () => false },
+                resetMicrofichePages: writer.resetMicrofichePages,
+            });
+            writer.update();
+
+            const secondChatPages = readAllPages(writer);
+            expect(secondChatPages[0].text).toContain('Chat B');
+            expect(secondChatPages[0].text).not.toBe(firstChatPages[0].text);
+        } finally {
+            vi.clearAllTimers();
+            vi.useRealTimers();
+        }
     });
 
     it('drops pages on epoch drift while keeping the text slot untouched', () => {

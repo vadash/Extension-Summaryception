@@ -1,5 +1,5 @@
-// Microfiche pagination: explicit-knob shape, grid capacity, word wrap, and
-// capped page slicing. Pure string math, no DOM.
+// Microfiche pagination: explicit-knob shape, grid capacity, and word wrap.
+// Pure string math, no DOM.
 
 import { DIM_OFF, DIM_ON, dimStopwords, normalize } from './microfiche-normalize.js';
 import { charCells, frameGrid, nextCell, usesWideCells } from './microfiche-geometry.js';
@@ -7,7 +7,7 @@ import { charCells, frameGrid, nextCell, usesWideCells } from './microfiche-geom
 /**
  * @typedef {object} MicrofichePageSplit
  * @property {string[]} imageTexts - Pages bound for image frames.
- * @property {string[]} rawTexts - Pages past the effective cap, in order.
+ * @property {string[]} rawTexts - Pages kept as text; pagination never slices, so this stays empty.
  */
 
 /**
@@ -185,14 +185,12 @@ function docPages(normalized, geo, wideCells) {
  * chronological order, paginate to frame capacity, then stopword-dim after
  * pagination so capacity math never sees the zero-width markers. Emits
  * strings only; the Canvas2D slice turns each into a { dataUrl, text } page.
- * The optional cap slices pages; pages past it stay in rawTexts in order, so
- * overflow stays text and nothing drops silently.
+ * The plan owns the image cap, so this returns every page.
  * @param {string[]} textsToImages - Snippet texts bound for image frames.
  * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
- * @param {unknown} [effectiveCap] - Optional image-page budget; absent means uncapped.
- * @returns {MicrofichePageSplit} Page texts for images plus raw overflow pages.
+ * @returns {MicrofichePageSplit} Page texts for images; rawTexts is empty here.
  */
-export function buildMicrofichePageTexts(textsToImages, shape, effectiveCap) {
+export function buildMicrofichePageTexts(textsToImages, shape) {
     const source = Array.isArray(textsToImages) ? textsToImages : [];
     const joined = normalize(source.filter((text) => typeof text === 'string').join('\n'), {
         font: shape.font,
@@ -214,11 +212,5 @@ export function buildMicrofichePageTexts(textsToImages, shape, effectiveCap) {
         dimOpen = carried.lastIndexOf(DIM_ON) > carried.lastIndexOf(DIM_OFF);
         return shape.stopwordDim ? dimStopwords(carried) : carried;
     });
-    if (effectiveCap === undefined || effectiveCap === null) {
-        return { imageTexts: paged, rawTexts: [] };
-    }
-    const cap = Number.isFinite(Number(effectiveCap))
-        ? Math.max(0, Math.floor(Number(effectiveCap)))
-        : 0;
-    return { imageTexts: paged.slice(0, cap), rawTexts: paged.slice(cap) };
+    return { imageTexts: paged, rawTexts: [] };
 }

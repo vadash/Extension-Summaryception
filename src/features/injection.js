@@ -22,8 +22,9 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * last-written key, its committed snapshot, and the macro registration flag.
  * The composition root constructs it once (ADR-0031); a test builds its own
  * instance instead of resetting module state. The instance also holds the
- * Microfiche page source: tab memory only, cleared on Mutation Epoch drift,
- * so chat switch and reload kill it with the instance.
+ * Microfiche page source: tab memory only, sealed per Mutation Epoch, and
+ * cleared on epoch or geometry drift. A chat switch clears it explicitly
+ * because each chat's epoch starts at zero and can repeat the sealed one.
  * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
@@ -31,6 +32,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  *   registerMacro: () => Promise<boolean>,
  *   options: (settings?: ExtensionSettings) => { position: number, depth: number, scan: boolean, role: number },
  *   resolveMicrofichePage: (pageIndex: number) => { dataUrl: string, text: string } | undefined,
+ *   resetMicrofichePages: () => void,
  * }}
  */
 export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
@@ -78,7 +80,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
     /**
      * Read one rendered Microfiche page by index for the transport expansion
      * seam. Unrendered indexes stay undefined.
-     * @param {number} pageIndex - Page index within the live plan.
+     * @param {number} pageIndex - Page index within the sealed plan.
      * @returns {{ dataUrl: string, text: string } | undefined} Rendered page or undefined.
      */
     function resolveMicrofichePage(pageIndex) {
@@ -88,6 +90,16 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
             warn('memory injection microfiche read error:', e);
             return undefined;
         }
+    }
+
+    /**
+     * Drop the sealed Microfiche plan and its pixels. A chat switch calls this
+     * because the next chat's epoch can equal the sealed one and would
+     * otherwise reuse this chat's pages.
+     * @returns {void}
+     */
+    function resetMicrofichePages() {
+        pageSource.reset();
     }
 
     /**
@@ -132,6 +144,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         registerMacro: registerMemoryMacro,
         options: getMemoryInjectionOptions,
         resolveMicrofichePage,
+        resetMicrofichePages,
     };
 }
 /**
