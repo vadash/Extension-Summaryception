@@ -1,6 +1,7 @@
 # ADRs
 
 One paragraph per `NNNN-slug.md` (ADR-0025; criteria in `docs/agents/domain.md`). Retired numbers are spent and citable only by their row; each successor must stay live (`tests/adr-shape.test.js`).
+Never guess an ADR slug: `glob docs/adr/*.md` for the number→filename mapping.
 
 ## Retired numbers
 

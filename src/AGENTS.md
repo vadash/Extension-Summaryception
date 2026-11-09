@@ -95,6 +95,7 @@
 - Use jQuery for settings queries, delegated events, and rendering.
 - Data attributes declare setting bindings and slider value pairs.
 - Bind each control through one owner. Duplicate bindings cause double saves and double refreshes.
+- Settings checkbox → owner list `src/entry/ui-events.js`, sync `src/entry/ui-bind.js`, keys `types/globals.d.ts`.
 - Derive panel visibility in the render pass, not in change handlers.
 - Compute route plans and metric counts once per refresh. Pass them to renderers as parameters.
 - Status panels read the auto work read model; entry renders scalars.

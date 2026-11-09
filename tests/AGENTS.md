@@ -1,6 +1,7 @@
 # Test Rules
 
 - Assert outputs, state changes, and functional contracts.
+- A bound control is proven by change→saved→sync round-trip, never by markup attribute.
 - Do not assert private constants, exact prompt prose, or help/tooltip copy.
 - Before `vitest run` with named paths, `stat` each path; never run a filter list containing a miss.
 - Assert notify events through the shared recorder. Assert status and counts, never notice prose or display durations.
