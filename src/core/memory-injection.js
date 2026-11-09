@@ -2,7 +2,7 @@ import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constan
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { buildMicrofichePlan } from './microfiche-policy.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
-import { maskGuardText, unmaskGuardText } from './guard-mask.js';
+import { maskGuardText } from './guard-mask.js';
 import { countTextTokens } from './token-count.js';
 
 /**
@@ -93,9 +93,7 @@ function buildMicroficheSplit(layers, settings, host = null, maskMemory = false)
             continue;
         }
         for (const snippet of layer) {
-            const text = unmaskGuardText(
-                formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor),
-            );
+            const text = formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor);
             if (text) {
                 flat.push(maskMemory ? maskGuardText(text) : text);
             }

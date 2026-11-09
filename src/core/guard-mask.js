@@ -28,13 +28,15 @@ export function unmaskGuardText(text) {
  * Replace every U+0020 in outgoing user and assistant message content with `$$`.
  * Speaker names, tool payloads, and system or developer blocks stay untouched.
  * The Memory slot keeps its own gate in memory-injection.js: buildInjection masks
- * the slot text when the memory setting is on, so this pass skips nothing.
+ * the slot text when memory masking is on. When that gate is off, the caller
+ * passes the unmasked slot text as `skipContent` so this pass leaves it alone.
  * Runs last at the GENERATE_AFTER_DATA seam, after the user-role rewrite.
  * @param {Array<{ role?: unknown, content?: unknown }> | null} messages
  * @param {{ enabled?: unknown, guardMask?: unknown }} [settings]
+ * @param {string | null} [skipContent] - Exact message content to leave unmasked.
  * @returns {void}
  */
-export function maskGuardContent(messages, settings = {}) {
+export function maskGuardContent(messages, settings = {}, skipContent = null) {
     if (!Array.isArray(messages) || !settings.enabled || !settings.guardMask) {
         return;
     }
@@ -43,6 +45,9 @@ export function maskGuardContent(messages, settings = {}) {
             continue;
         }
         if (typeof message.content !== 'string') {
+            continue;
+        }
+        if (skipContent !== null && message.content === skipContent) {
             continue;
         }
         message.content = maskGuardText(message.content);

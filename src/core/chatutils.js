@@ -208,7 +208,7 @@ export function formatMessageSpeakerLine(message, text) {
  * @returns {Promise<{ rawText: string, finalText: string, rawLine: string, finalLine: string, changed: boolean }>}
  */
 async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
-    const rawText = unmaskGuardText(String(message.mes || '').trim());
+    const rawText = String(message.mes || '').trim();
     const finalText = unmaskGuardText(
         applyRegexScripts
             ? await applyRegexToMessage(rawText, Boolean(message.is_user), depth)

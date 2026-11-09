@@ -8,7 +8,9 @@
 import { isPlainObject } from '../foundation/objects.js';
 import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
+import { getChatStore } from '../foundation/chat-store.js';
 import { maskGuardContent } from './guard-mask.js';
+import { buildInjection } from './memory-injection.js';
 
 /**
  * Synthetic user block for the compatibility modes. Some APIs reject
@@ -19,7 +21,9 @@ const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 /**
  * Rewrite the outgoing roles and then apply the outgoing-space guard. The guard
  * runs last so it sees the rewritten roles, and it runs even when the role mask
- * is off because the two settings are independent.
+ * is off because the two settings are independent. The Memory slot keeps its
+ * own gate in memory-injection.js, so the mask skips the unmasked slot text
+ * when memory masking is off.
  * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {Partial<ExtensionSettings>} settings - Effective Summaryception settings.
  * @returns {number}
@@ -27,8 +31,21 @@ const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {}) {
     const messages = getPromptMessages(generateData);
     const rewritten = rewriteUserRoles(messages, settings);
-    applyGuardMask(messages, settings);
+    const skipContent = messages ? getUnmaskedMemorySlotContent(settings) : null;
+    maskGuardContent(messages, settings, skipContent);
     return rewritten;
+}
+
+/**
+ * @param {Partial<ExtensionSettings>} settings
+ * @returns {string | null} The slot text built with memory masking off, else null.
+ */
+function getUnmaskedMemorySlotContent(settings) {
+    if (!settings.enabled || !settings.guardMask || settings.guardMaskMemory) {
+        return null;
+    }
+    const source = /** @type {ExtensionSettings} */ ({ ...settings, guardMaskMemory: false });
+    return buildInjection(getChatStore().layers, source).text || null;
 }
 
 /**
@@ -90,17 +107,6 @@ function rewriteUserRoles(messages, settings) {
     logRoleMaskDebug({ mode, userMessages, preservedMessage, rewritten });
 
     return rewritten;
-}
-
-/**
- * Replace every U+0020 in outgoing user and assistant content with `$$`.
- * Speaker names, tool payloads, and system or developer blocks stay untouched.
- * @param {Array<Record<string, unknown>> | null} messages
- * @param {Partial<ExtensionSettings>} settings
- * @returns {void}
- */
-function applyGuardMask(messages, settings) {
-    maskGuardContent(messages, settings);
 }
 
 function normalizeMaskMode(value) {
