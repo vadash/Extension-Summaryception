@@ -248,6 +248,7 @@ describe('microfiche draw appearance', () => {
         expect(short.height).toBe(64);
         expect(shortFactory.canvases[0].width).toBe(2048);
         expect(shortFactory.canvases[0].height).toBe(64);
+        expect(typeof document).toBe('undefined');
 
         const tallFactory = makeRecordingFactory();
         const tallText = `A${'.'.repeat(600)}`;

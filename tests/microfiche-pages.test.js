@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
-import { frameGrid } from '../src/core/microfiche-geometry.js';
 import { buildMicrofichePlan, splitMicroficheTexts } from '../src/core/microfiche-policy.js';
-import { drawMicrofichePage } from '../src/core/microfiche-render.js';
 import {
     createMicrofichePageReader,
     hashMicroficheShape,
@@ -141,85 +138,6 @@ describe('microfiche buildMicrofichePageTexts from settings', () => {
         ).imageTexts;
         expect(plan.imageTexts).toEqual(uncapped.slice(0, 2));
         expect(plan.imageTexts.length).toBe(2);
-    });
-});
-
-describe('microfiche drawMicrofichePage', () => {
-    it('draws through the injected factory with a hugging height and a 64px floor', () => {
-        const shortFactory = makeFakeFactory();
-        const short = drawMicrofichePage('Hi', geminiShape(), shortFactory.canvasFactory);
-        expect(short.width).toBe(2048);
-        expect(short.height).toBe(64);
-        expect(shortFactory.canvases[0].width).toBe(2048);
-        expect(shortFactory.canvases[0].height).toBe(64);
-        expect(typeof document).toBe('undefined');
-
-        const tallFactory = makeFakeFactory();
-        const tallText = `A${'.'.repeat(600)}`;
-        const tall = drawMicrofichePage(tallText, geminiShape(), tallFactory.canvasFactory);
-        expect(tall.height).toBeGreaterThan(64);
-    });
-
-    it('cycles sentence hues only for the sent variant', () => {
-        const text = 'Hello world. Again here.';
-        const bwFactory = makeFakeFactory();
-        drawMicrofichePage(text, geminiShape({ variant: 'bw' }), bwFactory.canvasFactory);
-        const bwInks = new Set(
-            bwFactory.calls
-                .filter((call) => call.type === 'fillText')
-                .map((call) => call.fillStyle),
-        );
-        expect(bwInks.size).toBe(1);
-
-        const sentFactory = makeFakeFactory();
-        drawMicrofichePage(text, geminiShape({ variant: 'sent' }), sentFactory.canvasFactory);
-        const sentInks = new Set(
-            sentFactory.calls
-                .filter((call) => call.type === 'fillText')
-                .map((call) => call.fillStyle),
-        );
-        expect(sentInks.size).toBeGreaterThan(1);
-    });
-
-    it('prints dim spans in dim ink', () => {
-        const factory = makeFakeFactory();
-        drawMicrofichePage(`${DIM_ON}the${DIM_OFF} cat`, geminiShape(), factory.canvasFactory);
-        const fills = factory.calls.filter((call) => call.type === 'fillText');
-        const dimFills = fills.filter((call) => call.fillStyle === '#808080');
-        expect(dimFills.map((call) => call.ch)).toEqual(['t', 'h', 'e']);
-        expect(fills.some((call) => call.fillStyle !== '#808080')).toBe(true);
-    });
-
-    it('paints a highlight band only when lines repeat', () => {
-        const onceFactory = makeFakeFactory();
-        drawMicrofichePage('Hello', geminiShape({ lineRepeat: 1 }), onceFactory.canvasFactory);
-        expect(
-            onceFactory.calls.some(
-                (call) => call.type === 'fillRect' && call.fillStyle === '#fff7c2',
-            ),
-        ).toBe(false);
-
-        const repeatFactory = makeFakeFactory();
-        drawMicrofichePage('Hello', geminiShape({ lineRepeat: 2 }), repeatFactory.canvasFactory);
-        expect(
-            repeatFactory.calls.some(
-                (call) => call.type === 'fillRect' && call.fillStyle === '#fff7c2',
-            ),
-        ).toBe(true);
-    });
-
-    it('offsets the second newspaper column past the gutter', () => {
-        const shape = geminiShape({ columns: 2 });
-        const geo = frameGrid(shape, shape.frameSize);
-        const secondColumnX = (geo.cols + 3) * shape.cellWidth;
-        const lines = [];
-        for (let index = 0; index < geo.rows + 2; index += 1) {
-            lines.push(`w${index}`);
-        }
-        const factory = makeFakeFactory();
-        drawMicrofichePage(lines.join('\n'), shape, factory.canvasFactory);
-        const inked = factory.calls.filter((call) => call.type === 'fillText');
-        expect(inked.some((call) => call.x >= secondColumnX)).toBe(true);
     });
 });
 

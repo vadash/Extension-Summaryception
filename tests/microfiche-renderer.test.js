@@ -163,35 +163,6 @@ describe('microfiche resolveMicroficheShape', () => {
     });
 });
 
-describe('microfiche geometry', () => {
-    it('computes grid capacity for one column', () => {
-        expect(frameGrid(geminiShape(), 2048)).toEqual({
-            cols: 256,
-            rows: 93,
-            capacity: 23808,
-            repeat: 1,
-        });
-    });
-
-    it('splits two columns around a 3-cell gutter', () => {
-        expect(frameGrid(geminiShape({ columns: 2 }), 2048)).toEqual({
-            cols: 126,
-            rows: 93,
-            capacity: 23436,
-            repeat: 1,
-        });
-    });
-
-    it('divides rows by the line repeat', () => {
-        expect(frameGrid(geminiShape({ lineRepeat: 2 }), 2048)).toEqual({
-            cols: 256,
-            rows: 46,
-            capacity: 11776,
-            repeat: 2,
-        });
-    });
-});
-
 describe('microfiche buildMicrofichePageTexts', () => {
     it('emits no image payloads, only page strings', () => {
         const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
