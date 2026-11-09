@@ -26,17 +26,24 @@ const SHAPE_HASH_KEYS = [
 
 /**
  * @typedef {object} MicrofichePageSourceInput
- * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[] } | null} plan - Plan owning the page list and render shape.
+ * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[], rawTexts?: string[] } | null} plan - Memory plan owning its page list and render shape.
+ * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[], rawTexts?: string[] } | null} [rawPlan] - Frozen raw-chat plan owning its own page list and index namespace.
  * @property {string} [text] - Accepted for caller compatibility; pages render from the sealed plan, so this value is not retained.
  * @property {number} epoch - Mutation Epoch the sealed pages belong to.
  */
 
 /**
+ * @typedef {object} MicroficheSealedPlans
+ * @property {MicrofichePageSourceInput['plan']} microfiche - Sealed memory plan.
+ * @property {MicrofichePageSourceInput['rawPlan']} microficheRaw - Sealed frozen raw-chat plan.
+ */
+
+/**
  * @typedef {object} MicrofichePageSource
- * @property {(input: MicrofichePageSourceInput) => void} update - Seal the plan for the epoch, then warm every sealed page.
- * @property {(pageIndex: number) => MicrofichePage | undefined} readPage - Read one page by index.
+ * @property {(input: MicrofichePageSourceInput) => MicroficheSealedPlans} update - Seal both region plans for the epoch, then warm every sealed page.
+ * @property {(pageIndex: number, region?: 'memory' | 'raw') => MicrofichePage | undefined} readPage - Read one page by region and index.
  * @property {() => number} size - Cached page count.
- * @property {() => void} reset - Drop the sealed plan and every cached page, for a chat switch where the epoch can repeat.
+ * @property {() => void} reset - Drop the sealed plans and every cached page, for a chat switch where the epoch can repeat.
  */
 
 /**
@@ -95,53 +102,77 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
             : canvasFactory !== null && canvasFactory !== undefined
               ? (text, shape) => renderMicrofichePages([text], shape, canvasFactory)[0]
               : null;
-    /** @type {{ epoch: number, shapeHash: string, plan: MicrofichePageSourceInput['plan'] } | null} */
+    /** @type {{ epoch: number, shapeHash: string, plan: MicrofichePageSourceInput['plan'], rawPlan: MicrofichePageSourceInput['rawPlan'] } | null} */
     let sealed = null;
-    /** @type {Map<number, MicrofichePage>} */
+    /** @type {Map<string, MicrofichePage>} */
     const pages = new Map();
 
     /**
-     * Seal the plan on the first update of an epoch or a geometry change. Raw
-     * chat growth does not bump the epoch, so a later update inside the same
-     * epoch reuses the sealed page list and its pixels.
-     * @param {MicrofichePageSourceInput} input - Plan and epoch; other fields are accepted and ignored.
-     * @returns {void}
+     * Seal both region plans on the first update of an epoch or a geometry
+     * change. Raw-chat growth does not bump the epoch, so a later update inside
+     * the same epoch reuses the sealed page lists and their pixels; the raw
+     * list is the Raw Seal (ADR-0040). Memory and raw indexes stay in their own
+     * lists, so the same number names a different page per region (ADR-0045).
+     * @param {MicrofichePageSourceInput} input - Plans and epoch; `text` is accepted and ignored.
+     * @returns {MicroficheSealedPlans} The plans this call sealed or reused.
      */
-    function update({ plan, epoch }) {
-        const shapeHash =
-            plan === null || plan === undefined ? '' : hashMicroficheShape(plan.shape);
+    function update({ plan, rawPlan = null, epoch }) {
+        const planShape = plan === null || plan === undefined ? null : plan.shape;
+        const rawShape = rawPlan === null || rawPlan === undefined ? null : rawPlan.shape;
+        const planHash = planShape === null ? '' : hashMicroficheShape(planShape);
+        const rawHash = rawShape === null ? '' : hashMicroficheShape(rawShape);
+        const shapeHash = `${planHash}|${rawHash}`;
         if (sealed === null || sealed.epoch !== epoch || sealed.shapeHash !== shapeHash) {
             pages.clear();
             sealed = {
                 epoch,
                 shapeHash,
-                plan:
-                    plan === null || plan === undefined
-                        ? null
-                        : {
-                              ...plan,
-                              imageTexts: Array.isArray(plan.imageTexts)
-                                  ? [...plan.imageTexts]
-                                  : [],
-                          },
+                plan: sealPlan(plan),
+                rawPlan: sealPlan(rawPlan),
             };
         }
-        const imageTexts = sealed.plan?.imageTexts;
+        warmPages(sealed.plan, 'memory');
+        warmPages(sealed.rawPlan, 'raw');
+        return { microfiche: sealed.plan, microficheRaw: sealed.rawPlan };
+    }
+
+    /**
+     * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Region plan to copy.
+     * @returns {MicrofichePageSourceInput['plan']} Frozen copy, or null.
+     */
+    function sealPlan(plan) {
+        if (plan === null || plan === undefined) {
+            return null;
+        }
+        return {
+            ...plan,
+            imageTexts: Array.isArray(plan.imageTexts) ? [...plan.imageTexts] : [],
+        };
+    }
+
+    /**
+     * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Sealed region plan, if any.
+     * @param {'memory' | 'raw'} region - Page region to warm.
+     * @returns {void}
+     */
+    function warmPages(plan, region) {
+        const imageTexts = plan?.imageTexts;
         const pageCount = Array.isArray(imageTexts) ? imageTexts.length : 0;
         for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-            readPage(pageIndex);
+            readPage(pageIndex, region);
         }
     }
 
     /**
-     * @param {number} pageIndex - Page index within the sealed plan.
+     * @param {number} pageIndex - Page index within the sealed region plan.
+     * @param {'memory' | 'raw'} [region] - Page region; memory by default.
      * @returns {MicrofichePage | undefined} Cached page or undefined.
      */
-    function readPage(pageIndex) {
+    function readPage(pageIndex, region = 'memory') {
         if (sealed === null || renderer === null) {
             return undefined;
         }
-        const plan = sealed.plan;
+        const plan = region === 'raw' ? sealed.rawPlan : sealed.plan;
         if (plan === null || plan === undefined || !Array.isArray(plan.imageTexts)) {
             return undefined;
         }
@@ -152,12 +183,13 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         if (pageIndex >= plan.imageTexts.length) {
             return undefined;
         }
-        const hit = pages.get(pageIndex);
+        const cacheKey = `${region === 'raw' ? 'raw' : 'memory'}:${pageIndex}`;
+        const hit = pages.get(cacheKey);
         if (hit !== undefined) {
             return hit;
         }
         const page = renderer(plan.imageTexts[pageIndex], plan.shape);
-        pages.set(pageIndex, page);
+        pages.set(cacheKey, page);
         return page;
     }
 

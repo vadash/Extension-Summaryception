@@ -4,61 +4,101 @@ import { isPlainObject } from '../foundation/objects.js';
 // structural headers use angle-bracket tags (<narrative>, <declined>) while
 // this codec uses a square-bracket token with a summaryception-microfiche
 // namespace that model prose never emits. The digit-only page slot keeps the
-// scan one linear pass with no backtracking.
-const MICROFICHE_MARKER_RE = /\[summaryception-microfiche page=(\d+)\]/g;
+// scan one linear pass with no backtracking. The optional `:raw` suffix tags
+// the frozen raw-chat region, so raw page 0 and memory page 0 stay separate
+// index namespaces (ADR-0045).
+const MICROFICHE_MARKER_RE = /\[summaryception-microfiche page=(\d+)(:raw)?\]/g;
+
+/**
+ * @typedef {'memory' | 'raw'} MicroficheRegion
+ */
+
+/**
+ * @typedef {object} MicroficheMarker
+ * @property {number} pageIndex - Zero-based page index within the region.
+ * @property {MicroficheRegion} region - Page region the marker names.
+ */
 
 const stubPages = new Map();
 
 /**
  * Format the text-only slot marker for one microfiche page.
  * @param {number} pageIndex - Zero-based page index.
+ * @param {MicroficheRegion} [region] - Page region; memory by default.
  * @returns {string} Single-line namespaced marker.
  */
-export function formatMicroficheMarker(pageIndex) {
-    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) {
-        throw new RangeError(
-            `Microfiche page index must be a non-negative integer, got ${pageIndex}`,
-        );
-    }
-    return `[summaryception-microfiche page=${pageIndex}]`;
+export function formatMicroficheMarker(pageIndex, region = 'memory') {
+    return formatRegionMarker(pageIndex, region);
 }
 
 /**
- * List every page index referenced by markers in the text.
+ * Format the text-only slot marker for one frozen raw-chat page. The `:raw`
+ * suffix keeps its index namespace apart from memory pages.
+ * @param {number} pageIndex - Zero-based page index.
+ * @returns {string} Single-line namespaced marker.
+ */
+export function formatMicroficheRawMarker(pageIndex) {
+    return formatRegionMarker(pageIndex, 'raw');
+}
+
+/**
+ * @param {number} pageIndex - Zero-based page index.
+ * @param {MicroficheRegion} region - Page region the marker names.
+ * @returns {string} Single-line namespaced marker.
+ */
+function formatRegionMarker(pageIndex, region) {
+    validatePageIndex(pageIndex);
+    return region === 'raw'
+        ? `[summaryception-microfiche page=${pageIndex}:raw]`
+        : `[summaryception-microfiche page=${pageIndex}]`;
+}
+
+/**
+ * List every marker in the text with its region.
+ * @param {unknown} text - Candidate slot text.
+ * @returns {MicroficheMarker[]} Markers in encounter order.
+ */
+export function extractMicroficheMarkers(text) {
+    if (typeof text !== 'string') {
+        return [];
+    }
+    /** @type {MicroficheMarker[]} */
+    const markers = [];
+    for (const match of text.matchAll(MICROFICHE_MARKER_RE)) {
+        const pageIndex = Number(match[1]);
+        if (Number.isSafeInteger(pageIndex)) {
+            markers.push({ pageIndex, region: match[2] === ':raw' ? 'raw' : 'memory' });
+        }
+    }
+    return markers;
+}
+
+/**
+ * List every page index referenced by markers in the text, in encounter order.
+ * Region-tagged raw indexes share the numeric namespace with memory indexes,
+ * so callers that need identity must use {@link extractMicroficheMarkers}.
  * @param {unknown} text - Candidate slot text.
  * @returns {number[]} Page indexes in encounter order.
  */
 export function extractMicrofichePageIndices(text) {
-    if (typeof text !== 'string') {
-        return [];
-    }
-    const indices = [];
-    for (const match of text.matchAll(MICROFICHE_MARKER_RE)) {
-        const index = Number(match[1]);
-        if (Number.isSafeInteger(index)) {
-            indices.push(index);
-        }
-    }
-    return indices;
+    return extractMicroficheMarkers(text).map((marker) => marker.pageIndex);
 }
 
 /**
  * Stage one stub page for send-time expansion. Test and preview seam only;
- * the real renderer registers its own pages in a later ticket.
+ * the real renderer registers its own pages in a later ticket. Raw pages use
+ * their own key space so a raw stub never resolves a memory page.
  * @param {number} pageIndex - Zero-based page index.
  * @param {{ dataUrl: string, text: string }} page - Stub image URL and fallback text.
+ * @param {MicroficheRegion} [region] - Page region; memory by default.
  * @returns {void}
  */
-export function registerMicroficheStubPage(pageIndex, page) {
-    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) {
-        throw new RangeError(
-            `Microfiche page index must be a non-negative integer, got ${pageIndex}`,
-        );
-    }
+export function registerMicroficheStubPage(pageIndex, page, region = 'memory') {
+    validatePageIndex(pageIndex);
     if (!isPlainObject(page) || typeof page.dataUrl !== 'string' || typeof page.text !== 'string') {
         throw new TypeError('Microfiche stub page must carry a string dataUrl and string text');
     }
-    stubPages.set(pageIndex, { dataUrl: page.dataUrl, text: page.text });
+    stubPages.set(stubKey(pageIndex, region), { dataUrl: page.dataUrl, text: page.text });
 }
 
 /**
@@ -72,17 +112,41 @@ export function clearMicroficheStubPages() {
 /**
  * Read one staged stub page without disturbing the registry.
  * @param {number} pageIndex - Zero-based page index.
+ * @param {MicroficheRegion} [region] - Page region; memory by default.
  * @returns {{ dataUrl: string, text: string } | undefined} Staged page or undefined.
  */
-export function resolveMicroficheStubPage(pageIndex) {
-    return stubPages.get(pageIndex);
+export function resolveMicroficheStubPage(pageIndex, region = 'memory') {
+    return stubPages.get(stubKey(pageIndex, region));
+}
+
+/**
+ * @param {number} pageIndex - Zero-based page index.
+ * @param {MicroficheRegion} region - Page region the stub names.
+ * @returns {string} Cache key.
+ */
+function stubKey(pageIndex, region) {
+    return `${region === 'raw' ? 'raw' : 'memory'}:${pageIndex}`;
+}
+
+/**
+ * @param {number} pageIndex - Candidate page index.
+ * @returns {void}
+ */
+function validatePageIndex(pageIndex) {
+    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) {
+        throw new RangeError(
+            `Microfiche page index must be a non-negative integer, got ${pageIndex}`,
+        );
+    }
 }
 
 /**
  * Swap markers for text-plus-image parts. Strings become part arrays only
- * when at least one marker resolves; unknown markers stay plain text.
+ * when at least one marker resolves; unknown markers stay plain text. Memory
+ * markers call the reader with one argument; raw markers add `'raw'` so a
+ * memory-only reader keeps its old contract.
  * @param {unknown} content - String or OpenAI-style part array.
- * @param {(index: number) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
+ * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
  * @returns {{ content: unknown, swapped: number }} Expanded content and swap count.
  */
 export function expandMicroficheContent(content, resolvePage = resolveMicroficheStubPage) {
@@ -98,7 +162,7 @@ export function expandMicroficheContent(content, resolvePage = resolveMicrofiche
 /**
  * Expand every marker-bearing message in place and count the swaps.
  * @param {Array<Record<string, unknown>>} chat - Mutable prompt-ready chat.
- * @param {(index: number) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
+ * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
  * @returns {number} Resolved marker count; 0 leaves the payload untouched.
  */
 export function expandMicrofichePromptChat(chat, resolvePage = resolveMicroficheStubPage) {
@@ -118,7 +182,7 @@ export function expandMicrofichePromptChat(chat, resolvePage = resolveMicrofiche
 
 /**
  * @param {string} text
- * @param {(index: number) => ({ dataUrl: string, text: string } | undefined)} resolvePage
+ * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} resolvePage
  * @returns {{ content: unknown, swapped: number }}
  */
 function expandStringContent(text, resolvePage) {
@@ -126,7 +190,9 @@ function expandStringContent(text, resolvePage) {
     let swapped = 0;
     let cursor = 0;
     for (const match of text.matchAll(MICROFICHE_MARKER_RE)) {
-        const page = resolvePage(Number(match[1]));
+        const pageIndex = Number(match[1]);
+        const region = match[2] === ':raw' ? 'raw' : 'memory';
+        const page = region === 'raw' ? resolvePage(pageIndex, 'raw') : resolvePage(pageIndex);
         if (!page || typeof page.text !== 'string' || typeof page.dataUrl !== 'string') {
             continue;
         }
@@ -148,7 +214,7 @@ function expandStringContent(text, resolvePage) {
 
 /**
  * @param {unknown[]} content
- * @param {(index: number) => ({ dataUrl: string, text: string } | undefined)} resolvePage
+ * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} resolvePage
  * @returns {{ content: unknown, swapped: number }}
  */
 function expandArrayContent(content, resolvePage) {

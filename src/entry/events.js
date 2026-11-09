@@ -28,7 +28,7 @@ let previousPromptSectionHashes = [];
  * writer's page reader so expansion swaps the pages the writer already sealed.
  * @param {unknown} eventData - CHAT_COMPLETION_PROMPT_READY event payload.
  * @param {unknown} [dryRun] - Dry-run flag from the event signature.
- * @param {{ resolveMicrofichePage?: (pageIndex: number) => ({ dataUrl: string, text: string } | undefined) }} [deps] - Page reader; defaults to the stub registry.
+ * @param {{ resolveMicrofichePage?: (pageIndex: number, region?: 'memory' | 'raw') => ({ dataUrl: string, text: string } | undefined) }} [deps] - Page reader; defaults to the stub registry.
  * @returns {void}
  */
 export function onChatCompletionPromptReady(

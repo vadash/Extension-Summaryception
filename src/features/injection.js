@@ -1,23 +1,35 @@
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
+    MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
 } from '../foundation/constants.js';
-import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
+import { getChat, registerMacro, setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSummaryStoreMutationEpoch } from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection, renderInjectionTemplate } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import { createMicrofichePageSource } from '../core/microfiche-pages.js';
-import { formatMicroficheMarker } from '../core/microfiche-transport.js';
+import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
+import { formatMicroficheMarker, formatMicroficheRawMarker } from '../core/microfiche-transport.js';
 import { maskGuardText } from '../core/guard-mask.js';
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
 const MEMORY_MACRO_NAME = 'summaryception_memory';
+
+/**
+ * @typedef {object} MemoryInjectionWriterState
+ * @property {string} lastInjectionKey - Key of the last prompt written.
+ * @property {string | null} activeInjectionSnapshot - Last committed slot text.
+ * @property {{ position: number, depth: number, scan: boolean, role: number } | null} activeInjectionOptions - Options committed with that text.
+ * @property {boolean} memoryMacroRegistered - Whether ST accepted the macro registration.
+ * @property {import('../core/microfiche-pages.js').MicrofichePageSource} pageSource - Sealed Microfiche page source.
+ * @property {{ epoch: number, texts: string[] } | null} sealedRawSlice - Raw Seal for the current epoch.
+ */
 
 /**
  * Build the Memory Injection writer: one instance owns the prompt slot's
@@ -27,170 +39,255 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * Microfiche page source: tab memory only, sealed per Mutation Epoch, and
  * cleared on epoch or geometry drift. A chat switch clears it explicitly
  * because each chat's epoch starts at zero and can repeat the sealed one. The
- * same instance owns the slot markers for image-backed memory pages (ADR-0042).
+ * same instance owns the slot markers for image-backed memory and frozen
+ * raw-chat pages (ADR-0042), and seals the raw-chat slice per Mutation Epoch
+ * (ADR-0040).
  * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
  *   reassert: () => void,
  *   registerMacro: () => Promise<boolean>,
  *   options: (settings?: ExtensionSettings) => { position: number, depth: number, scan: boolean, role: number },
- *   resolveMicrofichePage: (pageIndex: number) => { dataUrl: string, text: string } | undefined,
+ *   resolveMicrofichePage: (pageIndex: number, region?: 'memory' | 'raw') => { dataUrl: string, text: string } | undefined,
  *   resetMicrofichePages: () => void,
  * }}
  */
 export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
-    let lastInjectionKey = '';
-    let activeInjectionSnapshot = null;
-    let activeInjectionOptions = null;
-    let memoryMacroRegistered = false;
-    const pageSource = createMicrofichePageSource({ canvasFactory });
-
-    /**
-     * @param {{ logMemoryStatus?: boolean }} [updateOptions] - Diagnostic logging options
-     * @returns {void}
-     */
-    function update({ logMemoryStatus = false } = {}) {
-        try {
-            const store = getChatStore();
-            const settings = getEffectiveSettings();
-            const injection = buildInjection(store.layers, settings);
-            const nextInjection = buildNextInjection(settings, injection);
-            const nextOptions = getMemoryInjectionOptions(settings);
-            activeInjectionSnapshot = nextInjection;
-            activeInjectionOptions = nextOptions;
-
-            pageSource.update({
-                plan: injection.microfiche,
-                text: nextInjection,
-                epoch: getSummaryStoreMutationEpoch(store),
-            });
-
-            const nextKey = getInjectionKey(nextInjection, nextOptions);
-            if (nextKey === lastInjectionKey) {
-                return;
-            }
-
-            setExtensionPrompt(MODULE_NAME, nextInjection, nextOptions);
-            lastInjectionKey = nextKey;
-
-            if (logMemoryStatus) {
-                queueMemoryStatusLog(nextInjection, store.layers);
-            }
-        } catch (e) {
-            warn('memory injection update error:', e);
-        }
-    }
-
-    /**
-     * Read one rendered Microfiche page by index for the transport expansion
-     * seam. Unrendered indexes stay undefined.
-     * @param {number} pageIndex - Page index within the sealed plan.
-     * @returns {{ dataUrl: string, text: string } | undefined} Rendered page or undefined.
-     */
-    function resolveMicrofichePage(pageIndex) {
-        try {
-            return pageSource.readPage(pageIndex);
-        } catch (e) {
-            warn('memory injection microfiche read error:', e);
-            return undefined;
-        }
-    }
-
-    /**
-     * Drop the sealed Microfiche plan and its pixels. A chat switch calls this
-     * because the next chat's epoch can equal the sealed one and would
-     * otherwise reuse this chat's pages.
-     * @returns {void}
-     */
-    function resetMicrofichePages() {
-        pageSource.reset();
-    }
-
-    /**
-     * Reapply the last committed injection snapshot without reading pending changes.
-     * @returns {void}
-     */
-    function reassert() {
-        try {
-            if (activeInjectionSnapshot === null) {
-                activeInjectionSnapshot = buildDirectInjectionText();
-            }
-            if (activeInjectionOptions === null) {
-                activeInjectionOptions = getMemoryInjectionOptions();
-            }
-
-            setExtensionPrompt(MODULE_NAME, activeInjectionSnapshot, activeInjectionOptions);
-            lastInjectionKey = getInjectionKey(activeInjectionSnapshot, activeInjectionOptions);
-        } catch (e) {
-            warn('memory injection reassert error:', e);
-        }
-    }
-
-    /**
-     * @returns {Promise<boolean>} Whether ST accepted the macro registration.
-     */
-    async function registerMemoryMacro() {
-        if (memoryMacroRegistered) {
-            return true;
-        }
-
-        memoryMacroRegistered = await registerMacro(
-            MEMORY_MACRO_NAME,
-            () => buildEnabledMemoryText(),
-            'Returns the current Summaryception memory block.',
-        );
-        return memoryMacroRegistered;
-    }
+    /** @type {MemoryInjectionWriterState} */
+    const state = {
+        lastInjectionKey: '',
+        activeInjectionSnapshot: null,
+        activeInjectionOptions: null,
+        memoryMacroRegistered: false,
+        pageSource: createMicrofichePageSource({ canvasFactory }),
+        sealedRawSlice: null,
+    };
 
     return {
-        update,
-        reassert,
-        registerMacro: registerMemoryMacro,
+        update: (updateOptions) => updateMemoryInjection(state, updateOptions),
+        reassert: () => reassertMemoryInjection(state),
+        registerMacro: () => registerMemoryMacro(state),
         options: getMemoryInjectionOptions,
-        resolveMicrofichePage,
-        resetMicrofichePages,
+        resolveMicrofichePage: (pageIndex, region) =>
+            resolveMemoryMicrofichePage(state, pageIndex, region),
+        resetMicrofichePages: () => resetMemoryMicrofichePages(state),
     };
+}
+
+/**
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @param {{ logMemoryStatus?: boolean }} [updateOptions] - Diagnostic logging options.
+ * @returns {void}
+ */
+function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
+    try {
+        const store = getChatStore();
+        const settings = getEffectiveSettings();
+        const epoch = getSummaryStoreMutationEpoch(store);
+        const injection = buildInjection(
+            store.layers,
+            settings,
+            null,
+            getFrozenRawSlice(state, store, settings, epoch),
+        );
+        const sealed = state.pageSource.update({
+            plan: injection.microfiche,
+            rawPlan: injection.microficheRaw,
+            text: injection.text,
+            epoch,
+        });
+        const nextInjection = buildNextInjection(settings, injection, sealed);
+        const nextOptions = getMemoryInjectionOptions(settings);
+        state.activeInjectionSnapshot = nextInjection;
+        state.activeInjectionOptions = nextOptions;
+
+        const nextKey = getInjectionKey(nextInjection, nextOptions);
+        if (nextKey === state.lastInjectionKey) {
+            return;
+        }
+
+        setExtensionPrompt(MODULE_NAME, nextInjection, nextOptions);
+        state.lastInjectionKey = nextKey;
+
+        if (logMemoryStatus) {
+            queueMemoryStatusLog(nextInjection, store.layers);
+        }
+    } catch (e) {
+        warn('memory injection update error:', e);
+    }
+}
+
+/**
+ * The Raw Seal: the raw-chat span is selected once per Mutation Epoch and
+ * reused verbatim until the epoch bump clears it, so chat growth inside
+ * one epoch ships as text (ADR-0040). Only the frozen-raw toggle reads it.
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @param {SummaryceptionStore} store - Store owning the summarized boundary.
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @param {number} epoch - Mutation Epoch being sealed.
+ * @returns {string[] | null} Oldest-first raw slice, or null when the region is off.
+ */
+function getFrozenRawSlice(state, store, settings, epoch) {
+    if (
+        !settings?.enabled ||
+        settings?.memoryMode !== MEMORY_MODES.MICROFICHE ||
+        settings?.microficheFrozenRawImages !== true
+    ) {
+        return null;
+    }
+    if (state.sealedRawSlice === null || state.sealedRawSlice.epoch !== epoch) {
+        state.sealedRawSlice = {
+            epoch,
+            texts: buildMicroficheRawSlice(getChat(), store, settings),
+        };
+    } else if (state.sealedRawSlice.texts.length === 0) {
+        // An empty seal freezes nothing: the first update after the chat
+        // has content may seal it. Once non-empty, the epoch owns it.
+        const texts = buildMicroficheRawSlice(getChat(), store, settings);
+        if (texts.length > 0) {
+            state.sealedRawSlice = { epoch, texts };
+        }
+    }
+    return state.sealedRawSlice.texts;
+}
+
+/**
+ * Read one rendered Microfiche page for the transport expansion seam.
+ * Memory pages are the default region; raw markers pass `'raw'`.
+ * Unrendered indexes stay undefined.
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @param {number} pageIndex - Page index within the sealed region plan.
+ * @param {'memory' | 'raw'} [region] - Page region; memory by default.
+ * @returns {import('../core/microfiche-pages.js').MicrofichePage | undefined} Rendered page or undefined.
+ */
+function resolveMemoryMicrofichePage(state, pageIndex, region = 'memory') {
+    try {
+        return state.pageSource.readPage(pageIndex, region);
+    } catch (e) {
+        warn('memory injection microfiche read error:', e);
+        return undefined;
+    }
+}
+
+/**
+ * Drop the sealed Microfiche plans, their pixels, and the Raw Seal. A chat
+ * switch calls this because the next chat's epoch can equal the sealed one
+ * and would otherwise reuse this chat's pages and raw slice.
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @returns {void}
+ */
+function resetMemoryMicrofichePages(state) {
+    state.sealedRawSlice = null;
+    state.pageSource.reset();
+}
+
+/**
+ * Reapply the last committed injection snapshot without reading pending changes.
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @returns {void}
+ */
+function reassertMemoryInjection(state) {
+    try {
+        const text = state.activeInjectionSnapshot ?? buildDirectInjectionText();
+        const options = state.activeInjectionOptions ?? getMemoryInjectionOptions();
+        state.activeInjectionSnapshot = text;
+        state.activeInjectionOptions = options;
+
+        setExtensionPrompt(MODULE_NAME, text, options);
+        state.lastInjectionKey = getInjectionKey(text, options);
+    } catch (e) {
+        warn('memory injection reassert error:', e);
+    }
+}
+
+/**
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @returns {Promise<boolean>} Whether ST accepted the macro registration.
+ */
+async function registerMemoryMacro(state) {
+    if (state.memoryMacroRegistered) {
+        return true;
+    }
+
+    state.memoryMacroRegistered = await registerMacro(
+        MEMORY_MACRO_NAME,
+        () => buildEnabledMemoryText(),
+        'Returns the current Summaryception memory block.',
+    );
+    return state.memoryMacroRegistered;
 }
 
 /**
  * @param {ExtensionSettings} settings - Effective settings.
  * @param {import('../core/memory-injection.js').MemoryInjection} injection - Built injection.
+ * @param {import('../core/microfiche-pages.js').MicroficheSealedPlans} sealed - Sealed region plans.
  * @returns {string} Slot text with Microfiche markers applied.
  */
-function buildNextInjection(settings, injection) {
-    return applyMicroficheMarkers(
-        buildDirectInjectionText(settings, injection),
-        injection.microfiche,
-        settings,
-    );
+function buildNextInjection(settings, injection, sealed) {
+    return applyMicroficheMarkers(buildDirectInjectionText(settings, injection), sealed, settings);
 }
 
 /**
- * Replace the memory region's image-backed page text with send-time markers.
- * The plan owns which pages image; this writer only owns their slot tags. The
- * kept-raw tail stays text, and both placement toggles off leaves the built
- * payload byte-identical. Frozen-raw pages are not part of the memory plan, so
- * their region gate applies when that page list joins the plan.
+ * Replace image-backed page text with send-time markers, per region. Memory
+ * images own the memory region and frozen raw images own the raw region, so
+ * either toggle works alone: the memory region keeps its built text when its
+ * toggle is off, and the raw region appends markers even on a chat with no
+ * memory. Raw page text needs no slot copy because the chat already carries
+ * it; only raw image pages add markers. Both placement toggles off leaves the
+ * built payload byte-identical.
  * @param {string} text - Built slot text.
- * @param {{ imageTexts?: string[], rawTexts?: string[] } | null} plan - Microfiche plan, if any.
+ * @param {import('../core/microfiche-pages.js').MicroficheSealedPlans | null} sealed - Sealed memory and raw plans.
  * @param {ExtensionSettings} settings - Effective settings.
  * @returns {string} Slot text with markers in place of image pages.
  */
-function applyMicroficheMarkers(text, plan, settings) {
-    if (!text || !plan || settings?.microficheMemoryImages !== true) {
+function applyMicroficheMarkers(text, sealed, settings) {
+    if (!settings?.enabled) {
         return text;
     }
-    const imageTexts = Array.isArray(plan.imageTexts) ? plan.imageTexts : [];
+    const memoryPlan = settings?.microficheMemoryImages === true ? sealed?.microfiche : null;
+    const rawPlan = settings?.microficheFrozenRawImages === true ? sealed?.microficheRaw : null;
+    const memoryText = formatMemoryRegionText(memoryPlan);
+    const rawText = formatRawRegionText(rawPlan);
+    if (memoryText === null && rawText === null) {
+        return text;
+    }
+    const result = memoryText === null ? text : renderMemoryRegion(memoryText, settings);
+    return rawText === null ? result : joinRegionText(result, rawText);
+}
+
+/**
+ * @param {{ imageTexts?: unknown } | null | undefined} plan - Sealed region plan.
+ * @returns {unknown[]} Image page texts, empty when the plan carries none.
+ */
+function getRegionImageTexts(plan) {
+    return Array.isArray(plan?.imageTexts) ? plan.imageTexts : [];
+}
+
+/**
+ * Memory markers replace every image page and keep the plan's raw page text.
+ * @param {{ imageTexts?: unknown, rawTexts?: unknown } | null | undefined} plan - Sealed memory plan.
+ * @returns {string | null} Memory region text, or null when the plan has no image pages.
+ */
+function formatMemoryRegionText(plan) {
+    const imageTexts = getRegionImageTexts(plan);
     if (imageTexts.length === 0) {
-        return text;
+        return null;
     }
-    const rawTexts = Array.isArray(plan.rawTexts) ? plan.rawTexts : [];
-    const memoryText = [
+    const rawTexts = Array.isArray(plan?.rawTexts) ? plan.rawTexts : [];
+    return [
         ...imageTexts.map((_page, pageIndex) => formatMicroficheMarker(pageIndex)),
         ...rawTexts,
     ].join('\n');
-    // Plan text is already masked when memory masking is on, so only the
-    // template needs the mask; markers must stay byte-exact for expansion.
+}
+
+/**
+ * Plan text is already masked when memory masking is on, so only the template
+ * needs the mask; markers must stay byte-exact for expansion.
+ * @param {string} memoryText - Memory region text, already joined.
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @returns {string} Rendered slot text for the memory region.
+ */
+function renderMemoryRegion(memoryText, settings) {
     const template =
         settings.guardMask === true && settings.guardMaskMemory === true
             ? maskGuardText(String(settings.injectionTemplate || '{{summary}}'))
@@ -199,6 +296,29 @@ function applyMicroficheMarkers(text, plan, settings) {
         { memoryText },
         template === null ? settings : { injectionTemplate: template },
     );
+}
+
+/**
+ * Raw page text needs no slot copy because the chat already carries it; only
+ * raw image pages add markers.
+ * @param {{ imageTexts?: unknown } | null | undefined} plan - Sealed raw plan.
+ * @returns {string | null} Raw region markers, or null when the plan has no image pages.
+ */
+function formatRawRegionText(plan) {
+    const imageTexts = getRegionImageTexts(plan);
+    if (imageTexts.length === 0) {
+        return null;
+    }
+    return imageTexts.map((_page, pageIndex) => formatMicroficheRawMarker(pageIndex)).join('\n');
+}
+
+/**
+ * @param {string} text - Built slot text.
+ * @param {string} rawText - Raw region markers.
+ * @returns {string} Slot text with raw markers appended.
+ */
+function joinRegionText(text, rawText) {
+    return text ? `${text}\n${rawText}` : rawText;
 }
 
 /**

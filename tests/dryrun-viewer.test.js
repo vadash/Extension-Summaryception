@@ -9,7 +9,10 @@ import {
     openDryRunPreview,
 } from '../src/entry/dryrun-viewer.js';
 import { onChatCompletionPromptReady } from '../src/entry/events.js';
-import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
+import {
+    formatMicroficheMarker,
+    formatMicroficheRawMarker,
+} from '../src/core/microfiche-transport.js';
 import { createJQueryHarness, installSummaryContext, makeToastrMock } from './test-helpers.js';
 
 const EVENT_NAME = 'chat_completion_prompt_ready';
@@ -88,6 +91,20 @@ describe('expandCapturedChat', () => {
         expect(expanded.resolvedMarkers).toBe(1);
         expect(expanded.unresolvedMarkers).toEqual([3]);
         expect(JSON.stringify(expanded.chat)).toContain(formatMicroficheMarker(3));
+    });
+
+    it('expands raw-region markers through the regional page reader', () => {
+        const raw = [{ role: 'system', content: `raw ${formatMicroficheRawMarker(0)} tail` }];
+        const expanded = expandCapturedChat(raw, (pageIndex, region) =>
+            region === 'raw' ? PAGES.get(pageIndex) : undefined,
+        );
+        expect(expanded.resolvedMarkers).toBe(1);
+        expect(expanded.unresolvedMarkers).toEqual([]);
+        expect(expanded.chat[0].content).toContainEqual({
+            type: 'image_url',
+            image_url: { url: PAGES.get(0).dataUrl },
+        });
+        expect(raw[0].content).toBe(`raw ${formatMicroficheRawMarker(0)} tail`);
     });
 
     it('keeps markers literal when the page reader resolves nothing', () => {

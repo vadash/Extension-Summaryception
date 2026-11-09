@@ -9,6 +9,7 @@
 
 import { TOAST_TITLE } from '../foundation/constants.js';
 import {
+    getChat,
     getEventSource,
     getEventTypes,
     getMainApi,
@@ -22,9 +23,10 @@ import { refreshInjection } from '../foundation/refresh.js';
 import { debug, warn } from '../foundation/logger.js';
 import {
     expandMicrofichePromptChat,
-    extractMicrofichePageIndices,
+    extractMicroficheMarkers,
 } from '../core/microfiche-transport.js';
 import { buildInjection } from '../core/memory-injection.js';
+import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { renderMicrofichePages } from '../core/microfiche-pages.js';
 
@@ -43,7 +45,7 @@ const CHAT_COMPLETION_API = 'openai';
  * @typedef {object} ExpandedChat
  * @property {unknown[]} chat - Cloned chat with markers swapped for parts.
  * @property {number} resolvedMarkers - Marker swaps performed on the clone.
- * @property {number[]} unresolvedMarkers - Page indexes whose markers survived.
+ * @property {(number | string)[]} unresolvedMarkers - Page labels whose markers survived.
  */
 
 /**
@@ -54,7 +56,7 @@ const CHAT_COMPLETION_API = 'openai';
  * @property {number} payloadBytes - Serialized size of the captured chat.
  * @property {number} imageParts - Image parts present in the expanded clone.
  * @property {number} resolvedMarkers - Marker swaps performed on the clone.
- * @property {number[]} unresolvedMarkers - Page indexes whose markers survived.
+ * @property {(number | string)[]} unresolvedMarkers - Page labels whose markers survived.
  * @property {Array<{ kind: string, count?: number }>} divergences - Known dry-run assembly differences.
  */
 
@@ -62,7 +64,7 @@ const CHAT_COMPLETION_API = 'openai';
  * @typedef {object} DryRunViewerDeps
  * @property {import('../core/foreground-gate.js').ForegroundGate} gate - Refuses the capture while frozen.
  * @property {import('../core/summarizer-queue.js').SummarizerQueue} queue - Refuses the capture while work is live.
- * @property {(pageIndex: number) => MicrofichePageRef | undefined} [resolveMicrofichePage] - Page reader; the composition root passes `writer.resolveMicrofichePage`.
+ * @property {(pageIndex: number, region?: import('../core/microfiche-transport.js').MicroficheRegion) => MicrofichePageRef | undefined} [resolveMicrofichePage] - Page reader; the composition root passes `writer.resolveMicrofichePage`.
  * @property {() => unknown} [warmPages] - Warms the writer's sealed pages before capture; defaults to the gated injection refresh.
  * @property {() => Promise<unknown>} [triggerDryRun] - Host dry-run generate.
  * @property {(view: DryRunPromptView) => void} [showView] - Replace the host popup, for tests.
@@ -85,29 +87,49 @@ export function initDryRunViewer(deps) {
 
 /**
  * Fallback page reader for callers without writer access (tests and headless
- * wiring). It re-renders the same sealed plan through the core renderer, so the
- * pixels match what the writer sealed for this Mutation Epoch; the composition
- * root normally injects `writer.resolveMicrofichePage` instead. Pages render
- * lazily, so a marker-free prompt draws nothing.
+ * wiring). It re-renders the same sealed plans through the core renderer, so
+ * the pixels match what the writer sealed for this Mutation Epoch; the
+ * composition root normally injects `writer.resolveMicrofichePage` instead.
+ * Both regions render lazily: memory from the memory plan and raw pages from a
+ * fresh Raw Seal slice, so a marker-free prompt draws nothing.
  * @param {ExtensionSettings} settings - Effective settings.
- * @returns {(pageIndex: number) => MicrofichePageRef | undefined} Page reader.
+ * @returns {(pageIndex: number, region?: import('../core/microfiche-transport.js').MicroficheRegion) => MicrofichePageRef | undefined} Page reader.
  */
 export function createPlanPageReader(settings) {
-    /** @type {import('../core/microfiche-pages.js').MicrofichePage[] | null} */
+    /** @type {{ memory: import('../core/microfiche-pages.js').MicrofichePage[], raw: import('../core/microfiche-pages.js').MicrofichePage[] } | null} */
     let pages = null;
     const readPages = () => {
         if (pages !== null) {
             return pages;
         }
-        const injection = buildInjection(getChatStore().layers, settings);
-        const plan = injection.microfiche;
-        pages =
-            plan && plan.imageTexts.length > 0
-                ? renderMicrofichePages(plan.imageTexts, plan.shape, createBrowserCanvas)
-                : [];
+        const store = getChatStore();
+        const rawTexts =
+            settings?.microficheFrozenRawImages === true
+                ? buildMicroficheRawSlice(getChat(), store, settings)
+                : null;
+        const injection = buildInjection(store.layers, settings, null, rawTexts);
+        pages = {
+            memory:
+                injection.microfiche && injection.microfiche.imageTexts.length > 0
+                    ? renderMicrofichePages(
+                          injection.microfiche.imageTexts,
+                          injection.microfiche.shape,
+                          createBrowserCanvas,
+                      )
+                    : [],
+            raw:
+                injection.microficheRaw && injection.microficheRaw.imageTexts.length > 0
+                    ? renderMicrofichePages(
+                          injection.microficheRaw.imageTexts,
+                          injection.microficheRaw.shape,
+                          createBrowserCanvas,
+                      )
+                    : [],
+        };
         return pages;
     };
-    return (pageIndex) => readPages()[pageIndex];
+    return (pageIndex, region = 'memory') =>
+        (region === 'raw' ? readPages().raw : readPages().memory)[pageIndex];
 }
 
 /**
@@ -157,30 +179,38 @@ function contentTexts(content) {
 }
 
 /**
- * Marker page indexes that survived expansion, so the viewer can flag them
- * while leaving the literal marker text in place.
+ * Marker page labels that survived expansion, so the viewer can flag them
+ * while leaving the literal marker text in place. Raw labels carry the `:raw`
+ * suffix because raw page 0 and memory page 0 are different pages.
  * @param {unknown[]} chat - Expanded chat.
- * @returns {number[]} Unresolved page indexes, ascending and unique.
+ * @returns {(number | string)[]} Unresolved page labels in encounter order.
  */
 function collectUnresolvedMarkers(chat) {
     const found = new Set();
+    /** @type {(number | string)[]} */
+    const labels = [];
     for (const message of chat) {
         if (!message || typeof message !== 'object') {
             continue;
         }
         for (const text of contentTexts(/** @type {{ content?: unknown }} */ (message).content)) {
-            for (const pageIndex of extractMicrofichePageIndices(text)) {
-                found.add(pageIndex);
+            for (const marker of extractMicroficheMarkers(text)) {
+                const label =
+                    marker.region === 'raw' ? `${marker.pageIndex}:raw` : marker.pageIndex;
+                if (!found.has(label)) {
+                    found.add(label);
+                    labels.push(label);
+                }
             }
         }
     }
-    return [...found].sort((a, b) => a - b);
+    return labels;
 }
 
 /**
  * Clone the captured chat and expand its markers on the clone only.
  * @param {unknown[]} chat - Chat array the host dry run produced.
- * @param {(pageIndex: number) => MicrofichePageRef | undefined} resolvePage - Writer page reader.
+ * @param {(pageIndex: number, region?: import('../core/microfiche-transport.js').MicroficheRegion) => MicrofichePageRef | undefined} resolvePage - Writer page reader.
  * @returns {ExpandedChat} Expanded clone and marker bookkeeping.
  */
 export function expandCapturedChat(chat, resolvePage) {
@@ -269,7 +299,7 @@ function jsonByteLength(value) {
 
 /**
  * Build the header and body facts the viewer renders.
- * @param {{ chat: unknown[], epoch: number, settings: ExtensionSettings, resolvedMarkers: number, unresolvedMarkers: number[], promptManagerReady: boolean }} input - Capture facts.
+ * @param {{ chat: unknown[], epoch: number, settings: ExtensionSettings, resolvedMarkers: number, unresolvedMarkers: (number | string)[], promptManagerReady: boolean }} input - Capture facts.
  * @returns {DryRunPromptView} View model.
  */
 export function describeDryRunPrompt({

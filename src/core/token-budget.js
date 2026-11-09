@@ -8,19 +8,29 @@ import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
 // same figure the preview reports as rawChatMax. Text cost stays
 // build-once/measure-built-text so identical text bills identically.
 /**
- * The injected split is the billing source: page count and frame rate come
- * from it, never from the budget knobs that produced them.
- * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * Image tokens one plan bills: its image page count times its frame estimate.
+ * A plan without a numeric frame estimate bills nothing.
+ * @param {{ imageTexts?: string[], frameTokenEstimate?: number } | null | undefined} plan
  * @returns {number}
  */
-function microficheInjectionTokens(injection = null) {
-    const microfiche = injection?.microfiche;
-    const pages = Array.isArray(microfiche?.imageTexts) ? microfiche.imageTexts.length : 0;
-    const frameTokens = Number(microfiche?.frameTokenEstimate);
+function planImageTokens(plan) {
+    const pages = Array.isArray(plan?.imageTexts) ? plan.imageTexts.length : 0;
+    const frameTokens = Number(plan?.frameTokenEstimate);
     if (!Number.isFinite(frameTokens) || frameTokens <= 0) {
         return 0;
     }
     return pages * frameTokens;
+}
+
+/**
+ * The injected splits are the billing source: page count and frame rate come
+ * from them, never from the budget knobs that produced them. Memory and
+ * frozen-raw regions both spend the same raw bucket, so both bill here.
+ * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @returns {number}
+ */
+function microficheInjectionTokens(injection = null) {
+    return planImageTokens(injection?.microfiche) + planImageTokens(injection?.microficheRaw);
 }
 
 /**
@@ -53,22 +63,33 @@ function resolveRawChatMax(settings, imageTokens) {
  * Image holds-and-bills figures for the Microfiche cost line. The built
  * injection owns the page count; held text tokens derive from the frame
  * capacity and billed tokens from the preset frame estimate, so the settings
- * line and the context preview agree without tokenizing image text.
+ * line and the context preview agree without tokenizing image text. Memory
+ * and frozen-raw plans bill together against the one raw-chat bucket.
  * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
  * @param {object | null} [settings] - Settings carrying the raw text budgets.
  * @returns {{ images: number, heldTokens: number, imageTokens: number, netTokens: number | null, bucketTokens: number, bucketAfterImages: number } | null}
  */
 export function describeMicroficheBilling(injection = null, settings = null) {
-    const microfiche = injection?.microfiche;
-    if (!microfiche) {
+    const plans = [injection?.microfiche, injection?.microficheRaw].filter(
+        (plan) => plan !== null && plan !== undefined,
+    );
+    if (plans.length === 0) {
         return null;
     }
-    const images = Array.isArray(microfiche.imageTexts) ? microfiche.imageTexts.length : 0;
-    const frameTokens = Number(microfiche.frameTokenEstimate);
-    const hasFrameEstimate = Number.isFinite(frameTokens) && frameTokens > 0;
-    const capacity = microfiche.shape ? frameGrid(microfiche.shape).capacity : 0;
-    const imageTokens = hasFrameEstimate ? images * frameTokens : 0;
-    const heldTokens = Math.round((images * capacity) / APPROX_TEXT_UNITS_PER_TOKEN);
+    const images = plans.reduce(
+        (sum, plan) => sum + (Array.isArray(plan.imageTexts) ? plan.imageTexts.length : 0),
+        0,
+    );
+    const heldTokens = plans.reduce((sum, plan) => {
+        const count = Array.isArray(plan.imageTexts) ? plan.imageTexts.length : 0;
+        const capacity = plan.shape ? frameGrid(plan.shape).capacity : 0;
+        return sum + Math.round((count * capacity) / APPROX_TEXT_UNITS_PER_TOKEN);
+    }, 0);
+    const imageTokens = microficheInjectionTokens(injection);
+    const hasFrameEstimate = plans.some((plan) => {
+        const frameTokens = Number(plan.frameTokenEstimate);
+        return Number.isFinite(frameTokens) && frameTokens > 0;
+    });
     const bucketTokens = resolveRawChatBucketTokens(settings);
     return {
         images,

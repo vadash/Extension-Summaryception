@@ -377,19 +377,24 @@ Code: `clearChatData` (src/core/chat-data.js); `#sc_clear_memory`, `/sc-clear`
 _Avoid_: wipe, purge
 
 **Frozen Page**:
-A rendered microfiche image whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. Rendering images every generation would break provider prefix-cache stability, and uncached input is expensive.
+A rendered microfiche image, from memory or the Raw Seal, whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. Rendering images every generation would break provider prefix-cache stability, and uncached input is expensive.
 Code: `readPage` / `update` (src/core/microfiche-pages.js)
 _Avoid_: cached image, snapshot
 
 **Fill Gate**:
-The rule that a sealed text span becomes an image only when it fills most of a page's capacity, per the provider's geometry and cap; otherwise it stays text. Image tokens spend from the same raw bucket, so when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
+The rule that a sealed text span becomes an image only when it fills at least three quarters of a page's capacity (the 0.75 gate), per the provider's geometry and cap; otherwise it stays text. Image tokens spend from the same raw bucket, so when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
 Code: `buildMicrofichePlan` / `splitMicroficheTexts` (src/core/microfiche-policy.js)
 _Avoid_: fill threshold, image trigger
 
 **Raw Seal**:
-The frozen raw-chat slice computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
+The frozen raw-chat slice, taken from the Verbatim Window plus Queued span, computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw imaging works without memory, so a fresh chat with no snippets still images this slice. Raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
 Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
+
+**Frozen Raw Images**:
+The Microfiche region that renders Raw Seal pages from the Verbatim Window plus Queued span, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone.
+Code: `update` / `readPage` (src/core/microfiche-pages.js); `applyMicroficheMarkers` (src/features/injection.js)
+_Avoid_: raw chat images, frozen chat images
 
 **Dry-Run Preview**:
 The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.

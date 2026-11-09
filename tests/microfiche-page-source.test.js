@@ -12,9 +12,13 @@ import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource } from '../src/core/microfiche-pages.js';
 import {
+    expandMicrofichePromptChat,
+    extractMicroficheMarkers,
     extractMicrofichePageIndices,
     formatMicroficheMarker,
+    formatMicroficheRawMarker,
 } from '../src/core/microfiche-transport.js';
+import { describeDryRunPrompt } from '../src/entry/dryrun-viewer.js';
 import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
@@ -97,37 +101,37 @@ function makeFakeFactory() {
     return { canvasFactory, calls, canvases };
 }
 
-function installMicroficheContext({ layers, setExtensionPrompt, settings } = {}) {
-    const chat = makeMessages(24);
+function installMicroficheContext({ layers, setExtensionPrompt, settings, chat } = {}) {
+    const resolvedChat = chat ?? makeMessages(24);
     const resolvedLayers = layers ?? [
         [
             {
                 text: `Snippet 0 ` + 'lorem ipsum dolor sit amet '.repeat(40),
-                sourceMessageIds: [chat[0].sc_id],
+                sourceMessageIds: [resolvedChat[0].sc_id],
             },
             {
                 text: `Snippet 1 ` + 'lorem ipsum dolor sit amet '.repeat(40),
-                sourceMessageIds: [chat[1].sc_id],
+                sourceMessageIds: [resolvedChat[1].sc_id],
             },
         ],
         [
             {
                 text: `Snippet 2 ` + 'lorem ipsum dolor sit amet '.repeat(40),
-                sourceMessageIds: [chat[2].sc_id],
+                sourceMessageIds: [resolvedChat[2].sc_id],
             },
             {
                 text: `Snippet 3 ` + 'lorem ipsum dolor sit amet '.repeat(40),
-                sourceMessageIds: [chat[3].sc_id],
+                sourceMessageIds: [resolvedChat[3].sc_id],
             },
         ],
     ];
     installSummaryContext({
-        chat,
+        chat: resolvedChat,
         metadata: { summaryception: makeSummaryStore({ layers: resolvedLayers }) },
         settings: settings ?? MICROFICHE_SETTINGS,
         setExtensionPrompt,
     });
-    return chat;
+    return resolvedChat;
 }
 
 function readAllPages(writer, limit = 16) {
@@ -571,10 +575,12 @@ describe('memory injection writer microfiche markers', () => {
         expect(text).not.toContain(formatMicroficheMarker(0));
     });
 
-    it('leaves memory text alone when only the frozen raw toggle is on', () => {
+    it('leaves memory text alone and appends raw markers when only the frozen raw toggle is on', () => {
         const setExtensionPrompt = vi.fn();
+        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
         installMicroficheContext({
             setExtensionPrompt,
+            chat,
             settings: { ...MICROFICHE_SETTINGS, microficheFrozenRawImages: true },
         });
         const factory = makeFakeFactory();
@@ -584,7 +590,58 @@ describe('memory injection writer microfiche markers', () => {
 
         const text = setExtensionPrompt.mock.calls[0][1];
         const expected = buildInjection(getChatStore().layers, getEffectiveSettings()).text;
-        expect(text).toBe(expected);
-        expect(text).not.toContain(formatMicroficheMarker(0));
+        expect(text.startsWith(expected)).toBe(true);
+        const markers = extractMicroficheMarkers(text);
+        expect(markers.some((marker) => marker.region === 'memory')).toBe(false);
+        const rawMarkers = markers.filter((marker) => marker.region === 'raw');
+        expect(rawMarkers.length).toBeGreaterThan(0);
+        expect(rawMarkers.map((marker) => marker.pageIndex)).toEqual(
+            rawMarkers.map((_marker, index) => index),
+        );
+        expect(text).toContain(formatMicroficheRawMarker(0));
+
+        const rawPages = [];
+        for (let index = 0; index < rawMarkers.length; index += 1) {
+            const page = writer.resolveMicrofichePage(index, 'raw');
+            if (!page) {
+                break;
+            }
+            rawPages.push(page);
+        }
+        expect(rawPages.length).toBe(rawMarkers.length);
+    });
+
+    it('renders frozen raw images on empty layers with both toggles on', () => {
+        const setExtensionPrompt = vi.fn();
+        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
+        installMicroficheContext({
+            setExtensionPrompt,
+            chat,
+            layers: [],
+            settings: {
+                ...MICROFICHE_SETTINGS,
+                microficheMemoryImages: true,
+                microficheFrozenRawImages: true,
+            },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        const expandedChat = [{ role: 'system', content: text }];
+        expect(
+            expandMicrofichePromptChat(expandedChat, writer.resolveMicrofichePage),
+        ).toBeGreaterThan(0);
+        const view = describeDryRunPrompt({
+            chat: expandedChat,
+            epoch: getSummaryStoreMutationEpoch(getChatStore()),
+            settings: getEffectiveSettings(),
+            resolvedMarkers: 1,
+            unresolvedMarkers: [],
+            promptManagerReady: true,
+        });
+        expect(view.imageParts).toBeGreaterThan(0);
     });
 });

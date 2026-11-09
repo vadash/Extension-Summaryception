@@ -508,6 +508,19 @@ const HELP_ENTRIES = [
         }),
     ],
     [
+        'microfiche_frozen_raw_images',
+        basicHelp({
+            selector: selectorFor('sc_microfiche_frozen_raw_images'),
+            title: 'Frozen Raw Images',
+            short: 'Renders the frozen raw chat slice as images, even with no memory yet.',
+            controls: [controlFor('sc_microfiche_frozen_raw_images')],
+            controlsText:
+                'Sends pages of the verbatim window and queued span as rendered microfiche images, oldest text first, independently of Memory Images. Image frames spend from the raw-chat token bucket, and a page renders only when it fills three quarters of a frame.',
+            when: 'Use it when the provider inlines images and raw chat dominates the prompt.',
+            risk: 'When the next full image would not fit, the engine runs a memory update instead. Off keeps raw chat as text.',
+        }),
+    ],
+    [
         'custom_memory_position',
         basicHelp({
             selector: selectorFor('sc_custom_memory_position'),

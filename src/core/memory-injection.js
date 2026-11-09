@@ -1,6 +1,6 @@
 import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
-import { buildMicrofichePlan } from './microfiche-policy.js';
+import { buildMicrofichePlan, buildMicroficheRawPlan } from './microfiche-policy.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
 import { maskGuardText } from './guard-mask.js';
 import { countTextTokens } from './token-count.js';
@@ -21,7 +21,8 @@ import { countTextTokens } from './token-count.js';
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
  * @property {Array<{ layerIndex: number, text: string }>} parts - Chronology sections, deepest first.
- * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Built plan for Microfiche mode, else null.
+ * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Built memory plan for Microfiche mode, else null.
+ * @property {import('./microfiche-policy.js').MicroficheRawPlan | null} microficheRaw - Frozen raw-chat plan for the raw image region, else null.
  */
 
 /**
@@ -55,41 +56,85 @@ export function buildMemoryBody(layers) {
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @param {string[] | null} [rawTexts] - Frozen raw-chat slice, oldest first. Falls back to `settings.rawChatTexts` for the two-argument preview/test seam.
  * @returns {MemoryInjection}
  */
-export function buildInjection(layers, settings = getEffectiveSettings(), host = null) {
+export function buildInjection(
+    layers,
+    settings = getEffectiveSettings(),
+    host = null,
+    rawTexts = null,
+) {
     const source = settings ?? {};
     const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
     const maskMemory = Boolean(source.enabled && source.guardMask && source.guardMaskMemory);
+    const maskRaw = Boolean(source.enabled && source.guardMask);
     const text = memoryText ? renderInjectionTemplate({ memoryText }, source) : '';
+    const split = buildMicroficheSplit(layers, source, host, {
+        maskMemory,
+        maskRaw,
+        rawChatTexts: rawTexts ?? readTransientRawTexts(source),
+    });
     return {
         text: maskMemory ? maskGuardText(text) : text,
         parts: maskMemory
             ? chronologyParts.map((part) => ({ ...part, text: maskGuardText(part.text) }))
             : chronologyParts,
-        microfiche: buildMicroficheSplit(layers, source, host, maskMemory),
+        microfiche: split.microfiche,
+        microficheRaw: split.microficheRaw,
     };
+}
+
+/**
+ * The two-argument preview/test seam: a settings object may carry the frozen
+ * raw slice directly. Production callers pass it as the fourth argument, so
+ * this key is never persisted or normalized.
+ * @param {ExtensionSettings} settings
+ * @returns {unknown} Raw-chat text array, when present.
+ */
+function readTransientRawTexts(settings) {
+    return /** @type {{ rawChatTexts?: unknown }} */ (/** @type {unknown} */ (settings))
+        .rawChatTexts;
 }
 
 /**
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} settings
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
- * @param {boolean} [maskMemory] - Whether the caller masks the slot text.
- * @returns {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null}
+ * @param {{ maskMemory?: boolean, maskRaw?: boolean, rawChatTexts?: unknown }} [options] - Slot and raw-chat masking plus the frozen raw-chat slice.
+ * @returns {{ microfiche: import('./microfiche-policy.js').MicrofichePlan | null, microficheRaw: import('./microfiche-policy.js').MicroficheRawPlan | null }}
  */
-function buildMicroficheSplit(layers, settings, host = null, maskMemory = false) {
-    if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE || !Array.isArray(layers)) {
-        return null;
+function buildMicroficheSplit(
+    layers,
+    settings,
+    host = null,
+    { maskMemory = false, maskRaw = false, rawChatTexts = null } = {},
+) {
+    const empty = { microfiche: null, microficheRaw: null };
+    if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE) {
+        return empty;
     }
     const name = String(settings.microficheGeometry ?? '');
-    const isCustom = name === 'custom';
-    const preset = MICROFICHE_GEOMETRY_PRESETS[name];
-    if (!preset && !isCustom) {
-        return null;
+    if (!MICROFICHE_GEOMETRY_PRESETS[name] && name !== 'custom') {
+        return empty;
     }
+    const planSettings = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings));
+    const microfiche = buildMemoryPlanEntry(layers, planSettings, host, maskMemory);
+    const rawTexts = maskRawChatTexts(rawChatTexts, maskRaw);
+    const microficheRaw = buildMicroficheRawPlan(rawTexts, planSettings, host, microfiche);
+    return { microfiche, microficheRaw };
+}
+
+/**
+ * @param {Array<Array<{ text: string }>>} layers
+ * @param {Record<string, unknown>} settings
+ * @param {{ imageBudget?: unknown } | null} host
+ * @param {boolean} maskMemory
+ * @returns {import('./microfiche-policy.js').MicrofichePlan | null}
+ */
+function buildMemoryPlanEntry(layers, settings, host, maskMemory) {
     const flat = [];
-    for (const layer of layers) {
+    for (const layer of Array.isArray(layers) ? layers : []) {
         if (!Array.isArray(layer)) {
             continue;
         }
@@ -103,11 +148,21 @@ function buildMicroficheSplit(layers, settings, host = null, maskMemory = false)
     if (flat.length === 0) {
         return null;
     }
-    return buildMicrofichePlan(
-        flat,
-        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings)),
-        host,
-    );
+    return buildMicrofichePlan(flat, settings, host);
+}
+
+/**
+ * @param {unknown} rawChatTexts - Frozen raw-chat slice, oldest first.
+ * @param {boolean} maskMemory - Whether the caller masks outgoing text.
+ * @returns {string[]} String slice in place order.
+ */
+function maskRawChatTexts(rawChatTexts, maskMemory) {
+    if (!Array.isArray(rawChatTexts)) {
+        return [];
+    }
+    return rawChatTexts
+        .filter((text) => typeof text === 'string' && text.length > 0)
+        .map((text) => (maskMemory ? maskGuardText(text) : text));
 }
 
 /**

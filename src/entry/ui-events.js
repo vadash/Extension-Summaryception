@@ -50,7 +50,7 @@ function saveAndRefreshUi() {
  * @param {import('../core/summarizer-queue.js').SummarizerQueue} deps.queue - Summarizer Queue settings changes kick.
  * @param {import('../core/summarizer-engine.js').ManualRunnerDeps} deps.manualRunnerDeps - Engine deps for manual runs and the pause latch.
  * @param {() => unknown} [deps.warmPages] - Writer page warm-up for Dry-Run Preview capture.
- * @param {(pageIndex: number) => { dataUrl: string, text: string } | undefined} [deps.resolveMicrofichePage] - Writer page-source reader.
+ * @param {(pageIndex: number, region?: 'memory' | 'raw') => { dataUrl: string, text: string } | undefined} [deps.resolveMicrofichePage] - Writer page-source reader.
  * @returns {void}
  */
 export function bindUIEvents({

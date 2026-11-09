@@ -5,8 +5,10 @@ import {
     clearMicroficheStubPages,
     expandMicroficheContent,
     expandMicrofichePromptChat,
+    extractMicroficheMarkers,
     extractMicrofichePageIndices,
     formatMicroficheMarker,
+    formatMicroficheRawMarker,
     registerMicroficheStubPage,
     resolveMicroficheStubPage,
 } from '../src/core/microfiche-transport.js';
@@ -38,6 +40,19 @@ describe('microfiche marker codec', () => {
         expect(() => formatMicroficheMarker(1.5)).toThrow();
     });
 
+    it('formats a region-tagged raw marker without colliding with memory page zero', () => {
+        const rawMarker = formatMicroficheRawMarker(0);
+        expect(rawMarker).toBe('[summaryception-microfiche page=0:raw]');
+        expect(rawMarker).not.toBe(formatMicroficheMarker(0));
+        expect(extractMicroficheMarkers(rawMarker)).toEqual([{ pageIndex: 0, region: 'raw' }]);
+        expect(extractMicrofichePageIndices(rawMarker)).toEqual([0]);
+    });
+
+    it('rejects negative and non-integer raw page indexes', () => {
+        expect(() => formatMicroficheRawMarker(-1)).toThrow();
+        expect(() => formatMicroficheRawMarker(1.5)).toThrow();
+    });
+
     it('round-trips page indexes through extract', () => {
         const text = `before ${formatMicroficheMarker(0)} mid ${formatMicroficheMarker(12)} after`;
         expect(extractMicrofichePageIndices(text)).toEqual([0, 12]);
@@ -61,6 +76,13 @@ describe('microfiche stub registry', () => {
         registerStubPages();
         expect(resolveMicroficheStubPage(0)).toEqual(STUB_ZERO);
         expect(resolveMicroficheStubPage(1)).toEqual(STUB_ONE);
+    });
+
+    it('keeps raw stubs apart from memory stubs at the same index', () => {
+        registerMicroficheStubPage(0, STUB_ZERO);
+        registerMicroficheStubPage(0, STUB_ONE, 'raw');
+        expect(resolveMicroficheStubPage(0)).toEqual(STUB_ZERO);
+        expect(resolveMicroficheStubPage(0, 'raw')).toEqual(STUB_ONE);
     });
 
     it('returns undefined for unknown pages', () => {
@@ -114,6 +136,25 @@ describe('expandMicroficheContent', () => {
             { type: 'text', text: STUB_ZERO.text },
             { type: 'image_url', image_url: { url: STUB_ZERO.dataUrl } },
         ]);
+    });
+
+    it('reads raw markers with the raw region and memory markers with one argument', () => {
+        const calls = [];
+        const resolvePage = (pageIndex, region) => {
+            calls.push({ pageIndex, region });
+            return region === 'raw' ? STUB_ONE : STUB_ZERO;
+        };
+        const content = `${formatMicroficheMarker(0)} ${formatMicroficheRawMarker(0)}`;
+        const result = expandMicroficheContent(content, resolvePage);
+        expect(result.swapped).toBe(2);
+        expect(calls).toEqual([
+            { pageIndex: 0, region: undefined },
+            { pageIndex: 0, region: 'raw' },
+        ]);
+        const urls = result.content
+            .filter((part) => part.type === 'image_url')
+            .map((part) => part.image_url.url);
+        expect(urls).toEqual([STUB_ZERO.dataUrl, STUB_ONE.dataUrl]);
     });
 
     it('expands text entries inside array content without touching other parts', () => {

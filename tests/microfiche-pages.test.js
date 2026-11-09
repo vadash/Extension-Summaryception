@@ -5,8 +5,14 @@ import {
     buildMicrofichePageTexts,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
-import { buildMicrofichePlan, splitMicroficheTexts } from '../src/core/microfiche-policy.js';
+import {
+    buildMicrofichePlan,
+    buildMicroficheRawPlan,
+    splitMicroficheTexts,
+} from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource, hashMicroficheShape } from '../src/core/microfiche-pages.js';
+import { buildInjection } from '../src/core/memory-injection.js';
+import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
 import {
     expandMicrofichePromptChat,
     formatMicroficheMarker,
@@ -69,6 +75,104 @@ describe('microfiche splitMicroficheTexts', () => {
 
     it('handles empty input', () => {
         expect(splitMicroficheTexts([], 2)).toEqual({ imageTexts: [], rawTexts: [] });
+    });
+});
+
+describe('microfiche frozen-raw plan', () => {
+    const rawChat = Array.from(
+        { length: 9 },
+        (_, index) => `Message ${index} ` + 'lorem ipsum dolor sit amet '.repeat(600),
+    );
+    const rawSettings = {
+        ...GEMINI_KNOBS,
+        memoryMode: 'microfiche',
+        microficheGeometry: 'gemini',
+        microficheKeepRaw: 0,
+        microficheImageCap: 8,
+        verbatimTokenBudget: 20000,
+        queuedTokenBudget: 16000,
+        microficheFrozenRawImages: true,
+    };
+
+    it('images the oldest raw pages with empty memory layers', () => {
+        const injection = buildInjection([], { ...rawSettings, rawChatTexts: rawChat });
+        expect(injection.microfiche).toBeNull();
+        expect(injection.microficheRaw).not.toBeNull();
+        expect(injection.microficheRaw.imageTexts.length).toBeGreaterThan(0);
+    });
+
+    it('leaves the memory plan unchanged when frozen raw imaging is on', () => {
+        const layers = [[{ text: 'word '.repeat(500) }]];
+        const withoutRaw = buildInjection(layers, rawSettings);
+        const withRaw = buildInjection(layers, {
+            ...rawSettings,
+            rawChatTexts: rawChat,
+        });
+        expect(withRaw.microfiche).toEqual(withoutRaw.microfiche);
+        expect(withRaw.microficheRaw).not.toBeNull();
+    });
+
+    it('keeps the page after the cap in rawTexts', () => {
+        const settings = { ...rawSettings, microficheImageCap: 5, rawChatTexts: rawChat };
+        const injection = buildInjection([], settings);
+        const shape = injection.microficheRaw.shape;
+        const pages = buildMicrofichePageTexts(rawChat, shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(5);
+        expect(injection.microficheRaw.imageTexts).toEqual(pages.slice(0, 5));
+        expect(injection.microficheRaw.rawTexts).toContain(pages[5]);
+    });
+
+    it('leaves the region off when the frozen-raw toggle is off', () => {
+        const injection = buildInjection([], {
+            ...rawSettings,
+            microficheFrozenRawImages: false,
+            rawChatTexts: rawChat,
+        });
+        expect(injection.microficheRaw).toBeNull();
+    });
+
+    it('keeps an underfilled trailing raw page as text', () => {
+        const plan = buildMicroficheRawPlan(['short raw line'], rawSettings, {});
+        expect(plan.imageTexts).toEqual([]);
+        expect(plan.rawTexts.length).toBe(1);
+    });
+
+    it('bills raw image tokens from the one raw bucket', () => {
+        const settings = { ...rawSettings, rawChatTexts: rawChat };
+        const injection = buildInjection([], settings);
+        const images = injection.microficheRaw.imageTexts.length;
+        const imageTokens = images * injection.microficheRaw.frameTokenEstimate;
+        const billing = describeMicroficheBilling(injection, settings);
+        expect(billing.images).toBe(images);
+        expect(billing.imageTokens).toBe(imageTokens);
+        expect(billing.bucketAfterImages).toBe(36000 - imageTokens);
+        const noImages = estimateContextPreview(settings, null);
+        const preview = estimateContextPreview(settings, injection);
+        expect(preview.rawChatMax).toBe(noImages.rawChatMax - imageTokens);
+        expect(preview.mainMax).toBe(noImages.mainMax);
+    });
+
+    it('reconciles the raw cap against the shared raw bucket', () => {
+        const settings = {
+            ...GEMINI_KNOBS,
+            memoryMode: 'microfiche',
+            microficheGeometry: 'glm',
+            microficheFont: '8x13',
+            microficheCellHeight: 16,
+            microficheFrameSize: 1568,
+            microficheImageCap: 8,
+            verbatimTokenBudget: 7000,
+            queuedTokenBudget: 5000,
+            microficheFrozenRawImages: true,
+        };
+        const slice = Array.from(
+            { length: 3 },
+            (_, index) => `Message ${index} ` + 'lorem ipsum dolor sit amet '.repeat(600),
+        );
+        const plan = buildMicroficheRawPlan(slice, settings, {});
+        expect(plan.effectiveCap).toBe(2);
+        expect(plan.imageTexts.length).toBe(2);
+        expect(plan.rawTexts.length).toBeGreaterThan(0);
     });
 });
 
