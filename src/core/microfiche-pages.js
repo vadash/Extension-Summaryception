@@ -1,6 +1,6 @@
-// Microfiche page source: the one page-owning module. Consumers bind the live
-// plan, then read page N; the Raw Seal, the ephemeral per-page cache, its cap
-// and LRU eviction, and canvas capture stay behind this seam.
+// Microfiche page source: the one page-owning module. Consumers bind the plan,
+// then read page N by index; the Raw Seal, the per-page cache, its per-epoch
+// clear, and canvas capture stay behind this seam.
 
 import { drawMicrofichePage } from './microfiche-render.js';
 
@@ -26,14 +26,14 @@ const SHAPE_HASH_KEYS = [
 
 /**
  * @typedef {object} MicrofichePageSourceInput
- * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[] } | null} plan - Live plan owning the page list and render shape.
- * @property {string} text - Built injection text the pages render.
- * @property {number} epoch - Mutation Epoch the derived pages belong to.
+ * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[] } | null} plan - Plan owning the page list and render shape.
+ * @property {string} [text] - Accepted for caller compatibility; pages render from the sealed plan, so this value is not retained.
+ * @property {number} epoch - Mutation Epoch the sealed pages belong to.
  */
 
 /**
  * @typedef {object} MicrofichePageSource
- * @property {(input: MicrofichePageSourceInput) => void} update - Seal the plan for the epoch, then warm every live page.
+ * @property {(input: MicrofichePageSourceInput) => void} update - Seal the plan for the epoch, then warm every sealed page.
  * @property {(pageIndex: number) => MicrofichePage | undefined} readPage - Read one page by index.
  * @property {() => number} size - Cached page count.
  */
@@ -93,8 +93,6 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
             : canvasFactory !== null && canvasFactory !== undefined
               ? (text, shape) => renderMicrofichePages([text], shape, canvasFactory)[0]
               : null;
-    /** @type {MicrofichePageSourceInput | null} */
-    let live = null;
     /** @type {{ epoch: number, shapeHash: string, plan: MicrofichePageSourceInput['plan'] } | null} */
     let sealed = null;
     /** @type {Map<number, MicrofichePage>} */
@@ -104,10 +102,10 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
      * Seal the plan on the first update of an epoch or a geometry change. Raw
      * chat growth does not bump the epoch, so a later update inside the same
      * epoch reuses the sealed page list and its pixels.
-     * @param {MicrofichePageSourceInput} input - Live plan, built text, and epoch.
+     * @param {MicrofichePageSourceInput} input - Plan and epoch; other fields are accepted and ignored.
      * @returns {void}
      */
-    function update({ plan, text, epoch }) {
+    function update({ plan, epoch }) {
         const shapeHash =
             plan === null || plan === undefined ? '' : hashMicroficheShape(plan.shape);
         if (sealed === null || sealed.epoch !== epoch || sealed.shapeHash !== shapeHash) {
@@ -126,7 +124,6 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
                           },
             };
         }
-        live = { plan: sealed.plan, text, epoch };
         const imageTexts = sealed.plan?.imageTexts;
         const pageCount = Array.isArray(imageTexts) ? imageTexts.length : 0;
         for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
@@ -135,14 +132,14 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
     }
 
     /**
-     * @param {number} pageIndex - Page index within the live plan.
+     * @param {number} pageIndex - Page index within the sealed plan.
      * @returns {MicrofichePage | undefined} Cached page or undefined.
      */
     function readPage(pageIndex) {
-        if (live === null || renderer === null) {
+        if (sealed === null || renderer === null) {
             return undefined;
         }
-        const plan = live.plan;
+        const plan = sealed.plan;
         if (plan === null || plan === undefined || !Array.isArray(plan.imageTexts)) {
             return undefined;
         }

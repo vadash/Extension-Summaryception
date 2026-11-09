@@ -21,7 +21,7 @@ const RAW_TEXT_CHARS_PER_TOKEN = 4;
  * @property {number} keepRaw - Normalized newest-K raw-text count.
  * @property {number} effectiveCap - Images per injection after budget reconciliation.
  * @property {string[]} imageTexts - Fill-gated page texts bound for image frames.
- * @property {string[]} rawTexts - Gated tail, overflow pages, then kept-raw texts, in order.
+ * @property {string[]} rawTexts - Overflow pages, gated tail, then kept-raw texts, in order.
  * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
  */
 

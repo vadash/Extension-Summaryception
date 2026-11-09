@@ -122,21 +122,29 @@ built injection, so preview and prompt agree (#55:36).
 ## 5. PNG cache contract
 
 Every page read crosses one page source seam, `createMicrofichePageSource` in
-`src/core/microfiche-pages.js`: the consumer binds the live plan with `update`,
-then reads page N through `readPage`, and page splitting, cache key and
-eviction, and canvas capture stay behind it.
+`src/core/microfiche-pages.js`: the consumer binds the plan with `update`, then
+reads page N through `readPage`, and page splitting, the seal, the cache, and
+canvas capture stay behind it.
 
-Per-page in-memory map keyed `epoch:textHash:shapeHash:pageIndex`, where the
-text hash covers the built injection text, the shape hash covers the geometry
-keys only, and the page index runs within the live cap (#55:81-84).
+The Raw Seal is the authority for the imaged slice (ADR-0040): `update` seals
+the plan once per Mutation Epoch, and the sealed plan owns the image-text list
+and the render shape. Raw-chat growth inside one epoch reuses the sealed pages
+verbatim, so a later update reads the epoch as its cache input instead of
+resealing mid-epoch. Frozen Page pixels stay fixed until the next Mutation
+Epoch bumps (ADR-0038), so re-rendering on epoch change alone keeps the prompt
+prefix stable for provider prefix caches.
+
+Pages live in one in-memory map keyed by page index within the sealed plan;
+the sealed list is the cap, and a reader never slices it itself (#55:81-84).
 Set-level reuse falls out of per-page hits (#55:83).
 
-Mutation Epoch drift drops all pages; text or geometry changes are plain key
-misses; chat switch and reload kill the instance-held cache (#55:84). No
-timer, no persistence, no byte accounting (#55:84). Entries cap at the live
-image cap with LRU eviction inside one epoch; tab memory only (#55:84).
+An epoch bump or a geometry change (the shape hash covers geometry keys only)
+clears the map and reseals; chat switch and reload kill the instance-held
+cache (#55:84). The built injection text is not a key and never touches
+pixels, and no eviction policy runs inside an epoch. No timer, no persistence,
+no byte accounting (#55:84); tab memory only.
 
-Repeated injections with unchanged memory reuse cached pages, so prefix-cache
+Repeated injections with unchanged memory reuse sealed pages, so prefix-cache
 hits survive and latency stays flat (#55:34). Any memory edit invalidates
 cached pages automatically through the epoch bump, so an edited Snippet never
 shows a stale image (#55:35).
