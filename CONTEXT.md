@@ -60,7 +60,7 @@ Ownership sync derives the desired ghosted ids from Snippet provenance across al
 Code: `syncGhosting` (src/core/ghosting.js)
 
 **Guard Mask**:
-The outgoing-only rewrite that replaces every `U+0020` with `$$` in user and assistant message content at the main-prompt seam, plus the Memory slot text when memory masking is on; chat storage, stored memories, and the summarizer family keep normal spaces.
+The outgoing-only rewrite that replaces every `U+0020` with `$$` in user and assistant message content at the main-prompt seam, plus the Memory slot text when memory masking is on; chat storage, stored memories, and the summarizer family keep normal spaces. The Dry-Run Preview re-applies it to its clone, so the preview shows the masked form.
 Code: `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js)
 _Avoid_: $$ mode, dollar mode
 
@@ -392,6 +392,6 @@ Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
 
 **Dry-Run Preview**:
-The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts, rendered with inline enlargeable images.
-Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); `openDryRunPreview` (src/entry/dryrun-viewer.js)
+The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.
+Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js); `openDryRunPreview` (src/entry/dryrun-viewer.js)
 _Avoid_: prompt inspector view, wire dump

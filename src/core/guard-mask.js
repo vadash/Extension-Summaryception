@@ -27,6 +27,28 @@ export function unmaskGuardText(text) {
 }
 
 /**
+ * Mask every `text` part of a multipart content array. Image URLs and any
+ * other part shape stay untouched.
+ * @param {unknown} content - Message content array.
+ * @returns {void}
+ */
+export function maskGuardContentParts(content) {
+    if (!Array.isArray(content)) {
+        return;
+    }
+    for (const part of content) {
+        if (!part || typeof part !== 'object') {
+            continue;
+        }
+        const entry = /** @type {{ type?: unknown, text?: unknown }} */ (part);
+        if (entry.type !== 'text' || typeof entry.text !== 'string') {
+            continue;
+        }
+        entry.text = maskGuardText(entry.text);
+    }
+}
+
+/**
  * Replace every U+0020 in outgoing user and assistant message content with `$$`.
  * Speaker names, tool payloads, and system or developer blocks stay untouched.
  * The Memory slot keeps its own gate in memory-injection.js: buildInjection masks
@@ -46,12 +68,13 @@ export function maskGuardContent(messages, settings = {}, skipContent = null) {
         if (message.role !== 'user' && message.role !== 'assistant') {
             continue;
         }
-        if (typeof message.content !== 'string') {
-            continue;
-        }
         if (skipContent !== null && message.content === skipContent) {
             continue;
         }
-        message.content = maskGuardText(message.content);
+        if (typeof message.content === 'string') {
+            message.content = maskGuardText(message.content);
+            continue;
+        }
+        maskGuardContentParts(message.content);
     }
 }

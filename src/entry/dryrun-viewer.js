@@ -1,9 +1,10 @@
 /**
  * Dry-Run Preview: capture the host's dry-run chat completion, expand the
- * Microfiche markers on a clone, and render the read-only prompt viewer
- * (ADR-0041, ADR-0043). The live payload never mutates here; the one-shot
- * listener reads `eventData.chat`, clones it, and the prod
- * `onChatCompletionPromptReady` dry-run early return stays untouched.
+ * Microfiche markers on a clone, re-apply the outgoing role/Guard Mask seam to
+ * that clone, and render the read-only prompt viewer (ADR-0041, ADR-0043).
+ * The live payload never mutates here; the one-shot listener reads
+ * `eventData.chat`, clones it, and the prod `onChatCompletionPromptReady`
+ * dry-run early return stays untouched.
  */
 
 import { TOAST_TITLE } from '../foundation/constants.js';
@@ -24,6 +25,7 @@ import {
     extractMicrofichePageIndices,
 } from '../core/microfiche-transport.js';
 import { buildInjection } from '../core/memory-injection.js';
+import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
 import { renderMicrofichePages } from '../core/microfiche-pages.js';
 
 /** Guard against a host dry run that never emits its prompt-ready event. */
@@ -46,7 +48,7 @@ const CHAT_COMPLETION_API = 'openai';
 
 /**
  * @typedef {object} DryRunPromptView
- * @property {unknown[]} chat - Expanded clone; the clipboard payload.
+ * @property {unknown[]} chat - Expanded clone with the outgoing seam transforms; the clipboard payload.
  * @property {number} epoch - Mutation Epoch the captured memory was sealed for.
  * @property {{ memoryImages: boolean, frozenRawImages: boolean }} toggles - Image region toggles.
  * @property {number} payloadBytes - Serialized size of the captured chat.
@@ -193,6 +195,22 @@ export function expandCapturedChat(chat, resolvePage) {
         warn('Dry-Run Preview expansion failed:', e);
     }
     return { chat: clone, resolvedMarkers, unresolvedMarkers: collectUnresolvedMarkers(clone) };
+}
+/**
+ * Re-apply the live outgoing seam (role rewrite + Guard Mask) to the preview
+ * clone. The host dry run early-returns before GENERATE_AFTER_DATA, so the
+ * capture is pre-transform by construction (ADR-0044). Clone-only; the live
+ * payload never mutates here.
+ * @param {unknown[]} chat - Expanded preview clone.
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @returns {void}
+ */
+export function applyOutgoingSeamToPreview(chat, settings) {
+    try {
+        maskUserRoleAsAssistantInGenerateData(chat, settings);
+    } catch (e) {
+        warn('Dry-Run Preview guard mask failed:', e);
+    }
 }
 
 /**
@@ -688,6 +706,7 @@ export async function openDryRunPreview() {
     const settings = deps.getSettings?.() ?? getEffectiveSettings();
     const resolvePage = deps.resolveMicrofichePage ?? createPlanPageReader(settings);
     const expanded = expandCapturedChat(captured, resolvePage);
+    applyOutgoingSeamToPreview(expanded.chat, settings);
     const view = describeDryRunPrompt({
         chat: expanded.chat,
         epoch: getSummaryStoreMutationEpoch(getChatStore()),
