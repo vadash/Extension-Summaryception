@@ -119,6 +119,39 @@ describe('measureInjection', () => {
     });
 });
 
+describe('microfiche effective cap in production injection', () => {
+    it('reads the slider, host, and preset budgets with overflow as text', () => {
+        const knobs = {
+            injectionTemplate: '{{summary}}',
+            memoryMode: 'microfiche',
+            microficheFont: '8x8',
+            microficheCellWidth: 8,
+            microficheCellHeight: 22,
+            microficheStretch: false,
+            microficheVariant: 'bw',
+            microficheStopwordDim: false,
+            microficheColumns: 1,
+            microficheLineRepeat: 1,
+            microficheFrameSize: 64,
+            microficheKeepRaw: 0,
+            microficheGeometry: 'gemini',
+            microficheImageCap: 8,
+        };
+        const layers = [
+            [{ text: 'aaa bbb ccc' }, { text: 'ddd eee fff' }],
+            [{ text: 'ggg hhh iii' }, { text: 'jjj kkk lll' }],
+        ];
+        const injection = buildInjection(layers, knobs);
+        expect(injection.microfiche.effectiveCap).toBe(8);
+        expect(injection.microfiche.imageTexts.length).toBeLessThanOrEqual(8);
+        const hosted = buildInjection(layers, knobs, { imageBudget: 1 });
+        expect(hosted.microfiche.effectiveCap).toBe(1);
+        expect(hosted.microfiche.imageTexts.length).toBeLessThanOrEqual(1);
+        expect(hosted.microfiche.rawTexts.length).toBeGreaterThan(0);
+        expect(injection.text).toContain('aaa bbb ccc');
+    });
+});
+
 describe('buildMemoryBody', () => {
     it('returns the bare memory text with no template wrapping', () => {
         const body = buildMemoryBody([[{ text: 'The party reached the tavern.' }]]);

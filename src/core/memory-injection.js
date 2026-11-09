@@ -1,4 +1,9 @@
+import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
+import {
+    buildMicrofichePageTextsFromSettings,
+    resolveMicroficheEffectiveCap,
+} from './microfiche-paginate.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
 import { countTextTokens } from './token-count.js';
 
@@ -11,10 +16,13 @@ import { countTextTokens } from './token-count.js';
 
 /**
  * The read model of what ships in the prompt slot: the Snippet Anchor form,
- * template-wrapped, with the per-layer parts kept for cost display.
+ * template-wrapped, with the per-layer parts kept for cost display. Microfiche
+ * mode carries the capped page split too: image-bound pages plus overflow kept
+ * as text, so the cap is enforced in product and nothing drops silently.
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
  * @property {Array<{ layerIndex: number, text: string }>} parts - Chronology sections, deepest first.
+ * @property {{ imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Capped page split for Microfiche mode, else null.
  */
 
 /**
@@ -47,14 +55,71 @@ export function buildMemoryBody(layers) {
 /**
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
+ * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
  * @returns {MemoryInjection}
  */
-export function buildInjection(layers, settings = getEffectiveSettings()) {
+export function buildInjection(layers, settings = getEffectiveSettings(), host = null) {
+    const source = settings ?? {};
     const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
-
+    const text = memoryText ? renderInjectionTemplate({ memoryText }, source) : '';
     return {
-        text: memoryText ? renderInjectionTemplate({ memoryText }, settings) : '',
+        text,
         parts: chronologyParts,
+        microfiche: buildMicroficheSplit(layers, source, host),
+    };
+}
+
+/**
+ * @param {Array<Array<{ text: string }>>} layers
+ * @param {ExtensionSettings} settings
+ * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ */
+function buildMicroficheSplit(layers, settings, host = null) {
+    if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE || !Array.isArray(layers)) {
+        return null;
+    }
+    const name = String(settings.microficheGeometry ?? '');
+    const preset = MICROFICHE_GEOMETRY_PRESETS[name];
+    if (!preset) {
+        return null;
+    }
+    const flat = [];
+    for (const layer of layers) {
+        if (!Array.isArray(layer)) {
+            continue;
+        }
+        for (const snippet of layer) {
+            const text = formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor);
+            if (text) {
+                flat.push(text);
+            }
+        }
+    }
+    if (flat.length === 0) {
+        return null;
+    }
+    const split = buildMicrofichePageTextsFromSettings(
+        flat,
+        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings)),
+        host ?? undefined,
+    );
+    const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
+    const presetBudget = 'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined;
+    const hostBudget =
+        host !== null && host !== undefined
+            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
+            : undefined;
+    const effectiveCap = resolveMicroficheEffectiveCap(
+        settings.microficheImageCap,
+        hostBudget,
+        presetBudget,
+    );
+    const frameTokenEstimate = Number(presetRecord.frameTokenEstimate);
+    return {
+        imageTexts: split.imageTexts,
+        rawTexts: split.rawTexts,
+        effectiveCap,
+        frameTokenEstimate: Number.isFinite(frameTokenEstimate) ? frameTokenEstimate : 0,
     };
 }
 

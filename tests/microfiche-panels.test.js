@@ -216,7 +216,7 @@ describe('microfiche geometry presets', () => {
         delete globalThis.document;
     });
 
-    it('keeps preview numbers identical across microfiche geometries', async () => {
+    it('bills preview images at the preset frame rate while text stays identical', async () => {
         installSummaryContext();
         const layers = [[{ text: 'The ferry crossed at dawn.' }]];
         const template = { injectionTemplate: 'A {{summary}} B' };
@@ -239,18 +239,26 @@ describe('microfiche geometry presets', () => {
             snippetsPerPromotion: 3,
             layer0SummaryTokenTarget: 280,
         };
-        expect(
-            estimateContextPreview({
-                ...budgets,
-                microficheGeometry: 'glm',
-                microficheImageCap: 5,
-            }),
-        ).toEqual(
-            estimateContextPreview({
-                ...budgets,
-                microficheGeometry: 'custom',
-                microficheImageCap: 80,
-            }),
+        const glmPreview = estimateContextPreview({
+            ...budgets,
+            microficheGeometry: 'glm',
+            microficheImageCap: 5,
+        });
+        const customPreview = estimateContextPreview({
+            ...budgets,
+            microficheGeometry: 'custom',
+            microficheImageCap: 80,
+        });
+        expect(glmPreview.mainMax - customPreview.mainMax).toBe(
+            5 * MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate,
         );
+        expect(glmPreview.mainMin - customPreview.mainMin).toBe(
+            5 * MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate,
+        );
+        expect({ ...glmPreview, mainMin: 0, mainMax: 0 }).toEqual({
+            ...customPreview,
+            mainMin: 0,
+            mainMax: 0,
+        });
     });
 });

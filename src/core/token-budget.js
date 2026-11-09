@@ -1,4 +1,34 @@
-import { defaultSettings } from '../foundation/constants.js';
+import { MICROFICHE_GEOMETRY_PRESETS, defaultSettings } from '../foundation/constants.js';
+import { resolveMicroficheEffectiveCap } from './microfiche-paginate.js';
+
+// Image-token billing for the Microfiche preview: the estimate the catalogue
+// assigns to one rendered frame of the selected preset geometry. Text cost
+// stays build-once/measure-built-text so identical text bills identically.
+/**
+ * @param {Record<string, unknown>} settings
+ * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ */
+function microficheImageTokens(settings, host = null) {
+    const source = settings ?? {};
+    const name = String(source.microficheGeometry ?? '');
+    const preset = MICROFICHE_GEOMETRY_PRESETS[name];
+    const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
+    const frameTokens = Number(presetRecord.frameTokenEstimate);
+    if (!Number.isFinite(frameTokens) || frameTokens <= 0) {
+        return 0;
+    }
+    const presetBudget = 'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined;
+    const hostBudget =
+        host !== null && host !== undefined
+            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
+            : undefined;
+    const images = resolveMicroficheEffectiveCap(
+        source.microficheImageCap,
+        hostBudget,
+        presetBudget,
+    );
+    return images * frameTokens;
+}
 
 // One source of per-layer size policy: Layer 0 output bounds, promotion
 // quotas, and the repair ceiling all derive from these ratios.
@@ -100,10 +130,12 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 
 /**
  * Estimate the injected-context sizes shown by the settings preview panel.
+ * Text terms bill from token budgets only; Microfiche image billing adds
+ * the effective image count times the preset frame rate on the main-call line.
  * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
- * @returns {{ rawChatMin: number, rawChatMax: number, mainMin: number, mainMax: number, l0Typical: number, l0Max: number, l1Total: number }}
+ * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
  */
-export function estimateContextPreview(settings) {
+export function estimateContextPreview(settings, host = null) {
     const memoryBudget = readTokenSetting(settings, 'memoryTokenBudget');
     const verbatimBudget = readTokenSetting(settings, 'verbatimTokenBudget');
     const queuedBudget = readTokenSetting(settings, 'queuedTokenBudget');
@@ -111,11 +143,15 @@ export function estimateContextPreview(settings) {
     const maxL0Source = readTokenSetting(settings, 'maxL0SourceTokens');
     const snippetsPerPromotion = readTokenSetting(settings, 'snippetsPerPromotion');
     const summaryTarget = readTokenSetting(settings, 'layer0SummaryTokenTarget');
+    const imageTokens = microficheImageTokens(
+        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings ?? {})),
+        host,
+    );
     return {
         rawChatMin: verbatimBudget,
         rawChatMax: verbatimBudget + queuedBudget,
-        mainMin: memoryBudget + verbatimBudget,
-        mainMax: memoryBudget + verbatimBudget + queuedBudget,
+        mainMin: memoryBudget + verbatimBudget + imageTokens,
+        mainMax: memoryBudget + verbatimBudget + queuedBudget + imageTokens,
         l0Typical: minL0Source + memoryBudget + PREVIEW_BASE_PROMPT_OVERHEAD,
         l0Max: maxL0Source + memoryBudget + PREVIEW_BASE_PROMPT_OVERHEAD,
         l1Total:
