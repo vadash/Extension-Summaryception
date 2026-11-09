@@ -1,6 +1,6 @@
 # The attempt path consumes the resolved Call Profile only
 
-`src/core/call-profile.js` resolves the last unfrozen policy facts at dispatch — the Easy Summarizer Context cap (`easyContextLimit`), the CN ideograph flag (`stripChineseIdeographs`), and the Layer 0 size band (`sizeGuard`: target, min, max, and the narrow repair ceiling, null when the family validates no size) — so `settings` leaves the attempt path's interfaces. `checkEasyContextGuard`, `applyChineseOutputPolicy`, and `validateLayer0OutputSize` read that resolved policy, `runSingleAttempt`, `RequestRunner.run`, and `processSummarizerResponse` no longer take `settings`, and the attempt's dead `layer0Repair`/`repairFeedback` inputs are gone because the runner folds repair into the prompt before dispatch.
+`src/core/call-profile.js` resolves the last unfrozen policy facts at dispatch — the Easy Summarizer Context cap (`easyContextLimit`), the CN ideograph flag (`stripChineseIdeographs`), the Layer 0 size band (`sizeGuard`: target, min, max, and the narrow repair ceiling, null when the family validates no size), and the configured output-strip patterns (`stripPatterns`) — so `settings` leaves the attempt path's interfaces. `checkEasyContextGuard`, `applyChineseOutputPolicy`, and `validateLayer0OutputSize` read that resolved policy, `runSingleAttempt`, `RequestRunner.run`, and `processSummarizerResponse` no longer take `settings`, and the attempt's dead `layer0Repair`/`repairFeedback` inputs are gone because the runner folds repair into the prompt before dispatch.
 
 ## Considered Options
 

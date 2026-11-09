@@ -365,6 +365,17 @@ describe('resolveCallProfile guard flags', () => {
         const off = resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }).policy;
         expect(off.stripChineseIdeographs).toBe(false);
     });
+
+    it('freezes the configured output-strip patterns as a copy', () => {
+        const settings = makeSummarySettings({ stripPatterns: ['<tag>', 'noise'] });
+        const policy = resolveCallProfile(settings, { kind: 'layer0' }).policy;
+        expect(policy.stripPatterns).toEqual(['<tag>', 'noise']);
+        expect(policy.stripPatterns).not.toBe(settings.stripPatterns);
+
+        const fallback = resolveCallProfile(makeSummarySettings(), { kind: 'layer0' }).policy;
+        expect(fallback.stripPatterns).toEqual(defaultSettings.stripPatterns);
+        expect(fallback.stripPatterns).not.toBe(defaultSettings.stripPatterns);
+    });
 });
 
 describe('resolveCallProfile label', () => {

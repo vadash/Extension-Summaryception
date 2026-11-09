@@ -55,6 +55,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  * @property {{ target: number, min: number, max: number, repairCeiling: number } | null} sizeGuard - Frozen Layer 0 output-size band; null when the family validates no size
  * @property {number | null} easyContextLimit - Frozen Easy Summarizer Context cap; null when the guard does not apply
  * @property {boolean} stripChineseIdeographs - Whether the CN ideograph policy strips Han-heavy output
+ * @property {string[]} stripPatterns - Frozen configured output-strip patterns the clean stage consumes
  * @property {boolean} promotionConstraints - Whether the prompt carries the Layer 1+ promotion constraint block
  */
 
@@ -148,6 +149,7 @@ export function resolveCallProfile(settings, call = {}) {
             sizeGuard: isLayer0Family ? buildLayer0SizeGuard(settings) : null,
             easyContextLimit: resolveEasyContextLimit(settings),
             stripChineseIdeographs: Boolean(settings.stripChineseIdeographs),
+            stripPatterns: resolveStripPatterns(settings),
             promotionConstraints: isPromotion,
         },
         provenance: buildProvenance(call),
@@ -180,6 +182,19 @@ function resolveEasyContextLimit(settings) {
     }
     const limit = Number(settings.advancedModelContext);
     return Number.isFinite(limit) && limit > 0 ? limit : null;
+}
+
+/**
+ * Freeze the configured output-strip patterns. A malformed setting falls back
+ * to the shipped defaults; either way the policy owns a fresh copy so a later
+ * settings edit cannot reach an in-flight call.
+ * @param {ExtensionSettings} settings
+ * @returns {string[]}
+ */
+function resolveStripPatterns(settings) {
+    return Array.isArray(settings.stripPatterns)
+        ? [...settings.stripPatterns]
+        : [...defaultSettings.stripPatterns];
 }
 
 /**

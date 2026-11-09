@@ -1,6 +1,5 @@
 import { NOTIFY_EVENTS } from '../foundation/constants.js';
 import { debug, warn } from '../foundation/logger.js';
-import { getEffectiveSettings } from '../foundation/settings.js';
 import { validateLayer0OutputSize, validateLayer0Structure } from './layer0-compression.js';
 import {
     extractDeclinedReason,
@@ -23,12 +22,14 @@ const MIN_OUTPUT_TOKENS_FOR_SUBSTANTIAL_SOURCE = 30;
 const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
 
 /**
- * Strip reasoning tags, thinking blocks, and other model artifacts
- * from the summarizer output.
+ * Strip reasoning tags, thinking blocks, and other model artifacts from the
+ * summarizer output. The configured strip patterns arrive frozen on the call
+ * policy, so this module never reads the settings store.
  * @param {string} raw
+ * @param {import('./call-profile.js').CallProfilePolicy} [policy] - Frozen policy resolved at dispatch
  * @returns {string}
  */
-function cleanSummarizerOutput(raw) {
+function cleanSummarizerOutput(raw, policy) {
     let text = raw;
 
     const thinkRegion = stripLeadingThinkRegion(text);
@@ -39,9 +40,12 @@ function cleanSummarizerOutput(raw) {
         text = thinkRegion.text;
     }
 
-    const s = getEffectiveSettings();
+    // Normalize before stripping configured patterns: a legacy bracket header
+    // must become the envelope the rest of the chain parses, and a strip
+    // pattern must never see the pre-normalization spelling.
+    text = normalizeStructuralHeaderLines(text);
 
-    for (const pattern of s.stripPatterns || []) {
+    for (const pattern of policy?.stripPatterns || []) {
         while (text.includes(pattern)) {
             text = text.replace(pattern, '');
         }
@@ -66,9 +70,7 @@ function cleanSummarizerOutput(raw) {
         }
     }
 
-    text = normalizeStructuralHeaderLines(text);
-
-    text = text.replace(/\n{3,}/g, '\n').trim();
+    text = cleanWhitespace(text);
 
     return text;
 }
@@ -300,7 +302,7 @@ function rejectIntegrity(reason) {
  * @returns {Promise<{ status: 'success', text: string, error: null, repairFeedback: '' } | { status: 'empty' | 'cn-rejected' | 'integrity-rejected' | 'size-rejected', text: string, error: Error & { retryable?: boolean }, repairFeedback: string }>} Rejected attempts keep the cleaned LLM output in `text` for the attempt log; only `empty` has none.
  */
 export async function processSummarizerResponse(rawResult, profile, notify = silentAdapter) {
-    const cleanedResult = cleanSummarizerOutput((rawResult || '').trim());
+    const cleanedResult = cleanSummarizerOutput((rawResult || '').trim(), profile?.policy);
     const chinesePolicyResult = applyChineseOutputPolicy(cleanedResult, profile);
 
     if (chinesePolicyResult.error) {

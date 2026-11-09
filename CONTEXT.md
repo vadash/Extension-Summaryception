@@ -154,7 +154,7 @@ Code: `SummarizerCallMetadata` (src/core/call-profile.js)
 _Avoid_: Raw metadata
 
 **Call Profile**:
-The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, the frozen Easy Summarizer Context cap, the frozen CN ideograph policy, the frozen Layer 0 size band, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category or live settings.
+The per-call policy resolved once from settings and the call category at dispatch: prompts, per-route timeouts, health bucket, connection targets, output guard flags, the frozen Easy Summarizer Context cap, the frozen CN ideograph policy, the frozen Layer 0 size band, the frozen configured output-strip patterns, and the log label, plus the call's verbatim provenance. Request-path modules consume the resolved profile and never read the call category or live settings.
 Code: `resolveCallProfile` (src/core/call-profile.js)
 
 **Connection Route**:
