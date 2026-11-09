@@ -5,10 +5,11 @@ import {
     isContinuityStateLogFullEnabled,
     warn,
 } from '../foundation/logger.js';
-import { attachCheckpoint } from './continuity-checkpoint.js';
+import { attachCheckpoint, unmaskCheckpointStrings } from './continuity-checkpoint.js';
 import { deriveContinuityCoverage } from './continuity-coverage.js';
 import { diffContinuityStates } from './continuity-diff.js';
 import { applyPairFlags, classifyContinuity, createDefaultContinuity } from './continuity-state.js';
+import { unmaskGuardText } from './guard-mask.js';
 import { silentAdapter } from './notify.js';
 
 const CONTINUITY_AUDIT_LOG_TYPE = 'summaryception.continuity.audit.v1';
@@ -340,7 +341,7 @@ function buildAuditStory(chat, windowIndices, playerName) {
         .map((index) => {
             const message = chat[index];
             const speaker = message.is_user ? playerName : String(message.name || 'Assistant');
-            return `[${index}] ${speaker}: ${String(message.mes || '')}`;
+            return `[${index}] ${speaker}: ${unmaskGuardText(String(message.mes || ''))}`;
         })
         .join('\n\n');
 }
@@ -354,11 +355,11 @@ function buildAuditorContext(prior, store) {
     const memory = listNonEmptyLayers(store)
         .map(({ layer }) =>
             layer
-                .map((snippet) => String(snippet?.text || ''))
+                .map((snippet) => unmaskGuardText(String(snippet?.text || '')))
                 .filter(Boolean)
                 .join('\n\n'),
         )
         .filter(Boolean)
         .join('\n\n');
-    return `Prior continuity state:\n${JSON.stringify(prior, null, 2)}\n\nNarrative memory:\n${memory || '(none yet)'}`;
+    return `Prior continuity state:\n${JSON.stringify(unmaskCheckpointStrings(prior), null, 2)}\n\nNarrative memory:\n${unmaskGuardText(memory) || '(none yet)'}`;
 }

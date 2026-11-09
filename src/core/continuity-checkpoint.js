@@ -1,5 +1,6 @@
 import { trace } from '../foundation/logger.js';
 import { isAssistantMessage, isRecord } from './continuity-state.js';
+import { unmaskGuardText } from './guard-mask.js';
 
 /**
  * The Continuity Checkpoint: the per-message payload a settled audit commits,
@@ -63,7 +64,32 @@ export function attachCheckpoint(message, state) {
     }
     const target = /** @type {{ extra?: unknown }} */ (message);
     target.extra = isRecord(target.extra) ? target.extra : {};
-    /** @type {Record<string, unknown>} */ (target.extra)[CHECKPOINT_KEY] = state;
+    /** @type {Record<string, unknown>} */ (target.extra)[CHECKPOINT_KEY] =
+        unmaskCheckpointStrings(state);
+}
+
+/**
+ * Fold any `$$` a stray echo left in the payload. The checkpoint is persisted
+ * and later becomes Auditor input, so the stored copy always reads as prose.
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+export function unmaskCheckpointStrings(value) {
+    if (typeof value === 'string') {
+        return unmaskGuardText(value);
+    }
+    if (Array.isArray(value)) {
+        return value.map(unmaskCheckpointStrings);
+    }
+    if (isRecord(value)) {
+        /** @type {Record<string, unknown>} */
+        const unmasked = {};
+        for (const [key, entry] of Object.entries(value)) {
+            unmasked[key] = unmaskCheckpointStrings(entry);
+        }
+        return unmasked;
+    }
+    return value;
 }
 
 /**

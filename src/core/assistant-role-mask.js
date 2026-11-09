@@ -1,10 +1,14 @@
 /**
  * Rewrite final chat-completion request roles without touching persisted chat state.
+ * The Guard Mask (ADR-0036) rides this same seam: it replaces every U+0020 with
+ * `$$` in the outgoing user and assistant message content, last step after the
+ * role rewrite, when the guard settings are on.
  */
 
 import { isPlainObject } from '../foundation/objects.js';
 import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
+import { maskGuardContent } from './guard-mask.js';
 
 /**
  * Synthetic user block for the compatibility modes. Some APIs reject
@@ -13,17 +17,27 @@ import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 
 /**
+ * Rewrite the outgoing roles and then apply the outgoing-space guard. The guard
+ * runs last so it sees the rewritten roles, and it runs even when the role mask
+ * is off because the two settings are independent.
  * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {Partial<ExtensionSettings>} settings - Effective Summaryception settings.
  * @returns {number}
  */
 export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {}) {
-    if (!settings.enabled || !settings.maskUserRoleAsAssistant) {
-        return 0;
-    }
-
     const messages = getPromptMessages(generateData);
-    if (!messages) {
+    const rewritten = rewriteUserRoles(messages, settings);
+    applyGuardMask(messages, settings);
+    return rewritten;
+}
+
+/**
+ * @param {Array<Record<string, unknown>> | null} messages
+ * @param {Partial<ExtensionSettings>} settings
+ * @returns {number}
+ */
+function rewriteUserRoles(messages, settings) {
+    if (!messages || !settings.enabled || !settings.maskUserRoleAsAssistant) {
         return 0;
     }
 
@@ -76,6 +90,17 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
     logRoleMaskDebug({ mode, userMessages, preservedMessage, rewritten });
 
     return rewritten;
+}
+
+/**
+ * Replace every U+0020 in outgoing user and assistant content with `$$`.
+ * Speaker names, tool payloads, and system or developer blocks stay untouched.
+ * @param {Array<Record<string, unknown>> | null} messages
+ * @param {Partial<ExtensionSettings>} settings
+ * @returns {void}
+ */
+function applyGuardMask(messages, settings) {
+    maskGuardContent(messages, settings);
 }
 
 function normalizeMaskMode(value) {

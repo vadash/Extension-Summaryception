@@ -2,6 +2,7 @@ import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { LEADING_NARRATIVE_HEADER_RE, parseNarrativeEnvelope } from './structural-headers.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';
+import { unmaskGuardText } from './guard-mask.js';
 
 const UNKNOWN_TIME = 'unknown';
 const COMPACT_CURRENT_DATE_TIME_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{2})(?:\s+[a-z]{3})?$/i;
@@ -182,12 +183,12 @@ export function getSnippetDisplayMeta(snippet) {
  * @returns {string}
  */
 export function formatAnchoredSnippetNarrative(snippet = {}, formatAnchor = formatSnippetAnchor) {
-    const parsed = parseSnippet(snippet?.text || '');
+    const parsed = parseSnippet(unmaskGuardText(snippet?.text || ''));
     const anchor = formatAnchor(snippet);
     const narrative = anchor
         ? stripLeadingSnippetAnchor(parsed.narrative)
         : parsed.narrative.trim();
-    return [anchor, narrative].filter(Boolean).join(' ');
+    return [anchor, unmaskGuardText(narrative)].filter(Boolean).join(' ');
 }
 
 /**

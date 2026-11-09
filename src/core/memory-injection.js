@@ -2,6 +2,7 @@ import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constan
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { buildMicrofichePlan } from './microfiche-policy.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
+import { maskGuardText, unmaskGuardText } from './guard-mask.js';
 import { countTextTokens } from './token-count.js';
 
 /**
@@ -58,11 +59,14 @@ export function buildMemoryBody(layers) {
 export function buildInjection(layers, settings = getEffectiveSettings(), host = null) {
     const source = settings ?? {};
     const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
+    const maskMemory = Boolean(source.enabled && source.guardMask && source.guardMaskMemory);
     const text = memoryText ? renderInjectionTemplate({ memoryText }, source) : '';
     return {
-        text,
-        parts: chronologyParts,
-        microfiche: buildMicroficheSplit(layers, source, host),
+        text: maskMemory ? maskGuardText(text) : text,
+        parts: maskMemory
+            ? chronologyParts.map((part) => ({ ...part, text: maskGuardText(part.text) }))
+            : chronologyParts,
+        microfiche: buildMicroficheSplit(layers, source, host, maskMemory),
     };
 }
 
@@ -70,9 +74,10 @@ export function buildInjection(layers, settings = getEffectiveSettings(), host =
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} settings
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @param {boolean} [maskMemory] - Whether the caller masks the slot text.
  * @returns {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null}
  */
-function buildMicroficheSplit(layers, settings, host = null) {
+function buildMicroficheSplit(layers, settings, host = null, maskMemory = false) {
     if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE || !Array.isArray(layers)) {
         return null;
     }
@@ -88,9 +93,11 @@ function buildMicroficheSplit(layers, settings, host = null) {
             continue;
         }
         for (const snippet of layer) {
-            const text = formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor);
+            const text = unmaskGuardText(
+                formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor),
+            );
             if (text) {
-                flat.push(text);
+                flat.push(maskMemory ? maskGuardText(text) : text);
             }
         }
     }

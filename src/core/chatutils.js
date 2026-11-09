@@ -2,6 +2,7 @@ import { getChatStore } from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { buildMemoryBody } from './memory-injection.js';
+import { unmaskGuardText } from './guard-mask.js';
 import { addBudgetStats, countMessageTokens, createBudgetStats } from './token-count.js';
 
 // ─── Assistant Turn Utilities ────────────────────────────────────────
@@ -207,10 +208,12 @@ export function formatMessageSpeakerLine(message, text) {
  * @returns {Promise<{ rawText: string, finalText: string, rawLine: string, finalLine: string, changed: boolean }>}
  */
 async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
-    const rawText = String(message.mes || '').trim();
-    const finalText = applyRegexScripts
-        ? await applyRegexToMessage(rawText, Boolean(message.is_user), depth)
-        : rawText;
+    const rawText = unmaskGuardText(String(message.mes || '').trim());
+    const finalText = unmaskGuardText(
+        applyRegexScripts
+            ? await applyRegexToMessage(rawText, Boolean(message.is_user), depth)
+            : rawText,
+    );
     const rawLine = formatMessageSpeakerLine(message, rawText);
     const finalLine = formatMessageSpeakerLine(message, finalText);
 
