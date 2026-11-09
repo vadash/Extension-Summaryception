@@ -59,6 +59,16 @@ Hiding summarized turns from model context through the host command while keepin
 Ownership sync derives the desired ghosted ids from Snippet provenance across all layers: it hides desired messages that are not covered yet and releases owned ids no longer referenced.
 Code: `syncGhosting` (src/core/ghosting.js)
 
+**Guard Mask**:
+The outgoing-only rewrite that replaces every `U+0020` with `$$` in user and assistant message content at the main-prompt seam, plus the Memory slot text when memory masking is on; chat storage, stored memories, and the summarizer family keep normal spaces.
+Code: `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js)
+_Avoid_: $$ mode, dollar mode
+
+**Guard Unmask**:
+The summarizer-side rewrite that turns every literal `$$` into one `U+0020` in user and assistant message content, stored Snippet prose, and Continuity Checkpoint writes; always on regardless of the Guard Mask settings, so pasted or echoed `$$` never reaches a summarizer or Auditor prompt.
+Code: `buildPassageFromRangeWithStats` (src/core/chatutils.js)
+_Avoid_: $$ cleanup, dollar decode
+
 **Batch**:
 The assistant turns one Layer 0 summarizer request covers. Batch ranges count assistant turns only; user messages between them belong to the request's Passage.
 Code: `SummaryRoutePlan.batchTurns` (src/core/summarization-routes.js)
