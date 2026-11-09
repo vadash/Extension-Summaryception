@@ -53,7 +53,20 @@ import { registerSlashCommands } from './src/entry/commands.js';
     initChatPersistence({ saveChat, saveMetadata });
     getSettings();
     // The gate's requeue reads the queue lazily; the queue is built next.
-    const writer = createMemoryInjectionWriter();
+    // Microfiche renders on a document canvas so the page source captures the
+    // same laid-out pixels the main LLM receives.
+    const writer = createMemoryInjectionWriter({
+        canvasFactory: (width, height) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx =
+                /** @type {{ fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void }} */ (
+                    canvas.getContext('2d')
+                );
+            return { canvas, ctx };
+        },
+    });
     const gate = createForegroundGate({
         reassertInjection: writer.reassert,
         requeue: () => {

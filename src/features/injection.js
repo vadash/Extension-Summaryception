@@ -9,9 +9,11 @@ import { registerMacro, setExtensionPrompt } from '../foundation/context.js';
 import { getChatStore, getSummaryStoreMutationEpoch } from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
-import { buildInjection } from '../core/memory-injection.js';
+import { buildInjection, renderInjectionTemplate } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import { createMicrofichePageSource } from '../core/microfiche-pages.js';
+import { formatMicroficheMarker } from '../core/microfiche-transport.js';
+import { maskGuardText } from '../core/guard-mask.js';
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
@@ -24,7 +26,8 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * instance instead of resetting module state. The instance also holds the
  * Microfiche page source: tab memory only, sealed per Mutation Epoch, and
  * cleared on epoch or geometry drift. A chat switch clears it explicitly
- * because each chat's epoch starts at zero and can repeat the sealed one.
+ * because each chat's epoch starts at zero and can repeat the sealed one. The
+ * same instance owns the slot markers for image-backed memory pages (ADR-0042).
  * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
@@ -50,13 +53,14 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         try {
             const store = getChatStore();
             const settings = getEffectiveSettings();
-            const nextInjection = buildDirectInjectionText(settings);
+            const injection = buildInjection(store.layers, settings);
+            const nextInjection = buildNextInjection(settings, injection);
             const nextOptions = getMemoryInjectionOptions(settings);
             activeInjectionSnapshot = nextInjection;
             activeInjectionOptions = nextOptions;
 
             pageSource.update({
-                plan: buildInjection(store.layers, settings).microfiche,
+                plan: injection.microfiche,
                 text: nextInjection,
                 epoch: getSummaryStoreMutationEpoch(store),
             });
@@ -147,6 +151,56 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         resetMicrofichePages,
     };
 }
+
+/**
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @param {import('../core/memory-injection.js').MemoryInjection} injection - Built injection.
+ * @returns {string} Slot text with Microfiche markers applied.
+ */
+function buildNextInjection(settings, injection) {
+    return applyMicroficheMarkers(
+        buildDirectInjectionText(settings, injection),
+        injection.microfiche,
+        settings,
+    );
+}
+
+/**
+ * Replace the memory region's image-backed page text with send-time markers.
+ * The plan owns which pages image; this writer only owns their slot tags. The
+ * kept-raw tail stays text, and both placement toggles off leaves the built
+ * payload byte-identical. Frozen-raw pages are not part of the memory plan, so
+ * their region gate applies when that page list joins the plan.
+ * @param {string} text - Built slot text.
+ * @param {{ imageTexts?: string[], rawTexts?: string[] } | null} plan - Microfiche plan, if any.
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @returns {string} Slot text with markers in place of image pages.
+ */
+function applyMicroficheMarkers(text, plan, settings) {
+    if (!text || !plan || settings?.microficheMemoryImages !== true) {
+        return text;
+    }
+    const imageTexts = Array.isArray(plan.imageTexts) ? plan.imageTexts : [];
+    if (imageTexts.length === 0) {
+        return text;
+    }
+    const rawTexts = Array.isArray(plan.rawTexts) ? plan.rawTexts : [];
+    const memoryText = [
+        ...imageTexts.map((_page, pageIndex) => formatMicroficheMarker(pageIndex)),
+        ...rawTexts,
+    ].join('\n');
+    // Plan text is already masked when memory masking is on, so only the
+    // template needs the mask; markers must stay byte-exact for expansion.
+    const template =
+        settings.guardMask === true && settings.guardMaskMemory === true
+            ? maskGuardText(String(settings.injectionTemplate || '{{summary}}'))
+            : null;
+    return renderInjectionTemplate(
+        { memoryText },
+        template === null ? settings : { injectionTemplate: template },
+    );
+}
+
 /**
  * @param {ExtensionSettings} [settings]
  * @returns {{ position: number, depth: number, scan: boolean, role: number }}
@@ -175,18 +229,27 @@ function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
  * Macro-only placement serves memory through the macro, so this builds
  * text only for standard placements.
  * @param {ExtensionSettings} [settings]
+ * @param {{ text: string } | null} [injection] - Already-built injection, if the caller has one.
  * @returns {string}
  */
-function buildDirectInjectionText(settings = getEffectiveSettings()) {
+function buildDirectInjectionText(settings = getEffectiveSettings(), injection = null) {
     if (!settings.enabled || settings.customMemoryPosition === MEMORY_POSITIONS.MACRO_ONLY) {
         return '';
     }
-    return buildEnabledMemoryText(settings);
+    return buildEnabledMemoryText(settings, injection);
 }
 
-function buildEnabledMemoryText(settings = getEffectiveSettings()) {
+/**
+ * @param {ExtensionSettings} [settings]
+ * @param {{ text: string } | null} [injection] - Already-built injection, if the caller has one.
+ * @returns {string}
+ */
+function buildEnabledMemoryText(settings = getEffectiveSettings(), injection = null) {
     if (!settings.enabled) {
         return '';
+    }
+    if (injection !== null) {
+        return injection.text;
     }
     return buildInjection(getChatStore().layers, settings).text;
 }

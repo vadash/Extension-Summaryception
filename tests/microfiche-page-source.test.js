@@ -6,10 +6,15 @@ import {
     getChatStore,
 } from '../src/foundation/chat-store.js';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { getEffectiveSettings } from '../src/foundation/settings.js';
+import { buildInjection } from '../src/core/memory-injection.js';
 import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource } from '../src/core/microfiche-pages.js';
-import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
+import {
+    extractMicrofichePageIndices,
+    formatMicroficheMarker,
+} from '../src/core/microfiche-transport.js';
 import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
@@ -507,5 +512,79 @@ describe('memory injection writer render cache', () => {
         expect(redone.map((page) => page.text)).toEqual(pages.map((page) => page.text));
         expect(redone.map((page) => page.dataUrl).length).toBe(pages.length);
         expect(redone[0]).not.toBe(pages[0]);
+    });
+});
+
+describe('memory injection writer microfiche markers', () => {
+    it('writes one marker per image page when memory images are on', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({
+            setExtensionPrompt,
+            settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        const pages = readAllPages(writer);
+        expect(pages.length).toBeGreaterThan(0);
+        expect(extractMicrofichePageIndices(text)).toEqual(pages.map((_, index) => index));
+        expect(text).not.toContain(pages[0].text);
+    });
+
+    it('expands the writer payload into rendered image parts', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({
+            setExtensionPrompt,
+            settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const chat = [{ role: 'system', content: setExtensionPrompt.mock.calls[0][1] }];
+        onChatCompletionPromptReady({ chat }, undefined, {
+            resolveMicrofichePage: writer.resolveMicrofichePage,
+        });
+
+        const pages = readAllPages(writer);
+        const images = chat[0].content.filter((part) => part.type === 'image_url');
+        expect(images).toEqual(
+            pages.map((page) => ({ type: 'image_url', image_url: { url: page.dataUrl } })),
+        );
+    });
+
+    it('keeps the pre-change text payload when both image toggles are off', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({ setExtensionPrompt });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        const expected = buildInjection(getChatStore().layers, getEffectiveSettings()).text;
+        expect(text).toBe(expected);
+        expect(text).not.toContain(formatMicroficheMarker(0));
+    });
+
+    it('leaves memory text alone when only the frozen raw toggle is on', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({
+            setExtensionPrompt,
+            settings: { ...MICROFICHE_SETTINGS, microficheFrozenRawImages: true },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        const expected = buildInjection(getChatStore().layers, getEffectiveSettings()).text;
+        expect(text).toBe(expected);
+        expect(text).not.toContain(formatMicroficheMarker(0));
     });
 });
