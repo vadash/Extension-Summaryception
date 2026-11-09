@@ -102,6 +102,7 @@
 - Operating mode gates runtime behavior. Complexity mode selects the visible panel.
 - Mode transitions cross the Operation Mode module (src/foundation/operation-mode.js). Nothing writes uiMode, configMode, or enabled by hand.
 - Bind plain settings through the data-attribute engine. Hand-bind only controls with special semantics.
+- Bindings that change injected prompt text call `refreshFull` in `afterSave`; the custom placement handlers are the pattern.
 - Prompt Profiles bind through src/entry/ui-prompts.js; defaults reset lives in foundation/settings.js resetSettingsToDefaults.
 - One layer-label helper serves status panel, snippet browser, and slash commands.
 - Keep the selected panel editable while the extension is Off.

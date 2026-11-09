@@ -149,7 +149,7 @@ Code: `MEMORY_MODES` (src/foundation/constants.js)
 _Avoid_: Append Only
 
 **Memory Injection**:
-The read model of what ships in the prompt slot: the chronology in compact-anchor form, wrapped in the injection template, with its token cost. The same module builds and measures it, so the preview and the injected prompt are the same string.
+The read model of what ships in the prompt slot: the chronology in compact-anchor form, wrapped in the injection template, with its token cost. The same module builds and measures it, so the preview and the injected prompt are the same string. The slot's prompt role is user-configurable (system, user, or assistant), so content-based slot identity must hold for every role.
 Code: `buildInjection` / `measureInjection` (src/core/memory-injection.js)
 _Avoid_: summary block, injection preview
 
