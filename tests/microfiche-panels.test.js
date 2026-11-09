@@ -10,9 +10,8 @@ import {
     defaultSettings,
     lookupModelShapes,
 } from '../src/foundation/constants.js';
-import { buildInjection, measureInjection } from '../src/core/memory-injection.js';
+import { buildInjection } from '../src/core/memory-injection.js';
 import { estimateContextPreview } from '../src/core/token-budget.js';
-import { countTextTokens } from '../src/core/token-count.js';
 import { getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
 import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
@@ -216,49 +215,36 @@ describe('microfiche geometry presets', () => {
         delete globalThis.document;
     });
 
-    it('bills preview images at the preset frame rate while text stays identical', async () => {
-        installSummaryContext();
-        const layers = [[{ text: 'The ferry crossed at dawn.' }]];
-        const template = { injectionTemplate: 'A {{summary}} B' };
-        const geminiInjection = buildInjection(layers, template);
-        const customInjection = buildInjection(layers, template);
-        expect(customInjection.text).toBe(geminiInjection.text);
-        const [geminiUsage, customUsage] = await Promise.all([
-            measureInjection(geminiInjection),
-            measureInjection(customInjection),
-        ]);
-        expect(customUsage.total).toEqual(geminiUsage.total);
-        const expected = await countTextTokens(geminiInjection.text);
-        expect(geminiUsage.total.count).toBe(expected.count);
-        const budgets = {
-            memoryTokenBudget: 10000,
-            verbatimTokenBudget: 16000,
-            queuedTokenBudget: 32000,
-            minSummaryBudget: 6000,
-            maxL0SourceTokens: 24000,
-            snippetsPerPromotion: 3,
-            layer0SummaryTokenTarget: 280,
-        };
-        const glmPreview = estimateContextPreview({
-            ...budgets,
+    it('bills preview images at the injected page count, not the image cap', () => {
+        const settings = {
+            ...defaultSettings,
+            memoryMode: MEMORY_MODES.MICROFICHE,
             microficheGeometry: 'glm',
             microficheImageCap: 5,
-        });
-        const customPreview = estimateContextPreview({
-            ...budgets,
+        };
+        const layers = [
+            [
+                { text: 'The ferry crossed at dawn.' },
+                { text: 'The gulls followed the wake.' },
+                { text: 'The harbour bell rang once.' },
+            ],
+        ];
+        const injection = buildInjection(layers, settings);
+        expect(injection.microfiche).not.toBeNull();
+        expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
+        expect(injection.microfiche.imageTexts.length).toBeLessThan(5);
+        const noImages = estimateContextPreview(settings, null);
+        const preview = estimateContextPreview(settings, injection.microfiche);
+        const billedFrameTokens =
+            injection.microfiche.imageTexts.length *
+            MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate;
+        expect(preview.mainMin - noImages.mainMin).toBe(billedFrameTokens);
+        expect(preview.mainMax - noImages.mainMax).toBe(billedFrameTokens);
+        const customInjection = buildInjection(layers, {
+            ...settings,
             microficheGeometry: 'custom',
             microficheImageCap: 80,
         });
-        expect(glmPreview.mainMax - customPreview.mainMax).toBe(
-            5 * MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate,
-        );
-        expect(glmPreview.mainMin - customPreview.mainMin).toBe(
-            5 * MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate,
-        );
-        expect({ ...glmPreview, mainMin: 0, mainMax: 0 }).toEqual({
-            ...customPreview,
-            mainMin: 0,
-            mainMax: 0,
-        });
+        expect(customInjection.text).toBe(injection.text);
     });
 });

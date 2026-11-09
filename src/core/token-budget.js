@@ -1,33 +1,20 @@
-import { MICROFICHE_GEOMETRY_PRESETS, defaultSettings } from '../foundation/constants.js';
-import { resolveMicroficheEffectiveCap } from './microfiche-policy.js';
+import { defaultSettings } from '../foundation/constants.js';
 
-// Image-token billing for the Microfiche preview: the estimate the catalogue
-// assigns to one rendered frame of the selected preset geometry. Text cost
-// stays build-once/measure-built-text so identical text bills identically.
+// Image-token billing for the Microfiche preview: the built split owns the
+// page count and the frame estimate, so the preview and the injected split
+// always agree. Text cost stays build-once/measure-built-text so identical
+// text bills identically.
 /**
- * @param {Record<string, unknown>} settings
- * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @param {{ imageTexts?: unknown, frameTokenEstimate?: unknown } | null} [plan] - Built Microfiche plan, if any.
+ * @returns {number}
  */
-function microficheImageTokens(settings, host = null) {
-    const source = settings ?? {};
-    const name = String(source.microficheGeometry ?? '');
-    const preset = MICROFICHE_GEOMETRY_PRESETS[name];
-    const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
-    const frameTokens = Number(presetRecord.frameTokenEstimate);
+function microfichePlanTokens(plan = null) {
+    const pages = Array.isArray(plan?.imageTexts) ? plan.imageTexts.length : 0;
+    const frameTokens = Number(plan?.frameTokenEstimate);
     if (!Number.isFinite(frameTokens) || frameTokens <= 0) {
         return 0;
     }
-    const presetBudget = 'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined;
-    const hostBudget =
-        host !== null && host !== undefined
-            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
-            : undefined;
-    const images = resolveMicroficheEffectiveCap(
-        source.microficheImageCap,
-        hostBudget,
-        presetBudget,
-    );
-    return images * frameTokens;
+    return pages * frameTokens;
 }
 
 // One source of per-layer size policy: Layer 0 output bounds, promotion
@@ -130,12 +117,13 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 
 /**
  * Estimate the injected-context sizes shown by the settings preview panel.
- * Text terms bill from token budgets only; Microfiche image billing adds
- * the effective image count times the preset frame rate on the main-call line.
+ * Text terms bill from token budgets only. The main-call line adds the built
+ * split's page count times the plan's frame estimate. A null plan bills no
+ * images.
  * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
- * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @param {{ imageTexts?: unknown, frameTokenEstimate?: unknown } | null} [plan] - Built Microfiche plan, if any.
  */
-export function estimateContextPreview(settings, host = null) {
+export function estimateContextPreview(settings, plan = null) {
     const memoryBudget = readTokenSetting(settings, 'memoryTokenBudget');
     const verbatimBudget = readTokenSetting(settings, 'verbatimTokenBudget');
     const queuedBudget = readTokenSetting(settings, 'queuedTokenBudget');
@@ -143,10 +131,7 @@ export function estimateContextPreview(settings, host = null) {
     const maxL0Source = readTokenSetting(settings, 'maxL0SourceTokens');
     const snippetsPerPromotion = readTokenSetting(settings, 'snippetsPerPromotion');
     const summaryTarget = readTokenSetting(settings, 'layer0SummaryTokenTarget');
-    const imageTokens = microficheImageTokens(
-        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings ?? {})),
-        host,
-    );
+    const imageTokens = microfichePlanTokens(plan);
     return {
         rawChatMin: verbatimBudget,
         rawChatMax: verbatimBudget + queuedBudget,

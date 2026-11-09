@@ -42,7 +42,8 @@ export async function updateUI({ queue }) {
         const effectiveSettings = getEffectiveSettings();
         const store = getChatStore();
 
-        syncSettingsInputs(s, effectiveSettings);
+        const memoryInjection = buildInjection(store.layers, effectiveSettings);
+        syncSettingsInputs(s, effectiveSettings, memoryInjection.microfiche);
         const enabledContent = buildEnabledContentModel(readOperationMode(s), {
             autoPaused: s.autoPaused,
         });
@@ -63,7 +64,6 @@ export async function updateUI({ queue }) {
             metrics,
             busy: queue.isBusy(),
         };
-        const memoryInjection = buildInjection(store.layers, effectiveSettings);
         const memoryUsage = await measureInjection(memoryInjection);
 
         await renderStatusOverview('sc_status', 'enabled', overview);
@@ -81,13 +81,14 @@ export async function updateUI({ queue }) {
 /**
  * @param {ReturnType<typeof getSettings>} s
  * @param {ReturnType<typeof getEffectiveSettings>} effectiveSettings
+ * @param {import('../core/microfiche-policy.js').MicrofichePlan | null} [microfichePlan]
  * @returns {void}
  */
-function syncSettingsInputs(s, effectiveSettings) {
+function syncSettingsInputs(s, effectiveSettings, microfichePlan = null) {
     syncAllSettingsToDOM(s);
     syncEasyPayloadSchematic(effectiveSettings);
     syncMemoryModeControls(s);
-    syncLLMContextPreview(s);
+    syncLLMContextPreview(s, microfichePlan);
     syncConnectionPanels(s);
 }
 
@@ -112,11 +113,15 @@ function syncEasyPayloadSchematic(s = getEffectiveSettings()) {
 
 /**
  * Sync the request-context preview lines from the shared core estimator.
+ * A refresh with no supplied plan reads the live split, so the displayed
+ * image cost matches the next injection.
  * @param {ReturnType<typeof getSettings>} [s]
+ * @param {import('../core/microfiche-policy.js').MicrofichePlan | null} [microfichePlan]
  * @returns {void}
  */
-export function syncLLMContextPreview(s = getEffectiveSettings()) {
-    const model = estimateContextPreview(s);
+export function syncLLMContextPreview(s = getEffectiveSettings(), microfichePlan = null) {
+    const plan = microfichePlan ?? buildInjection(getChatStore().layers, s).microfiche;
+    const model = estimateContextPreview(s, plan);
     const $mainValue = $('#sc_llm_context_main');
     const $l0Value = $('#sc_llm_context_l0');
     const $l1Value = $('#sc_llm_context_l1');

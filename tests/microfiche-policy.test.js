@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { buildInjection } from '../src/core/memory-injection.js';
 import {
     buildMicrofichePlan,
     resolveMicroficheEffectiveCap,
     splitMicroficheTexts,
 } from '../src/core/microfiche-policy.js';
 import { buildMicrofichePageTexts } from '../src/core/microfiche-paginate.js';
+import { estimateContextPreview } from '../src/core/token-budget.js';
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -169,6 +172,75 @@ describe('microfiche buildMicrofichePlan', () => {
         expect(plan.keepRaw).toBe(2);
         expect(plan.imageTexts).toEqual(pages.slice(0, 2));
         expect(plan.rawTexts).toEqual([...pages.slice(2), ...split.rawTexts]);
+    });
+
+    it('bills the injected page count across the cap matrix', () => {
+        const cases = [
+            [
+                'slider cap',
+                {
+                    ...TINY,
+                    memoryMode: MEMORY_MODES.MICROFICHE,
+                    microficheGeometry: 'gemini',
+                    microficheKeepRaw: 0,
+                    microficheImageCap: 80,
+                },
+                {},
+            ],
+            [
+                'host cap',
+                {
+                    ...TINY,
+                    memoryMode: MEMORY_MODES.MICROFICHE,
+                    microficheGeometry: 'gemini',
+                    microficheKeepRaw: 0,
+                    microficheImageCap: 8,
+                },
+                { imageBudget: 3 },
+            ],
+            [
+                'glm preset cap',
+                {
+                    ...TINY,
+                    memoryMode: MEMORY_MODES.MICROFICHE,
+                    microficheGeometry: 'glm',
+                    microficheKeepRaw: 0,
+                    microficheImageCap: 80,
+                },
+                null,
+            ],
+            [
+                'custom',
+                {
+                    ...TINY,
+                    memoryMode: MEMORY_MODES.MICROFICHE,
+                    microficheGeometry: 'custom',
+                    microficheKeepRaw: 0,
+                    microficheImageCap: 2,
+                },
+                { imageBudget: 80 },
+            ],
+            [
+                'host zero',
+                {
+                    ...TINY,
+                    memoryMode: MEMORY_MODES.MICROFICHE,
+                    microficheGeometry: 'gemini',
+                    microficheKeepRaw: 0,
+                    microficheImageCap: 8,
+                },
+                { imageBudget: 0 },
+            ],
+        ];
+        for (const [, settings, host] of cases) {
+            const plan = buildMicrofichePlan(SNIPPETS, settings, host);
+            const injection = buildInjection([SNIPPETS.map((text) => ({ text }))], settings, host);
+            expect(injection.microfiche.imageTexts.length).toBe(plan.imageTexts.length);
+            const billedImages =
+                estimateContextPreview(settings, injection.microfiche).mainMin -
+                estimateContextPreview(settings, null).mainMin;
+            expect(billedImages).toBe(plan.imageTexts.length * plan.frameTokenEstimate);
+        }
     });
 
     it('carries the resolved shape and the preset frame token estimate', () => {

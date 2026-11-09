@@ -35,6 +35,20 @@ describe('context limit and trigger gauge UI models', () => {
         });
     });
 
+    it('bills the built plan page count instead of the image cap', () => {
+        const settings = {
+            memoryTokenBudget: 10000,
+            verbatimTokenBudget: 16000,
+            queuedTokenBudget: 32000,
+            microficheImageCap: 80,
+        };
+        const plan = { imageTexts: ['p0', 'p1'], frameTokenEstimate: 3136 };
+        expect(estimateContextPreview(settings, plan).mainMin).toBe(26000 + 2 * 3136);
+        expect(estimateContextPreview(settings, plan).mainMax).toBe(58000 + 2 * 3136);
+        expect(estimateContextPreview(settings, null).mainMin).toBe(26000);
+        expect(estimateContextPreview(settings, null).mainMax).toBe(58000);
+    });
+
     it('builds the queued gauge from the auto work read model and the queued budget', () => {
         expect(
             buildTriggerGaugeModel(
