@@ -10,7 +10,7 @@ import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { maskGuardContent } from './guard-mask.js';
-import { buildInjection } from './memory-injection.js';
+import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
 
 /**
  * Synthetic user block for the compatibility modes. Some APIs reject
@@ -31,21 +31,36 @@ const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {}) {
     const messages = getPromptMessages(generateData);
     const rewritten = rewriteUserRoles(messages, settings);
-    const skipContent = messages ? getUnmaskedMemorySlotContent(settings) : null;
+    const skipContent = getUnmaskedMemorySlotContent(messages, settings);
     maskGuardContent(messages, settings, skipContent);
     return rewritten;
 }
 
 /**
+ * The exact slot string the outgoing prompt would carry with memory masking
+ * off. The guard compares it against each message, so a macro-embedded copy is
+ * not skipped: it follows its containing message after expansion and gets
+ * masked with that message. Over-masking is the safe direction. This builds
+ * only the slot text, not the Microfiche plan or token costs.
+ * @param {Array<Record<string, unknown>> | null} messages
  * @param {Partial<ExtensionSettings>} settings
  * @returns {string | null} The slot text built with memory masking off, else null.
  */
-function getUnmaskedMemorySlotContent(settings) {
-    if (!settings.enabled || !settings.guardMask || settings.guardMaskMemory) {
+function getUnmaskedMemorySlotContent(messages, settings) {
+    if (!messages || !settings.enabled || !settings.guardMask || settings.guardMaskMemory) {
+        return null;
+    }
+    const couldCarrySlot = messages.some(
+        (message) =>
+            (message.role === 'user' || message.role === 'assistant') &&
+            typeof message.content === 'string',
+    );
+    if (!couldCarrySlot) {
         return null;
     }
     const source = /** @type {ExtensionSettings} */ ({ ...settings, guardMaskMemory: false });
-    return buildInjection(getChatStore().layers, source).text || null;
+    const { memoryText } = buildMemoryInjectionParts(getChatStore().layers);
+    return memoryText ? renderInjectionTemplate({ memoryText }, source) : null;
 }
 
 /**

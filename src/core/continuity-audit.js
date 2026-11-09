@@ -361,5 +361,5 @@ function buildAuditorContext(prior, store) {
         )
         .filter(Boolean)
         .join('\n\n');
-    return `Prior continuity state:\n${JSON.stringify(unmaskCheckpointStrings(prior), null, 2)}\n\nNarrative memory:\n${unmaskGuardText(memory) || '(none yet)'}`;
+    return `Prior continuity state:\n${JSON.stringify(unmaskCheckpointStrings(prior), null, 2)}\n\nNarrative memory:\n${memory || '(none yet)'}`;
 }

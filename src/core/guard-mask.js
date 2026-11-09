@@ -1,7 +1,9 @@
 /**
  * Outgoing-space guard: the main-prompt copy replaces every U+0020 with `$$`,
  * while summarizer inputs fold any `$$` back to one space (ADR-0036, ADR-0037).
- * Masking is outgoing-only and needs no inverse: nothing stored ever carries it.
+ * The mask is outgoing-only: chat and storage never carry it by construction,
+ * but pasted or echoed `$$` still reaches the summarizer, so every
+ * summarizer-side read folds it back to one space.
  */
 
 /**

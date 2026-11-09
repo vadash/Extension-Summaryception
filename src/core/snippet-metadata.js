@@ -188,7 +188,7 @@ export function formatAnchoredSnippetNarrative(snippet = {}, formatAnchor = form
     const narrative = anchor
         ? stripLeadingSnippetAnchor(parsed.narrative)
         : parsed.narrative.trim();
-    return [anchor, unmaskGuardText(narrative)].filter(Boolean).join(' ');
+    return [anchor, narrative].filter(Boolean).join(' ');
 }
 
 /**

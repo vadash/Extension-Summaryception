@@ -115,7 +115,7 @@ function bindToggleHandlers(queue) {
     ].join(', ');
     bindDataSettingElements(plainToggles, {
         eventName: 'change',
-        afterSave: (settings) => syncGuardMaskMemoryControl(Boolean(settings.guardMask)),
+        afterSave: refreshAfterToggleSave,
     });
     // Microfiche render knobs: the markup declares each key, so the
     // data-attribute engine binds them. Geometry owns a separate change
@@ -172,6 +172,17 @@ function bindToggleHandlers(queue) {
         saveAndRefreshUi();
     });
     bindCustomPlacementHandlers();
+}
+
+/**
+ * Re-sync after a plain toggle save so the injection and visible state match
+ * the saved settings. The Memory gate control also follows the main guard.
+ * @param {ReturnType<typeof getSettings>} settings
+ * @returns {void}
+ */
+function refreshAfterToggleSave(settings) {
+    syncGuardMaskMemoryControl(Boolean(settings.guardMask));
+    refreshFull();
 }
 
 function bindCustomPlacementHandlers() {
