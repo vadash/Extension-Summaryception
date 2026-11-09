@@ -59,7 +59,7 @@ const ROUTE_IDENTITY_KEYS = Object.freeze({
  */
 
 /**
- * One hop of the route series: the connection settings the provider adapters
+ * One hop of the failover walk: the connection settings the provider adapters
  * read, and the per-attempt timeout.
  * @typedef {object} CallProfileRoute
  * @property {ExtensionSettings} connection - Provider-facing connection settings for this hop
@@ -288,7 +288,7 @@ function getStringSetting(value, fallback) {
 }
 
 /**
- * Every attempt of a route series uses the full configured timeout; a
+ * Every attempt of a failover walk uses the full configured timeout; a
  * non-positive or non-finite setting falls back to the family's hard default.
  * @param {unknown} configuredSeconds - Route timeout setting in seconds
  * @param {boolean} isPromotion - Picks the family hard fallback

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0035
+---
+
 # One Call Session per summarizer call
 
 `src/core/request-series.js` exports one factory, `createAttemptSession({ prompt, repairPrompt, signal, profile, notify })`, and the Call Session's whole interface is its facts plus `runSeries(route, { routeLabel, maxRetries })` — one hop in, one Route Series Result out. The session replaces the eight-parameter `runRouteSeries` call shape that re-threaded the same call facts through four layers of forwarding signatures: a new per-call fact is now added in one place instead of eight signatures across three files, the `systemPrompt` side-parameter is gone (the session reads `profile.policy.systemPrompt`), and the repair switch stays inside one hop, so a fallback hop starts back on the base prompt. What sits outside is deliberate: route cycling, the route-cycle failure budget, and the cross-request health buckets stay with `RequestRunner` because their state outlives a session, and above the runner nothing moves — `RequestRunner.run` and the pipeline input keep their ADR-0023 dispatch contract, while ADR-0024's one-series-per-hop decision is untouched; only its carrier changed.

@@ -25,9 +25,9 @@ import { buildSummarizerPipelineInput, traceSummarizerInputTokens } from './summ
  * Build the one Summarizer Dispatch instance (ADR-0031). The live-request set
  * and the request runner live inside the instance, so tests and composition
  * roots can build isolated dispatches. The Usage Ledger joins every request
- * so its Call Session records the call's token usage.
+ * so the call walk records the call's token usage.
  * @param {object} p
- * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger placed on every Call Session.
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger handed to every call walk.
  * @returns {SummarizerDispatch}
  */
 export function createSummarizerDispatch({ usage }) {

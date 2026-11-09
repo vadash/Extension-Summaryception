@@ -1,4 +1,11 @@
-import { RETRY_CONFIG, isRetryableError, parseRetryAfter } from '../foundation/retry.js';
+import {
+    RETRY_CONFIG,
+    isRetryableError,
+    parseRetryAfter,
+    sleepOrAbort,
+} from '../foundation/retry.js';
+import { NOTIFY_EVENTS } from '../foundation/constants.js';
+import { warn } from '../foundation/logger.js';
 
 export const ROUTE_CYCLE_RETRY_ATTEMPT = RETRY_CONFIG.maxRetries;
 
@@ -17,6 +24,34 @@ export function computeRetryDelay(err, attempt) {
         RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
     const jitter = Math.random() * RETRY_CONFIG.baseDelay;
     return Math.min(exponentialDelay + jitter, RETRY_CONFIG.maxDelay);
+}
+
+/**
+ * Announce a retry wait and sleep it out. The delay policy and the wait stay
+ * together here; the abort signal cuts the wait short.
+ * @param {object} p
+ * @param {Error & { status?: number, response?: { status?: number } }} p.lastError - The error that triggered the retry.
+ * @param {number} p.attempt - Zero-based attempt index.
+ * @param {AbortSignal} p.signal - Signal that cuts the wait short.
+ * @param {number} p.maxRetries - Maximum retry count for this route.
+ * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter for the retry notice.
+ * @returns {Promise<void>}
+ */
+export async function notifyRetryAndWait({ lastError, attempt, signal, maxRetries, notify }) {
+    const delay = computeRetryDelay(lastError, attempt);
+    const delaySec = (delay / 1000).toFixed(1);
+    const status = lastError?.status || lastError?.response?.status || '?';
+    warn(
+        `Attempt ${attempt + 1} failed (${status}). Retrying in ${delaySec}s...`,
+        lastError.message || lastError,
+    );
+    notify.transient({
+        kind: NOTIFY_EVENTS.RETRY_WAIT,
+        attempt,
+        delayMs: delay,
+        maxRetries,
+    });
+    await sleepOrAbort(delay, signal);
 }
 
 /**

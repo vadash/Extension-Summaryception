@@ -176,23 +176,18 @@ Code: `SummaryRoutePlan` (src/core/summarization-routes.js)
 The Layer 0 route plus its configured fallback route, used as one failover unit. The Auditor's optional last-resort failover runs the Narrative Chain when both Auditor routes fail.
 _Avoid_: narrative models, narrative summarizer chain
 
-**Route Series**:
-One Narrative Chain hop's retry series: repeated summarizer attempts over one connection route until an attempt settles terminally or the retry budget runs out, with the repair switch and retry waits between attempts. Returns a Route Series Result — `completed`, `aborted`, `hard-failover`, `failed`, `rejected`, or `guard-stopped` — where `failed{retryable}` and `rejected` always imply the budget ran out.
-Code: `session.runSeries` (src/core/request-series.js)
+**Summarizer Call Walk**:
+One summarizer call's single execution walk: `RequestRunner.run(request)` cycles the Connection Routes of the Narrative Chain, retries each hop, switches to the repair prompt, waits between retries and route cycles, and returns one Run Outcome. The walk holds the route-cycle failure budget and the health buckets; transport and the Usage Ledger enter as injected adapters, and retry policy stays its own submodule.
+Code: `RequestRunner.run` (src/core/request-runner.js)
 _Avoid_: attempt series, retry loop
 
-**Call Session**:
-One summarizer call's live execution context: the Call Profile it was built from, the prompt and repair prompt it sends, the abort signal, the Notify Adapter it runs with, and the Usage Ledger it records token usage into — held for the whole call, across every hop. One session executes each Route Series of the Narrative Chain behind a single interface; route cycling, health buckets, and the Route Plan stay outside it.
-Code: `createAttemptSession` (src/core/request-series.js)
-_Avoid_: attempt context, request state
-
 **Summarizer Dispatch**:
-The one owner of live summarizer requests: it runs one summarizer call through the request runner and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root with the Usage Ledger, which it places on every Call Session; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
+The one owner of live summarizer requests: it runs one summarizer call through the request runner's call walk and tracks every request in flight, so Stop can abort them all and busy can see them. One instance exists, built at the composition root with the Usage Ledger, which it passes to the call walk; the Layer 0 Run, the Promotion Candidate, Regeneration, and the Continuity Audit receive its call as `dispatch` and never the instance.
 Code: `createSummarizerDispatch` (src/core/summarizer-request.js)
 _Avoid_: request registry, summarizer client
 
 **Usage Ledger**:
-The nested scope that records each summarizer call's token usage against the run that made it — an automatic drain, a Manual Run, a Regeneration — and reports the run's largest call when the scope ends. One instance exists, built at the composition root; the Call Session carries it, so the Route Series records without reaching module state.
+The nested scope that records each summarizer call's token usage against the run that made it — an automatic drain, a Manual Run, a Regeneration — and reports the run's largest call when the scope ends. One instance exists, built at the composition root; the call walk passes it to each attempt, so the walk records without reaching module state.
 Code: `createUsageLedger` (src/core/summarizer-usage.js)
 _Avoid_: usage tracker, token accounting
 

@@ -226,7 +226,7 @@ describe('resolveCallProfile connections', () => {
     });
 });
 
-describe('resolveCallProfile auditor route series', () => {
+describe('resolveCallProfile auditor route walk', () => {
     const narrativeFallbackSettings = {
         requestTimeoutSeconds: 30,
         fallbackConnectionSource: 'profile',
@@ -234,7 +234,7 @@ describe('resolveCallProfile auditor route series', () => {
         fallbackRequestTimeoutSeconds: 50,
     };
 
-    it('keeps the narrative route series on inherit so the chains stay identical', () => {
+    it('keeps the narrative route walk on inherit so the chains stay identical', () => {
         const settings = makeSummarySettings(narrativeFallbackSettings);
         const auditor = resolveCallProfile(settings, { kind: 'auditor' }).policy.routes;
         const layer0 = resolveCallProfile(settings, { kind: 'layer0' }).policy.routes;

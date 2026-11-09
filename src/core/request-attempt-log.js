@@ -19,7 +19,7 @@ export function createAttemptLogState() {
 
 /**
  * @param {{ status: string, cleanedResult: string, error: Error | null }} logState - Mutable log state
- * @param {import('./request-series.js').AttemptResult} result - Attempt outcome
+ * @param {import('./request-runner.js').AttemptResult} result - Attempt outcome
  * @returns {void}
  */
 export function updateAttemptLogState(logState, result) {

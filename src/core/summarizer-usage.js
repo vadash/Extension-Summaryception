@@ -43,8 +43,8 @@ import { countTextTokens, formatTokenValue } from './token-count.js';
  * token usage against the run that made it — an automatic drain, a manual
  * run, a regeneration — and reports the run's largest call when the scope
  * ends. One instance exists, built at the composition root (ADR-0031); the
- * Call Session carries it, so the request series records without reaching
- * module state.
+ * call walk carries it, so each attempt records without reaching module
+ * state.
  * @typedef {object} UsageLedger
  * @property {function(string, function(): Promise<*>): Promise<*>} withRun - Runs work inside a usage accounting scope.
  * @property {(input: { systemPrompt: string, prompt: string, recall?: string, summary: string, profile: import('./call-profile.js').CallProfile }) => Promise<SummarizerTokenUsage>} record - Estimates one successful LLM call and appends it to every open run.

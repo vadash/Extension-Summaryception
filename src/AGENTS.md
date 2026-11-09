@@ -62,10 +62,10 @@
 - Retry with exponential backoff.
 - Hard network errors skip remaining primary retries and start fallback.
 - Configure timeouts independently for each route.
-- Every attempt of a route series uses the full configured timeout; retries never run shorter.
+- Every attempt of a route walk uses the full configured timeout; retries never run shorter.
 - Timeouts on uncancellable adapters are non-retryable; adapters declare `cancellable`.
 - Map all adapter failures through one shared error wrapper. Do not rebuild status or retryable per provider.
-- Build the request series context once at entry and thread it down. Per-route fallback flags and retry budgets stay per-route.
+- Resolve the call's request facts once at entry and pass them into the call walk. Per-route fallback flags and retry budgets stay per-route.
 - Attempt-path modules never read settings; the resolved Call Profile is the call's frozen policy (ADR-0023).
 
 ## Run Control

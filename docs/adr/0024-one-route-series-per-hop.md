@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0035
+---
+
 # One Route Series owns one Narrative Chain hop
 
 One module (`src/core/request-series.js`) owns one connection route's retry series behind one interface: `runRouteSeries({ prompt, repairPrompt, signal, profile, route, routeLabel, maxRetries, notify })` returns a Route Series Result and only classifies provider throws, never surfacing raw exception objects to its caller. It replaces `RequestRunner.runAttemptSeries` and its prepared-attempt helpers and deletes `src/core/request-attempt.js`, so the runner shrinks to what routing owns: route walking, the health bucket, the route-cycle wait, and the Run Outcome verdicts. The attempt returns one `AttemptResult` — `completed`, `aborted`, `hard-failover`, `failed{retryable}`, `rejected{reason}`, or `guard-stopped` — replacing a triple-encoded bag of a live settings read, boolean flags, and a `failureStatus` string the log layer re-mapped, which is why the attempt status and the transaction log can no longer drift apart.

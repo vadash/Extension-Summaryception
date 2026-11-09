@@ -21,7 +21,7 @@ const VALID_SUMMARY =
     '<narrative>\nA concise summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu';
 
 /**
- * Run outcomes through the real Route Series; only the provider call is
+ * Run outcomes through the one call walk; only the provider call is
  * mocked. The outcomes, notify events, and call counts below are the
  * runner's contract (ADR-0019); retries consume the profile frozen at
  * dispatch (ADR-0023).
@@ -265,5 +265,42 @@ describe('RequestRunner.run outcomes', () => {
         // The single hop retries itself; there is no second connection to fail over to.
         expect(profile.policy.routes).toHaveLength(1);
         expect(profile.policy.routes.map((route) => route.timeoutMs)).toEqual([31000]);
+    });
+
+    it('probes the primary once after a prior call exhausted it and the fallback succeeded', async () => {
+        vi.useFakeTimers();
+        const settings = makeSummarySettings({
+            fallbackConnectionSource: 'profile',
+            fallbackConnectionProfileId: 'backup',
+        });
+        const runner = new RequestRunner();
+
+        // First call: the primary uses its whole retry budget, then the fallback succeeds.
+        connectionMocks.sendSummarizerRequest
+            .mockRejectedValueOnce(new Error('timeout'))
+            .mockRejectedValueOnce(new Error('timeout'))
+            .mockRejectedValueOnce(new Error('timeout'))
+            .mockRejectedValueOnce(new Error('timeout'))
+            .mockResolvedValueOnce(VALID_SUMMARY);
+        const firstPending = runner.run(makeRequest({ settings }));
+        await vi.runAllTimersAsync();
+        expect((await firstPending).status).toBe('completed');
+        expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(
+            RETRY_CONFIG.maxRetries + 2,
+        );
+
+        // Second call: the exhausted health bucket grants the primary one probe
+        // attempt, so a hard failover costs one call before the fallback.
+        connectionMocks.sendSummarizerRequest
+            .mockReset()
+            .mockRejectedValueOnce(new Error('Failed to fetch'))
+            .mockResolvedValueOnce(VALID_SUMMARY);
+        const outcome = await runner.run(makeRequest({ settings }));
+
+        expect(outcome.status).toBe('completed');
+        expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalledTimes(2);
+        const calls = connectionMocks.sendSummarizerRequest.mock.calls;
+        expect(calls[0][0].settings).toBe(settings);
+        expect(calls[1][0].settings.connectionProfileId).toBe('backup');
     });
 });
