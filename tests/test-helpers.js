@@ -59,8 +59,9 @@ export async function makeUsageLedger() {
 
 /**
  * Build one Summarizer Dispatch for a test, so live-request state stays
- * isolated from other tests' instances. Tests control the request runner
- * through their own `vi.mock` of `src/core/request-runner.js`.
+ * isolated from other tests' instances. Tests fake the transport
+ * (`sendSummarizerRequest`) through their own `vi.mock` of
+ * `src/core/connectionutil.js`, so the real call walk runs end to end.
  * Loaded lazily so files that never build a dispatch keep their module graph
  * free of the request stack. The dispatch builds its own Usage Ledger, so
  * every test dispatch records into an isolated instance.

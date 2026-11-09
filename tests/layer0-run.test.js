@@ -1,40 +1,44 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const connectionMocks = vi.hoisted(() => ({
+    sendSummarizerRequest: vi.fn(),
+}));
+vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, ...connectionMocks };
+});
+
 import { runLayer0 } from '../src/core/layer0-run.js';
-import { resolveCallProfile } from '../src/core/call-profile.js';
+import { UI_MODES } from '../src/foundation/constants.js';
 import { SUMMARY_COMMIT_MODES } from '../src/core/summarization-routes.js';
 import {
     installSummaryContext,
     makeForegroundGate,
     makeMessage,
     makeNotifyRecorder,
-    makeSummarySettings,
+    makeSummarizerDispatch,
     makeSummaryStore,
 } from './test-helpers.js';
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
 let gate;
-/** The dispatch stand-in; returns the outcome the real request layer would. */
-const dispatch = vi.fn();
 
 beforeEach(() => {
     gate = makeForegroundGate().gate;
 });
 
-/** Minimal valid summary passage returned by the stubbed request layer. */
+/** Minimal valid provider output accepted by the real Output Hygiene chain. */
 const VALID_SUMMARY =
     '<narrative>\nA concise summary.\n</narrative>\n\ncurrent_date_time: 2024-07-04 16 Thu';
 
 /**
- * Completed outcome carrying the profile the real request layer resolves from
- * the dispatch metadata the run builds.
+ * Build the real Summarizer Dispatch after the context is installed, wrapped so
+ * the layer's dispatch arguments stay observable. The real walk resolves the
+ * Call Profile from the installed context settings.
  */
-function completedOutcome(metadata) {
-    return {
-        status: 'completed',
-        text: VALID_SUMMARY,
-        profile: resolveCallProfile(makeSummarySettings(), metadata),
-    };
+async function makeDispatch() {
+    const dispatch = await makeSummarizerDispatch();
+    return vi.fn((request) => dispatch.call(request));
 }
 
 /** The standard route: the whole selection commits as one Passage. */
@@ -79,10 +83,10 @@ function clearEvents(recorder) {
 describe('Layer 0 run — one Passage', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        dispatch.mockReset();
+        connectionMocks.sendSummarizerRequest.mockReset();
     });
 
-    function runOnePassage(recorder) {
+    function runOnePassage(dispatch, recorder) {
         return runLayer0(onePassagePlan(), { notify: recorder, gate, dispatch });
     }
 
@@ -91,12 +95,13 @@ describe('Layer 0 run — one Passage', () => {
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat: buildChat(), metadata });
         let progressOpenAtRequest = false;
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) => {
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             progressOpenAtRequest = recorder.events.some((event) => event.type === 'progress');
-            return completedOutcome(dispatchMetadata);
+            return VALID_SUMMARY;
         });
+        const dispatch = await makeDispatch();
 
-        await expect(runOnePassage(recorder)).resolves.toEqual({
+        await expect(runOnePassage(dispatch, recorder)).resolves.toEqual({
             status: 'completed',
             completed: 1,
         });
@@ -117,18 +122,44 @@ describe('Layer 0 run — one Passage', () => {
     });
 
     it.each([
-        ['aborted', 'batch-memory-aborted', { status: 'aborted', completed: 0 }],
-        ['blocked', 'batch-memory-failed', { status: 'failed', completed: 0, failed: 1 }],
-        ['failed', 'batch-memory-failed', { status: 'failed', completed: 0, failed: 1 }],
+        {
+            status: 'aborted',
+            terminalKind: 'batch-memory-aborted',
+            expected: { status: 'aborted', completed: 0 },
+            arrange: () =>
+                connectionMocks.sendSummarizerRequest.mockRejectedValue(
+                    new Error('Aborted by user'),
+                ),
+        },
+        {
+            status: 'blocked',
+            terminalKind: 'batch-memory-failed',
+            expected: { status: 'failed', completed: 0, failed: 1 },
+            // Settings normalization clamps the Easy cap to 8000, so the story
+            // must exceed the cap for the guard to block the request.
+            settings: { uiMode: UI_MODES.EASY, advancedModelContext: 8000 },
+            chat: [
+                makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
+                makeMessage({ scId: 'assistant-id', mes: 'x'.repeat(9000) }),
+            ],
+        },
+        {
+            status: 'failed',
+            terminalKind: 'batch-memory-failed',
+            expected: { status: 'failed', completed: 0, failed: 1 },
+            arrange: () =>
+                connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('bad request')),
+        },
     ])(
-        'closes the progress with a %s terminal and skips the commit',
-        async (status, terminalKind, expected) => {
+        'closes the progress with a $status terminal and skips the commit',
+        async ({ terminalKind, expected, arrange, settings, chat = buildChat() }) => {
             const recorder = makeNotifyRecorder();
             const metadata = { summaryception: makeSummaryStore() };
-            installSummaryContext({ chat: buildChat(), metadata });
-            dispatch.mockResolvedValue({ status });
+            installSummaryContext({ chat, metadata, settings });
+            arrange?.();
+            const dispatch = await makeDispatch();
 
-            await expect(runOnePassage(recorder)).resolves.toEqual(expected);
+            await expect(runOnePassage(dispatch, recorder)).resolves.toEqual(expected);
 
             const progress = progressEvents(recorder);
             expect(progress).toHaveLength(1);
@@ -148,12 +179,14 @@ describe('Layer 0 run — one Passage', () => {
         const chat = buildChat();
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
         gate.beginGeneration();
 
-        await expect(runOnePassage(recorder)).resolves.toEqual({ status: 'blocked', completed: 1 });
+        await expect(runOnePassage(dispatch, recorder)).resolves.toEqual({
+            status: 'blocked',
+            completed: 1,
+        });
 
         expect(progressEvents(recorder)).toHaveLength(1);
         expect(clearEvents(recorder)).toHaveLength(0);
@@ -174,12 +207,10 @@ describe('Layer 0 run — one Passage', () => {
             makeMessage({ scId: 'assistant-id', mes: '' }),
         ];
         installSummaryContext({ chat, metadata: { summaryception: makeSummaryStore() } });
-        dispatch.mockResolvedValue({
-            status: 'completed',
-            text: VALID_SUMMARY,
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
 
-        await expect(runOnePassage(recorder)).resolves.toEqual({ status: 'idle' });
+        await expect(runOnePassage(dispatch, recorder)).resolves.toEqual({ status: 'idle' });
 
         expect(dispatch).not.toHaveBeenCalled();
         expect(recorder.events).toEqual([]);
@@ -193,6 +224,7 @@ describe('Layer 0 run — one Passage', () => {
             }),
         };
         installSummaryContext({ chat, metadata });
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(onePassagePlan(), { notify: makeNotifyRecorder(), gate, dispatch }),
@@ -209,11 +241,10 @@ describe('Layer 0 run — one Passage', () => {
         delete chat[1].sc_id;
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat, metadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
 
-        await expect(runOnePassage()).resolves.toEqual({
+        await expect(runOnePassage(dispatch)).resolves.toEqual({
             status: 'completed',
             completed: 1,
         });
@@ -231,14 +262,12 @@ describe('Layer 0 run — one Passage', () => {
         const saveChat = vi.fn(async () => {});
         const reloadCurrentChat = vi.fn(async () => {});
         let resolveSummary;
-        /** @type {object} */
-        let dispatchMetadata;
-        dispatch.mockImplementation(({ metadata: callMetadata }) => {
-            dispatchMetadata = callMetadata;
-            return new Promise((resolve) => {
-                resolveSummary = resolve;
-            });
-        });
+        connectionMocks.sendSummarizerRequest.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveSummary = resolve;
+                }),
+        );
         installSummaryContext({
             chat,
             metadata,
@@ -246,13 +275,14 @@ describe('Layer 0 run — one Passage', () => {
             saveChat,
             reloadCurrentChat,
         });
+        const dispatch = await makeDispatch();
 
-        const resultPromise = runOnePassage();
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        const resultPromise = runOnePassage(dispatch);
+        await vi.waitFor(() => expect(connectionMocks.sendSummarizerRequest).toHaveBeenCalled());
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
         expect(saveChat).not.toHaveBeenCalled();
-        resolveSummary(completedOutcome(dispatchMetadata));
+        resolveSummary(VALID_SUMMARY);
         await expect(resultPromise).resolves.toEqual({ status: 'completed', completed: 1 });
 
         expect(chat.map((message) => message.sc_id)).toEqual(['user-id', 'assistant-id']);
@@ -273,11 +303,10 @@ describe('Layer 0 run — one Passage', () => {
             }
         });
         installSummaryContext({ chat, metadata, saveMetadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
 
-        await expect(runOnePassage()).resolves.toEqual({ status: 'failed' });
+        await expect(runOnePassage(dispatch)).resolves.toEqual({ status: 'failed' });
 
         expect(chat).toEqual(originalChat);
         expect(metadata.summaryception.layers[0]).toEqual([]);
@@ -288,7 +317,7 @@ describe('Layer 0 run — one Passage', () => {
 describe('Layer 0 run — atomic Passages', () => {
     afterEach(() => {
         vi.restoreAllMocks();
-        dispatch.mockReset();
+        connectionMocks.sendSummarizerRequest.mockReset();
     });
 
     function buildAtomicChat() {
@@ -308,11 +337,10 @@ describe('Layer 0 run — atomic Passages', () => {
             chat: buildAtomicChat(),
             metadata: { summaryception: makeSummaryStore() },
         });
-        dispatch
-            .mockImplementationOnce(async ({ metadata: dispatchMetadata }) =>
-                completedOutcome(dispatchMetadata),
-            )
-            .mockImplementationOnce(async () => ({ status: 'aborted' }));
+        connectionMocks.sendSummarizerRequest
+            .mockResolvedValueOnce(VALID_SUMMARY)
+            .mockRejectedValueOnce(new Error('Aborted by user'));
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
@@ -344,9 +372,8 @@ describe('Layer 0 run — atomic Passages', () => {
             makeMessage({ scId: 'assistant-id-2', mes: '' }),
         ];
         installSummaryContext({ chat, metadata });
-        dispatch.mockImplementationOnce(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
@@ -367,9 +394,8 @@ describe('Layer 0 run — atomic Passages', () => {
             chat: buildAtomicChat(),
             metadata: { summaryception: makeSummaryStore() },
         });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
         // The second source range outruns the chat, the state a chat edit mid-run
         // leaves behind.
         const partitions = [partition(1, 1), partition(3, 9)];
@@ -392,10 +418,11 @@ describe('Layer 0 run — atomic Passages', () => {
         const recorder = makeNotifyRecorder();
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat: buildAtomicChat(), metadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) => {
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             metadata.summaryception.mutationEpoch += 1;
-            return completedOutcome(dispatchMetadata);
+            return VALID_SUMMARY;
         });
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
@@ -412,13 +439,14 @@ describe('Layer 0 run — atomic Passages', () => {
     it('aborts remaining Passages when the chat switches mid-run', async () => {
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat: buildAtomicChat(), metadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) => {
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             installSummaryContext({
                 chat: [makeMessage({ scId: 'other-chat', mes: 'Other chat.' })],
                 metadata,
             });
-            return completedOutcome(dispatchMetadata);
+            return VALID_SUMMARY;
         });
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(atomicPlan(twoPartitions), { notify: makeNotifyRecorder(), gate, dispatch }),
@@ -445,9 +473,8 @@ describe('Layer 0 run — atomic Passages', () => {
             }
         });
         installSummaryContext({ chat, metadata, saveMetadata });
-        dispatch.mockImplementation(async ({ metadata: dispatchMetadata }) =>
-            completedOutcome(dispatchMetadata),
-        );
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
 
         await expect(
             runLayer0(atomicPlan([partition(1, 1)]), { notify: undefined, gate, dispatch }),

@@ -1,7 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const connectionMocks = vi.hoisted(() => ({
+    sendSummarizerRequest: vi.fn(),
+}));
+vi.mock('../src/core/connectionutil.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, ...connectionMocks };
+});
+
 import { createContinuityAuditor, isAuditorTriggerMessage } from '../src/core/continuity-audit.js';
-import { makeMessage, makeSummaryStore } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeMessage,
+    makeSummarizerDispatch,
+    makeSummaryStore,
+} from './test-helpers.js';
+
+afterEach(() => {
+    connectionMocks.sendSummarizerRequest.mockReset();
+});
 
 // These tests cover the lifecycle the temporary guard hides; auditor-guard
 // covers the guarded path.
@@ -9,8 +26,9 @@ vi.mock('../src/foundation/auditor-switch.js', () => ({ AUDITOR_DISABLED: false 
 
 /**
  * The audit reads the world through its arguments and its injected
- * dependencies, so these tests need neither an installed SillyTavern
- * context nor a mocked summarizer router.
+ * dependencies. The dispatch is the real Summarizer Dispatch over the faked
+ * transport, so the rig installs the SillyTavern context the dispatch reads
+ * settings from, with the same settings `audit()` receives.
  */
 
 const auditorJson = (bonds = {}, gmNotes = ['[T] Keep this thread']) =>
@@ -63,10 +81,14 @@ const checkpointOf = (chat, scId) =>
     chat.find((message) => message.sc_id === scId)?.extra?.summaryception_continuity;
 
 /**
- * One audit rig: a real chat fixture, a real store, and fakes for the four
+ * One audit rig: a real chat fixture, a real store, the real Summarizer
+ * Dispatch over the faked transport, and fakes for the three audit-side
  * injected dependencies. `audit()` assembles the input the entry layer would.
+ * @param {object} [options]
+ * @param {import('vitest').Mock} [options.dispatchOverride] - Seam double for
+ *   outcomes the real walk cannot produce, such as a thrown dispatch.
  */
-function makeAuditRig({
+async function makeAuditRig({
     chat = soloChat(),
     prior = priorState(),
     checkpointAt = 'a2',
@@ -75,6 +97,7 @@ function makeAuditRig({
     hasGroup = false,
     playerName = 'Player1',
     rerollTail = false,
+    dispatchOverride = null,
 } = {}) {
     if (prior !== null) {
         withCheckpoint(
@@ -83,7 +106,9 @@ function makeAuditRig({
         );
     }
     const store = makeSummaryStore({ layers });
-    const dispatch = vi.fn();
+    const auditSettings = { enabled: true, continuityEnabled: true, ...settings };
+    installSummaryContext({ metadata: { summaryception: store }, settings: auditSettings });
+    const dispatch = dispatchOverride ?? (await makeRealDispatch());
     const saveChatStore = vi.fn(async () => {});
     const refreshPreview = vi.fn();
     let currentChat = chat;
@@ -107,13 +132,19 @@ function makeAuditRig({
             auditor.audit({
                 chat,
                 store,
-                settings: { enabled: true, continuityEnabled: true, ...settings },
+                settings: auditSettings,
                 hasGroup,
                 playerName,
                 rerollTail,
                 ...overrides,
             }),
     };
+}
+
+/** Wrap the real dispatch so tests can observe the audit's call shape. */
+async function makeRealDispatch() {
+    const dispatch = await makeSummarizerDispatch();
+    return vi.fn((request) => dispatch.call(request));
 }
 
 describe('isAuditorTriggerMessage', () => {
@@ -135,7 +166,7 @@ describe('isAuditorTriggerMessage', () => {
 
 describe('audit gates', () => {
     it('stays idle when the extension is off', async () => {
-        const rig = makeAuditRig({ settings: { enabled: false } });
+        const rig = await makeAuditRig({ settings: { enabled: false } });
 
         const outcome = await rig.audit();
 
@@ -144,7 +175,7 @@ describe('audit gates', () => {
     });
 
     it('stays idle when continuityEnabled is off', async () => {
-        const rig = makeAuditRig({ settings: { continuityEnabled: false } });
+        const rig = await makeAuditRig({ settings: { continuityEnabled: false } });
 
         const outcome = await rig.audit();
 
@@ -153,7 +184,7 @@ describe('audit gates', () => {
     });
 
     it('stays idle in a group chat', async () => {
-        const rig = makeAuditRig({ hasGroup: true });
+        const rig = await makeAuditRig({ hasGroup: true });
 
         const outcome = await rig.audit();
 
@@ -162,7 +193,7 @@ describe('audit gates', () => {
     });
 
     it('stays idle when no assistant message follows the live checkpoint', async () => {
-        const rig = makeAuditRig({
+        const rig = await makeAuditRig({
             chat: soloChat().slice(0, 3),
             checkpointAt: 'a1',
         });
@@ -176,8 +207,8 @@ describe('audit gates', () => {
 
 describe('audit commit', () => {
     it('cold-starts from the chat start when no checkpoint exists', async () => {
-        const rig = makeAuditRig({ prior: null });
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig({ prior: null });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         const outcome = await rig.audit();
 
@@ -188,11 +219,10 @@ describe('audit commit', () => {
     });
 
     it('audits the latest exchange, applies flags, and leaves prior checkpoints intact', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-        });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        );
 
         const outcome = await rig.audit();
 
@@ -212,10 +242,10 @@ describe('audit commit', () => {
     it('lands the audit when the chat merely grows mid-flight', async () => {
         // ADR-0017 attach-by-reference: new exchanges after dispatch no
         // longer discard the audit; the checkpoint lands on the audited reply.
-        const rig = makeAuditRig();
-        rig.dispatch.mockImplementation(async () => {
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             rig.chat.push(makeMessage({ isUser: true, scId: 'u4' }), makeMessage({ scId: 'a4' }));
-            return { status: 'completed', text: auditorJson() };
+            return auditorJson();
         });
 
         const outcome = await rig.audit();
@@ -227,10 +257,10 @@ describe('audit commit', () => {
     });
 
     it('overwrites the checkpoint when the audited reply is swiped mid-flight', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockImplementation(async () => {
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             rig.chat[5].mes = 'Swiped to draft two.';
-            return { status: 'completed', text: auditorJson() };
+            return auditorJson();
         });
 
         const outcome = await rig.audit();
@@ -256,8 +286,8 @@ describe('audit commit', () => {
             makeMessage({ isUser: true, scId: 'u6' }),
             makeMessage({ scId: 'a6' }),
         ];
-        const rig = makeAuditRig({ chat, prior: null });
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig({ chat, prior: null });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         const outcome = await rig.audit();
 
@@ -279,8 +309,8 @@ describe('audit commit', () => {
             makeMessage({ isSystem: true, scId: 's1' }),
             makeMessage({ scId: 'a2' }),
         ];
-        const rig = makeAuditRig({ chat, checkpointAt: 'a1' });
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig({ chat, checkpointAt: 'a1' });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         const outcome = await rig.audit();
 
@@ -293,10 +323,10 @@ describe('audit commit', () => {
     });
 
     it('feeds the prior state JSON and the narrative memory as context', async () => {
-        const rig = makeAuditRig({
+        const rig = await makeAuditRig({
             layers: [[{ text: 'A remembered scene.', sourceMessageIds: ['u1'] }]],
         });
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         await rig.audit();
 
@@ -307,8 +337,8 @@ describe('audit commit', () => {
     });
 
     it('routes the audit call through the auditor call category', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         await rig.audit();
 
@@ -316,8 +346,8 @@ describe('audit commit', () => {
     });
 
     it('refreshes the preview only after a write lands', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
 
         await rig.audit();
 
@@ -328,10 +358,10 @@ describe('audit commit', () => {
 
 describe('audit drops', () => {
     it('drops the write when the audited reply disappears mid-flight', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockImplementation(async () => {
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             rig.chat.splice(5, 1);
-            return { status: 'completed', text: auditorJson() };
+            return auditorJson();
         });
 
         const outcome = await rig.audit();
@@ -344,8 +374,8 @@ describe('audit drops', () => {
     });
 
     it('drops the write when the chat switches during the save', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: auditorJson() });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson());
         rig.saveChatStore.mockImplementation(async () => {
             rig.switchChat([makeMessage({ isUser: true, scId: 'other-u1' })]);
         });
@@ -357,8 +387,8 @@ describe('audit drops', () => {
     });
 
     it('writes nothing when the draft fails validation', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: 'not json' });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue('not json');
 
         const outcome = await rig.audit();
 
@@ -370,11 +400,10 @@ describe('audit drops', () => {
     });
 
     it('commits a draft the Parse Recovery waterfall rescues', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: '```json\n' + auditorJson() + '\n```',
-        });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            '```json\n' + auditorJson() + '\n```',
+        );
 
         const outcome = await rig.audit();
 
@@ -388,8 +417,8 @@ describe('audit drops', () => {
     });
 
     it('writes nothing after an API failure', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockResolvedValue({ status: 'failed', attempts: 4 });
+        const rig = await makeAuditRig();
+        connectionMocks.sendSummarizerRequest.mockRejectedValue(new Error('bad request'));
 
         const outcome = await rig.audit();
 
@@ -400,8 +429,12 @@ describe('audit drops', () => {
     });
 
     it('swallows a dispatch throw and leaves the state untouched', async () => {
-        const rig = makeAuditRig();
-        rig.dispatch.mockRejectedValue(new Error('connection lost'));
+        // A thrown dispatch violates the seam contract: the real walk settles
+        // every provider error into a Run Outcome, so this case drives the
+        // audit's catch directly through a seam double.
+        const rig = await makeAuditRig({
+            dispatchOverride: vi.fn().mockRejectedValue(new Error('connection lost')),
+        });
 
         const outcome = await rig.audit();
 
@@ -425,13 +458,12 @@ describe('continuity state audit log', () => {
     });
 
     it('logs one audit group with the state diff after a successful commit', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
         logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        );
 
         const outcome = await rig.audit();
 
@@ -451,14 +483,11 @@ describe('continuity state audit log', () => {
     });
 
     it('reports the notes the GM-note budget dropped', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
         logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
         const overBudget = Array.from({ length: 14 }, (_, i) => `[S] Secret ${i + 1}`);
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: auditorJson({}, overBudget),
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(auditorJson({}, overBudget));
 
         const outcome = await rig.audit();
 
@@ -469,13 +498,12 @@ describe('continuity state audit log', () => {
     });
 
     it('logs the full committed state in full mode instead of the diff', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
         logger.isContinuityStateLogFullEnabled.mockReturnValue(true);
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        );
 
         await rig.audit();
 
@@ -488,13 +516,12 @@ describe('continuity state audit log', () => {
     });
 
     it('logs a start milestone before the completed audit group', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
         logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text: auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            auditorJson({ 'Quipsy↔User': { positive_interaction: true } }),
+        );
 
         const outcome = await rig.audit();
 
@@ -512,11 +539,11 @@ describe('continuity state audit log', () => {
     });
 
     it('logs the drop reason when the audited reply is removed mid-flight', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
-        rig.dispatch.mockImplementation(async () => {
+        connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
             rig.chat.splice(5, 1);
-            return { status: 'completed', text: auditorJson() };
+            return auditorJson();
         });
 
         const outcome = await rig.audit();
@@ -528,9 +555,9 @@ describe('continuity state audit log', () => {
     });
 
     it('logs nothing when the continuity state log flag is off', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(false);
-        rig.dispatch.mockResolvedValue({ status: 'completed', text: 'not json' });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue('not json');
 
         await rig.audit();
 
@@ -539,16 +566,12 @@ describe('continuity state audit log', () => {
     });
 
     it('reports the Parse Recovery tier in the completed audit log', async () => {
-        const rig = makeAuditRig();
+        const rig = await makeAuditRig();
         logger.isContinuityStateLogEnabled.mockReturnValue(true);
         logger.isContinuityStateLogFullEnabled.mockReturnValue(false);
-        rig.dispatch.mockResolvedValue({
-            status: 'completed',
-            text:
-                '```json\n' +
-                auditorJson({ 'Quipsy↔User': { positive_interaction: true } }) +
-                '\n```',
-        });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(
+            '```json\n' + auditorJson({ 'Quipsy↔User': { positive_interaction: true } }) + '\n```',
+        );
 
         await rig.audit();
 
