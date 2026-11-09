@@ -245,6 +245,27 @@ interface SillyTavernPromptManager {
     getPrompt(name: string): string | null;
     getPromptCollection(): { collection?: Array<{ identifier?: string; enabled?: boolean }> };
     getPromptOrderEntries(): Array<{ identifier: string; enabled: boolean }>;
+    /** Present once SillyTavern emits CHAT_COMPLETION_SETTINGS_READY. */
+    serviceSettings?: unknown;
+}
+
+/**
+ * Read-only host dialog used to render the Dry-Run Preview. Only the members
+ * the viewer touches are declared.
+ */
+interface SillyTavernPopup {
+    new (
+        content: unknown,
+        type: number,
+        inputValue?: string,
+        options?: Record<string, unknown>,
+    ): SillyTavernPopupInstance;
+}
+
+interface SillyTavernPopupInstance {
+    show(): Promise<unknown>;
+    complete(result?: number): Promise<unknown> | void;
+    content?: unknown;
 }
 
 interface SillyTavernEventSource {
@@ -307,6 +328,11 @@ interface SillyTavernContext {
     getTokenizerModel?: () => string;
     powerUserSettings?: { token_padding?: number };
     promptManager?: SillyTavernPromptManager;
+    /** Active host API family, e.g. 'openai' for chat completion. */
+    mainApi?: string;
+    Popup?: SillyTavernPopup;
+    POPUP_TYPE?: Record<string, number>;
+    POPUP_RESULT?: Record<string, number>;
     saveChat?: () => Promise<void>;
     reloadCurrentChat?: () => Promise<void>;
     ConnectionManagerRequestService?: ConnectionManagerRequestService;

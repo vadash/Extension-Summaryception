@@ -393,5 +393,5 @@ _Avoid_: frozen tail, raw snapshot
 
 **Dry-Run Preview**:
 The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts, rendered with inline enlargeable images.
-Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); viewer module planned
+Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); `openDryRunPreview` (src/entry/dryrun-viewer.js)
 _Avoid_: prompt inspector view, wire dump

@@ -52,6 +52,9 @@ const foundationMocks = vi.hoisted(() => {
         getSlashCommand: vi.fn(),
         getEventSource: vi.fn(),
         getEventTypes: vi.fn(),
+        getMainApi: vi.fn(),
+        runDryRunGenerate: vi.fn(),
+        getPopupApi: vi.fn(),
         getStreamingProcessor: vi.fn(),
         isSendButtonInStopMode: vi.fn(),
         isGeneratingFlagSet: vi.fn(),
@@ -153,6 +156,25 @@ const foundationMocks = vi.hoisted(() => {
         context.getEventTypes.mockImplementation(
             () => getContext().eventTypes || getContext().event_types || null,
         );
+        context.getMainApi.mockImplementation(() => String(getContext().mainApi ?? ''));
+        context.runDryRunGenerate.mockImplementation(async () => {
+            const ctx = getContext();
+            if (typeof ctx.generate !== 'function') {
+                throw new Error('generate is not available in the current SillyTavern context.');
+            }
+            return await ctx.generate('normal', {}, true);
+        });
+        context.getPopupApi.mockImplementation(() => {
+            const ctx = getContext();
+            if (typeof ctx.Popup !== 'function' || !ctx.POPUP_TYPE) {
+                return null;
+            }
+            return {
+                Popup: ctx.Popup,
+                popupType: ctx.POPUP_TYPE,
+                popupResult: ctx.POPUP_RESULT ?? {},
+            };
+        });
         context.getStreamingProcessor.mockImplementation(
             () => getContext().streamingProcessor || null,
         );

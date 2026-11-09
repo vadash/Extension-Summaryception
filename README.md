@@ -181,6 +181,8 @@ Try it with [ff_summaryception_5.5.0.json](docs/preset/ff_summaryception_5.5.0.j
 
 `/sc-preview` prints the memory block that would be injected.
 
+`/sc-dryrun` captures the assembled main-LLM prompt from a host dry run and opens the read-only preview with Microfiche images inline. Chat Completion only.
+
 `/sc-clear` clears Summaryception memory for the current chat and unghosts Summaryception-owned messages.
 
 ## Safety notes

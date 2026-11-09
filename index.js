@@ -137,7 +137,14 @@ import { registerSlashCommands } from './src/entry/commands.js';
     $('#extensions_settings2').append(html);
 
     initSettingsHelp();
-    bindUIEvents({ notify, gate, queue, manualRunnerDeps });
+    bindUIEvents({
+        notify,
+        gate,
+        queue,
+        manualRunnerDeps,
+        warmPages: writer.update,
+        resolveMicrofichePage: writer.resolveMicrofichePage,
+    });
     bindPromptFreezeRecoveryEvents({ gate });
     initSettingsTabs();
     initConnectionUI();

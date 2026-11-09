@@ -921,3 +921,137 @@
     content: ' \2713 \25CF';
     color: var(--okGreen70a, rgba(0, 100, 0, 0.7));
 }
+
+/* Dry-Run Preview: read-only captured prompt modal (ADR-0041, ADR-0043). */
+.sc-dryrun {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    color: var(--SmartThemeBodyColor, #ddd);
+}
+.sc-dryrun-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.sc-dryrun-title {
+    margin: 0;
+    font-size: 1.05em;
+}
+.sc-dryrun-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    min-width: 0;
+}
+.sc-dryrun-chip {
+    padding: 1px 7px;
+    border: 1px solid var(--sc-border, var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16)));
+    border-radius: 10px;
+    font-size: 0.78em;
+    opacity: 0.86;
+    white-space: nowrap;
+}
+.sc-dryrun-copy {
+    margin-left: auto;
+}
+.sc-dryrun-flags {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+}
+.sc-dryrun-note {
+    font-size: 0.82em;
+    opacity: 0.82;
+}
+.sc-dryrun-note_warn {
+    color: var(--warning, #e0a030);
+}
+.sc-dryrun-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 62vh;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+.sc-dryrun-message {
+    border: 1px solid var(--sc-border, var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16)));
+    border-radius: 6px;
+    padding: 6px 8px;
+    min-width: 0;
+}
+.sc-dryrun-message-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.82em;
+    opacity: 0.9;
+}
+.sc-dryrun-index {
+    font-family: monospace;
+    opacity: 0.72;
+}
+.sc-dryrun-role {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.sc-dryrun-name::before {
+    content: '(';
+}
+.sc-dryrun-name::after {
+    content: ')';
+}
+.sc-dryrun-message-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 4px;
+}
+.sc-dryrun-text-summary {
+    cursor: pointer;
+    font-size: 0.82em;
+    opacity: 0.8;
+}
+.sc-dryrun-text-body,
+.sc-dryrun-raw {
+    margin: 4px 0 0;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: monospace;
+    font-size: 0.82em;
+    line-height: 1.35;
+}
+.sc-dryrun-image-wrap {
+    margin: 0;
+    min-width: 0;
+}
+.sc-dryrun-image {
+    display: block;
+    max-width: 100%;
+    max-height: 240px;
+    cursor: zoom-in;
+    border: 1px solid var(--sc-border, var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.16)));
+    border-radius: 4px;
+}
+.sc-dryrun-image_zoomed {
+    max-height: none;
+    width: 100%;
+    cursor: zoom-out;
+}
+@media (max-width: 520px) {
+    .sc-dryrun-copy {
+        margin-left: 0;
+    }
+    .sc-dryrun-messages {
+        max-height: 58vh;
+    }
+}

@@ -5,6 +5,7 @@ import { getChatStore } from '../foundation/chat-store.js';
 import { clearChatData } from '../core/chat-data.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
+import { openDryRunPreview } from './dryrun-viewer.js';
 
 /**
  * Registers the extension's slash commands with the host parser.
@@ -60,6 +61,17 @@ export function registerSlashCommands() {
                     return buildInjection(getChatStore().layers).text || '(No summaries yet)';
                 },
                 helpString: 'Preview the summary block that would be injected',
+            }),
+        );
+
+        SlashCommandParser.addCommandObject(
+            SlashCommand.fromProps({
+                name: 'sc-dryrun',
+                callback: async () => {
+                    await openDryRunPreview();
+                    return '';
+                },
+                helpString: 'Preview the main-LLM prompt from a host dry run',
             }),
         );
     } catch (e) {

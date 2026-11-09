@@ -242,6 +242,41 @@ export function getEventTypes() {
 }
 
 /**
+ * Host API family behind the assembled prompt. Only the chat-completion path
+ * emits CHAT_COMPLETION_PROMPT_READY, so the Dry-Run Preview refuses others.
+ * @returns {string}
+ */
+export function getMainApi() {
+    return String(getContext().mainApi ?? '');
+}
+
+/**
+ * Fire the host's dry-run chat-completion assembly. `generate` takes the
+ * dry-run flag as its third argument, mirrors SillyTavern's own
+ * prompt-manager tryGenerate, and spends no tokens.
+ * @returns {Promise<unknown>}
+ */
+export async function runDryRunGenerate() {
+    const ctx = getContext();
+    if (typeof ctx.generate !== 'function') {
+        throw new Error('generate is not available in the current SillyTavern context.');
+    }
+    return await ctx.generate('normal', {}, true);
+}
+
+/**
+ * Host popup primitives behind one accessor; absent in headless contexts.
+ * @returns {{ Popup: Function, popupType: Record<string, number>, popupResult: Record<string, number> } | null}
+ */
+export function getPopupApi() {
+    const ctx = getContext();
+    if (typeof ctx.Popup !== 'function' || !ctx.POPUP_TYPE) {
+        return null;
+    }
+    return { Popup: ctx.Popup, popupType: ctx.POPUP_TYPE, popupResult: ctx.POPUP_RESULT ?? {} };
+}
+
+/**
  * @returns {SillyTavernStreamingProcessor | null}
  */
 export function getStreamingProcessor() {

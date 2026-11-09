@@ -32,6 +32,7 @@ import {
     syncRoleMaskModeControl,
 } from './ui-bind.js';
 import { bindManualRunControls } from './ui-manual-run.js';
+import { bindDryRunPreviewButton, initDryRunViewer } from './dryrun-viewer.js';
 import { bindPromptProfiles } from './ui-prompts.js';
 
 /**
@@ -48,9 +49,18 @@ function saveAndRefreshUi() {
  * @param {import('../core/foreground-gate.js').ForegroundGate} deps.gate - Foreground Gate the import commit crosses.
  * @param {import('../core/summarizer-queue.js').SummarizerQueue} deps.queue - Summarizer Queue settings changes kick.
  * @param {import('../core/summarizer-engine.js').ManualRunnerDeps} deps.manualRunnerDeps - Engine deps for manual runs and the pause latch.
+ * @param {() => unknown} [deps.warmPages] - Writer page warm-up for Dry-Run Preview capture.
+ * @param {(pageIndex: number) => { dataUrl: string, text: string } | undefined} [deps.resolveMicrofichePage] - Writer page-source reader.
  * @returns {void}
  */
-export function bindUIEvents({ notify, gate, queue, manualRunnerDeps }) {
+export function bindUIEvents({
+    notify,
+    gate,
+    queue,
+    manualRunnerDeps,
+    warmPages,
+    resolveMicrofichePage,
+}) {
     bindModeHandlers(queue);
     bindToggleHandlers(queue);
     bindSliderHandlers();
@@ -58,6 +68,8 @@ export function bindUIEvents({ notify, gate, queue, manualRunnerDeps }) {
     bindClickHandlers(notify, gate);
     bindManualRunControls({ notify, manualRunnerDeps });
     bindPromptProfiles();
+    initDryRunViewer({ gate, queue, warmPages, resolveMicrofichePage });
+    bindDryRunPreviewButton();
 }
 
 function bindModeHandlers(queue) {
