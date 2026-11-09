@@ -22,7 +22,7 @@ import { createContinuityAuditor } from './src/core/continuity-audit.js';
 import { createForegroundGate } from './src/core/foreground-gate.js';
 import { createUsageLedger } from './src/core/summarizer-usage.js';
 import { createToastrNotifyAdapter } from './src/entry/ui-dialogs.js';
-import { syncLLMContextPreview, updateUI } from './src/entry/ui.js';
+import { syncLLMContextPreview, syncMicroficheBilling, updateUI } from './src/entry/ui.js';
 import { bindUIEvents } from './src/entry/ui-events.js';
 import { initConnectionUI } from './src/entry/ui-connection.js';
 import { initSettingsHelp } from './src/entry/settings-help.js';
@@ -109,7 +109,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
         updateUI: (options) => updateUI({ ...options, queue }),
         updatePreview: () => {
             const settings = getEffectiveSettings();
-            syncLLMContextPreview(buildInjection(getChatStore().layers, settings), settings);
+            const injection = buildInjection(getChatStore().layers, settings);
+            syncLLMContextPreview(injection, settings);
+            syncMicroficheBilling(injection, settings);
         },
     });
     initSnippetBrowser({ notify, gate, queue, dispatch, usage });
@@ -151,7 +153,11 @@ import { registerSlashCommands } from './src/entry/commands.js';
         eventSource.on(eventTypes.GENERATION_STOPPED, () => onGenerationEnded({ gate, queue }));
     }
     if (eventTypes.CHAT_COMPLETION_PROMPT_READY) {
-        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatCompletionPromptReady);
+        eventSource.on(eventTypes.CHAT_COMPLETION_PROMPT_READY, (eventData, dryRun) =>
+            onChatCompletionPromptReady(eventData, dryRun, {
+                resolveMicrofichePage: writer.resolveMicrofichePage,
+            }),
+        );
     }
     registerSlashCommands();
 

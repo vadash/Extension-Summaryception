@@ -14,7 +14,7 @@ import { getCurrentSummarizedBoundary } from '../core/snippet-provenance.js';
 import { formatCompactTokenCount } from '../core/token-count.js';
 
 import { describeAutoWork } from '../core/summarization-routes.js';
-import { estimateContextPreview } from '../core/token-budget.js';
+import { describeMicroficheBilling, estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
 import {
     syncAllSettingsToDOM,
@@ -93,6 +93,7 @@ function syncSettingsInputs(s, effectiveSettings, injection = null) {
     syncAllSettingsToDOM(s);
     syncEasyPayloadSchematic(effectiveSettings);
     syncMemoryModeControls(s);
+    syncMicroficheBilling(injection, effectiveSettings);
     syncLLMContextPreview(injection, effectiveSettings);
     syncConnectionPanels(s);
 }
@@ -143,6 +144,44 @@ export function syncLLMContextPreview(injection = null, settings = getEffectiveS
 
 function setContextValueColor($element, tokens) {
     $element.removeClass(CONTEXT_COLOR_CLASSES).addClass(getContextColorClass(tokens));
+}
+
+/**
+ * Render the Microfiche holds-and-bills line in the tuning section and the
+ * context preview. Both surfaces read the same figures so they cannot drift.
+ * @param {import('../core/memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @param {ReturnType<typeof getEffectiveSettings>} [settings]
+ * @returns {void}
+ */
+export function syncMicroficheBilling(injection = null, settings = getEffectiveSettings()) {
+    const line = formatMicroficheBillingLine(describeMicroficheBilling(injection, settings));
+    $('#sc_microfiche_cost').text(line);
+    $('#sc_llm_context_microfiche').text(line);
+}
+
+/**
+ * @param {{ images: number, heldTokens: number, imageTokens: number, netTokens: number | null, bucketTokens: number, bucketAfterImages: number } | null} billing
+ * @returns {string}
+ */
+function formatMicroficheBillingLine(billing) {
+    if (!billing) {
+        return 'No images billed.';
+    }
+    const bucket =
+        `Raw bucket ${formatCompactTokenCount(billing.bucketTokens)}: ` +
+        `${formatCompactTokenCount(billing.imageTokens)} to images, ` +
+        `${formatCompactTokenCount(billing.bucketAfterImages)} left for text.`;
+    if (billing.netTokens === null) {
+        return (
+            `Holds ~${formatCompactTokenCount(billing.heldTokens)} text tokens. ` +
+            `Custom geometry has no preset image cost, so billing is unknown. ${bucket}`
+        );
+    }
+    return (
+        `Holds ~${formatCompactTokenCount(billing.heldTokens)} text tokens → ` +
+        `bills ~${formatCompactTokenCount(billing.imageTokens)} image tokens, ` +
+        `net ${formatCompactTokenCount(billing.netTokens)}. ${bucket}`
+    );
 }
 
 async function renderStatusOverview(prefix, modeField, overview) {

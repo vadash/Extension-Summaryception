@@ -52,7 +52,12 @@ function normalizeMicroficheSettings(settings) {
             changed = true;
         }
     }
-    for (const key of ['microficheStretch', 'microficheStopwordDim']) {
+    for (const key of [
+        'microficheStretch',
+        'microficheStopwordDim',
+        'microficheMemoryImages',
+        'microficheFrozenRawImages',
+    ]) {
         const value = settings[key] === true;
         if (settings[key] !== value) {
             settings[key] = value;

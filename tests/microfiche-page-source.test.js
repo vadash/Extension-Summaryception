@@ -10,6 +10,7 @@ import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource } from '../src/core/microfiche-pages.js';
 import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
+import { onChatCompletionPromptReady } from '../src/entry/events.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
 
@@ -356,6 +357,27 @@ describe('microfiche page source', () => {
 });
 
 describe('memory injection writer render cache', () => {
+    it('expands the send-time chat from the warmed writer pages', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({ setExtensionPrompt });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        writer.update();
+        const page = writer.resolveMicrofichePage(0);
+        expect(page).toBeDefined();
+
+        const chat = [{ role: 'system', content: `memory ${formatMicroficheMarker(0)} tail` }];
+        onChatCompletionPromptReady({ chat }, undefined, {
+            resolveMicrofichePage: writer.resolveMicrofichePage,
+        });
+
+        expect(chat[0].content).toContainEqual({
+            type: 'image_url',
+            image_url: { url: page.dataUrl },
+        });
+        expect(chat[0].content).toContainEqual({ type: 'text', text: page.text });
+    });
+
     it('serves only the split page count even when the image cap is higher', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({

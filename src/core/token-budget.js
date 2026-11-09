@@ -1,4 +1,5 @@
 import { defaultSettings } from '../foundation/constants.js';
+import { frameGrid } from './microfiche-geometry.js';
 
 // Image-token billing for the Microfiche preview: the built injection owns the
 // page count and the frame estimate, so the preview and the injected split
@@ -32,6 +33,41 @@ export function resolveRawChatBucketTokens(settings = null) {
         readTokenSetting(settings ?? {}, 'verbatimTokenBudget') +
         readTokenSetting(settings ?? {}, 'queuedTokenBudget')
     );
+}
+
+// Held-text tokens use the same 4 characters per token fallback ratio as the
+// Microfiche bucket gate, so capacity and text billing share one scale.
+const HELD_TEXT_CHARS_PER_TOKEN = 4;
+
+/**
+ * Image holds-and-bills figures for the Microfiche cost line. The built
+ * injection owns the page count; held text tokens derive from the frame
+ * capacity and billed tokens from the preset frame estimate, so the settings
+ * line and the context preview agree without tokenizing image text.
+ * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @param {object | null} [settings] - Settings carrying the raw text budgets.
+ * @returns {{ images: number, heldTokens: number, imageTokens: number, netTokens: number | null, bucketTokens: number, bucketAfterImages: number } | null}
+ */
+export function describeMicroficheBilling(injection = null, settings = null) {
+    const microfiche = injection?.microfiche;
+    if (!microfiche) {
+        return null;
+    }
+    const images = Array.isArray(microfiche.imageTexts) ? microfiche.imageTexts.length : 0;
+    const frameTokens = Number(microfiche.frameTokenEstimate);
+    const hasFrameEstimate = Number.isFinite(frameTokens) && frameTokens > 0;
+    const capacity = microfiche.shape ? frameGrid(microfiche.shape).capacity : 0;
+    const imageTokens = hasFrameEstimate ? images * frameTokens : 0;
+    const heldTokens = Math.round((images * capacity) / HELD_TEXT_CHARS_PER_TOKEN);
+    const bucketTokens = resolveRawChatBucketTokens(settings);
+    return {
+        images,
+        heldTokens,
+        imageTokens,
+        netTokens: hasFrameEstimate ? imageTokens - heldTokens : null,
+        bucketTokens,
+        bucketAfterImages: Math.max(0, bucketTokens - imageTokens),
+    };
 }
 
 // One source of per-layer size policy: Layer 0 output bounds, promotion

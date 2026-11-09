@@ -761,6 +761,10 @@
                             <span class="sc-llm-context-label">Main Chat Call</span>
                             <span class="sc-llm-context-value" id="sc_llm_context_main">~26k + ST prompt</span>
                         </div>
+                        <div class="sc-llm-context-row sc-llm-context-row-wide sc-microfiche-mode-row" style="display: none;">
+                            <span class="sc-llm-context-label">Image Billing</span>
+                            <span class="sc-llm-context-value" id="sc_llm_context_microfiche">No images billed.</span>
+                        </div>
                         <div class="sc-llm-context-row">
                             <span class="sc-llm-context-label">L0 Call</span>
                             <span class="sc-llm-context-value" id="sc_llm_context_l0">~10k tokens</span>
@@ -938,6 +942,18 @@
                                         <div class="sc-slider-row"><input type="range" id="sc_microfiche_image_cap" min="1" max="80" step="1" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap_val" /><input id="sc_microfiche_image_cap_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap" /></div>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_memory_images"><span>Memory Images</span><small class="sc-hint">Send summary memory as rendered images. Off keeps memory as text.</small></label>
+                                        <input id="sc_microfiche_memory_images" type="checkbox" data-sc-setting="microficheMemoryImages" />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_frozen_raw_images"><span>Frozen Raw Images</span><small class="sc-hint">Send the frozen raw chat slice as rendered images. Off keeps raw chat as text.</small></label>
+                                        <input id="sc_microfiche_frozen_raw_images" type="checkbox" data-sc-setting="microficheFrozenRawImages" />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                        <label for="sc_microfiche_system_images"><span>System Images</span><small class="sc-hint">Placement belongs to the host system prompt, so this toggle stays disabled.</small></label>
+                                        <input id="sc_microfiche_system_images" type="checkbox" disabled />
+                                    </div>
+                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_geometry"><span>Geometry</span><small class="sc-hint">Named render shape. A preset stamps the explicit knobs below. Custom unlocks hand-tuning.</small></label>
                                         <select id="sc_microfiche_geometry" class="text_pole" data-sc-setting="microficheGeometry">
                                             <option value="gemini">Gemini</option>
@@ -1002,6 +1018,10 @@
                                             <option value="1">1</option>
                                             <option value="2">2</option>
                                         </select>
+                                    </div>
+                                    <div class="sc-note sc-microfiche-mode-row" style="display: none;">
+                                        <span class="fa-solid fa-calculator"></span>
+                                        <small id="sc_microfiche_cost">No images billed.</small>
                                     </div>
                                 </div>
                                 <div class="sc-tuning-group">

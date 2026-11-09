@@ -8,7 +8,10 @@ import { syncGhosting } from '../core/ghosting.js';
 import { isAuditorTriggerMessage } from '../core/continuity-audit.js';
 import { discardCheckpoint } from '../core/continuity-checkpoint.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
-import { expandMicrofichePromptChat } from '../core/microfiche-transport.js';
+import {
+    expandMicrofichePromptChat,
+    resolveMicroficheStubPage,
+} from '../core/microfiche-transport.js';
 import { evaluateStaleCacheAdvice, isProviderCacheMode } from '../core/cache-staleness.js';
 import { buildChatWindowPlan } from '../core/chat-window-planner.js';
 import { updateContinuityInjection } from '../features/continuity-injection.js';
@@ -20,12 +23,19 @@ let previousPromptSectionHashes = [];
 
 /**
  * Log one prefix-stability verdict for each final, non-dry-run chat prompt.
- * Both dry-run forms (payload flag, separate argument) are ignored before any comparison state updates.
- * @param {...unknown} args - CHAT_COMPLETION_PROMPT_READY event arguments.
+ * Both dry-run forms (payload flag, separate argument) are ignored before any
+ * comparison state updates. The entry caller supplies the Memory Injection
+ * writer's page reader so expansion swaps the pages the writer already sealed.
+ * @param {unknown} eventData - CHAT_COMPLETION_PROMPT_READY event payload.
+ * @param {unknown} [dryRun] - Dry-run flag from the event signature.
+ * @param {{ resolveMicrofichePage?: (pageIndex: number) => ({ dataUrl: string, text: string } | undefined) }} [deps] - Page reader; defaults to the stub registry.
  * @returns {void}
  */
-export function onChatCompletionPromptReady(...args) {
-    const [eventData, dryRun] = args;
+export function onChatCompletionPromptReady(
+    eventData,
+    dryRun,
+    { resolveMicrofichePage = resolveMicroficheStubPage } = {},
+) {
     if (isDryRunEvent(eventData, dryRun) || !eventData || typeof eventData !== 'object') {
         return;
     }
@@ -34,7 +44,7 @@ export function onChatCompletionPromptReady(...args) {
         return;
     }
     try {
-        expandMicrofichePromptChat(chat);
+        expandMicrofichePromptChat(chat, resolveMicrofichePage);
     } catch (_e) {
         // Best effort: prefix bookkeeping below must keep its order and verdicts.
     }

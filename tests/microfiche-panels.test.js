@@ -11,7 +11,7 @@ import {
     lookupModelShapes,
 } from '../src/foundation/constants.js';
 import { buildInjection } from '../src/core/memory-injection.js';
-import { estimateContextPreview } from '../src/core/token-budget.js';
+import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
 import { getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
 import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
@@ -72,6 +72,58 @@ describe('microfiche panels', () => {
         expect(SETTINGS_HELP.memory_mode_microfiche.controls).toContain(
             '#sc_memory_mode_microfiche',
         );
+    });
+
+    it('offers two image placement toggles and keeps the system toggle inert', () => {
+        for (const [id, key] of [
+            ['sc_microfiche_memory_images', 'microficheMemoryImages'],
+            ['sc_microfiche_frozen_raw_images', 'microficheFrozenRawImages'],
+        ]) {
+            expect(HTML, `#${id}`).toContain(`id="${id}"`);
+            expect(HTML, `#${id} binding`).toContain(`data-sc-setting="${key}"`);
+        }
+        const systemTag =
+            HTML.match(/<input\b[^>]*id="sc_microfiche_system_images"[^>]*>/)?.[0] ?? '';
+        expect(systemTag).toContain('disabled');
+        expect(systemTag).not.toContain('data-sc-setting');
+    });
+
+    it('shows the holds-and-bills line in the microfiche panel and context preview', async () => {
+        const settings = {
+            ...defaultSettings,
+            memoryTokenBudget: 10000,
+            verbatimTokenBudget: 16000,
+            queuedTokenBudget: 32000,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'gemini',
+            microficheImageCap: 8,
+            microficheKeepRaw: 0,
+        };
+        const injection = buildInjection([[{ text: 'word '.repeat(5000) }]], settings);
+        expect(injection.microfiche.imageTexts).toHaveLength(1);
+        const billing = describeMicroficheBilling(injection, settings);
+        expect(billing).toMatchObject({
+            images: 1,
+            heldTokens: 5952,
+            imageTokens: 1120,
+            netTokens: -4832,
+            bucketTokens: 48000,
+            bucketAfterImages: 46880,
+        });
+        const preview = estimateContextPreview(settings, injection);
+        expect(preview.rawChatMax).toBe(billing.bucketTokens - billing.imageTokens);
+
+        globalThis.$ = createJQueryHarness().$;
+        const { syncMicroficheBilling } = await import('../src/entry/ui.js');
+        syncMicroficheBilling(injection, settings);
+        for (const selector of ['#sc_microfiche_cost', '#sc_llm_context_microfiche']) {
+            const line = globalThis.$(selector).text();
+            expect(line, selector).toContain('5k');
+            expect(line, selector).toContain('1k');
+            expect(line, selector).toContain('-4k');
+            expect(line, selector).toContain('48k');
+        }
+        delete globalThis.$;
     });
 });
 

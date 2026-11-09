@@ -124,6 +124,8 @@ describe('microfiche defaults and bounds', () => {
             microficheFrameSize: 2048,
             microficheModelName: '',
             microficheGeometry: 'gemini',
+            microficheMemoryImages: false,
+            microficheFrozenRawImages: false,
         });
     });
 
@@ -224,6 +226,24 @@ describe('microfiche normalization', () => {
         expect(settings.microficheFont).toBe(defaultSettings.microficheFont);
         expect(settings.microficheVariant).toBe(defaultSettings.microficheVariant);
         expect(settings.microficheGeometry).toBe(defaultSettings.microficheGeometry);
+    });
+
+    it('coerces the image placement toggles with strict booleans', () => {
+        const kept = normalize({
+            microficheMemoryImages: true,
+            microficheFrozenRawImages: true,
+        }).settings;
+        expect(kept).toMatchObject({
+            microficheMemoryImages: true,
+            microficheFrozenRawImages: true,
+        });
+        const repaired = normalize({
+            microficheMemoryImages: 'true',
+            microficheFrozenRawImages: 1,
+        });
+        expect(repaired.settings.microficheMemoryImages).toBe(false);
+        expect(repaired.settings.microficheFrozenRawImages).toBe(false);
+        expect(repaired.changed).toBe(true);
     });
 
     it('coerces stretch and stopword dim with strict booleans', () => {

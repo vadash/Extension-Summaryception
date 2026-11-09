@@ -438,6 +438,9 @@ export const defaultSettings = Object.freeze({
     // Microfiche render knobs; they tune the image render only, never retention.
     microficheKeepRaw: 2,
     microficheImageCap: 8,
+    // Image placement stays off until the user opts in per prompt region.
+    microficheMemoryImages: false,
+    microficheFrozenRawImages: false,
     microficheFont: '8x8',
     microficheCellWidth: 8,
     microficheCellHeight: 22,
