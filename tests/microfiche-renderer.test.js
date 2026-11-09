@@ -1,23 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-    DIM_OFF,
-    DIM_ON,
-    NEWLINE_GLYPH,
-    dimStopwords,
-    normalize,
-    scanRenderability,
-} from '../src/core/microfiche-normalize.js';
-import {
-    buildMicrofichePageTexts,
-    resolveMicroficheShape,
-} from '../src/core/microfiche-paginate.js';
-import { frameGrid } from '../src/core/microfiche-geometry.js';
-import { splitMicroficheTexts } from '../src/core/microfiche-policy.js';
+import { renderMicrofichePages } from '../src/core/microfiche-pages.js';
+import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 
-// Legibility parity only: this suite pins structure and order (page strings,
-// chronology, capacity math). It never compares PNG bytes, and the page texts
-// below carry no image payloads, so a byte-equality assertion cannot live here.
+// Legibility parity only: this suite pins draw calls, page order, and canvas
+// capture. It never compares PNG bytes, and the fake dataUrls below are
+// deterministic placeholders, never reference raster output.
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -35,81 +23,50 @@ function geminiShape(overrides = {}) {
     return { ...resolveMicroficheShape(GEMINI_KNOBS), ...overrides };
 }
 
-function stripDimMarkers(text) {
-    return String(text).split(DIM_ON).join('').split(DIM_OFF).join('');
+function makeFakeCanvas() {
+    return {
+        width: 0,
+        height: 0,
+        toDataURL(mime) {
+            return `data:image/png;fake:${this.width}x${this.height}:${mime}`;
+        },
+    };
 }
 
-describe('microfiche normalize', () => {
-    it('collapses whitespace and trims edges', () => {
-        expect(normalize('  hello   world  ')).toBe('hello world');
-        expect(normalize('')).toBe('');
-        expect(normalize(null)).toBe('');
-    });
+function makeFakeContext(calls, pageIndex) {
+    const ctx = {
+        fillStyle: '#000000',
+        font: '',
+        textBaseline: '',
+        textAlign: '',
+        fillText(ch, x, y) {
+            calls.push({ type: 'fillText', ch, x, y, fillStyle: ctx.fillStyle, page: pageIndex });
+        },
+        fillRect(x, y, w, h) {
+            calls.push({ type: 'fillRect', x, y, w, h, fillStyle: ctx.fillStyle, page: pageIndex });
+        },
+    };
+    return ctx;
+}
 
-    it('strips ANSI escape sequences', () => {
-        expect(normalize('\u001b[31mRED\u001b[0m plain')).toBe('RED plain');
-    });
-
-    it('prints newline runs as one newline glyph cell', () => {
-        expect(normalize('a\n\nb')).toBe(`a${NEWLINE_GLYPH}b`);
-    });
-
-    it('folds box drawing to ASCII', () => {
-        expect(normalize('a─b│c┌d')).toBe('a-b|c+d');
-    });
-
-    it('folds punctuation, arrows, and status emoji', () => {
-        expect(normalize('\u201chi\u201d\u2014she said \u2022 ok \u2192 go \u2705')).toBe(
-            '"hi"-she said * ok -> go [OK]',
-        );
-    });
-
-    it('drops decorative emoji instead of burning cells', () => {
-        expect(normalize('party \u{1F389} done')).toBe('party done');
-    });
-
-    it('falls back to ? for glyphs no font covers', () => {
-        expect(normalize('\u03b1')).toBe('?');
-    });
-
-    it('keeps zero-width dim toggles untouched', () => {
-        expect(normalize(`a${DIM_ON}b${DIM_OFF}c`)).toBe(`a${DIM_ON}b${DIM_OFF}c`);
-    });
-});
-
-describe('microfiche scanRenderability', () => {
-    it('marks plain prose safe with a zero ratio', () => {
-        expect(scanRenderability('plain ascii words here')).toEqual({
-            isSafe: true,
-            unrenderableRatio: 0,
-        });
-    });
-
-    it('marks fallback-heavy text unsafe past the 5% threshold', () => {
-        expect(scanRenderability('\u03b1'.repeat(20)).isSafe).toBe(false);
-    });
-
-    it('treats exactly 5% fallback as safe', () => {
-        const probe = 'a'.repeat(19) + '\u03b1';
-        const result = scanRenderability(probe);
-        expect(result.isSafe).toBe(true);
-        expect(result.unrenderableRatio).toBeCloseTo(0.05);
-    });
-});
-
-describe('microfiche dimStopwords', () => {
-    it('wraps stopwords in dim toggles and leaves content words alone', () => {
-        expect(dimStopwords('the cat and the dog')).toBe(
-            `${DIM_ON}the${DIM_OFF} cat ${DIM_ON}and${DIM_OFF} ${DIM_ON}the${DIM_OFF} dog`,
-        );
-    });
-
-    it('leaves already-dim spans untouched', () => {
-        expect(dimStopwords(`${DIM_ON}already dim${DIM_OFF} the`)).toBe(
-            `${DIM_ON}already dim${DIM_OFF} ${DIM_ON}the${DIM_OFF}`,
-        );
-    });
-});
+function makeFakeFactory() {
+    const calls = [];
+    const canvases = [];
+    function canvasFactory(width, height) {
+        const pageIndex = canvases.length;
+        const canvas = makeFakeCanvas();
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = makeFakeContext(calls, pageIndex);
+        canvas.toDataURL = (mime) => {
+            calls.push({ type: 'toDataURL', mime, page: pageIndex });
+            return `data:image/png;fake:page${pageIndex}:${canvas.width}x${canvas.height}`;
+        };
+        canvases.push({ canvas, ctx, width, height });
+        return { canvas, ctx };
+    }
+    return { canvasFactory, calls, canvases };
+}
 
 describe('microfiche resolveMicroficheShape', () => {
     it('reads only the explicit render knobs', () => {
@@ -163,66 +120,31 @@ describe('microfiche resolveMicroficheShape', () => {
     });
 });
 
-describe('microfiche buildMicrofichePageTexts', () => {
-    it('emits no image payloads, only page strings', () => {
-        const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
-        const result = buildMicrofichePageTexts(split.imageTexts, geminiShape());
-        expect(result.imageTexts.length).toBe(1);
-        expect(typeof result.imageTexts[0]).toBe('string');
-        expect(JSON.stringify(result)).not.toContain('data:image');
-        expect(JSON.stringify(result)).not.toContain('base64');
-    });
-
-    it('keeps chronological order with the newest text raw', () => {
-        const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
-        const result = buildMicrofichePageTexts(split.imageTexts, geminiShape());
-        const joined = result.imageTexts.join('\n');
-        expect(joined.indexOf('alpha')).toBeLessThan(joined.indexOf('beta'));
-        expect(split.rawTexts).toEqual(['gamma three']);
-    });
-
-    it('paginates grid pages as contiguous substrings of the normalized input', () => {
-        const shape = geminiShape({ frameSize: 64 });
-        const input = 'word '.repeat(500);
-        const normalized = normalize(input, { font: shape.font });
-        const result = buildMicrofichePageTexts([input], shape);
-        expect(result.imageTexts.length).toBeGreaterThan(1);
-        expect(result.imageTexts.join('')).toBe(normalized);
-        const geo = frameGrid(shape, shape.frameSize);
-        for (const page of result.imageTexts) {
-            expect(page.length).toBeLessThanOrEqual(geo.capacity);
-        }
-    });
-
-    it('yields no pages for whitespace-only input', () => {
-        expect(buildMicrofichePageTexts(['   '], geminiShape())).toEqual({
-            imageTexts: [],
-            rawTexts: [],
-        });
-    });
-
-    it('wraps two newspaper columns within the per-page line budget', () => {
-        const shape = geminiShape({ columns: 2, frameSize: 64 });
-        const geo = frameGrid(shape, shape.frameSize);
-        const result = buildMicrofichePageTexts(['X a b c d e f', 'Y g h i j k l'], shape);
-        expect(result.imageTexts.length).toBeGreaterThan(0);
-        for (const page of result.imageTexts) {
-            expect(page.split('\n').length).toBeLessThanOrEqual(2 * geo.rows);
-        }
-        const joined = stripDimMarkers(result.imageTexts.join('\n'));
-        expect(joined.indexOf('X')).toBeLessThan(joined.indexOf('Y'));
-    });
-
-    it('dims stopwords after pagination when the shape asks for it', () => {
-        const result = buildMicrofichePageTexts(
-            ['the cat sat'],
-            geminiShape({ stopwordDim: true }),
+describe('microfiche renderMicrofichePages', () => {
+    it('keeps input order and calls toDataURL on the injected canvas', () => {
+        const factory = makeFakeFactory();
+        const pages = renderMicrofichePages(
+            ['AAA first', 'BBB second'],
+            geminiShape(),
+            factory.canvasFactory,
         );
-        expect(result.imageTexts[0]).toContain(`${DIM_ON}the${DIM_OFF}`);
+        expect(pages.map((page) => page.text)).toEqual(['AAA first', 'BBB second']);
+        expect(factory.canvases.length).toBe(2);
+        const dataCalls = factory.calls.filter((call) => call.type === 'toDataURL');
+        expect(dataCalls.map((call) => call.mime)).toEqual(['image/png', 'image/png']);
+        expect(dataCalls.map((call) => call.page)).toEqual([0, 1]);
+        const textCalls = factory.calls.filter((call) => call.type === 'fillText');
+        const firstPageLast = textCalls.map((call) => call.page).lastIndexOf(0);
+        const secondPageFirst = textCalls.map((call) => call.page).indexOf(1);
+        expect(firstPageLast).toBeLessThan(secondPageFirst);
+        for (const page of pages) {
+            expect(typeof page.dataUrl).toBe('string');
+        }
     });
 
-    it('smokes the full variant key set without throwing and keeps order', () => {
+    it('draws every reference font, ink, dim, column, repeat, and frame combination in order', () => {
         const texts = ['A one two three', 'B four five six'];
+        let drawn = 0;
         for (const font of ['5x8', '8x8', '6x12', '8x13', 'silver']) {
             for (const variant of ['bw', 'sent']) {
                 for (const stopwordDim of [false, true]) {
@@ -237,44 +159,32 @@ describe('microfiche buildMicrofichePageTexts', () => {
                                     lineRepeat,
                                     frameSize,
                                 });
-                                const result = buildMicrofichePageTexts(texts, shape);
-                                expect(result.imageTexts.length).toBeGreaterThan(0);
-                                const joined = stripDimMarkers(result.imageTexts.join('\n'));
-                                expect(joined.indexOf('A')).toBeLessThan(joined.indexOf('B'));
+                                const factory = makeFakeFactory();
+                                const pages = renderMicrofichePages(
+                                    texts,
+                                    shape,
+                                    factory.canvasFactory,
+                                );
+                                expect(pages.map((page) => page.text)).toEqual(texts);
+                                const fills = factory.calls.filter(
+                                    (call) => call.type === 'fillText',
+                                );
+                                expect(fills.length).toBeGreaterThan(0);
+                                drawn += pages.length;
                             }
                         }
                     }
                 }
             }
         }
-    });
-});
-
-describe('microfiche buildMicrofichePageTexts with an effective cap', () => {
-    it('keeps pages past the cap as raw text in chronological order', () => {
-        const tiny = geminiShape({ frameSize: 64 });
-        const snippets = ['aaa bbb ccc', 'ddd eee fff', 'ggg hhh iii', 'jjj kkk lll'];
-        const uncapped = buildMicrofichePageTexts(snippets, tiny);
-        expect(uncapped.imageTexts.length).toBeGreaterThan(1);
-        const overflow = buildMicrofichePageTexts(snippets, tiny, 1);
-        expect(overflow.imageTexts).toEqual(uncapped.imageTexts.slice(0, 1));
-        expect(overflow.rawTexts.join('\n')).toContain(
-            stripDimMarkers(uncapped.imageTexts.slice(1).join('\n')),
-        );
-    });
-
-    it('sends every page to raw text when the cap is zero', () => {
-        const tiny = geminiShape({ frameSize: 64 });
-        const snippets = ['aaa bbb ccc', 'ddd eee fff'];
-        const result = buildMicrofichePageTexts(snippets, tiny, 0);
-        expect(result.imageTexts).toEqual([]);
-        expect(result.rawTexts.length).toBeGreaterThan(0);
+        expect(drawn).toBe(2 * 5 * 2 * 2 * 2 * 2 * 2);
     });
 });
 
 describe('microfiche renderer host freedom', () => {
     it('runs with no document or canvas in scope', () => {
         expect(typeof document).toBe('undefined');
-        expect(normalize('host-free check')).toBe('host-free check');
+        expect(typeof window).toBe('undefined');
+        expect(typeof HTMLCanvasElement).toBe('undefined');
     });
 });

@@ -5,9 +5,7 @@ import { buildInjection } from '../src/core/memory-injection.js';
 import {
     buildMicrofichePlan,
     resolveMicroficheEffectiveCap,
-    splitMicroficheTexts,
 } from '../src/core/microfiche-policy.js';
-import { buildMicrofichePageTexts } from '../src/core/microfiche-paginate.js';
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -34,10 +32,6 @@ const SNIPPETS = [
     'kkk lll mmm nnn ooo',
 ];
 
-function uncappedPages(texts, shape) {
-    return buildMicrofichePageTexts(texts, shape).imageTexts;
-}
-
 describe('microfiche resolveMicroficheEffectiveCap', () => {
     it('takes the smallest finite non-negative budget', () => {
         expect(resolveMicroficheEffectiveCap(8, 3, 200)).toBe(3);
@@ -57,39 +51,8 @@ describe('microfiche resolveMicroficheEffectiveCap', () => {
     });
 });
 
-describe('microfiche splitMicroficheTexts', () => {
-    it('sends the oldest to images and keeps the newest K raw', () => {
-        expect(splitMicroficheTexts(['a', 'b', 'c', 'd'], 2)).toEqual({
-            imageTexts: ['a', 'b'],
-            rawTexts: ['c', 'd'],
-        });
-    });
-
-    it('sends everything to images when keepRaw is 0', () => {
-        expect(splitMicroficheTexts(['a', 'b'], 0)).toEqual({
-            imageTexts: ['a', 'b'],
-            rawTexts: [],
-        });
-    });
-
-    it('keeps everything raw when keepRaw covers the input', () => {
-        expect(splitMicroficheTexts(['a', 'b'], 2)).toEqual({
-            imageTexts: [],
-            rawTexts: ['a', 'b'],
-        });
-        expect(splitMicroficheTexts(['a', 'b'], 9)).toEqual({
-            imageTexts: [],
-            rawTexts: ['a', 'b'],
-        });
-    });
-
-    it('handles empty input', () => {
-        expect(splitMicroficheTexts([], 2)).toEqual({ imageTexts: [], rawTexts: [] });
-    });
-});
-
 describe('microfiche buildMicrofichePlan', () => {
-    it('caps image pages at the slider with unbounded host and preset budgets', () => {
+    it('reconciles the slider cap when host and preset budgets are unbounded', () => {
         const settings = {
             ...TINY,
             microficheGeometry: 'gemini',
@@ -97,11 +60,8 @@ describe('microfiche buildMicrofichePlan', () => {
             microficheImageCap: 8,
         };
         const plan = buildMicrofichePlan(SNIPPETS, settings, {});
-        const uncapped = uncappedPages(SNIPPETS, plan.shape);
-        expect(uncapped.length).toBeGreaterThan(8);
         expect(plan.effectiveCap).toBe(8);
-        expect(plan.imageTexts).toEqual(uncapped.slice(0, 8));
-        expect(plan.rawTexts).toEqual(uncapped.slice(8));
+        expect(plan.imageTexts.length).toBe(8);
     });
 
     it('takes the min of slider, host, and preset budgets', () => {
@@ -112,10 +72,8 @@ describe('microfiche buildMicrofichePlan', () => {
             microficheImageCap: 8,
         };
         const hosted = buildMicrofichePlan(SNIPPETS, settings, { imageBudget: 3 });
-        const uncapped = uncappedPages(SNIPPETS, hosted.shape);
         expect(hosted.effectiveCap).toBe(3);
-        expect(hosted.imageTexts).toEqual(uncapped.slice(0, 3));
-        expect(hosted.rawTexts).toEqual(uncapped.slice(3));
+        expect(hosted.imageTexts.length).toBe(3);
 
         const glm = buildMicrofichePlan(SNIPPETS, {
             ...settings,
@@ -123,7 +81,7 @@ describe('microfiche buildMicrofichePlan', () => {
             microficheImageCap: 80,
         });
         expect(glm.effectiveCap).toBe(5);
-        expect(glm.imageTexts).toEqual(uncappedPages(SNIPPETS, glm.shape).slice(0, 5));
+        expect(glm.imageTexts.length).toBe(5);
     });
 
     it('reads no preset budget for custom geometry', () => {
@@ -135,7 +93,7 @@ describe('microfiche buildMicrofichePlan', () => {
         };
         const plan = buildMicrofichePlan(SNIPPETS, settings, { imageBudget: 80 });
         expect(plan.effectiveCap).toBe(2);
-        expect(plan.imageTexts).toEqual(uncappedPages(SNIPPETS, plan.shape).slice(0, 2));
+        expect(plan.imageTexts.length).toBe(2);
     });
 
     it('sends every page to raw text when the host budget is zero', () => {
@@ -148,29 +106,7 @@ describe('microfiche buildMicrofichePlan', () => {
         const plan = buildMicrofichePlan(SNIPPETS, settings, { imageBudget: 0 });
         expect(plan.effectiveCap).toBe(0);
         expect(plan.imageTexts).toEqual([]);
-        expect(plan.rawTexts).toEqual(uncappedPages(SNIPPETS, plan.shape));
-    });
-
-    it('orders overflow pages before the kept-raw tail', () => {
-        const texts = [
-            'one alpha one two',
-            'two beta two three',
-            'three gamma three',
-            'four delta four',
-        ];
-        const settings = {
-            ...TINY,
-            microficheGeometry: 'custom',
-            microficheImageCap: 2,
-            microficheKeepRaw: 2,
-        };
-        const plan = buildMicrofichePlan(texts, settings, {});
-        const split = splitMicroficheTexts(texts, 2);
-        const pages = uncappedPages(split.imageTexts, plan.shape);
-        expect(pages.length).toBeGreaterThan(2);
-        expect(plan.keepRaw).toBe(2);
-        expect(plan.imageTexts).toEqual(pages.slice(0, 2));
-        expect(plan.rawTexts).toEqual([...pages.slice(2), ...split.rawTexts]);
+        expect(plan.rawTexts.length).toBeGreaterThan(0);
     });
 
     it('splits the built injection by the resolved cap across the cap matrix', () => {

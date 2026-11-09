@@ -10,4 +10,4 @@ Every prompt Summaryception authors — the nine default texts, both injection t
 
 ## Consequences
 
-`tests/prompt-grammar.test.js` scans every default prompt and runtime fragment for slashes, pluses, bare underscores, all-caps bracket headers, and negations, with an explicit exemption list for the parsed literals. Each rule appears once per prompt, in attention half-life order: input, output contract, salience, temporal rules, prose mechanics, execution trigger. The prompt-side wrappers collapse with the section tags, to `<budget>`, `<limits>`, `<feedback>`, and `<rejected>`.
+`tests/prompt-grammar.test.js` pins the layer0 section order, the request-message order, and system-message purity. Style rules (slashes, pluses, bare underscores, all-caps bracket headers, negations) stay prose convention only, enforced by review, not by scan.

@@ -12,8 +12,7 @@ import {
     makeSummaryStore,
 } from './test-helpers.js';
 
-// This test pins the renderer the temporary guard hides; auditor-guard covers
-// the guarded path.
+// The temporary guard hides this renderer; the mock below forces it off.
 vi.mock('../src/foundation/auditor-switch.js', () => ({ AUDITOR_DISABLED: false }));
 
 /** @type {import('../src/core/foreground-gate.js').ForegroundGate} */
