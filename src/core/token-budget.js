@@ -1,16 +1,19 @@
 import { defaultSettings } from '../foundation/constants.js';
 
-// Image-token billing for the Microfiche preview: the built split owns the
+// Image-token billing for the Microfiche preview: the built injection owns the
 // page count and the frame estimate, so the preview and the injected split
 // always agree. Text cost stays build-once/measure-built-text so identical
 // text bills identically.
 /**
- * @param {{ imageTexts?: unknown, frameTokenEstimate?: unknown } | null} [plan] - Built Microfiche plan, if any.
+ * The injected split is the billing source: page count and frame rate come
+ * from it, never from the budget knobs that produced them.
+ * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
  * @returns {number}
  */
-function microfichePlanTokens(plan = null) {
-    const pages = Array.isArray(plan?.imageTexts) ? plan.imageTexts.length : 0;
-    const frameTokens = Number(plan?.frameTokenEstimate);
+function microficheInjectionTokens(injection = null) {
+    const microfiche = injection?.microfiche;
+    const pages = Array.isArray(microfiche?.imageTexts) ? microfiche.imageTexts.length : 0;
+    const frameTokens = Number(microfiche?.frameTokenEstimate);
     if (!Number.isFinite(frameTokens) || frameTokens <= 0) {
         return 0;
     }
@@ -117,13 +120,14 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 
 /**
  * Estimate the injected-context sizes shown by the settings preview panel.
- * Text terms bill from token budgets only. The main-call line adds the built
- * split's page count times the plan's frame estimate. A null plan bills no
- * images.
+ * Text terms bill from token budgets only. The main-call line projects the
+ * built Memory Injection: it adds the page count and frame estimate carried
+ * by that injection's Microfiche split. A null injection, or an injection
+ * with no Microfiche split, bills no images.
  * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
- * @param {{ imageTexts?: unknown, frameTokenEstimate?: unknown } | null} [plan] - Built Microfiche plan, if any.
+ * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
  */
-export function estimateContextPreview(settings, plan = null) {
+export function estimateContextPreview(settings, injection = null) {
     const memoryBudget = readTokenSetting(settings, 'memoryTokenBudget');
     const verbatimBudget = readTokenSetting(settings, 'verbatimTokenBudget');
     const queuedBudget = readTokenSetting(settings, 'queuedTokenBudget');
@@ -131,7 +135,7 @@ export function estimateContextPreview(settings, plan = null) {
     const maxL0Source = readTokenSetting(settings, 'maxL0SourceTokens');
     const snippetsPerPromotion = readTokenSetting(settings, 'snippetsPerPromotion');
     const summaryTarget = readTokenSetting(settings, 'layer0SummaryTokenTarget');
-    const imageTokens = microfichePlanTokens(plan);
+    const imageTokens = microficheInjectionTokens(injection);
     return {
         rawChatMin: verbatimBudget,
         rawChatMax: verbatimBudget + queuedBudget,

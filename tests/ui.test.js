@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
+import { buildInjection } from '../src/core/memory-injection.js';
 import { estimateContextPreview } from '../src/core/token-budget.js';
 import {
     bindDataSettingElements,
@@ -35,18 +37,37 @@ describe('context limit and trigger gauge UI models', () => {
         });
     });
 
-    it('bills the built plan page count instead of the image cap', () => {
+    it('bills images from the built injection and bills none without one', () => {
         const settings = {
+            ...defaultSettings,
             memoryTokenBudget: 10000,
             verbatimTokenBudget: 16000,
             queuedTokenBudget: 32000,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'glm',
             microficheImageCap: 80,
         };
-        const plan = { imageTexts: ['p0', 'p1'], frameTokenEstimate: 3136 };
-        expect(estimateContextPreview(settings, plan).mainMin).toBe(26000 + 2 * 3136);
-        expect(estimateContextPreview(settings, plan).mainMax).toBe(58000 + 2 * 3136);
-        expect(estimateContextPreview(settings, null).mainMin).toBe(26000);
-        expect(estimateContextPreview(settings, null).mainMax).toBe(58000);
+        const layers = [
+            [
+                { text: 'The ferry crossed at dawn.' },
+                { text: 'The gulls followed the wake.' },
+                { text: 'The harbour bell rang once.' },
+            ],
+        ];
+        const injection = buildInjection(layers, settings);
+        expect(injection.microfiche).not.toBeNull();
+        expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
+        const noImages = estimateContextPreview(settings, null);
+        expect(noImages.mainMin).toBe(26000);
+        expect(noImages.mainMax).toBe(58000);
+        const preview = estimateContextPreview(settings, injection);
+        const billedFrameTokens =
+            injection.microfiche.imageTexts.length * injection.microfiche.frameTokenEstimate;
+        expect(preview.mainMin - noImages.mainMin).toBe(billedFrameTokens);
+        expect(preview.mainMax - noImages.mainMax).toBe(billedFrameTokens);
+        const textOnly = buildInjection(layers, { ...settings, memoryMode: MEMORY_MODES.BALANCED });
+        expect(textOnly.microfiche).toBeNull();
+        expect(estimateContextPreview(settings, textOnly).mainMin).toBe(noImages.mainMin);
     });
 
     it('builds the queued gauge from the auto work read model and the queued budget', () => {

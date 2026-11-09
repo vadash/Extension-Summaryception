@@ -10,10 +10,11 @@
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
 import { getChat, getContext, saveChat, saveMetadata } from './src/foundation/context.js';
-import { saveChatStore } from './src/foundation/chat-store.js';
+import { getChatStore, saveChatStore } from './src/foundation/chat-store.js';
 import { initChatPersistence } from './src/core/persist-state.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
-import { getSettings } from './src/foundation/settings.js';
+import { getEffectiveSettings, getSettings } from './src/foundation/settings.js';
+import { buildInjection } from './src/core/memory-injection.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { createSummarizerQueue } from './src/core/summarizer-queue.js';
 import { createSummarizerDispatch } from './src/core/summarizer-request.js';
@@ -106,7 +107,10 @@ import { registerSlashCommands } from './src/entry/commands.js';
         },
         updateContinuityMarker,
         updateUI: (options) => updateUI({ ...options, queue }),
-        updatePreview: syncLLMContextPreview,
+        updatePreview: () => {
+            const settings = getEffectiveSettings();
+            syncLLMContextPreview(buildInjection(getChatStore().layers, settings), settings);
+        },
     });
     initSnippetBrowser({ notify, gate, queue, dispatch, usage });
 

@@ -234,7 +234,7 @@ describe('microfiche geometry presets', () => {
         expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
         expect(injection.microfiche.imageTexts.length).toBeLessThan(5);
         const noImages = estimateContextPreview(settings, null);
-        const preview = estimateContextPreview(settings, injection.microfiche);
+        const preview = estimateContextPreview(settings, injection);
         const billedFrameTokens =
             injection.microfiche.imageTexts.length *
             MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate;

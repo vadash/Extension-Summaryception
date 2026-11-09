@@ -8,7 +8,6 @@ import {
     splitMicroficheTexts,
 } from '../src/core/microfiche-policy.js';
 import { buildMicrofichePageTexts } from '../src/core/microfiche-paginate.js';
-import { estimateContextPreview } from '../src/core/token-budget.js';
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -174,7 +173,7 @@ describe('microfiche buildMicrofichePlan', () => {
         expect(plan.rawTexts).toEqual([...pages.slice(2), ...split.rawTexts]);
     });
 
-    it('bills the injected page count across the cap matrix', () => {
+    it('splits the built injection by the resolved cap across the cap matrix', () => {
         const cases = [
             [
                 'slider cap',
@@ -236,10 +235,6 @@ describe('microfiche buildMicrofichePlan', () => {
             const plan = buildMicrofichePlan(SNIPPETS, settings, host);
             const injection = buildInjection([SNIPPETS.map((text) => ({ text }))], settings, host);
             expect(injection.microfiche.imageTexts.length).toBe(plan.imageTexts.length);
-            const billedImages =
-                estimateContextPreview(settings, injection.microfiche).mainMin -
-                estimateContextPreview(settings, null).mainMin;
-            expect(billedImages).toBe(plan.imageTexts.length * plan.frameTokenEstimate);
         }
     });
 
