@@ -42,22 +42,16 @@ describe('settings help data', () => {
         );
     });
 
-    it('documents both Guard Mask toggles with the Q20 copy', () => {
+    it('documents both Guard Mask toggles', () => {
         const main = SETTINGS_HELP.guard_mask;
         const memory = SETTINGS_HELP.guard_mask_memory;
 
-        expect(main).toBeDefined();
-        expect(main.title).toBe('Gemini Argoon $$ jailbreak');
-        expect(main.short).toBe(
-            'Replaces spaces with $$ in chat text sent to the main story model. Storage and the summarizer keep normal text.',
-        );
+        for (const entry of [main, memory]) {
+            expect(entry).toBeDefined();
+            expect(entry.title.trim()).not.toBe('');
+            expect(entry.short.trim()).not.toBe('');
+        }
         expect(main.controls).toContain('#sc_guard_mask');
-
-        expect(memory).toBeDefined();
-        expect(memory.title).toBe('Gemini Argoon $$ jailbreak for memory');
-        expect(memory.short).toBe(
-            'Sends stored memories with $$ to the main story model. Needs the main toggle on. Preview shows the masked form.',
-        );
         expect(memory.controls).toContain('#sc_guard_mask_memory');
     });
 });

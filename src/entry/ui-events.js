@@ -28,7 +28,7 @@ import {
     bindSliderSettingPairs,
     readChecked,
     readString,
-    syncGuardMaskControls,
+    syncGuardMaskMemoryControl,
     syncRoleMaskModeControl,
 } from './ui-bind.js';
 import { bindManualRunControls } from './ui-manual-run.js';
@@ -115,7 +115,7 @@ function bindToggleHandlers(queue) {
     ].join(', ');
     bindDataSettingElements(plainToggles, {
         eventName: 'change',
-        afterSave: (settings) => syncGuardMaskControls(Boolean(settings.guardMask)),
+        afterSave: (settings) => syncGuardMaskMemoryControl(Boolean(settings.guardMask)),
     });
     // Microfiche render knobs: the markup declares each key, so the
     // data-attribute engine binds them. Geometry owns a separate change

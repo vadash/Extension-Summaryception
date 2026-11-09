@@ -329,7 +329,7 @@ export function syncRoleMaskModeControl(enabled) {
  * @param {boolean} enabled
  * @returns {void}
  */
-export function syncGuardMaskControls(enabled) {
+export function syncGuardMaskMemoryControl(enabled) {
     $('#sc_guard_mask_memory').prop('disabled', !enabled);
 }
 

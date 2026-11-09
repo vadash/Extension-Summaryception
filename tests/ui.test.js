@@ -7,7 +7,7 @@ import {
     bindDataSettingElements,
     bindSliderSettingPairs,
     readLines,
-    syncGuardMaskControls,
+    syncGuardMaskMemoryControl,
 } from '../src/entry/ui-bind.js';
 import { initConnectionUI, syncConnectionPanels } from '../src/entry/ui-connection.js';
 import { getSettings } from '../src/foundation/settings.js';
@@ -303,7 +303,7 @@ describe('Guard Mask gating', () => {
         const dom = createJQueryHarness({ attributes: MEMORY_MASK_ATTRS });
         globalThis.$ = dom.$;
 
-        syncGuardMaskControls(false);
+        syncGuardMaskMemoryControl(false);
 
         expect(dom.element('#sc_guard_mask_memory').prop('disabled')).toBe(true);
         expect(getSettings().guardMaskMemory).toBe(true);
@@ -313,7 +313,7 @@ describe('Guard Mask gating', () => {
         const dom = createJQueryHarness({ attributes: MEMORY_MASK_ATTRS });
         globalThis.$ = dom.$;
 
-        syncGuardMaskControls(true);
+        syncGuardMaskMemoryControl(true);
 
         expect(dom.element('#sc_guard_mask_memory').prop('disabled')).toBe(false);
     });
