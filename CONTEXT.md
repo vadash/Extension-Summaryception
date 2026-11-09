@@ -390,3 +390,8 @@ _Avoid_: fill threshold, image trigger
 The frozen raw-chat slice computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
 Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
+
+**Dry-Run Preview**:
+The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts, rendered with inline enlargeable images.
+Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); viewer module planned
+_Avoid_: prompt inspector view, wire dump
