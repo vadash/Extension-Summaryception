@@ -375,3 +375,18 @@ _Avoid_: extension extras, sc_ keys
 The user-confirmed destructive workflow that removes all Extension Chat Data from a chat and unhides its messages, leaving the chat as if the extension had never run.
 Code: `clearChatData` (src/core/chat-data.js); `#sc_clear_memory`, `/sc-clear`
 _Avoid_: wipe, purge
+
+**Frozen Page**:
+A rendered microfiche image whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. Rendering images every generation would break provider prefix-cache stability, and uncached input is expensive.
+Code: `readPage` / `update` (src/core/microfiche-pages.js)
+_Avoid_: cached image, snapshot
+
+**Fill Gate**:
+The rule that a sealed text span becomes an image only when it fills most of a page's capacity, per the provider's geometry and cap; otherwise it stays text. Image tokens spend from the same raw bucket, so when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
+Code: `buildMicrofichePlan` / `splitMicroficheTexts` (src/core/microfiche-policy.js)
+_Avoid_: fill threshold, image trigger
+
+**Raw Seal**:
+The frozen raw-chat slice computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
+Code: `update` / `readPage` (src/core/microfiche-pages.js)
+_Avoid_: frozen tail, raw snapshot
