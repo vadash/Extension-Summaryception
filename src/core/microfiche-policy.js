@@ -6,14 +6,12 @@ import { MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
 import { charCells, frameGrid, usesWideCells } from './microfiche-geometry.js';
 import { buildMicrofichePageTexts, resolveMicroficheShape } from './microfiche-paginate.js';
 import { resolveRawChatBucketTokens } from './token-budget.js';
+import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
 
 // A page images only when it fills at least three quarters of its capacity.
 // The trailing partial page stays text, because an underfilled frame spends a
 // full image cost for little covered text.
 const MICROFICHE_FILL_GATE_RATIO = 0.75;
-// Same fallback ratio as the plain-text token estimator. The bucket gate only
-// needs the raw text that stays text, not a tokenizer-precise count.
-const RAW_TEXT_CHARS_PER_TOKEN = 4;
 
 /**
  * @typedef {object} MicrofichePlan
@@ -183,7 +181,7 @@ function applyBucketGate(imageTexts, rawTexts, frameTokenEstimate, settings) {
  */
 function estimateRawTextTokens(texts) {
     return texts.reduce(
-        (sum, text) => sum + Math.ceil(String(text ?? '').length / RAW_TEXT_CHARS_PER_TOKEN),
+        (sum, text) => sum + Math.ceil(String(text ?? '').length / APPROX_TEXT_UNITS_PER_TOKEN),
         0,
     );
 }

@@ -125,6 +125,8 @@ interface ExtensionSettings {
     microficheFrameSize: number;
     microficheModelName: string;
     microficheGeometry: 'gemini' | 'deepseek' | 'glm' | 'custom';
+    microficheMemoryImages: boolean;
+    microficheFrozenRawImages: boolean;
     memoryTokenBudget: number;
     snippetsPerLayer: number;
     snippetsPerPromotion: number;

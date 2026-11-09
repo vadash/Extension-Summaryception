@@ -6,7 +6,7 @@ import { callTokenCountAsync } from '../foundation/context.js';
  * so they stay synchronized with this ratio, regardless of which tokenizer is
  * authoritative.
  */
-const APPROX_TEXT_UNITS_PER_TOKEN = 4;
+export const APPROX_TEXT_UNITS_PER_TOKEN = 4;
 const MESSAGE_TOKEN_CACHE_KEY = 'sc_token_count';
 
 /**

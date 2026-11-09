@@ -12,8 +12,9 @@ import {
 } from '../src/foundation/constants.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
-import { getSettings } from '../src/foundation/settings.js';
+import { getEffectiveSettings, getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
+import { syncDataSettingElements } from '../src/entry/ui-bind.js';
 import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
 
 const HTML = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
@@ -88,6 +89,52 @@ describe('microfiche panels', () => {
         expect(systemTag).not.toContain('data-sc-setting');
     });
 
+    it('saves each image placement toggle on change and restores it on the next sync', async () => {
+        installSummaryContext({
+            settings: { microficheMemoryImages: false, microficheFrozenRawImages: false },
+        });
+        globalThis.document = {};
+        const dom = createJQueryHarness({
+            attributes: {
+                '#sc_microfiche_memory_images': {
+                    type: 'checkbox',
+                    'data-sc-setting': 'microficheMemoryImages',
+                },
+                '#sc_microfiche_frozen_raw_images': {
+                    type: 'checkbox',
+                    'data-sc-setting': 'microficheFrozenRawImages',
+                },
+            },
+        });
+        globalThis.$ = dom.$;
+        const { bindUIEvents } = await import('../src/entry/ui-events.js');
+        const { gate } = makeForegroundGate();
+        bindUIEvents({
+            notify: null,
+            gate,
+            queue: { request: async () => {} },
+            manualRunnerDeps: { queue: { isBusy: () => false } },
+        });
+
+        for (const [id, key] of [
+            ['sc_microfiche_memory_images', 'microficheMemoryImages'],
+            ['sc_microfiche_frozen_raw_images', 'microficheFrozenRawImages'],
+        ]) {
+            const $toggle = dom.element(`#${id}`);
+            expect($toggle.prop('checked'), id).toBe(false);
+            $toggle.prop('checked', true);
+            dom.trigger('change', `#${id}`);
+            expect(getSettings()[key], key).toBe(true);
+            expect(getEffectiveSettings()[key], key).toBe(true);
+            // A later render pass re-reads the saved settings into the control.
+            $toggle.prop('checked', false);
+            syncDataSettingElements(`#${id}`, getSettings());
+            expect($toggle.prop('checked'), id).toBe(true);
+        }
+        delete globalThis.$;
+        delete globalThis.document;
+    });
+
     it('shows the holds-and-bills line in the microfiche panel and context preview', async () => {
         const settings = {
             ...defaultSettings,
@@ -122,6 +169,35 @@ describe('microfiche panels', () => {
             expect(line, selector).toContain('1k');
             expect(line, selector).toContain('-4k');
             expect(line, selector).toContain('48k');
+        }
+        delete globalThis.$;
+    });
+
+    it('reports unknown image billing instead of a zero-image split for custom geometry', async () => {
+        const settings = {
+            ...defaultSettings,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'custom',
+            microficheFrameSize: 512,
+            microficheImageCap: 8,
+            microficheKeepRaw: 0,
+        };
+        const injection = buildInjection([[{ text: 'word '.repeat(5000) }]], settings);
+        expect(injection.microfiche).not.toBeNull();
+        expect(injection.microfiche.frameTokenEstimate).toBe(0);
+        expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
+        const billing = describeMicroficheBilling(injection, settings);
+        expect(billing.imageTokens).toBe(0);
+        expect(billing.netTokens).toBeNull();
+
+        globalThis.$ = createJQueryHarness().$;
+        const { syncMicroficheBilling } = await import('../src/entry/ui.js');
+        syncMicroficheBilling(injection, settings);
+        for (const selector of ['#sc_microfiche_cost', '#sc_llm_context_microfiche']) {
+            const line = globalThis.$(selector).text();
+            expect(line, selector).toContain('image billing unknown');
+            expect(line, selector).not.toContain('0 to images');
+            expect(line, selector).not.toContain('left for text');
         }
         delete globalThis.$;
     });

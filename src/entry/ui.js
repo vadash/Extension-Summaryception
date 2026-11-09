@@ -167,20 +167,20 @@ function formatMicroficheBillingLine(billing) {
     if (!billing) {
         return 'No images billed.';
     }
-    const bucket =
-        `Raw bucket ${formatCompactTokenCount(billing.bucketTokens)}: ` +
-        `${formatCompactTokenCount(billing.imageTokens)} to images, ` +
-        `${formatCompactTokenCount(billing.bucketAfterImages)} left for text.`;
+    const bucket = `Raw bucket ${formatCompactTokenCount(billing.bucketTokens)}`;
     if (billing.netTokens === null) {
         return (
             `Holds ~${formatCompactTokenCount(billing.heldTokens)} text tokens. ` +
-            `Custom geometry has no preset image cost, so billing is unknown. ${bucket}`
+            `Custom geometry has no preset image cost, so billing is unknown. ` +
+            `${bucket}: image billing unknown.`
         );
     }
     return (
         `Holds ~${formatCompactTokenCount(billing.heldTokens)} text tokens → ` +
         `bills ~${formatCompactTokenCount(billing.imageTokens)} image tokens, ` +
-        `net ${formatCompactTokenCount(billing.netTokens)}. ${bucket}`
+        `net ${formatCompactTokenCount(billing.netTokens)}. ` +
+        `${bucket}: ${formatCompactTokenCount(billing.imageTokens)} to images, ` +
+        `${formatCompactTokenCount(billing.bucketAfterImages)} left for text.`
     );
 }
 

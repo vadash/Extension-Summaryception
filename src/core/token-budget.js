@@ -1,5 +1,6 @@
 import { defaultSettings } from '../foundation/constants.js';
 import { frameGrid } from './microfiche-geometry.js';
+import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
 
 // Image-token billing for the Microfiche preview: the built injection owns the
 // page count and the frame estimate, so the preview and the injected split
@@ -35,10 +36,19 @@ export function resolveRawChatBucketTokens(settings = null) {
     );
 }
 
-// Held-text tokens use the same 4 characters per token fallback ratio as the
-// Microfiche bucket gate, so capacity and text billing share one scale.
-const HELD_TEXT_CHARS_PER_TOKEN = 4;
+/**
+ * Raw-chat tokens left after image billing: the bucket less the image tokens
+ * the built injection bills. Preview and holds-and-bills read this one figure.
+ * @param {object | null} settings - Settings carrying the raw text budgets.
+ * @param {number} imageTokens - Image tokens billed by the built injection.
+ * @returns {number}
+ */
+function resolveRawChatMax(settings, imageTokens) {
+    return Math.max(0, resolveRawChatBucketTokens(settings) - imageTokens);
+}
 
+// Held-text capacity uses the shared plain-text fallback ratio, so capacity
+// and text billing share one scale.
 /**
  * Image holds-and-bills figures for the Microfiche cost line. The built
  * injection owns the page count; held text tokens derive from the frame
@@ -58,7 +68,7 @@ export function describeMicroficheBilling(injection = null, settings = null) {
     const hasFrameEstimate = Number.isFinite(frameTokens) && frameTokens > 0;
     const capacity = microfiche.shape ? frameGrid(microfiche.shape).capacity : 0;
     const imageTokens = hasFrameEstimate ? images * frameTokens : 0;
-    const heldTokens = Math.round((images * capacity) / HELD_TEXT_CHARS_PER_TOKEN);
+    const heldTokens = Math.round((images * capacity) / APPROX_TEXT_UNITS_PER_TOKEN);
     const bucketTokens = resolveRawChatBucketTokens(settings);
     return {
         images,
@@ -66,7 +76,7 @@ export function describeMicroficheBilling(injection = null, settings = null) {
         imageTokens,
         netTokens: hasFrameEstimate ? imageTokens - heldTokens : null,
         bucketTokens,
-        bucketAfterImages: Math.max(0, bucketTokens - imageTokens),
+        bucketAfterImages: resolveRawChatMax(settings, imageTokens),
     };
 }
 
@@ -186,7 +196,7 @@ export function estimateContextPreview(settings, injection = null) {
     const snippetsPerPromotion = readTokenSetting(settings, 'snippetsPerPromotion');
     const summaryTarget = readTokenSetting(settings, 'layer0SummaryTokenTarget');
     const imageTokens = microficheInjectionTokens(injection);
-    const rawChatMax = Math.max(0, resolveRawChatBucketTokens(settings) - imageTokens);
+    const rawChatMax = resolveRawChatMax(settings, imageTokens);
     const rawChatMin = Math.min(verbatimBudget, rawChatMax);
     return {
         rawChatMin,
