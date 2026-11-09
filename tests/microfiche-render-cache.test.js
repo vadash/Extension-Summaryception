@@ -81,7 +81,7 @@ function makeFakeFactory() {
     return { canvasFactory, calls, canvases };
 }
 
-function installMicroficheContext({ layers, setExtensionPrompt } = {}) {
+function installMicroficheContext({ layers, setExtensionPrompt, settings } = {}) {
     const chat = makeMessages(24);
     const resolvedLayers = layers ?? [
         [
@@ -108,7 +108,7 @@ function installMicroficheContext({ layers, setExtensionPrompt } = {}) {
     installSummaryContext({
         chat,
         metadata: { summaryception: makeSummaryStore({ layers: resolvedLayers }) },
-        settings: MICROFICHE_SETTINGS,
+        settings: settings ?? MICROFICHE_SETTINGS,
         setExtensionPrompt,
     });
     return chat;
@@ -294,6 +294,22 @@ describe('microfiche render cache LRU', () => {
 });
 
 describe('memory injection writer render cache', () => {
+    it('serves only the split page count even when the image cap is higher', () => {
+        const setExtensionPrompt = vi.fn();
+        installMicroficheContext({
+            setExtensionPrompt,
+            settings: { ...MICROFICHE_SETTINGS, microficheImageCap: 8 },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+        const pages = readAllPages(writer);
+        expect(pages.length).toBeGreaterThan(0);
+        expect(pages.length).toBeLessThan(8);
+        expect(writer.resolveMicrofichePage(pages.length)).toBeUndefined();
+    });
+
     it('reuses pages and skips the slot write when memory is unchanged', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });

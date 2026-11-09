@@ -1,6 +1,5 @@
-// Microfiche page glue: shape hashing, Canvas2D page builds, and the
-// oldest-to-images / newest-K-text layout helper. Pure argument plumbing:
-// no settings reads, no caps, no cache.
+// Microfiche page glue: shape hashing and Canvas2D page builds. Pure
+// argument plumbing: no settings reads, no caps, no cache.
 
 import { drawMicrofichePage } from './microfiche-render.js';
 
@@ -70,34 +69,4 @@ export function renderMicrofichePages(imageTexts, shape, canvasFactory) {
 export function createMicrofichePageReader(pages) {
     const slots = Array.isArray(pages) ? pages : [];
     return (index) => slots[index];
-}
-
-/**
- * Totally order the snippets: the oldest outside the verbatim window become
- * image source, the newest K stay raw text. An optional effective cap trims
- * the image source from the tail so overflow stays raw in chronological order.
- * @param {string[]} snippetTextsOldestFirst - Snippet texts in chronological order.
- * @param {number} keepRaw - Newest texts kept as raw text.
- * @param {unknown} [effectiveCap] - Optional image-snippet budget; absent means uncapped.
- * @returns {{ imageSource: string[], rawTail: string[] }} Image-bound and raw lists.
- */
-export function splitMicroficheSnippets(snippetTextsOldestFirst, keepRaw, effectiveCap) {
-    const texts = Array.isArray(snippetTextsOldestFirst) ? snippetTextsOldestFirst : [];
-    const count = Number.isFinite(keepRaw) ? Math.max(0, Math.floor(keepRaw)) : 0;
-    const boundary = Math.max(0, texts.length - count);
-    const imageSource = texts.slice(0, boundary);
-    const rawTail = texts.slice(boundary);
-    if (effectiveCap === undefined || effectiveCap === null) {
-        return { imageSource, rawTail };
-    }
-    const cap = Number.isFinite(Number(effectiveCap))
-        ? Math.max(0, Math.floor(Number(effectiveCap)))
-        : 0;
-    if (imageSource.length <= cap) {
-        return { imageSource, rawTail };
-    }
-    return {
-        imageSource: imageSource.slice(0, cap),
-        rawTail: [...imageSource.slice(cap), ...rawTail],
-    };
 }

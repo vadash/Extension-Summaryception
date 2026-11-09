@@ -11,7 +11,6 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
-import { resolveMicroficheShape } from '../core/microfiche-paginate.js';
 import { renderMicrofichePages } from '../core/microfiche-pages.js';
 import { createMicroficheRenderCache } from '../core/microfiche-render-cache.js';
 
@@ -243,14 +242,10 @@ function getInjectionKey(text, options) {
 /**
  * @param {SummaryceptionStore} store - Live chat store.
  * @param {ExtensionSettings} settings - Effective settings.
- * @returns {string[]} Built page texts covered by the live cap.
+ * @returns {string[]} Built page texts already capped by the plan.
  */
 function readMicroficheSplit(store, settings) {
-    const split = buildInjection(store.layers, settings).microfiche;
-    if (split === null || split === undefined) {
-        return [];
-    }
-    return split.imageTexts.slice(0, livePageCount(split));
+    return buildInjection(store.layers, settings).microfiche?.imageTexts ?? [];
 }
 /**
  * @param {{ renderCache: ReturnType<createMicroficheRenderCache>, canvasFactory: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null, store: SummaryceptionStore, settings: ExtensionSettings, injection: string, pageIndex: number }} input - Cache read inputs.
@@ -264,14 +259,11 @@ function readMicrofichePage({ renderCache, canvasFactory, store, settings, injec
     if (canvasFactory === null || canvasFactory === undefined) {
         return undefined;
     }
-    const limit = livePageCount(split);
+    const limit = split.imageTexts.length;
     if (!Number.isSafeInteger(pageIndex) || pageIndex < 0 || pageIndex >= limit) {
         return undefined;
     }
-    const pageTexts = split.imageTexts.slice(0, limit);
-    const shape = resolveMicroficheShape(
-        /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings)),
-    );
+    const shape = split.shape;
     const epoch = getSummaryStoreMutationEpoch(store);
     return renderCache.getPage({
         epoch,
@@ -279,22 +271,8 @@ function readMicrofichePage({ renderCache, canvasFactory, store, settings, injec
         shape,
         pageIndex,
         effectiveCap: limit,
-        render: () => renderMicrofichePages([pageTexts[pageIndex]], shape, canvasFactory)[0],
+        render: () => renderMicrofichePages([split.imageTexts[pageIndex]], shape, canvasFactory)[0],
     });
-}
-/**
- * Live pages are the built split capped by its effective cap, so overflow
- * text never renders and a shrunken cap plain-misses the cache.
- * @param {{ imageTexts: string[], effectiveCap: number }} split - Built page split.
- * @returns {number} Page count covered by the live cap.
- */
-function livePageCount(split) {
-    const images = Array.isArray(split.imageTexts) ? split.imageTexts.length : 0;
-    const cap = Math.max(0, Math.floor(Number(split.effectiveCap)));
-    if (!Number.isFinite(cap)) {
-        return 0;
-    }
-    return Math.min(images, cap);
 }
 
 /**

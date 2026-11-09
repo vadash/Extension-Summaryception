@@ -7,6 +7,11 @@ import {
     measureInjection,
     renderInjectionTemplate,
 } from '../src/core/memory-injection.js';
+import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
+import {
+    formatAnchoredSnippetNarrative,
+    formatSnippetAnchor,
+} from '../src/core/snippet-metadata.js';
 import { countTextTokens } from '../src/core/token-count.js';
 import { installSummaryContext, makeMessages } from './test-helpers.js';
 
@@ -144,10 +149,17 @@ describe('microfiche effective cap in production injection', () => {
         const injection = buildInjection(layers, knobs);
         expect(injection.microfiche.effectiveCap).toBe(8);
         expect(injection.microfiche.imageTexts.length).toBeLessThanOrEqual(8);
+        expect(injection.microfiche.shape).toMatchObject({ font: '8x8', frameSize: 64 });
         const hosted = buildInjection(layers, knobs, { imageBudget: 1 });
         expect(hosted.microfiche.effectiveCap).toBe(1);
         expect(hosted.microfiche.imageTexts.length).toBeLessThanOrEqual(1);
         expect(hosted.microfiche.rawTexts.length).toBeGreaterThan(0);
+        const flat = layers
+            .flat()
+            .map((snippet) => formatAnchoredSnippetNarrative(snippet, formatSnippetAnchor));
+        expect(hosted.microfiche.imageTexts.length).toBe(
+            buildMicrofichePlan(flat, knobs, { imageBudget: 1 }).imageTexts.length,
+        );
         expect(injection.text).toContain('aaa bbb ccc');
         const custom = buildInjection(layers, { ...knobs, microficheGeometry: 'custom' });
         expect(custom.microfiche).not.toBeNull();

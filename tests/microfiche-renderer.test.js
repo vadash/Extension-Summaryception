@@ -11,10 +11,9 @@ import {
 import {
     buildMicrofichePageTexts,
     geometry,
-    resolveMicroficheEffectiveCap,
     resolveMicroficheShape,
-    splitKeepRaw,
 } from '../src/core/microfiche-paginate.js';
+import { splitMicroficheTexts } from '../src/core/microfiche-policy.js';
 
 // Legibility parity only: this suite pins structure and order (page strings,
 // chronology, capacity math). It never compares PNG bytes, and the page texts
@@ -186,35 +185,10 @@ describe('microfiche geometry', () => {
     });
 });
 
-describe('microfiche splitKeepRaw', () => {
-    it('keeps the newest K texts raw and sends the oldest to images', () => {
-        expect(splitKeepRaw(['a', 'b', 'c', 'd'], 2)).toEqual({
-            imageTexts: ['a', 'b'],
-            rawTexts: ['c', 'd'],
-        });
-    });
-
-    it('sends everything to images when keepRaw is 0', () => {
-        expect(splitKeepRaw(['a', 'b'], 0)).toEqual({ imageTexts: ['a', 'b'], rawTexts: [] });
-    });
-
-    it('keeps everything raw when keepRaw covers the input', () => {
-        expect(splitKeepRaw(['a', 'b'], 2)).toEqual({ imageTexts: [], rawTexts: ['a', 'b'] });
-        expect(splitKeepRaw(['a', 'b'], 9)).toEqual({ imageTexts: [], rawTexts: ['a', 'b'] });
-    });
-
-    it('handles empty input', () => {
-        expect(splitKeepRaw([], 2)).toEqual({ imageTexts: [], rawTexts: [] });
-    });
-});
-
 describe('microfiche buildMicrofichePageTexts', () => {
     it('emits no image payloads, only page strings', () => {
-        const result = buildMicrofichePageTexts(
-            ['alpha one', 'beta two', 'gamma three'],
-            geminiShape(),
-            1,
-        );
+        const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
+        const result = buildMicrofichePageTexts(split.imageTexts, geminiShape());
         expect(result.imageTexts.length).toBe(1);
         expect(typeof result.imageTexts[0]).toBe('string');
         expect(JSON.stringify(result)).not.toContain('data:image');
@@ -222,21 +196,18 @@ describe('microfiche buildMicrofichePageTexts', () => {
     });
 
     it('keeps chronological order with the newest text raw', () => {
-        const result = buildMicrofichePageTexts(
-            ['alpha one', 'beta two', 'gamma three'],
-            geminiShape(),
-            1,
-        );
+        const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
+        const result = buildMicrofichePageTexts(split.imageTexts, geminiShape());
         const joined = result.imageTexts.join('\n');
         expect(joined.indexOf('alpha')).toBeLessThan(joined.indexOf('beta'));
-        expect(result.rawTexts).toEqual(['gamma three']);
+        expect(split.rawTexts).toEqual(['gamma three']);
     });
 
     it('paginates grid pages as contiguous substrings of the normalized input', () => {
         const shape = geminiShape({ frameSize: 64 });
         const input = 'word '.repeat(500);
         const normalized = normalize(input, { font: shape.font });
-        const result = buildMicrofichePageTexts([input], shape, 0);
+        const result = buildMicrofichePageTexts([input], shape);
         expect(result.imageTexts.length).toBeGreaterThan(1);
         expect(result.imageTexts.join('')).toBe(normalized);
         const geo = geometry(shape, shape.frameSize);
@@ -246,7 +217,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
     });
 
     it('yields no pages for whitespace-only input', () => {
-        expect(buildMicrofichePageTexts(['   '], geminiShape(), 0)).toEqual({
+        expect(buildMicrofichePageTexts(['   '], geminiShape())).toEqual({
             imageTexts: [],
             rawTexts: [],
         });
@@ -255,7 +226,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
     it('wraps two newspaper columns within the per-page line budget', () => {
         const shape = geminiShape({ columns: 2, frameSize: 64 });
         const geo = geometry(shape, shape.frameSize);
-        const result = buildMicrofichePageTexts(['X a b c d e f', 'Y g h i j k l'], shape, 0);
+        const result = buildMicrofichePageTexts(['X a b c d e f', 'Y g h i j k l'], shape);
         expect(result.imageTexts.length).toBeGreaterThan(0);
         for (const page of result.imageTexts) {
             expect(page.split('\n').length).toBeLessThanOrEqual(2 * geo.rows);
@@ -268,7 +239,6 @@ describe('microfiche buildMicrofichePageTexts', () => {
         const result = buildMicrofichePageTexts(
             ['the cat sat'],
             geminiShape({ stopwordDim: true }),
-            0,
         );
         expect(result.imageTexts[0]).toContain(`${DIM_ON}the${DIM_OFF}`);
     });
@@ -289,7 +259,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
                                     lineRepeat,
                                     frameSize,
                                 });
-                                const result = buildMicrofichePageTexts(texts, shape, 0);
+                                const result = buildMicrofichePageTexts(texts, shape);
                                 expect(result.imageTexts.length).toBeGreaterThan(0);
                                 const joined = stripDimMarkers(result.imageTexts.join('\n'));
                                 expect(joined.indexOf('A')).toBeLessThan(joined.indexOf('B'));
@@ -306,9 +276,9 @@ describe('microfiche buildMicrofichePageTexts with an effective cap', () => {
     it('keeps pages past the cap as raw text in chronological order', () => {
         const tiny = geminiShape({ frameSize: 64 });
         const snippets = ['aaa bbb ccc', 'ddd eee fff', 'ggg hhh iii', 'jjj kkk lll'];
-        const uncapped = buildMicrofichePageTexts(snippets, tiny, 0);
+        const uncapped = buildMicrofichePageTexts(snippets, tiny);
         expect(uncapped.imageTexts.length).toBeGreaterThan(1);
-        const overflow = buildMicrofichePageTexts(snippets, tiny, 0, 1);
+        const overflow = buildMicrofichePageTexts(snippets, tiny, 1);
         expect(overflow.imageTexts).toEqual(uncapped.imageTexts.slice(0, 1));
         expect(overflow.rawTexts.join('\n')).toContain(
             stripDimMarkers(uncapped.imageTexts.slice(1).join('\n')),
@@ -318,15 +288,9 @@ describe('microfiche buildMicrofichePageTexts with an effective cap', () => {
     it('sends every page to raw text when the cap is zero', () => {
         const tiny = geminiShape({ frameSize: 64 });
         const snippets = ['aaa bbb ccc', 'ddd eee fff'];
-        const result = buildMicrofichePageTexts(snippets, tiny, 0, 0);
+        const result = buildMicrofichePageTexts(snippets, tiny, 0);
         expect(result.imageTexts).toEqual([]);
         expect(result.rawTexts.length).toBeGreaterThan(0);
-    });
-
-    it('resolves the cap from slider, host, and preset budgets', () => {
-        expect(resolveMicroficheEffectiveCap(8, 3, 200)).toBe(3);
-        expect(resolveMicroficheEffectiveCap(8, 80, 5)).toBe(5);
-        expect(resolveMicroficheEffectiveCap('bogus', -1, Number.NaN)).toBe(0);
     });
 });
 

@@ -1,9 +1,6 @@
 import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
-import {
-    buildMicrofichePageTextsFromSettings,
-    resolveMicroficheEffectiveCap,
-} from './microfiche-paginate.js';
+import { buildMicrofichePlan } from './microfiche-policy.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
 import { countTextTokens } from './token-count.js';
 
@@ -22,7 +19,7 @@ import { countTextTokens } from './token-count.js';
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
  * @property {Array<{ layerIndex: number, text: string }>} parts - Chronology sections, deepest first.
- * @property {{ imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Capped page split for Microfiche mode, else null.
+ * @property {{ shape: import('./microfiche-paginate.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Built plan for Microfiche mode, else null.
  */
 
 /**
@@ -99,33 +96,11 @@ function buildMicroficheSplit(layers, settings, host = null) {
     if (flat.length === 0) {
         return null;
     }
-    const split = buildMicrofichePageTextsFromSettings(
+    return buildMicrofichePlan(
         flat,
         /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings)),
-        host ?? undefined,
+        host,
     );
-    const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
-    const presetBudget = isCustom
-        ? undefined
-        : 'imageBudget' in presetRecord
-          ? presetRecord.imageBudget
-          : undefined;
-    const hostBudget =
-        host !== null && host !== undefined
-            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
-            : undefined;
-    const effectiveCap = resolveMicroficheEffectiveCap(
-        settings.microficheImageCap,
-        hostBudget,
-        presetBudget,
-    );
-    const frameTokenEstimate = Number(presetRecord.frameTokenEstimate);
-    return {
-        imageTexts: split.imageTexts,
-        rawTexts: split.rawTexts,
-        effectiveCap,
-        frameTokenEstimate: Number.isFinite(frameTokenEstimate) ? frameTokenEstimate : 0,
-    };
 }
 
 /**

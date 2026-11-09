@@ -1,7 +1,6 @@
 // Microfiche pagination: explicit-knob shape, grid capacity, word wrap, and
-// the oldest-to-images / newest-K-text split. Pure string math, no DOM.
+// capped page slicing. Pure string math, no DOM.
 
-import { MICROFICHE_GEOMETRY_PRESETS as MICROFICHE_PRESETS } from '../foundation/constants.js';
 import { dimStopwords, normalize } from './microfiche-normalize.js';
 
 /**
@@ -26,8 +25,8 @@ import { dimStopwords, normalize } from './microfiche-normalize.js';
 
 /**
  * @typedef {object} MicrofichePageSplit
- * @property {string[]} imageTexts - Oldest texts, bound for image frames.
- * @property {string[]} rawTexts - Newest K texts, kept as raw text.
+ * @property {string[]} imageTexts - Pages bound for image frames.
+ * @property {string[]} rawTexts - Pages past the effective cap, in order.
  */
 
 // Char cells between the two newspaper columns.
@@ -270,61 +269,24 @@ function docPages(normalized, geo, wideCells) {
 }
 
 /**
- * Fewest images the slider, host, and preset budgets all allow. Absent
- * budgets read as unbounded, garbage reads as zero so overflow stays text.
- * @param {unknown} sliderCap - Slider images-per-injection cap.
- * @param {unknown} hostBudget - Host adapter image budget, if any.
- * @param {unknown} presetBudget - Preset image budget, if any.
- * @returns {number} Effective image cap, floored at zero.
- */
-export function resolveMicroficheEffectiveCap(sliderCap, hostBudget, presetBudget) {
-    const candidates = [sliderCap, hostBudget, presetBudget]
-        .filter((value) => value !== undefined && value !== null)
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value))
-        .map((value) => Math.max(0, Math.floor(value)));
-    if (candidates.length === 0) {
-        return 0;
-    }
-    return Math.min(...candidates);
-}
-
-/**
- * Split oldest-first snippet texts: the oldest paginate to images, the
- * newest K stay raw. keepRaw 0 means all-to-images; keepRaw past the input
- * length keeps everything raw.
- * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
- * @param {number} keepRaw - Newest texts kept as raw text.
- * @returns {MicrofichePageSplit} Image-bound and raw text lists.
- */
-export function splitKeepRaw(textsOldestFirst, keepRaw) {
-    const texts = Array.isArray(textsOldestFirst) ? textsOldestFirst : [];
-    const count = Number.isFinite(keepRaw) ? Math.max(0, Math.floor(keepRaw)) : 0;
-    const boundary = Math.max(0, texts.length - count);
-    return { imageTexts: texts.slice(0, boundary), rawTexts: texts.slice(boundary) };
-}
-
-/**
- * Build ordered page texts for the oldest snippets: normalize each, join in
+ * Paginate already image-bound snippet texts: normalize each, join in
  * chronological order, paginate to frame capacity, then stopword-dim after
  * pagination so capacity math never sees the zero-width markers. Emits
  * strings only; the Canvas2D slice turns each into a { dataUrl, text } page.
- * Pages past the effective cap stay in rawTexts in chronological order, so
+ * The optional cap slices pages; pages past it stay in rawTexts in order, so
  * overflow stays text and nothing drops silently.
- * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
+ * @param {string[]} textsToImages - Snippet texts bound for image frames.
  * @param {MicroficheShape} shape - Resolved render shape.
- * @param {number} keepRaw - Newest texts kept as raw text.
  * @param {unknown} [effectiveCap] - Optional image-page budget; absent means uncapped.
- * @returns {MicrofichePageSplit} Page texts for images plus raw texts.
+ * @returns {MicrofichePageSplit} Page texts for images plus raw overflow pages.
  */
-export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effectiveCap) {
-    const split = splitKeepRaw(textsOldestFirst, keepRaw);
-    const joined = normalize(
-        split.imageTexts.filter((text) => typeof text === 'string').join('\n'),
-        { font: shape.font },
-    );
+export function buildMicrofichePageTexts(textsToImages, shape, effectiveCap) {
+    const source = Array.isArray(textsToImages) ? textsToImages : [];
+    const joined = normalize(source.filter((text) => typeof text === 'string').join('\n'), {
+        font: shape.font,
+    });
     if (!joined) {
-        return { imageTexts: [], rawTexts: split.rawTexts };
+        return { imageTexts: [], rawTexts: [] };
     }
     const geo = geometry(shape, shape.frameSize);
     const wideCells = usesWideCells(shape);
@@ -341,43 +303,10 @@ export function buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effec
         return shape.stopwordDim ? dimStopwords(carried) : carried;
     });
     if (effectiveCap === undefined || effectiveCap === null) {
-        return { imageTexts: paged, rawTexts: split.rawTexts };
+        return { imageTexts: paged, rawTexts: [] };
     }
     const cap = Number.isFinite(Number(effectiveCap))
         ? Math.max(0, Math.floor(Number(effectiveCap)))
         : 0;
-    return {
-        imageTexts: paged.slice(0, cap),
-        rawTexts: [...paged.slice(cap), ...split.rawTexts],
-    };
-}
-
-/**
- * Page-build call site: resolve the shape from explicit knobs, the preset
- * budget from the selected preset name, then the effective cap from the
- * slider, host, and preset budgets. Custom carries no preset budget.
- * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
- * @param {Record<string, unknown>} settings - Settings carrying knobs, slider cap, and preset name.
- * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
- * @returns {MicrofichePageSplit} Page texts for images plus raw texts.
- */
-export function buildMicrofichePageTextsFromSettings(textsOldestFirst, settings, host = null) {
-    const source = settings ?? {};
-    const shape = resolveMicroficheShape(source);
-    const keepRaw = Number(source.microficheKeepRaw);
-    const geometryName = String(source.microficheGeometry ?? '');
-    const preset =
-        geometryName === 'custom' || !(geometryName in MICROFICHE_PRESETS)
-            ? null
-            : MICROFICHE_PRESETS[/** @type {'gemini' | 'deepseek' | 'glm'} */ (geometryName)];
-    const presetBudget =
-        preset !== null && 'imageBudget' in preset
-            ? /** @type {{ imageBudget?: unknown }} */ (preset).imageBudget
-            : undefined;
-    const effectiveCap = resolveMicroficheEffectiveCap(
-        source.microficheImageCap,
-        host?.imageBudget,
-        presetBudget,
-    );
-    return buildMicrofichePageTexts(textsOldestFirst, shape, keepRaw, effectiveCap);
+    return { imageTexts: paged.slice(0, cap), rawTexts: paged.slice(cap) };
 }

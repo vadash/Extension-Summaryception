@@ -3,17 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
-    buildMicrofichePageTextsFromSettings,
     geometry,
-    resolveMicroficheEffectiveCap,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
+import { buildMicrofichePlan, splitMicroficheTexts } from '../src/core/microfiche-policy.js';
 import { drawMicrofichePage } from '../src/core/microfiche-render.js';
 import {
     createMicrofichePageReader,
     hashMicroficheShape,
     renderMicrofichePages,
-    splitMicroficheSnippets,
 } from '../src/core/microfiche-pages.js';
 import {
     expandMicrofichePromptChat,
@@ -85,52 +83,6 @@ function makeFakeFactory() {
     return { canvasFactory, calls, canvases };
 }
 
-describe('microfiche splitMicroficheSnippets', () => {
-    it('sends the oldest outside the verbatim window to images, newest-K stay text', () => {
-        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 2)).toEqual({
-            imageSource: ['a', 'b'],
-            rawTail: ['c', 'd'],
-        });
-    });
-
-    it('sends everything to images when keepRaw is 0', () => {
-        expect(splitMicroficheSnippets(['a', 'b'], 0)).toEqual({
-            imageSource: ['a', 'b'],
-            rawTail: [],
-        });
-    });
-
-    it('keeps everything raw when keepRaw covers the input', () => {
-        expect(splitMicroficheSnippets(['a', 'b'], 2)).toEqual({
-            imageSource: [],
-            rawTail: ['a', 'b'],
-        });
-        expect(splitMicroficheSnippets(['a', 'b'], 9)).toEqual({
-            imageSource: [],
-            rawTail: ['a', 'b'],
-        });
-    });
-});
-
-describe('microfiche resolveMicroficheEffectiveCap', () => {
-    it('takes the smallest finite non-negative budget', () => {
-        expect(resolveMicroficheEffectiveCap(8, undefined, 200)).toBe(8);
-        expect(resolveMicroficheEffectiveCap(8, 3, 200)).toBe(3);
-        expect(resolveMicroficheEffectiveCap(8, 10, 5)).toBe(5);
-    });
-
-    it('floors to an integer at or above zero', () => {
-        expect(resolveMicroficheEffectiveCap(2.9, undefined, undefined)).toBe(2);
-        expect(resolveMicroficheEffectiveCap(-4, 8, 200)).toBe(0);
-        expect(resolveMicroficheEffectiveCap('bogus', -1, Number.NaN)).toBe(0);
-    });
-
-    it('ignores absent budgets and keeps the slider cap', () => {
-        expect(resolveMicroficheEffectiveCap(8, undefined, undefined)).toBe(8);
-        expect(resolveMicroficheEffectiveCap(8, null, null)).toBe(8);
-    });
-});
-
 describe('microfiche buildMicrofichePageTexts from settings', () => {
     const knobs = {
         ...GEMINI_KNOBS,
@@ -139,60 +91,56 @@ describe('microfiche buildMicrofichePageTexts from settings', () => {
         microficheGeometry: 'gemini',
     };
     const tiny = { ...knobs, microficheFrameSize: 64 };
-    const snippets = ['aaa bbb ccc', 'ddd eee fff', 'ggg hhh iii', 'jjj kkk lll'];
+    const snippets = [
+        'aaa bbb ccc ddd eee fff ggg hhh',
+        'iii jjj kkk lll mmm nnn ooo ppp',
+        'qqq rrr sss ttt uuu vvv www xxx',
+        'yyy zzz aaa bbb ccc ddd eee fff',
+        'ggg hhh iii jjj kkk lll mmm nnn',
+        'ooo ppp qqq rrr sss ttt uuu vvv',
+        'www xxx yyy zzz aaa bbb ccc ddd',
+        'eee fff ggg hhh iii jjj kkk lll',
+    ];
 
     it('caps image pages at the slider with unbounded host and preset budgets', () => {
-        const built = buildMicrofichePageTextsFromSettings(snippets, tiny, {});
-        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(tiny), 0);
-        expect(built.imageTexts).toEqual(uncapped.imageTexts.slice(0, 8));
-        expect(built.rawTexts.join('\n')).toContain(uncapped.imageTexts.slice(8).join('\n'));
+        const plan = buildMicrofichePlan(snippets, tiny, {});
+        const uncapped = buildMicrofichePageTexts(
+            splitMicroficheTexts(snippets, 0).imageTexts,
+            plan.shape,
+        ).imageTexts;
+        expect(uncapped.length).toBeGreaterThan(8);
+        expect(plan.imageTexts).toEqual(uncapped.slice(0, 8));
+        expect(plan.rawTexts.join('\n')).toContain(uncapped.slice(8).join('\n'));
     });
 
     it('takes the min of slider, host, and preset budgets with overflow as text', () => {
-        const hostCapped = buildMicrofichePageTextsFromSettings(snippets, tiny, { imageBudget: 1 });
-        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(tiny), 0);
-        expect(hostCapped.imageTexts).toEqual(uncapped.imageTexts.slice(0, 1));
-        expect(hostCapped.rawTexts.join('\n')).toContain(uncapped.imageTexts.slice(1).join('\n'));
+        const hostPlan = buildMicrofichePlan(snippets, tiny, { imageBudget: 1 });
+        const hostUncapped = buildMicrofichePageTexts(
+            splitMicroficheTexts(snippets, 0).imageTexts,
+            hostPlan.shape,
+        ).imageTexts;
+        expect(hostPlan.imageTexts).toEqual(hostUncapped.slice(0, 1));
+        expect(hostPlan.rawTexts.join('\n')).toContain(hostUncapped.slice(1).join('\n'));
         const glmKnobs = { ...tiny, microficheGeometry: 'glm', microficheImageCap: 80 };
-        const glmBuilt = buildMicrofichePageTextsFromSettings(snippets, glmKnobs, {});
-        const glmUncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(glmKnobs), 0);
-        expect(glmBuilt.imageTexts).toEqual(glmUncapped.imageTexts.slice(0, 5));
-        expect(glmBuilt.rawTexts.join('\n')).toContain(glmUncapped.imageTexts.slice(5).join('\n'));
+        const glmPlan = buildMicrofichePlan(snippets, glmKnobs, {});
+        const glmUncapped = buildMicrofichePageTexts(
+            splitMicroficheTexts(snippets, 0).imageTexts,
+            glmPlan.shape,
+        ).imageTexts;
+        expect(glmUncapped.length).toBeGreaterThan(5);
+        expect(glmPlan.imageTexts).toEqual(glmUncapped.slice(0, 5));
+        expect(glmPlan.rawTexts.join('\n')).toContain(glmUncapped.slice(5).join('\n'));
     });
 
     it('reads no preset budget for custom geometry', () => {
         const customKnobs = { ...tiny, microficheGeometry: 'custom', microficheImageCap: 2 };
-        const built = buildMicrofichePageTextsFromSettings(snippets, customKnobs, {});
-        const uncapped = buildMicrofichePageTexts(snippets, resolveMicroficheShape(customKnobs), 0);
-        expect(built.imageTexts).toEqual(uncapped.imageTexts.slice(0, 2));
-        expect(built.imageTexts.length).toBe(2);
-    });
-});
-
-describe('microfiche splitMicroficheSnippets with an effective cap', () => {
-    it('caps image pages and keeps the overflow as raw text in order', () => {
-        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 0, 2)).toEqual({
-            imageSource: ['a', 'b'],
-            rawTail: ['c', 'd'],
-        });
-        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 1, 1)).toEqual({
-            imageSource: ['a'],
-            rawTail: ['b', 'c', 'd'],
-        });
-    });
-
-    it('sends everything raw when the cap is zero', () => {
-        expect(splitMicroficheSnippets(['a', 'b'], 0, 0)).toEqual({
-            imageSource: [],
-            rawTail: ['a', 'b'],
-        });
-    });
-
-    it('behaves as before when the cap is absent', () => {
-        expect(splitMicroficheSnippets(['a', 'b', 'c', 'd'], 2)).toEqual({
-            imageSource: ['a', 'b'],
-            rawTail: ['c', 'd'],
-        });
+        const plan = buildMicrofichePlan(snippets, customKnobs, {});
+        const uncapped = buildMicrofichePageTexts(
+            splitMicroficheTexts(snippets, 0).imageTexts,
+            plan.shape,
+        ).imageTexts;
+        expect(plan.imageTexts).toEqual(uncapped.slice(0, 2));
+        expect(plan.imageTexts.length).toBe(2);
     });
 });
 
@@ -330,11 +278,14 @@ describe('microfiche oldest-to-images proof', () => {
     it('expands oldest pages to images in order while the raw tail stays text', () => {
         const shape = geminiShape();
         const snippets = ['alpha one', 'beta two', 'gamma three'];
-        const split = splitMicroficheSnippets(snippets, 1);
-        expect(split).toEqual({ imageSource: ['alpha one', 'beta two'], rawTail: ['gamma three'] });
+        const split = splitMicroficheTexts(snippets, 1);
+        expect(split).toEqual({
+            imageTexts: ['alpha one', 'beta two'],
+            rawTexts: ['gamma three'],
+        });
 
-        const built = buildMicrofichePageTexts(snippets, shape, 1);
-        expect(built.rawTexts).toEqual(['gamma three']);
+        const built = buildMicrofichePageTexts(split.imageTexts, shape);
+        expect(built.imageTexts.length).toBe(1);
 
         const factory = makeFakeFactory();
         const pages = renderMicrofichePages(built.imageTexts, shape, factory.canvasFactory);
@@ -342,7 +293,7 @@ describe('microfiche oldest-to-images proof', () => {
         const reader = createMicrofichePageReader(pages);
 
         const markers = pages.map((_, index) => formatMicroficheMarker(index)).join(' ');
-        const chat = [{ role: 'user', content: `${markers} ${built.rawTexts.join(' ')}` }];
+        const chat = [{ role: 'user', content: `${markers} ${split.rawTexts.join(' ')}` }];
         const swapped = expandMicrofichePromptChat(chat, reader);
         expect(swapped).toBe(pages.length);
         const content = chat[0].content;

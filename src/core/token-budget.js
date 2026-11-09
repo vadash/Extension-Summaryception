@@ -1,5 +1,5 @@
 import { MICROFICHE_GEOMETRY_PRESETS, defaultSettings } from '../foundation/constants.js';
-import { resolveMicroficheEffectiveCap } from './microfiche-paginate.js';
+import { resolveMicroficheEffectiveCap } from './microfiche-policy.js';
 
 // Image-token billing for the Microfiche preview: the estimate the catalogue
 // assigns to one rendered frame of the selected preset geometry. Text cost
