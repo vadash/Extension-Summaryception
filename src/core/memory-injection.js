@@ -15,8 +15,9 @@ import { countTextTokens } from './token-count.js';
 /**
  * The read model of what ships in the prompt slot: the Snippet Anchor form,
  * template-wrapped, with the per-layer parts kept for cost display. Microfiche
- * mode carries the capped page split too: image-bound pages plus overflow kept
- * as text, so the cap is enforced in product and nothing drops silently.
+ * mode carries the fill-gated page split too: image-bound pages plus the text
+ * tail, so the fill gate and the raw bucket are enforced in product and
+ * nothing drops silently.
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
  * @property {Array<{ layerIndex: number, text: string }>} parts - Chronology sections, deepest first.

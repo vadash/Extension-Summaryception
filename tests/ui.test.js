@@ -38,7 +38,7 @@ describe('context limit and trigger gauge UI models', () => {
         });
     });
 
-    it('bills images from the built injection and bills none without one', () => {
+    it('bills no images for a span below the fill floor', () => {
         const settings = {
             ...defaultSettings,
             memoryTokenBudget: 10000,
@@ -57,18 +57,39 @@ describe('context limit and trigger gauge UI models', () => {
         ];
         const injection = buildInjection(layers, settings);
         expect(injection.microfiche).not.toBeNull();
-        expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
+        expect(injection.microfiche.imageTexts).toEqual([]);
+        expect(injection.microfiche.rawTexts.length).toBeGreaterThan(0);
         const noImages = estimateContextPreview(settings, null);
         expect(noImages.mainMin).toBe(26000);
         expect(noImages.mainMax).toBe(58000);
-        const preview = estimateContextPreview(settings, injection);
-        const billedFrameTokens =
-            injection.microfiche.imageTexts.length * injection.microfiche.frameTokenEstimate;
-        expect(preview.mainMin - noImages.mainMin).toBe(billedFrameTokens);
-        expect(preview.mainMax - noImages.mainMax).toBe(billedFrameTokens);
+        expect(estimateContextPreview(settings, injection)).toEqual(noImages);
         const textOnly = buildInjection(layers, { ...settings, memoryMode: MEMORY_MODES.BALANCED });
         expect(textOnly.microfiche).toBeNull();
         expect(estimateContextPreview(settings, textOnly).mainMin).toBe(noImages.mainMin);
+    });
+
+    it('debits image tokens from the raw chat bucket the preview reads', () => {
+        const settings = {
+            ...defaultSettings,
+            memoryTokenBudget: 10000,
+            verbatimTokenBudget: 16000,
+            queuedTokenBudget: 32000,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'gemini',
+            microficheFrameSize: 512,
+            microficheImageCap: 8,
+            microficheKeepRaw: 0,
+        };
+        const injection = buildInjection([[{ text: 'word '.repeat(500) }]], settings);
+        expect(injection.microfiche).not.toBeNull();
+        expect(injection.microfiche.imageTexts.length).toBe(1);
+        const imageTokens =
+            injection.microfiche.imageTexts.length * injection.microfiche.frameTokenEstimate;
+        const noImages = estimateContextPreview(settings, null);
+        const preview = estimateContextPreview(settings, injection);
+        expect(preview.rawChatMax).toBe(noImages.rawChatMax - imageTokens);
+        expect(preview.mainMax).toBe(noImages.mainMax);
+        expect(preview.mainMin).toBe(noImages.mainMin + imageTokens);
     });
 
     it('builds the queued gauge from the auto work read model and the queued budget', () => {

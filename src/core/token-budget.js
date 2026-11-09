@@ -2,8 +2,9 @@ import { defaultSettings } from '../foundation/constants.js';
 
 // Image-token billing for the Microfiche preview: the built injection owns the
 // page count and the frame estimate, so the preview and the injected split
-// always agree. Text cost stays build-once/measure-built-text so identical
-// text bills identically.
+// always agree. Image tokens spend from the raw-chat bucket, so they debit the
+// same figure the preview reports as rawChatMax. Text cost stays
+// build-once/measure-built-text so identical text bills identically.
 /**
  * The injected split is the billing source: page count and frame rate come
  * from it, never from the budget knobs that produced them.
@@ -18,6 +19,19 @@ function microficheInjectionTokens(injection = null) {
         return 0;
     }
     return pages * frameTokens;
+}
+
+/**
+ * The raw-chat bucket image tokens spend from: the Recent and Queued text
+ * budgets together. Microfiche policy gates images against this same figure.
+ * @param {object | null} [settings] - Settings carrying the raw text budgets.
+ * @returns {number} Bucket size in tokens.
+ */
+export function resolveRawChatBucketTokens(settings = null) {
+    return (
+        readTokenSetting(settings ?? {}, 'verbatimTokenBudget') +
+        readTokenSetting(settings ?? {}, 'queuedTokenBudget')
+    );
 }
 
 // One source of per-layer size policy: Layer 0 output bounds, promotion
@@ -121,9 +135,9 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 /**
  * Estimate the injected-context sizes shown by the settings preview panel.
  * Text terms bill from token budgets only. The main-call line projects the
- * built Memory Injection: it adds the page count and frame estimate carried
- * by that injection's Microfiche split. A null injection, or an injection
- * with no Microfiche split, bills no images.
+ * built Memory Injection: image tokens spend from the raw-chat bucket, so they
+ * debit rawChatMax instead of inflating the total past the bucket. A null
+ * injection, or an injection with no Microfiche split, bills no images.
  * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
  * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
  * @returns {{ rawChatMin: number, rawChatMax: number, mainMin: number, mainMax: number, l0Typical: number, l0Max: number, l1Total: number }}
@@ -131,17 +145,18 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
 export function estimateContextPreview(settings, injection = null) {
     const memoryBudget = readTokenSetting(settings, 'memoryTokenBudget');
     const verbatimBudget = readTokenSetting(settings, 'verbatimTokenBudget');
-    const queuedBudget = readTokenSetting(settings, 'queuedTokenBudget');
     const minL0Source = readTokenSetting(settings, 'minSummaryBudget');
     const maxL0Source = readTokenSetting(settings, 'maxL0SourceTokens');
     const snippetsPerPromotion = readTokenSetting(settings, 'snippetsPerPromotion');
     const summaryTarget = readTokenSetting(settings, 'layer0SummaryTokenTarget');
     const imageTokens = microficheInjectionTokens(injection);
+    const rawChatMax = Math.max(0, resolveRawChatBucketTokens(settings) - imageTokens);
+    const rawChatMin = Math.min(verbatimBudget, rawChatMax);
     return {
-        rawChatMin: verbatimBudget,
-        rawChatMax: verbatimBudget + queuedBudget,
-        mainMin: memoryBudget + verbatimBudget + imageTokens,
-        mainMax: memoryBudget + verbatimBudget + queuedBudget + imageTokens,
+        rawChatMin,
+        rawChatMax,
+        mainMin: memoryBudget + rawChatMin + imageTokens,
+        mainMax: memoryBudget + rawChatMax + imageTokens,
         l0Typical: minL0Source + memoryBudget + PREVIEW_BASE_PROMPT_OVERHEAD,
         l0Max: maxL0Source + memoryBudget + PREVIEW_BASE_PROMPT_OVERHEAD,
         l1Total:

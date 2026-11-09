@@ -220,15 +220,11 @@ describe('microfiche geometry presets', () => {
             ...defaultSettings,
             memoryMode: MEMORY_MODES.MICROFICHE,
             microficheGeometry: 'glm',
+            microficheFrameSize: 512,
             microficheImageCap: 5,
+            microficheKeepRaw: 0,
         };
-        const layers = [
-            [
-                { text: 'The ferry crossed at dawn.' },
-                { text: 'The gulls followed the wake.' },
-                { text: 'The harbour bell rang once.' },
-            ],
-        ];
+        const layers = [[{ text: 'word '.repeat(1200) }]];
         const injection = buildInjection(layers, settings);
         expect(injection.microfiche).not.toBeNull();
         expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
@@ -238,8 +234,12 @@ describe('microfiche geometry presets', () => {
         const billedFrameTokens =
             injection.microfiche.imageTexts.length *
             MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate;
-        expect(preview.mainMin - noImages.mainMin).toBe(billedFrameTokens);
-        expect(preview.mainMax - noImages.mainMax).toBe(billedFrameTokens);
+        expect(preview.rawChatMax).toBe(noImages.rawChatMax - billedFrameTokens);
+        expect(preview.mainMax).toBe(noImages.mainMax);
+        expect(preview.mainMin).toBe(
+            noImages.mainMin +
+                Math.min(billedFrameTokens, noImages.rawChatMax - noImages.rawChatMin),
+        );
         const customInjection = buildInjection(layers, {
             ...settings,
             microficheGeometry: 'custom',

@@ -182,7 +182,7 @@ describe('microfiche page source', () => {
         expect(source.size()).toBe(texts.length);
     });
 
-    it('misses on text or geometry change and ignores billing extras', () => {
+    it('keeps pixels on text edits and re-renders on geometry change, ignoring billing extras', () => {
         const texts = ['page zero', 'page one'];
         const shape = resolveMicroficheShape(GEMINI_KNOBS);
         const { renderPage, calls } = makeFakeRenderer();
@@ -200,10 +200,8 @@ describe('microfiche page source', () => {
         expect(calls.length).toBe(texts.length);
 
         source.update({ plan: makePlan(texts, shape), text: 'edited injection text', epoch: 0 });
-        const reworded = source.readPage(0);
-        expect(reworded).not.toBe(first);
-        expect(reworded.text).toBe('page zero');
-        expect(calls.length).toBe(texts.length * 2);
+        expect(source.readPage(0)).toBe(first);
+        expect(calls.length).toBe(texts.length);
 
         source.update({
             plan: makePlan(texts, { ...shape, variant: 'sent' }),
@@ -211,10 +209,41 @@ describe('microfiche page source', () => {
             epoch: 0,
         });
         const reshaped = source.readPage(0);
-        expect(reshaped).not.toBe(reworded);
+        expect(reshaped).not.toBe(first);
         expect(reshaped.text).toBe('page zero');
-        expect(calls.length).toBe(texts.length * 3);
-        expect(calls[texts.length * 2].shape.variant).toBe('sent');
+        expect(calls.length).toBe(texts.length * 2);
+        expect(calls[texts.length].shape.variant).toBe('sent');
+    });
+
+    it('reuses the sealed page list when plan and text change inside one epoch', () => {
+        const { renderPage, calls } = makeFakeRenderer();
+        const source = createMicrofichePageSource({ renderPage });
+
+        source.update({ plan: makePlan(['alpha', 'beta']), text: 'built A', epoch: 0 });
+        expect(calls.map((call) => call.text)).toEqual(['alpha', 'beta']);
+
+        source.update({
+            plan: makePlan(['changed alpha', 'changed beta']),
+            text: 'built B',
+            epoch: 0,
+        });
+
+        expect(calls.map((call) => call.text)).toEqual(['alpha', 'beta']);
+        expect(source.readPage(0).text).toBe('alpha');
+        expect(source.readPage(1).text).toBe('beta');
+        expect(source.size()).toBe(2);
+    });
+
+    it('reseals the raw span after epoch drift', () => {
+        const { renderPage, calls } = makeFakeRenderer();
+        const source = createMicrofichePageSource({ renderPage });
+
+        source.update({ plan: makePlan(['alpha', 'beta']), text: 'built A', epoch: 0 });
+        source.update({ plan: makePlan(['new alpha', 'new beta']), text: 'built B', epoch: 1 });
+
+        expect(calls.map((call) => call.text)).toEqual(['alpha', 'beta', 'new alpha', 'new beta']);
+        expect(source.readPage(0).text).toBe('new alpha');
+        expect(source.readPage(1).text).toBe('new beta');
     });
 
     it('drops every page on epoch drift even when text and shape match', () => {
@@ -236,7 +265,7 @@ describe('microfiche page source', () => {
         expect(source.size()).toBe(texts.length);
     });
 
-    it('bounds reads and cache entries at the live page count', () => {
+    it('bounds reads and cache entries at the sealed page count', () => {
         const { renderPage } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
@@ -247,13 +276,13 @@ describe('microfiche page source', () => {
         });
         expect(source.size()).toBe(3);
 
-        source.update({ plan: makePlan(['one', 'two']), text: 'built injection text', epoch: 0 });
+        source.update({ plan: makePlan(['one', 'two']), text: 'built injection text', epoch: 1 });
         expect(source.size()).toBe(2);
         expect(source.readPage(2)).toBeUndefined();
         expect(source.readPage(0).text).toBe('one');
     });
 
-    it('evicts the least recently used pages when text changes at a fixed cap', () => {
+    it('keeps the sealed page set when text changes at a fixed cap', () => {
         const texts = ['alpha', 'beta', 'gamma'];
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
@@ -263,13 +292,11 @@ describe('microfiche page source', () => {
         expect(source.size()).toBe(3);
 
         source.update({ plan, text: 'built B', epoch: 0 });
-        expect(calls.length).toBe(texts.length * 2);
+        expect(calls.length).toBe(texts.length);
         expect(source.size()).toBe(3);
         expect(source.readPage(0).text).toBe('alpha');
         expect(source.readPage(1).text).toBe('beta');
         expect(source.readPage(2).text).toBe('gamma');
-        expect(calls.length).toBe(texts.length * 2);
-        expect(source.size()).toBe(3);
     });
 
     it('serves a plan built by buildMicrofichePlan exactly', () => {
@@ -382,6 +409,7 @@ describe('memory injection writer render cache', () => {
 
         const store = getChatStore();
         store.layers[0][0].text += ' brand new detail';
+        bumpSummaryStoreMutationEpoch(store);
         writer.update();
 
         expect(factory.canvases.length).toBeGreaterThan(renders);

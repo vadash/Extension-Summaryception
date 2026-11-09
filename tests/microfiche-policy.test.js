@@ -193,3 +193,38 @@ describe('microfiche buildMicrofichePlan', () => {
         }
     });
 });
+
+describe('microfiche fill gate and bucket debit', () => {
+    const settings = {
+        ...TINY,
+        microficheGeometry: 'custom',
+        microficheKeepRaw: 0,
+        microficheImageCap: 8,
+    };
+
+    it('keeps a trailing span below three quarters of a page as text', () => {
+        const plan = buildMicrofichePlan([`${'a'.repeat(16)}${'b'.repeat(4)}`], settings, {});
+        expect(plan.imageTexts).toEqual(['a'.repeat(16)]);
+        expect(plan.rawTexts).toEqual(['b'.repeat(4)]);
+    });
+
+    it('images a trailing span that reaches the three quarter fill floor', () => {
+        const plan = buildMicrofichePlan([`${'a'.repeat(16)}${'b'.repeat(12)}`], settings, {});
+        expect(plan.imageTexts).toEqual(['a'.repeat(16), 'b'.repeat(12)]);
+        expect(plan.rawTexts).toEqual([]);
+    });
+
+    it('caps images by the raw bucket after the text that stays raw', () => {
+        const bucketSettings = {
+            ...TINY,
+            microficheGeometry: 'gemini',
+            microficheKeepRaw: 0,
+            microficheImageCap: 8,
+            verbatimTokenBudget: 1125,
+            queuedTokenBudget: 1125,
+        };
+        const plan = buildMicrofichePlan(['a'.repeat(96)], bucketSettings, {});
+        expect(plan.imageTexts.length).toBe(1);
+        expect(plan.rawTexts.length).toBe(5);
+    });
+});

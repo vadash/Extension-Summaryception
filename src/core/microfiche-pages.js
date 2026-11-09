@@ -1,6 +1,6 @@
 // Microfiche page source: the one page-owning module. Consumers bind the live
-// plan, then read page N; the ephemeral per-page cache, its cap and LRU
-// eviction, and canvas capture stay behind this seam.
+// plan, then read page N; the Raw Seal, the ephemeral per-page cache, its cap
+// and LRU eviction, and canvas capture stay behind this seam.
 
 import { drawMicrofichePage } from './microfiche-render.js';
 
@@ -33,7 +33,7 @@ const SHAPE_HASH_KEYS = [
 
 /**
  * @typedef {object} MicrofichePageSource
- * @property {(input: MicrofichePageSourceInput) => void} update - Bind the live plan and warm every live page.
+ * @property {(input: MicrofichePageSourceInput) => void} update - Seal the plan for the epoch, then warm every live page.
  * @property {(pageIndex: number) => MicrofichePage | undefined} readPage - Read one page by index.
  * @property {() => number} size - Cached page count.
  */
@@ -95,18 +95,39 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
               : null;
     /** @type {MicrofichePageSourceInput | null} */
     let live = null;
-    /** @type {number | null} */
-    let cacheEpoch = null;
-    /** @type {Map<string, MicrofichePage>} */
+    /** @type {{ epoch: number, shapeHash: string, plan: MicrofichePageSourceInput['plan'] } | null} */
+    let sealed = null;
+    /** @type {Map<number, MicrofichePage>} */
     const pages = new Map();
 
     /**
+     * Seal the plan on the first update of an epoch or a geometry change. Raw
+     * chat growth does not bump the epoch, so a later update inside the same
+     * epoch reuses the sealed page list and its pixels.
      * @param {MicrofichePageSourceInput} input - Live plan, built text, and epoch.
      * @returns {void}
      */
     function update({ plan, text, epoch }) {
-        live = { plan, text, epoch };
-        const imageTexts = plan?.imageTexts;
+        const shapeHash =
+            plan === null || plan === undefined ? '' : hashMicroficheShape(plan.shape);
+        if (sealed === null || sealed.epoch !== epoch || sealed.shapeHash !== shapeHash) {
+            pages.clear();
+            sealed = {
+                epoch,
+                shapeHash,
+                plan:
+                    plan === null || plan === undefined
+                        ? null
+                        : {
+                              ...plan,
+                              imageTexts: Array.isArray(plan.imageTexts)
+                                  ? [...plan.imageTexts]
+                                  : [],
+                          },
+            };
+        }
+        live = { plan: sealed.plan, text, epoch };
+        const imageTexts = sealed.plan?.imageTexts;
         const pageCount = Array.isArray(imageTexts) ? imageTexts.length : 0;
         for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
             readPage(pageIndex);
@@ -125,63 +146,20 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         if (plan === null || plan === undefined || !Array.isArray(plan.imageTexts)) {
             return undefined;
         }
-        const imageTexts = plan.imageTexts;
         if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) {
             return undefined;
         }
-        if (cacheEpoch === null || live.epoch !== cacheEpoch) {
-            cacheEpoch = live.epoch;
-            pages.clear();
-        }
-        // The live page list is the cap: a reader never slices it itself.
-        const cap = imageTexts.length;
-        if (pageIndex >= cap) {
+        // The sealed page list is the cap: a reader never slices it itself.
+        if (pageIndex >= plan.imageTexts.length) {
             return undefined;
         }
-        evictKeysOutsideCap(cap);
-        const key = buildKey(live.epoch, live.text, plan.shape, pageIndex);
-        const hit = pages.get(key);
+        const hit = pages.get(pageIndex);
         if (hit !== undefined) {
-            pages.delete(key);
-            pages.set(key, hit);
             return hit;
         }
-        const page = renderer(imageTexts[pageIndex], plan.shape);
-        pages.set(key, page);
-        trimToCap(cap);
+        const page = renderer(plan.imageTexts[pageIndex], plan.shape);
+        pages.set(pageIndex, page);
         return page;
-    }
-
-    /**
-     * Drop every entry outside the live cap. Key order is insertion order,
-     * which the LRU refresh keeps as recency order.
-     * @param {number} cap - Live page count.
-     * @returns {void}
-     */
-    function evictKeysOutsideCap(cap) {
-        for (const key of [...pages.keys()]) {
-            if (pageIndexOf(key) >= cap) {
-                pages.delete(key);
-            }
-        }
-        trimToCap(cap);
-    }
-
-    /**
-     * Evict the least recently used entries past the live cap. Map insertion
-     * order is the recency order: hits reinsert, so the first keys are the
-     * stalest.
-     * @param {number} cap - Live page count.
-     * @returns {void}
-     */
-    function trimToCap(cap) {
-        while (pages.size > cap) {
-            const oldest = pages.keys().next();
-            if (oldest.done) {
-                return;
-            }
-            pages.delete(oldest.value);
-        }
     }
 
     /**
@@ -192,41 +170,4 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
     }
 
     return { update, readPage, size };
-}
-
-/**
- * Hash built injection text with the same FNV-1a pass the entry prompt
- * hashing uses, so equal built text always keys equal.
- * @param {string} text - Built injection text.
- * @returns {string} Eight-hex-digit text hash.
- */
-function hashMicroficheText(text) {
-    const source = String(text ?? '');
-    let hash = 0x811c9dc5;
-    for (let index = 0; index < source.length; index++) {
-        hash ^= source.charCodeAt(index);
-        hash = Math.imul(hash, 0x01000193);
-    }
-    return (hash >>> 0).toString(16).padStart(8, '0');
-}
-
-/**
- * @param {string} key - Cache key ending in the page index.
- * @returns {number} Page index, or -1 when the key is malformed.
- */
-function pageIndexOf(key) {
-    const tail = String(key).split(':').pop();
-    const index = Number(tail);
-    return Number.isSafeInteger(index) ? index : -1;
-}
-
-/**
- * @param {number} epoch
- * @param {string} text
- * @param {import('./microfiche-geometry.js').MicroficheShape} shape
- * @param {number} pageIndex
- * @returns {string}
- */
-function buildKey(epoch, text, shape, pageIndex) {
-    return `${String(epoch)}:${hashMicroficheText(text)}:${hashMicroficheShape(shape)}:${String(pageIndex)}`;
 }
