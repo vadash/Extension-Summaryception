@@ -7,7 +7,7 @@ import { buildMicrofichePageTexts, resolveMicroficheShape } from './microfiche-p
 
 /**
  * @typedef {object} MicrofichePlan
- * @property {import('./microfiche-paginate.js').MicroficheShape} shape - Resolved render shape.
+ * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
  * @property {number} keepRaw - Normalized newest-K raw-text count.
  * @property {number} effectiveCap - Images per injection after budget reconciliation.
  * @property {string[]} imageTexts - Capped page texts bound for image frames.

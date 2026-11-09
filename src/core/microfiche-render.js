@@ -3,9 +3,15 @@
 // layout walk feeds both the height measure and the painter, so capacity math
 // and drawing cannot disagree. Row-major grid or two newspaper columns.
 
-// Zero-width ink toggles ride in page strings from slice 1 and take no cell.
-const DIM_ON = '\u000e';
-const DIM_OFF = '\u000f';
+import { DIM_OFF, DIM_ON } from './microfiche-normalize.js';
+import {
+    DOC_GUTTER,
+    charCells,
+    frameGrid,
+    nextCell,
+    usesWideCells,
+} from './microfiche-geometry.js';
+
 // Newline runs folded to one full-ink cell by the slice-1 normalizer.
 const FULL_BLOCK = '█';
 
@@ -16,55 +22,12 @@ const DIM_INK = '#808080';
 const BLACK_INK = '#000000';
 const REPEAT_BAND = '#fff7c2';
 
-// Char cells between the two newspaper columns; matches slice-1 pagination.
-const DOC_GUTTER = 3;
 // Vision processors reject tiny frames, so short pages pad to this height.
 const MIN_FRAME_HEIGHT = 64;
 // Monospace advance runs about 0.6em, so the px size is the cell pitch
 // clamped to the advance-fit width; every fillText lands in its cell box.
 const MONOSPACE_ADVANCE = 0.6;
 const FONT_FAMILY = 'monospace';
-
-// East Asian wide/fullwidth ranges; two grid cells in narrow bitmap shapes.
-// Values shared with slice 1, so capacity math matches the draw.
-const WIDE_RANGES = [
-    [0x1100, 0x115f],
-    [0x2e80, 0x2eff],
-    [0x2f00, 0x2fdf],
-    [0x3000, 0x303e],
-    [0x3041, 0x33ff],
-    [0x3400, 0x4dbf],
-    [0x4e00, 0x9fff],
-    [0xa000, 0xa4cf],
-    [0xac00, 0xd7a3],
-    [0xf900, 0xfaff],
-    [0xfe30, 0xfe4f],
-    [0xff00, 0xff60],
-    [0xffe0, 0xffe6],
-    [0x20000, 0x2fffd],
-    [0x30000, 0x3fffd],
-];
-
-/**
- * @param {number} codePoint
- * @returns {boolean} True for East Asian wide/fullwidth ranges.
- */
-function isWideCodePoint(codePoint) {
-    return WIDE_RANGES.some(([low, high]) => codePoint >= low && codePoint <= high);
-}
-
-/**
- * @param {string} ch - One Unicode character.
- * @param {boolean} wideCells - Whether wide glyphs span two cells.
- * @returns {number} Grid cells the character occupies.
- */
-function charCells(ch, wideCells) {
-    if (ch === DIM_ON || ch === DIM_OFF) {
-        return 0;
-    }
-    const codePoint = ch.codePointAt(0);
-    return wideCells && codePoint !== undefined && isWideCodePoint(codePoint) ? 2 : 1;
-}
 
 /**
  * @param {string} ch - One Unicode character.
@@ -137,14 +100,7 @@ function takeInk(layout, ch) {
  */
 function placeCell(layout, ch, ink) {
     const units = charCells(ch, layout.wideCells);
-    let cell = layout.cursor;
-    if (
-        units === 2 &&
-        layout.cols >= 2 &&
-        (layout.doc ? cell === layout.cols - 1 : cell % layout.cols === layout.cols - 1)
-    ) {
-        cell += 1;
-    }
+    const cell = nextCell(layout.cursor, units, layout.cols, layout.doc);
     layout.cursor = cell + units;
     if (layout.doc) {
         if (layout.cursor > layout.cols) {
@@ -173,7 +129,7 @@ function placeCell(layout, ch, ink) {
  * cell, sent ink advances past a terminator plus space, wide glyphs pad off
  * row and column edges, and doc lines past the second column drop.
  * @param {string} pageText - Normalized page string with ink toggles.
- * @param {import('./microfiche-paginate.js').MicroficheShape} shape - Render shape.
+ * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
  * @param {number} cols - Printable cells per row (per column for docs).
  * @param {number} rows - Printable text lines per frame.
  * @returns {{ cells: MicroficheLaidCell[], usedRows: number }} Cells plus hugging row count.
@@ -183,7 +139,7 @@ function layoutPage(pageText, shape, cols, rows) {
     const layout = {
         cells: [],
         doc: shape.columns === 2,
-        wideCells: shape.font !== 'silver',
+        wideCells: usesWideCells(shape),
         blackInk: shape.variant !== 'sent',
         cols,
         rows,
@@ -227,16 +183,12 @@ function layoutPage(pageText, shape, cols, rows) {
  * keeps this module host-free: the browser passes document-backed creation
  * while tests record calls. Height hugs the printed rows with a 64px floor.
  * @param {string} pageText - Normalized page string with ink toggles.
- * @param {import('./microfiche-paginate.js').MicroficheShape} shape - Render shape.
+ * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
  * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }} canvasFactory - Injected canvas source.
  * @returns {MicroficheDrawnPage} Canvas size plus laid-out cells.
  */
 export function drawMicrofichePage(pageText, shape, canvasFactory) {
-    const gridCols = Math.max(1, Math.floor(shape.frameSize / shape.cellWidth));
-    const rows = Math.max(1, Math.floor(shape.frameSize / shape.cellHeight / shape.lineRepeat));
-    const cols =
-        shape.columns === 2 ? Math.max(1, Math.floor((gridCols - DOC_GUTTER) / 2)) : gridCols;
-    const repeat = Math.max(1, Math.floor(shape.lineRepeat));
+    const { cols, rows, repeat } = frameGrid(shape);
     const { cells, usedRows } = layoutPage(pageText, shape, cols, rows);
     const contentHeight = usedRows * repeat * shape.cellHeight;
     const height = Math.max(MIN_FRAME_HEIGHT, contentHeight);

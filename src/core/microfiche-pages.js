@@ -26,7 +26,7 @@ const SHAPE_HASH_KEYS = [
 /**
  * Canonical string over geometry keys only, so equal reading geometry
  * hashes equal even when billing extras ride along.
- * @param {import('./microfiche-paginate.js').MicroficheShape & Record<string, unknown>} shape - Render shape.
+ * @param {import('./microfiche-geometry.js').MicroficheShape & Record<string, unknown>} shape - Render shape.
  * @returns {string} Canonical key string.
  */
 export function hashMicroficheShape(shape) {
@@ -38,7 +38,7 @@ export function hashMicroficheShape(shape) {
  * injected canvas per page, and toDataURL runs on that same canvas, so the
  * image matches the laid-out text. Input order in, page order out.
  * @param {string[]} imageTexts - Page strings in chronological order.
- * @param {import('./microfiche-paginate.js').MicroficheShape} shape - Render shape.
+ * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
  * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }} canvasFactory - Injected canvas source.
  * @returns {MicrofichePage[]} Pages in input order.
  */

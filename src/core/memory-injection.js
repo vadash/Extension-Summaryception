@@ -19,7 +19,7 @@ import { countTextTokens } from './token-count.js';
  * @typedef {object} MemoryInjection
  * @property {string} text - Prompt-slot text; empty when there are no memories.
  * @property {Array<{ layerIndex: number, text: string }>} parts - Chronology sections, deepest first.
- * @property {{ shape: import('./microfiche-paginate.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Built plan for Microfiche mode, else null.
+ * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null} microfiche - Built plan for Microfiche mode, else null.
  */
 
 /**

@@ -10,9 +10,9 @@ import {
 } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
-    geometry,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
+import { frameGrid } from '../src/core/microfiche-geometry.js';
 import { splitMicroficheTexts } from '../src/core/microfiche-policy.js';
 
 // Legibility parity only: this suite pins structure and order (page strings,
@@ -165,22 +165,29 @@ describe('microfiche resolveMicroficheShape', () => {
 
 describe('microfiche geometry', () => {
     it('computes grid capacity for one column', () => {
-        expect(geometry(geminiShape(), 2048)).toEqual({ cols: 256, rows: 93, capacity: 23808 });
+        expect(frameGrid(geminiShape(), 2048)).toEqual({
+            cols: 256,
+            rows: 93,
+            capacity: 23808,
+            repeat: 1,
+        });
     });
 
     it('splits two columns around a 3-cell gutter', () => {
-        expect(geometry(geminiShape({ columns: 2 }), 2048)).toEqual({
+        expect(frameGrid(geminiShape({ columns: 2 }), 2048)).toEqual({
             cols: 126,
             rows: 93,
             capacity: 23436,
+            repeat: 1,
         });
     });
 
     it('divides rows by the line repeat', () => {
-        expect(geometry(geminiShape({ lineRepeat: 2 }), 2048)).toEqual({
+        expect(frameGrid(geminiShape({ lineRepeat: 2 }), 2048)).toEqual({
             cols: 256,
             rows: 46,
             capacity: 11776,
+            repeat: 2,
         });
     });
 });
@@ -210,7 +217,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
         const result = buildMicrofichePageTexts([input], shape);
         expect(result.imageTexts.length).toBeGreaterThan(1);
         expect(result.imageTexts.join('')).toBe(normalized);
-        const geo = geometry(shape, shape.frameSize);
+        const geo = frameGrid(shape, shape.frameSize);
         for (const page of result.imageTexts) {
             expect(page.length).toBeLessThanOrEqual(geo.capacity);
         }
@@ -225,7 +232,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
 
     it('wraps two newspaper columns within the per-page line budget', () => {
         const shape = geminiShape({ columns: 2, frameSize: 64 });
-        const geo = geometry(shape, shape.frameSize);
+        const geo = frameGrid(shape, shape.frameSize);
         const result = buildMicrofichePageTexts(['X a b c d e f', 'Y g h i j k l'], shape);
         expect(result.imageTexts.length).toBeGreaterThan(0);
         for (const page of result.imageTexts) {

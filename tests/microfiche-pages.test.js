@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
-    geometry,
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
+import { frameGrid } from '../src/core/microfiche-geometry.js';
 import { buildMicrofichePlan, splitMicroficheTexts } from '../src/core/microfiche-policy.js';
 import { drawMicrofichePage } from '../src/core/microfiche-render.js';
 import {
@@ -210,7 +210,7 @@ describe('microfiche drawMicrofichePage', () => {
 
     it('offsets the second newspaper column past the gutter', () => {
         const shape = geminiShape({ columns: 2 });
-        const geo = geometry(shape, shape.frameSize);
+        const geo = frameGrid(shape, shape.frameSize);
         const secondColumnX = (geo.cols + 3) * shape.cellWidth;
         const lines = [];
         for (let index = 0; index < geo.rows + 2; index += 1) {

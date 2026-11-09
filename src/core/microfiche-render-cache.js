@@ -14,7 +14,7 @@ import { hashMicroficheShape } from './microfiche-pages.js';
  * @typedef {object} MicroficheCacheGetInput
  * @property {number} epoch - Mutation Epoch the derived pages belong to.
  * @property {string} text - Built injection text the pages render.
- * @property {import('./microfiche-paginate.js').MicroficheShape} shape - Resolved render shape.
+ * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
  * @property {number} pageIndex - Page index within the live cap.
  * @property {unknown} effectiveCap - Live image cap for this render.
  * @property {() => MicroficheCachePage} render - Renders the page on a miss.
@@ -132,7 +132,7 @@ function pageIndexOf(key) {
 /**
  * @param {number} epoch
  * @param {string} text
- * @param {import('./microfiche-paginate.js').MicroficheShape} shape
+ * @param {import('./microfiche-geometry.js').MicroficheShape} shape
  * @param {number} pageIndex
  * @returns {string}
  */
