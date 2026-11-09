@@ -6,7 +6,7 @@ import {
 } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan, splitMicroficheTexts } from '../src/core/microfiche-policy.js';
 import {
-    createMicrofichePageReader,
+    createMicrofichePageSource,
     hashMicroficheShape,
     renderMicrofichePages,
 } from '../src/core/microfiche-pages.js';
@@ -165,11 +165,16 @@ describe('microfiche renderMicrofichePages', () => {
 
     it('reads pages back through the transport resolvePage signature', () => {
         const factory = makeFakeFactory();
-        const pages = renderMicrofichePages(['one', 'two'], geminiShape(), factory.canvasFactory);
-        const reader = createMicrofichePageReader(pages);
-        expect(reader(0)).toBe(pages[0]);
-        expect(reader(1)).toBe(pages[1]);
-        expect(reader(9)).toBe(undefined);
+        const source = createMicrofichePageSource({ canvasFactory: factory.canvasFactory });
+        source.update({
+            plan: { shape: geminiShape(), imageTexts: ['one', 'two'] },
+            text: 'built injection text',
+            epoch: 0,
+        });
+        expect(source.readPage(0).text).toBe('one');
+        expect(source.readPage(1).text).toBe('two');
+        expect(source.readPage(9)).toBe(undefined);
+        expect(typeof source.readPage(0).dataUrl).toBe('string');
     });
 });
 
@@ -208,11 +213,18 @@ describe('microfiche oldest-to-images proof', () => {
         const factory = makeFakeFactory();
         const pages = renderMicrofichePages(built.imageTexts, shape, factory.canvasFactory);
         expect(pages.length).toBeGreaterThan(0);
-        const reader = createMicrofichePageReader(pages);
+        const source = createMicrofichePageSource({
+            canvasFactory: makeFakeFactory().canvasFactory,
+        });
+        source.update({
+            plan: { shape, imageTexts: built.imageTexts },
+            text: 'built injection text',
+            epoch: 0,
+        });
 
         const markers = pages.map((_, index) => formatMicroficheMarker(index)).join(' ');
         const chat = [{ role: 'user', content: `${markers} ${split.rawTexts.join(' ')}` }];
-        const swapped = expandMicrofichePromptChat(chat, reader);
+        const swapped = expandMicrofichePromptChat(chat, (index) => source.readPage(index));
         expect(swapped).toBe(pages.length);
         const content = chat[0].content;
         expect(Array.isArray(content)).toBe(true);

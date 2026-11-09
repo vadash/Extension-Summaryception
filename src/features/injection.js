@@ -11,8 +11,7 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
-import { renderMicrofichePages } from '../core/microfiche-pages.js';
-import { createMicroficheRenderCache } from '../core/microfiche-render-cache.js';
+import { createMicrofichePageSource } from '../core/microfiche-pages.js';
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
@@ -23,8 +22,8 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * last-written key, its committed snapshot, and the macro registration flag.
  * The composition root constructs it once (ADR-0031); a test builds its own
  * instance instead of resetting module state. The instance also holds the
- * ephemeral per-page Microfiche render cache: tab memory only, cleared on
- * Mutation Epoch drift, so chat switch and reload kill it with the instance.
+ * Microfiche page source: tab memory only, cleared on Mutation Epoch drift,
+ * so chat switch and reload kill it with the instance.
  * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
@@ -39,7 +38,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
     let activeInjectionSnapshot = null;
     let activeInjectionOptions = null;
     let memoryMacroRegistered = false;
-    const renderCache = createMicroficheRenderCache();
+    const pageSource = createMicrofichePageSource({ canvasFactory });
 
     /**
      * @param {{ logMemoryStatus?: boolean }} [updateOptions] - Diagnostic logging options
@@ -54,12 +53,10 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
             activeInjectionSnapshot = nextInjection;
             activeInjectionOptions = nextOptions;
 
-            refreshMicrofichePages({
-                renderCache,
-                canvasFactory,
-                store,
-                settings,
-                injection: nextInjection,
+            pageSource.update({
+                plan: buildInjection(store.layers, settings).microfiche,
+                text: nextInjection,
+                epoch: getSummaryStoreMutationEpoch(store),
             });
 
             const nextKey = getInjectionKey(nextInjection, nextOptions);
@@ -78,8 +75,20 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         }
     }
 
-    const resolvePage = (pageIndex) =>
-        resolveMicrofichePageAt({ renderCache, canvasFactory, pageIndex });
+    /**
+     * Read one rendered Microfiche page by index for the transport expansion
+     * seam. Unrendered indexes stay undefined.
+     * @param {number} pageIndex - Page index within the live plan.
+     * @returns {{ dataUrl: string, text: string } | undefined} Rendered page or undefined.
+     */
+    function resolveMicrofichePage(pageIndex) {
+        try {
+            return pageSource.readPage(pageIndex);
+        } catch (e) {
+            warn('memory injection microfiche read error:', e);
+            return undefined;
+        }
+    }
 
     /**
      * Reapply the last committed injection snapshot without reading pending changes.
@@ -122,30 +131,9 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         reassert,
         registerMacro: registerMemoryMacro,
         options: getMemoryInjectionOptions,
-        resolveMicrofichePage: resolvePage,
+        resolveMicrofichePage,
     };
 }
-/**
- * Render every live Microfiche page through the instance cache, so repeat
- * injections reuse pages without new canvases. The text-only write gate
- * in update stays the sole slot-write path; binary never enters it.
- * @param {{ renderCache: ReturnType<createMicroficheRenderCache>, canvasFactory: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null, store: SummaryceptionStore, settings: ExtensionSettings, injection: string }} input - Cache inputs.
- * @returns {void}
- */
-function refreshMicrofichePages({ renderCache, canvasFactory, store, settings, injection }) {
-    const pageTexts = readMicroficheSplit(store, settings);
-    for (let pageIndex = 0; pageIndex < pageTexts.length; pageIndex += 1) {
-        readMicrofichePage({
-            renderCache,
-            canvasFactory,
-            store,
-            settings,
-            injection,
-            pageIndex,
-        });
-    }
-}
-
 /**
  * @param {ExtensionSettings} [settings]
  * @returns {{ position: number, depth: number, scan: boolean, role: number }}
@@ -170,31 +158,6 @@ function getMemoryInjectionOptions(settings = getEffectiveSettings()) {
         role: mapMemoryRole(settings.customMemoryRole),
     };
 }
-/**
- * Read one rendered Microfiche page back by index for the transport
- * expansion seam. Unrendered indexes stay undefined.
- * @param {{ renderCache: ReturnType<createMicroficheRenderCache>, canvasFactory: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null, pageIndex: number }} input - Cache read inputs.
- * @returns {{ dataUrl: string, text: string } | undefined} Rendered page or undefined.
- */
-function resolveMicrofichePageAt({ renderCache, canvasFactory, pageIndex }) {
-    try {
-        const store = getChatStore();
-        const settings = getEffectiveSettings();
-        const injection = buildDirectInjectionText(settings);
-        return readMicrofichePage({
-            renderCache,
-            canvasFactory,
-            store,
-            settings,
-            injection,
-            pageIndex,
-        });
-    } catch (e) {
-        warn('memory injection microfiche read error:', e);
-        return undefined;
-    }
-}
-
 /**
  * Macro-only placement serves memory through the macro, so this builds
  * text only for standard placements.
@@ -237,42 +200,6 @@ function mapMemoryRole(role) {
 
 function getInjectionKey(text, options) {
     return JSON.stringify({ text, options });
-}
-
-/**
- * @param {SummaryceptionStore} store - Live chat store.
- * @param {ExtensionSettings} settings - Effective settings.
- * @returns {string[]} Built page texts already capped by the plan.
- */
-function readMicroficheSplit(store, settings) {
-    return buildInjection(store.layers, settings).microfiche?.imageTexts ?? [];
-}
-/**
- * @param {{ renderCache: ReturnType<createMicroficheRenderCache>, canvasFactory: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null, store: SummaryceptionStore, settings: ExtensionSettings, injection: string, pageIndex: number }} input - Cache read inputs.
- * @returns {{ dataUrl: string, text: string } | undefined} Rendered page or undefined.
- */
-function readMicrofichePage({ renderCache, canvasFactory, store, settings, injection, pageIndex }) {
-    const split = buildInjection(store.layers, settings).microfiche;
-    if (split === null || split === undefined) {
-        return undefined;
-    }
-    if (canvasFactory === null || canvasFactory === undefined) {
-        return undefined;
-    }
-    const limit = split.imageTexts.length;
-    if (!Number.isSafeInteger(pageIndex) || pageIndex < 0 || pageIndex >= limit) {
-        return undefined;
-    }
-    const shape = split.shape;
-    const epoch = getSummaryStoreMutationEpoch(store);
-    return renderCache.getPage({
-        epoch,
-        text: injection,
-        shape,
-        pageIndex,
-        effectiveCap: limit,
-        render: () => renderMicrofichePages([split.imageTexts[pageIndex]], shape, canvasFactory)[0],
-    });
 }
 
 /**

@@ -121,6 +121,11 @@ built injection, so preview and prompt agree (#55:36).
 
 ## 5. PNG cache contract
 
+Every page read crosses one page source seam, `createMicrofichePageSource` in
+`src/core/microfiche-pages.js`: the consumer binds the live plan with `update`,
+then reads page N through `readPage`, and page splitting, cache key and
+eviction, and canvas capture stay behind it.
+
 Per-page in-memory map keyed `epoch:textHash:shapeHash:pageIndex`, where the
 text hash covers the built injection text, the shape hash covers the geometry
 keys only, and the page index runs within the live cap (#55:81-84).
