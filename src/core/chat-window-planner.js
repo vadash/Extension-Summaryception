@@ -119,7 +119,7 @@ async function collectLiveData(chat, sourceStartIdx, settings) {
         chat,
         sourceStartIdx,
         chat.length - 1,
-        settings,
+        { settings },
     )) {
         addBudgetStats(liveStats, stats);
         entries.push({ index, message, stats });

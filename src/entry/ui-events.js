@@ -307,9 +307,22 @@ function onResetDefaults() {
 
 /**
  * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate the import commit crosses.
  * @returns {void}
  */
 function bindClickHandlers(notify, gate) {
+    bindMemoryClickHandlers(notify, gate);
+    bindMicroficheClickHandlers();
+    bindTemplateClickHandlers();
+}
+
+/**
+ * Memory buttons: clear, refresh preview, export, import, and reset defaults.
+ * @param {import('../core/notify.js').NotifyAdapter} notify - Toastr-backed adapter for the import commit.
+ * @param {import('../core/foreground-gate.js').ForegroundGate} gate - Foreground Gate the import commit crosses.
+ * @returns {void}
+ */
+function bindMemoryClickHandlers(notify, gate) {
     $(document).on('click', '#sc_clear_memory', async function () {
         if (!confirm('Clear ALL Summaryception memory for this chat and unghost all messages?')) {
             return;
@@ -347,6 +360,13 @@ function bindClickHandlers(notify, gate) {
     $(document).on('click', '#sc_import', () => triggerImport(notify, gate));
 
     $(document).on('click', '#sc_reset_defaults', onResetDefaults);
+}
+
+/**
+ * Microfiche model lookup and shape selection.
+ * @returns {void}
+ */
+function bindMicroficheClickHandlers() {
     $(document).on('click', '#sc_microfiche_lookup', () => {
         const query = String($('#sc_microfiche_model_name').val() ?? '');
         const shapes = lookupModelShapes(query);
@@ -377,7 +397,13 @@ function bindClickHandlers(notify, gate) {
         }
         saveAndRefreshUi();
     });
+}
 
+/**
+ * Injection Wrapper Template buttons: recall-repeat insert and default restore.
+ * @returns {void}
+ */
+function bindTemplateClickHandlers() {
     $(document).on('click', '#sc_insert_recall_template', function () {
         if (
             !confirm(

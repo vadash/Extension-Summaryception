@@ -3,5 +3,5 @@
  * the Continuity Block injection both read it, so re-enabling the Auditor is
  * one line: flip the flag.
  */
-// TODO TEMP: Auditor disabled until the prompt rewrite lands
+// TEMP: Auditor disabled until the prompt rewrite lands; re-enable by flipping the flag below.
 export const AUDITOR_DISABLED = true;

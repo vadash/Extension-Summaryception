@@ -63,6 +63,37 @@ import { buildLayer0RetryTighteningLine, resolveL0RetryBaseCap } from './repair-
  */
 
 /**
+ * One hop attempt finished the whole call.
+ *
+ * @typedef {object} HopAttemptOutcomeSettlement
+ * @property {'outcome'} kind - Settlement discriminant.
+ * @property {import('./run-outcome.js').RunOutcome} outcome - The settled Run Outcome.
+ */
+
+/**
+ * One hop attempt ended the hop; the walk advances to the next route.
+ *
+ * @typedef {object} HopAttemptAdvanceSettlement
+ * @property {'advance'} kind - Settlement discriminant.
+ * @property {HopAdvance} advance - The advance signal the walk consumes.
+ */
+
+/**
+ * One hop attempt failed retryably; the hop retries it.
+ *
+ * @typedef {object} HopAttemptRetrySettlement
+ * @property {'retry'} kind - Settlement discriminant.
+ * @property {Error} lastError - The attempt's error.
+ * @property {AttemptResult} attemptResult - The settled attempt, for retry bookkeeping.
+ */
+
+/**
+ * How `runHopAttempt` settles for the hop's retry loop.
+ *
+ * @typedef {HopAttemptOutcomeSettlement | HopAttemptAdvanceSettlement | HopAttemptRetrySettlement} HopAttemptSettlement
+ */
+
+/**
  * The Run Outcome of one summarizer request. Completed outcomes carry the
  * accepted text and the profile it was accepted under, so callers never
  * re-validate the text.
@@ -324,60 +355,35 @@ async function runHop({
             debug(`${routeLabel} retry attempt ${attempt}/${maxRetries}`);
         }
 
-        const messages = buildAttemptMessages({
+        const settlement = await runHopAttempt({
             prompt,
             repairPrompt,
             recall,
             repairRecall,
-            useRepairPrompt,
-            repairFeedback,
-            tighteningLine: buildLayer0RetryTighteningLine({
-                attempt,
-                baseCap: resolveL0RetryBaseCap(profile),
-                rejectedDraft,
-            }),
-        });
-        const attemptResult = await runLoggedAttempt({
-            prompt: messages.prompt,
-            recall: messages.recall,
             signal,
-            attempt,
             profile,
-            connection: route.connection,
-            timeoutMs: route.timeoutMs,
-            routeLabel,
             notify,
             usage,
+            route,
+            routeLabel,
+            maxRetries,
+            attempt,
+            priorAttempts,
+            attempts,
+            useRepairPrompt,
+            repairFeedback,
+            rejectedDraft,
         });
 
-        if (attemptResult.status === 'completed') {
-            return buildCompletedOutcome(attemptResult.text, profile);
+        if (settlement.kind === 'outcome') {
+            return settlement.outcome;
+        }
+        if (settlement.kind === 'advance') {
+            return settlement.advance;
         }
 
-        lastError = /** @type {Error} */ (attemptResult.error);
-
-        if (attemptResult.status === 'aborted') {
-            return abortRun(notify);
-        }
-
-        const stopReason = getRetryStopReason(
-            /** @type {{ status: 'hard-failover' | 'guard-stopped' | 'failed' | 'rejected', retryable?: boolean }} */ (
-                attemptResult
-            ),
-            attempt,
-            maxRetries,
-        );
-        if (stopReason) {
-            logRetryStopReason(stopReason, maxRetries);
-            if (stopReason === 'non-retryable') {
-                return failSummarization(
-                    lastError,
-                    { retriesExhausted: false, attempts: priorAttempts + attempts },
-                    notify,
-                );
-            }
-            return { advance: true, reason: stopReason, error: lastError, attempts };
-        }
+        const attemptResult = settlement.attemptResult;
+        lastError = settlement.lastError;
 
         if (attemptResult.status === 'rejected') {
             rejectedDraft = attemptResult.text || '';
@@ -392,6 +398,113 @@ async function runHop({
     }
 
     return { advance: true, reason: 'retries-exhausted', error: lastError, attempts };
+}
+
+/**
+ * Run one hop attempt and settle it for the retry loop: the whole-call
+ * outcome, an advance to the next route, or the settled attempt the loop
+ * retries with.
+ * @param {object} p
+ * @param {string} p.prompt - Base payload message
+ * @param {string} p.repairPrompt - Repair payload message
+ * @param {string} p.recall - Base recall message
+ * @param {string} p.repairRecall - Repair recall message
+ * @param {AbortSignal} p.signal - Abort signal
+ * @param {import('./call-profile.js').CallProfile} p.profile - Call profile resolved at dispatch
+ * @param {import('./notify.js').NotifyAdapter} p.notify - Notify adapter for mid-run notices
+ * @param {import('./summarizer-usage.js').UsageLedger} p.usage - Usage Ledger this hop records token usage into
+ * @param {import('./call-profile.js').CallProfileRoute} p.route - Resolved connection and timeout for this hop
+ * @param {string} p.routeLabel - Route label for structured logs
+ * @param {number} p.maxRetries - Retry budget for this hop
+ * @param {number} p.attempt - Zero-based attempt index
+ * @param {number} p.priorAttempts - Attempts already spent in earlier hops
+ * @param {number} p.attempts - Attempts started in this hop, including this one
+ * @param {boolean} p.useRepairPrompt - Whether this attempt uses the repair prompt
+ * @param {string} p.repairFeedback - Attempt-local feedback for the repair recall
+ * @param {string} p.rejectedDraft - Cleaned output of the last rejected attempt
+ * @returns {Promise<HopAttemptSettlement>}
+ */
+async function runHopAttempt({
+    prompt,
+    repairPrompt,
+    recall,
+    repairRecall,
+    signal,
+    profile,
+    notify,
+    usage,
+    route,
+    routeLabel,
+    maxRetries,
+    attempt,
+    priorAttempts,
+    attempts,
+    useRepairPrompt,
+    repairFeedback,
+    rejectedDraft,
+}) {
+    const messages = buildAttemptMessages({
+        prompt,
+        repairPrompt,
+        recall,
+        repairRecall,
+        useRepairPrompt,
+        repairFeedback,
+        tighteningLine: buildLayer0RetryTighteningLine({
+            attempt,
+            baseCap: resolveL0RetryBaseCap(profile),
+            rejectedDraft,
+        }),
+    });
+    const attemptResult = await runLoggedAttempt({
+        prompt: messages.prompt,
+        recall: messages.recall,
+        signal,
+        attempt,
+        profile,
+        connection: route.connection,
+        timeoutMs: route.timeoutMs,
+        routeLabel,
+        notify,
+        usage,
+    });
+
+    if (attemptResult.status === 'completed') {
+        return { kind: 'outcome', outcome: buildCompletedOutcome(attemptResult.text, profile) };
+    }
+
+    const lastError = /** @type {Error} */ (attemptResult.error);
+
+    if (attemptResult.status === 'aborted') {
+        return { kind: 'outcome', outcome: abortRun(notify) };
+    }
+
+    const stopReason = getRetryStopReason(
+        /** @type {{ status: 'hard-failover' | 'guard-stopped' | 'failed' | 'rejected', retryable?: boolean }} */ (
+            attemptResult
+        ),
+        attempt,
+        maxRetries,
+    );
+    if (stopReason) {
+        logRetryStopReason(stopReason, maxRetries);
+        if (stopReason === 'non-retryable') {
+            return {
+                kind: 'outcome',
+                outcome: failSummarization(
+                    lastError,
+                    { retriesExhausted: false, attempts: priorAttempts + attempts },
+                    notify,
+                ),
+            };
+        }
+        return {
+            kind: 'advance',
+            advance: { advance: true, reason: stopReason, error: lastError, attempts },
+        };
+    }
+
+    return { kind: 'retry', lastError, attemptResult };
 }
 
 function logRetryStopReason(reason, maxRetries) {

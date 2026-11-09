@@ -181,7 +181,10 @@ export function createUsageLedger() {
     return { withRun, record, estimate };
 }
 
-/** The user turns of one request, joined so one tokenizer call measures them. */
+/**
+ * The user turns of one request, joined so one tokenizer call measures them.
+ * @returns {string}
+ */
 function buildUserMessage(prompt, recall) {
     return recall ? `${prompt || ''}\n\n${recall}` : `${prompt || ''}`;
 }

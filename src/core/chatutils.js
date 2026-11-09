@@ -231,8 +231,8 @@ async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @param {number} startIndex - Requested start index
  * @param {number} endIndex - Requested end index
- * @param {ExtensionSettings} settings
- * @param {object} [options] - Retention policy for the scan.
+ * @param {object} [options] - Scan options.
+ * @param {ExtensionSettings} [options.settings] - Settings supplying regex script behavior; defaults to the effective settings.
  * @param {(message: ChatMessage) => boolean} [options.isIncluded] - Retention predicate; defaults to summarizer planning rules.
  * @yields {CountedChatMessage} Counted messages in traversal order
  */
@@ -240,8 +240,7 @@ export async function* countedChatMessages(
     chat,
     startIndex,
     endIndex,
-    settings,
-    { isIncluded = isSummarizerConversationMessage } = {},
+    { settings = getEffectiveSettings(), isIncluded = isSummarizerConversationMessage } = {},
 ) {
     const promptDepths = getPromptDepthsByChatIndex(chat);
     for (const { index, message } of iterateChatRange(chat, startIndex, endIndex)) {
@@ -287,13 +286,10 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
     const accumulator = { ...createBudgetStats(), finalLines: /** @type {string[]} */ ([]) };
 
     if (endIdx >= startIdx) {
-        for await (const { stats, finalLine } of countedChatMessages(
-            chat,
-            startIdx,
-            endIdx,
-            getEffectiveSettings(),
-            { isIncluded: isSummarizerPassageMessage },
-        )) {
+        for await (const { stats, finalLine } of countedChatMessages(chat, startIdx, endIdx, {
+            settings: getEffectiveSettings(),
+            isIncluded: isSummarizerPassageMessage,
+        })) {
             accumulator.finalLines.push(finalLine);
             addBudgetStats(accumulator, stats);
         }

@@ -173,7 +173,7 @@ export function resolveL0RetryBaseCap(profile) {
 }
 
 /**
- *
+ * @returns {number}
  */
 export function countSentences(text) {
     const trimmed = String(text || '').trim();

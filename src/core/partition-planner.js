@@ -79,7 +79,7 @@ export async function countSourceRangeTokens(chat, startIdx, endIdx, settings) {
         return stats;
     }
 
-    for await (const entry of countedChatMessages(chat, startIdx, endIdx, settings)) {
+    for await (const entry of countedChatMessages(chat, startIdx, endIdx, { settings })) {
         addBudgetStats(stats, entry.stats);
     }
 

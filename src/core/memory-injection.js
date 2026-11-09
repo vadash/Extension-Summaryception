@@ -70,6 +70,7 @@ export function buildInjection(layers, settings = getEffectiveSettings(), host =
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} settings
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
+ * @returns {{ shape: import('./microfiche-geometry.js').MicroficheShape, keepRaw: number, imageTexts: string[], rawTexts: string[], effectiveCap: number, frameTokenEstimate: number } | null}
  */
 function buildMicroficheSplit(layers, settings, host = null) {
     if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE || !Array.isArray(layers)) {

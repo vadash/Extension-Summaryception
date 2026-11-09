@@ -126,6 +126,7 @@ const PREVIEW_DEEP_MEMORY_OVERHEAD = 1000;
  * with no Microfiche split, bills no images.
  * @param {ReturnType<typeof import('../foundation/settings.js').getSettings>} settings
  * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @returns {{ rawChatMin: number, rawChatMax: number, mainMin: number, mainMax: number, l0Typical: number, l0Max: number, l1Total: number }}
  */
 export function estimateContextPreview(settings, injection = null) {
     const memoryBudget = readTokenSetting(settings, 'memoryTokenBudget');

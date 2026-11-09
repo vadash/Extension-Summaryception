@@ -484,7 +484,10 @@ async function prepareManualRun(deps, recoverReason) {
     );
 }
 
-/** @param {Partial<ManualRunTally>} [overrides] @returns {ManualRunTally} */
+/**
+ * @param {Partial<ManualRunTally>} [overrides]
+ * @returns {ManualRunTally}
+ */
 function createManualRunTally(overrides = {}) {
     return {
         completed: 0,
@@ -498,7 +501,10 @@ function createManualRunTally(overrides = {}) {
     };
 }
 
-/** @param {ManualRunTally} tally @returns {ManualRunProgress} */
+/**
+ * @param {ManualRunTally} tally
+ * @returns {ManualRunProgress}
+ */
 function createProgress(tally) {
     return {
         completed: tally.completed,
