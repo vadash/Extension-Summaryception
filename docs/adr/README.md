@@ -1,12 +1,8 @@
 # ADRs
 
-Decisions live here as `NNNN-slug.md`, one paragraph each (ADR-0025; the shape and the criteria for offering one are in `docs/agents/domain.md`).
-
-A superseded decision that keeps its file states its successor in `status:` frontmatter. A superseded decision whose successor restates it whole is **retired**: the file is deleted and its number moves to the table below.
+One paragraph per `NNNN-slug.md` (ADR-0025; criteria in `docs/agents/domain.md`). Retired numbers are spent and citable only by their row; each successor must stay live (`tests/adr-shape.test.js`).
 
 ## Retired numbers
-
-Numbers listed here were used and are spent — nothing may reuse them. The file is gone because its successor restates the decision whole, so the title is the only remaining record of what it decided, and the successor is the authority in force. `tests/adr-shape.test.js` treats these numbers as resolvable citations, asserts each row's successor is still a live file, and asserts no live file claims a retired number.
 
 | Number | Title | Superseded by |
 | ------ | ----- | ------------- |
@@ -18,5 +14,5 @@ Numbers listed here were used and are spent — nothing may reuse them. The file
 | 0012 | Latest checkpoint wins, no validation | 0017 |
 | 0013 | Regenerated replies drop their checkpoint at generation start | 0017 |
 | 0014 | Continuity Checkpoint: payload in message extra, latest wins | 0017 |
-
-ADR-0007, ADR-0010, ADR-0011, ADR-0012, and ADR-0013 were superseded first by ADR-0014, which ADR-0017 then consolidated; the table names the authority in force rather than the intermediate step.
+| 0024 | One Route Series owns one Narrative Chain hop | 0035 |
+| 0030 | One Call Session per summarizer call | 0035 |

@@ -1,13 +1,12 @@
 # The attempt path consumes the resolved Call Profile only
 
-`src/core/call-profile.js` resolves the last unfrozen policy facts at dispatch — the Easy Summarizer Context cap (`easyContextLimit`), the CN ideograph flag (`stripChineseIdeographs`), the Layer 0 size band (`sizeGuard`: target, min, max, and the narrow repair ceiling, null when the family validates no size), and the configured output-strip patterns (`stripPatterns`) — so `settings` leaves the attempt path's interfaces. `checkEasyContextGuard`, `applyChineseOutputPolicy`, and `validateLayer0OutputSize` read that resolved policy, `runSingleAttempt`, `RequestRunner.run`, and `processSummarizerResponse` no longer take `settings`, and the attempt's dead `layer0Repair`/`repairFeedback` inputs are gone because the runner folds repair into the prompt before dispatch.
+The attempt path consumes the resolved Call Profile only, so `settings` leaves its interfaces: the Easy Summarizer Context cap, the CN ideograph flag, the Layer 0 size band (narrow repair ceiling, null when the family validates no size), and the output-strip patterns join the profile resolved at dispatch (ADR-0008). The guards read it; `runSingleAttempt`, `RequestRunner.run`, and `processSummarizerResponse` no longer take `settings`; and the dead repair inputs are gone because the runner folds repair into the prompt.
 
 ## Considered Options
 
-- **Keeping `settings` beside the profile on the attempt interface** — a second policy channel re-opens exactly the mid-run drift ADR-0008 rejected, where an edit made while a call is in flight changed that call's policy between retries.
+- **Keeping `settings` beside the profile on the attempt interface** — a second policy channel re-opens the mid-run drift ADR-0008 rejected.
 - **Freezing the size band as a flag plus separate bounds** — one decision split across two places is the shape this deletes.
-- **Moving the promotion prompt target into the policy** — the promotion prompt is dispatch-built and immutable after, so its validation reads settings at its own dispatch.
 
 ## Consequences
 
-Zero behaviour delta while settings are static: the same guards trigger with the same numbers, errors, and logs. The intended delta is that a mid-run settings edit applies to future calls only, never to an in-flight call's retries. Tests construct the frozen guard through `resolveCallProfile`, `SummarizerCallMetadata` — the resolver's input, the call category plus the dispatch provenance — moves beside `resolveCallProfile`, and `CONTEXT.md` names it Call Metadata.
+Zero behaviour delta while settings are static; a mid-run edit applies to future calls only, not in-flight retries. `SummarizerCallMetadata` moves beside `resolveCallProfile` (CONTEXT.md: Call Metadata), and tests construct the frozen guard through the resolver.

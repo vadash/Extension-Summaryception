@@ -1,13 +1,12 @@
 # Editorial hierarchy in the default summarizer prompts
 
-The default Layer 0 and promotion prompts adapt summarizer_v1.1's salience hierarchy (firsts, shifts, and breaks; salient moments versus excess tissue; cause-to-effect chains) and its thread-maintenance rules (stale is not resolved; revise threads in place) instead of adopting its output format; they live in the Layer 0 task rules, the promotion synthesis priorities, and both repair prompts (`src/foundation/prompt-constants.js`). The pipeline hard-binds to a narrative-only contract: exactly one `<narrative>…</narrative>` envelope (the Output Envelope) with a non-empty prose body between its tags, nothing but whitespace before the open tag and nothing after the close tag but one trailing `current_date_time: YYYY-MM-DD HH ddd` scene-time line whose weekday is re-derived from the ISO date in UTC (`SCENE_TIME_LINE_RE`, `src/core/snippet-metadata.js`); `validateLayer0Structure` (`src/core/layer0-compression.js`) enforces the envelope. Output Hygiene's Refusal Guard classifies a Refusal inside or instead of the envelope — the `<declined>` escape-hatch marker the prompts sanction, lexical refusal patterns, and the passage-shape signal — and rejects it as retryable. Supersedes ADR-0005.
+The default Layer 0 and promotion prompts adapt summarizer_v1.1's salience hierarchy (firsts, shifts, breaks; salient versus excess tissue; cause-to-effect chains) and thread-maintenance rules (stale is not resolved; revise threads in place) rather than its output format. The pipeline hard-binds to a narrative-only contract: exactly one `<narrative>` envelope with a non-empty prose body, whitespace only outside it, and one trailing `current_date_time: YYYY-MM-DD HH ddd` scene-time line. The Refusal Guard rejects a Refusal inside or instead of the envelope as retryable. Supersedes ADR-0005.
 
 ## Considered Options
 
-- **Adopt v1.1's seven-section output format** — a memory-model rewrite, not a prompt swap.
-- **Monotone never-delete anchor persistence** — memory must compress, so omission means dropped, and the salience rules exist precisely to decide what may not drop.
-- **Single full-line header without a close tag** — cheaper to validate, but a Refusal wearing the header passes; the close tag gives the guard a document-level positive contract.
+- **Adopt v1.1's seven-section output format** — a memory-model rewrite.
+- **Single full-line header without a close tag** — cheaper, but a Refusal wearing the header passes.
 
 ## Consequences
 
-There is no `[STATE]` section, no state compactor, and no snapshot engine: the scene-time key is the only structured line. The promotion input is one consolidated `<narrative>` paragraph under a hard sentence cap, and the Layer 0 size guard together with the integrity checks of Output Hygiene enforce the contract. Snippets stored before the envelope keep reading through the reader's bracket-header strip; old chats are never rewritten.
+No `[STATE]` section, compactor, or snapshot engine: the scene-time key is the only structured line. Promotion input is one `<narrative>` paragraph under a sentence cap. Pre-envelope snippets read through the bracket-header strip; no chat is rewritten.

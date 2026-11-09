@@ -1,7 +1,7 @@
 # Auditor gets its own connection, with one settled pass
 
-The Auditor previously shared the Layer 0 summarizer connection and its fallback route. It then gained a dedicated primary route (the default still inherits Layer 0, so nothing changes until a user separates it); it now runs exactly one settled pass over that route — no auditor fallback route, no narrative failover, and no LLM repair call. The removed `auditorFallback*` keys and the narrative-failover toggle are dead stored values, not migrated; an inherited Auditor still runs the Narrative Chain exactly as a Layer 0 call would, fallback hop included. The Catch-up Window re-covers whatever a failed pass leaves unaudited, and Parse Recovery rescues a syntactically broken reply programmatically before classification — recovery is code, never a second model call.
+The Auditor has its own primary route (default: inherit Layer 0) and runs exactly one settled pass — no auditor fallback route, no narrative failover, no LLM repair call. The removed `auditorFallback*` keys and narrative-failover toggle are dead stored values, not migrated; an inherited Auditor still runs the Narrative Chain as a Layer 0 call.
 
-Considered options: keep the two-hop Auditor chain and the failover toggle for resilience; add an LLM repair pass after a malformed draft. Rejected — the audit is background work whose gap self-heals within a turn or two, so a second connection (and a third LLM call) bought latency, cost, and settings surface for coverage the Catch-up Window already provides.
+Considered options: keep the two-hop chain and failover toggle; add an LLM repair pass. Rejected — the audit self-heals within a turn or two (ADR-0017); both added latency, cost, and settings surface.
 
-Consequences: one uniform connection card for the Auditor in the Models tab; the standard same-route retry budget still applies (one logical call, quick retries included); Parse Recovery runs at classification time, and the `recovery_tier` line in the continuity state audit log is the only trace of a rescue.
+Consequences: one connection card for the Auditor; `recovery_tier` in the audit log is the only Parse Recovery trace.
