@@ -149,6 +149,10 @@ describe('microfiche effective cap in production injection', () => {
         expect(hosted.microfiche.imageTexts.length).toBeLessThanOrEqual(1);
         expect(hosted.microfiche.rawTexts.length).toBeGreaterThan(0);
         expect(injection.text).toContain('aaa bbb ccc');
+        const custom = buildInjection(layers, { ...knobs, microficheGeometry: 'custom' });
+        expect(custom.microfiche).not.toBeNull();
+        expect(custom.microfiche.imageTexts.length).toBeGreaterThan(0);
+        expect(custom.microfiche.effectiveCap).toBe(8);
     });
 });
 

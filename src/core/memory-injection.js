@@ -79,8 +79,9 @@ function buildMicroficheSplit(layers, settings, host = null) {
         return null;
     }
     const name = String(settings.microficheGeometry ?? '');
+    const isCustom = name === 'custom';
     const preset = MICROFICHE_GEOMETRY_PRESETS[name];
-    if (!preset) {
+    if (!preset && !isCustom) {
         return null;
     }
     const flat = [];
@@ -104,7 +105,11 @@ function buildMicroficheSplit(layers, settings, host = null) {
         host ?? undefined,
     );
     const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
-    const presetBudget = 'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined;
+    const presetBudget = isCustom
+        ? undefined
+        : 'imageBudget' in presetRecord
+          ? presetRecord.imageBudget
+          : undefined;
     const hostBudget =
         host !== null && host !== undefined
             ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
