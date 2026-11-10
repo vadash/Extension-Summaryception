@@ -4,8 +4,10 @@ import { MEMORY_MODES } from '../src/foundation/constants.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import {
     buildMicrofichePlan,
+    buildMicroficheRawPlan,
     resolveMicroficheEffectiveCap,
 } from '../src/core/microfiche-policy.js';
+import { makeRawChatSlice } from './test-helpers.js';
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -226,5 +228,66 @@ describe('microfiche fill gate and bucket debit', () => {
         const plan = buildMicrofichePlan(['a'.repeat(96)], bucketSettings, {});
         expect(plan.imageTexts.length).toBe(1);
         expect(plan.rawTexts.length).toBe(5);
+    });
+});
+
+describe('microfiche frozen-raw bucket billing', () => {
+    const rawSettings = {
+        ...GEMINI_KNOBS,
+        microficheGeometry: 'gemini',
+        microficheKeepRaw: 0,
+        microficheFrozenRawImages: true,
+        verbatimTokenBudget: 20000,
+        queuedTokenBudget: 16000,
+    };
+
+    function billedRawTokens(plan) {
+        const frameTokens = plan.imageTexts.length * plan.frameTokenEstimate;
+        const tailTokens = plan.rawTexts.reduce(
+            (sum, text) => sum + Math.max(1, Math.ceil(text.length / 4)),
+            0,
+        );
+        return frameTokens + tailTokens;
+    }
+
+    it('bills the raw shipped tail inside the shared bucket', () => {
+        const plan = buildMicroficheRawPlan(
+            ['word '.repeat(28800)],
+            { ...rawSettings, microficheFrameSize: 256, microficheImageCap: 8 },
+            {},
+        );
+        expect(billedRawTokens(plan)).toBeLessThanOrEqual(36000);
+    });
+
+    it('reports over-cap when gated pages wait on a zero bucket cap', () => {
+        const plan = buildMicroficheRawPlan(
+            ['x'.repeat(18000)],
+            {
+                ...rawSettings,
+                microficheImageCap: 8,
+                verbatimTokenBudget: 0,
+                queuedTokenBudget: 0,
+            },
+            {},
+        );
+        expect(plan.effectiveCap).toBe(0);
+        expect(plan.imageTexts).toEqual([]);
+        expect(plan.overCap).toBe(true);
+    });
+
+    it('keeps the cap maximum when a frame costs less than its page text', () => {
+        const plan = buildMicroficheRawPlan(
+            makeRawChatSlice(9),
+            {
+                ...rawSettings,
+                microficheImageCap: 8,
+                verbatimTokenBudget: 5000,
+                queuedTokenBudget: 5000,
+            },
+            {},
+        );
+        expect(plan.effectiveCap).toBe(4);
+        expect(plan.imageTexts).toHaveLength(4);
+        expect(plan.overCap).toBe(true);
     });
 });

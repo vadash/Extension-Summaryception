@@ -110,7 +110,6 @@ export function buildMicrofichePlan(textsOldestFirst, settings, host = null) {
     const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
         frameTokenEstimate: estimate,
         bucketTokens: Math.max(0, resolveRawChatBucketTokens(source)),
-        chargeRawText: true,
     });
     return {
         shape,
@@ -175,7 +174,6 @@ export function buildMicroficheRawPlan(
     const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
         frameTokenEstimate,
         bucketTokens,
-        chargeRawText: false,
     });
     return {
         shape,
@@ -183,7 +181,7 @@ export function buildMicroficheRawPlan(
         imageTexts: budgeted.imageTexts,
         rawTexts: budgeted.rawTexts,
         frameTokenEstimate,
-        overCap: effectiveCap > 0 && budgeted.imageTexts.length < filled.imageTexts.length,
+        overCap: budgeted.imageTexts.length < filled.imageTexts.length,
     };
 }
 
@@ -256,29 +254,27 @@ function resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate) {
 }
 
 /**
- * Move the newest image pages back to text until the images fit the bucket.
- * The memory region's raw text is extra context that spends the same bucket,
- * so it is charged; the raw region's text is the bucket's own candidate slice
- * and is already charged, so it passes `chargeRawText: false` (ADR-0045).
+ * Move the newest image pages back to text until the kept images and the
+ * shipped tail fit the bucket. A page whose text costs at least one frame is
+ * never demoted, because demoting it raises the bill and no split can fit.
  * @param {string[]} imageTexts - Fill-gated image pages, oldest first.
  * @param {string[]} rawTexts - Pages that stay text.
- * @param {{ frameTokenEstimate: number, bucketTokens: number, chargeRawText: boolean }} budget - Frame cost, bucket size, and whether text already pays.
+ * @param {{ frameTokenEstimate: number, bucketTokens: number }} budget - Frame cost and bucket size.
  * @returns {{ imageTexts: string[], rawTexts: string[] }} Bucket-fitting split.
  */
-function fitImagesToBucket(
-    imageTexts,
-    rawTexts,
-    { frameTokenEstimate, bucketTokens, chargeRawText },
-) {
+function fitImagesToBucket(imageTexts, rawTexts, { frameTokenEstimate, bucketTokens }) {
     if (frameTokenEstimate <= 0) {
         return { imageTexts, rawTexts };
     }
     const images = imageTexts.slice();
     const text = rawTexts.slice();
     while (images.length > 0) {
-        const billed =
-            images.length * frameTokenEstimate + (chargeRawText ? estimateRawTextTokens(text) : 0);
+        const billed = images.length * frameTokenEstimate + estimateRawTextTokens(text);
         if (billed <= bucketTokens) {
+            break;
+        }
+        const newest = /** @type {string} */ (images[images.length - 1]);
+        if (estimateTextTokens(newest) >= frameTokenEstimate) {
             break;
         }
         text.unshift(/** @type {string} */ (images.pop()));
