@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
@@ -366,5 +367,97 @@ describe('enabled content rendering', () => {
         expect(toggles['#sc_continuity_section']).toBe(false);
         expect(toggles['#sc_stop_summarize, #sc_easy_stop_summarize']).toBe(false);
         expect(toggles['#sc_resume_summarize, #sc_easy_resume_summarize']).toBe(false);
+    });
+});
+
+describe('status budget bar order', () => {
+    const html = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
+
+    it('renders Memory Block above Verbatim Window above Queued Trigger', () => {
+        const memory = html.indexOf('id="sc_memory_budget_bar"');
+        const verbatim = html.indexOf('id="sc_verbatim_budget_bar"');
+        const trigger = html.indexOf('id="sc_trigger_budget_bar"');
+
+        expect(memory).toBeGreaterThan(-1);
+        expect(verbatim).toBeGreaterThan(-1);
+        expect(trigger).toBeGreaterThan(-1);
+        expect(memory).toBeLessThan(verbatim);
+        expect(verbatim).toBeLessThan(trigger);
+        expect(trigger).toBeLessThan(html.indexOf('id="sc_budget_reason"'));
+        expect(html.indexOf('id="sc_budget_reason"')).toBeLessThan(
+            html.indexOf('id="sc_backlog_strip"'),
+        );
+    });
+});
+
+describe('budget reason and backlog strip rendering', () => {
+    const SETTINGS = {
+        memoryTokenBudget: 10000,
+        verbatimTokenBudget: 20000,
+        queuedTokenBudget: 16000,
+        microficheImageCap: 4,
+    };
+    const WORK = {
+        ready: true,
+        backlog: 10,
+        verbatimTokens: 16000,
+        verbatimEstimated: false,
+        verbatimImageTokens: 1000,
+        queuedTokens: 3000,
+        queuedEstimated: false,
+        queuedImageTokens: 3000,
+    };
+
+    it('prints the at-cap reason in red above the backlog split', async () => {
+        const { renderBudgetStatus } = await import('../src/entry/ui.js');
+        const dom = createJQueryHarness();
+        globalThis.$ = dom.$;
+
+        await renderBudgetStatus(
+            SETTINGS,
+            WORK,
+            { parts: [] },
+            {
+                microficheRaw: {
+                    effectiveCap: 4,
+                    imageTexts: ['p1', 'p2', 'p3', 'p4'],
+                    rawTexts: ['t1'],
+                    overCap: true,
+                },
+            },
+        );
+
+        expect(dom.element('#sc_memory_budget_total').text()).toBe('0 / 10k');
+        expect(dom.element('#sc_verbatim_budget_total').text()).toBe('16k / 20k');
+        expect(dom.element('#sc_trigger_budget_total').text()).toBe('3k / 16k');
+        expect(dom.element('#sc_budget_reason').text()).toBe(
+            'at cap 4/4 images, next page waits, memory update next',
+        );
+        expect(dom.element('#sc_budget_reason').hasClass('sc-context-total-over')).toBe(true);
+        expect(dom.element('#sc_backlog_strip').text()).toBe('backlog 10 = 4 images + 6 text');
+    });
+
+    it('keeps the reason neutral when imaging is not blocked', async () => {
+        const { renderBudgetStatus } = await import('../src/entry/ui.js');
+        const dom = createJQueryHarness();
+        globalThis.$ = dom.$;
+
+        await renderBudgetStatus(
+            SETTINGS,
+            WORK,
+            { parts: [] },
+            {
+                microficheRaw: {
+                    effectiveCap: 4,
+                    imageTexts: ['p1', 'p2'],
+                    rawTexts: [],
+                    overCap: false,
+                },
+            },
+        );
+
+        expect(dom.element('#sc_budget_reason').text()).toBe('imaging 2/4 images');
+        expect(dom.element('#sc_budget_reason').hasClass('sc-context-total-over')).toBe(false);
+        expect(dom.element('#sc_backlog_strip').text()).toBe('backlog 10 = 2 images + 8 text');
     });
 });

@@ -292,6 +292,15 @@
                 <section class="sc-section">
                     <div class="sc-section-header sc-budget-subheader">
                         <h4 class="sc-section-title">
+                            <span class="fa-solid fa-layer-group"></span>
+                            Memory Block
+                        </h4>
+                        <span id="sc_memory_budget_total" class="sc-context-total">0 / 0</span>
+                    </div>
+                    <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Memory block token usage"></div>
+                    <div id="sc_memory_budget_legend" class="sc-context-legend"></div>
+                    <div class="sc-section-header sc-budget-subheader">
+                        <h4 class="sc-section-title">
                             <span class="fa-solid fa-message"></span>
                             Verbatim Window
                         </h4>
@@ -308,15 +317,8 @@
                     </div>
                     <div id="sc_trigger_budget_bar" class="sc-context-bar" aria-label="Queued tokens toward summarization trigger"></div>
                     <div id="sc_trigger_budget_legend" class="sc-context-legend"></div>
-                    <div class="sc-section-header sc-budget-subheader">
-                        <h4 class="sc-section-title">
-                            <span class="fa-solid fa-layer-group"></span>
-                            Memory Block
-                        </h4>
-                        <span id="sc_memory_budget_total" class="sc-context-total">0 / 0</span>
-                    </div>
-                    <div id="sc_memory_budget_bar" class="sc-context-bar" aria-label="Memory block token usage"></div>
-                    <div id="sc_memory_budget_legend" class="sc-context-legend"></div>
+                    <div id="sc_budget_reason" class="sc-budget-reason"></div>
+                    <div id="sc_backlog_strip" class="sc-backlog-strip"></div>
                 </section>
                 <section class="sc-section">
                     <div class="sc-section-header">

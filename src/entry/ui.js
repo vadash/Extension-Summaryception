@@ -26,8 +26,10 @@ import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
 import {
     buildAutoWorkBudgetParts,
+    buildBacklogSplitModel,
     buildContextBudgetViewModel,
     buildEnabledContentModel,
+    buildMicroficheReasonModel,
     buildTriggerGaugeModel,
     formatBudgetTokenLabel,
     getContextColorClass,
@@ -75,7 +77,7 @@ export async function updateUI({ queue }) {
 
         await renderStatusOverview('sc_status', 'enabled', overview);
         await renderStatusOverview('sc_easy_status', 'mode', overview);
-        await renderBudgetStatus(effectiveSettings, work, memoryUsage);
+        await renderBudgetStatus(effectiveSettings, work, memoryUsage, memoryInjection);
         await renderMemoryBudget(effectiveSettings, memoryUsage, 'easy_memory');
         renderLayerStats(effectiveSettings, store, ghostedCount);
         await renderPreview(memoryInjection, memoryUsage);
@@ -277,10 +279,38 @@ function syncMicroficheGeometryLock(unlocked) {
     }
 }
 
-async function renderBudgetStatus(s, work, memoryUsage) {
+/**
+ * Render the three status bars in prompt order, then the reason line and the
+ * backlog split under them. Sealed facts are the writer's frozen plans, so the
+ * reason and split read the pages that this Mutation Epoch actually bound.
+ * @param {ReturnType<typeof getEffectiveSettings>} s
+ * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
+ * @param {{ parts: Array<import('./ui-view-models.js').ContextBudgetTokenPart> }} memoryUsage
+ * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} [sealedFacts]
+ * @returns {Promise<void>}
+ */
+export async function renderBudgetStatus(s, work, memoryUsage, sealedFacts = null) {
+    await renderMemoryBudget(s, memoryUsage);
     await renderVerbatimBudget(s, work);
     await renderTriggerGauge(s, work);
-    await renderMemoryBudget(s, memoryUsage);
+    renderBudgetNarrative(s, work, sealedFacts);
+}
+
+/**
+ * @param {ReturnType<typeof getEffectiveSettings>} s
+ * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
+ * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts
+ * @returns {void}
+ */
+function renderBudgetNarrative(s, work, sealedFacts) {
+    const reason = buildMicroficheReasonModel(work, sealedFacts, s);
+    $('#sc_budget_reason')
+        .text(reason.text)
+        .toggleClass('sc-context-total-over', reason.memoryNext);
+    const split = buildBacklogSplitModel(work, sealedFacts);
+    $('#sc_backlog_strip').text(
+        `backlog ${split.backlog} = ${split.images} images + ${split.text} text`,
+    );
 }
 
 /**
