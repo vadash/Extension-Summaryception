@@ -394,7 +394,10 @@ _Avoid_: frozen tail, raw snapshot
 **Frozen Raw Images**:
 The Microfiche region that renders Raw Seal pages from the Verbatim Window plus queued span, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone.
 Code: `update` / `readPage` (src/core/microfiche-pages.js); `applyMicroficheMarkers` (src/features/injection.js)
-_Avoid_: raw chat images, frozen chat images
+**Bitmap Glyph**:
+Microfiche page pixels blitted from the snapcompact bitmap fonts through the page-source canvas seam.
+Code: `readPage` (src/core/microfiche-pages.js)
+_Avoid_: system monospace, embedded font
 
 **Dry-Run Preview**:
 The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.
