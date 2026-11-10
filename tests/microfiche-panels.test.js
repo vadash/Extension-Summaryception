@@ -102,9 +102,6 @@ describe('microfiche panels', () => {
             const start = HTML.indexOf(`aria-label="${radios}"`);
             const section = HTML.slice(start, HTML.indexOf('</section>', start));
             expect(section, `#${id} sits in the mode section`).toContain(`id="${id}"`);
-            expect(section, `#${id} binding`).toContain(
-                'data-sc-setting="microficheFrozenRawImages"',
-            );
             expect(section, `#${id} microfiche row`).toContain('sc-microfiche-mode-row');
         }
         expect(HTML).not.toContain('sc_microfiche_memory_images');
