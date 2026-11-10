@@ -199,18 +199,19 @@ describe('billed auto work bars', () => {
 
 /**
  * Synthetic sealed plans: the reason and split builders read only the raw
- * region's cap, kept pages, and over-cap flag, so the cases stay independent
- * of pagination geometry.
- * @param {{ cap: number, images: number, raw: number, overCap: boolean }} input - Raw plan facts.
- * @returns {{ microficheRaw: { effectiveCap: number, imageTexts: string[], rawTexts: string[], overCap: boolean } }}
+ * region's cap, kept pages, over-cap flag, and page-overflow count, so the
+ * cases stay independent of pagination geometry.
+ * @param {{ cap: number, images: number, raw: number, overCap: boolean, overflowPages?: number }} input - Raw plan facts.
+ * @returns {{ microficheRaw: { effectiveCap: number, imageTexts: string[], rawTexts: string[], overCap: boolean, overflowPages: number } }}
  */
-function rawPlan({ cap, images, raw, overCap }) {
+function rawPlan({ cap, images, raw, overCap, overflowPages = 0 }) {
     return {
         microficheRaw: {
             effectiveCap: cap,
             imageTexts: Array.from({ length: images }, (_value, index) => `page ${index}`),
             rawTexts: Array.from({ length: raw }, (_value, index) => `text ${index}`),
             overCap,
+            overflowPages,
         },
     };
 }
@@ -239,11 +240,13 @@ const REASON_SETTINGS = {
 };
 
 describe('microfiche reason model', () => {
-    it('says slots full with one waiting page', () => {
+    it('counts only overflowing pages, not the Keep Raw tail', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 500 }),
-                rawPlan({ cap: 4, images: 4, raw: 1, overCap: true }),
+                // One page overflow plus the Keep Raw 2 whole messages: the
+                // tail stays text by design, so exactly one page waits.
+                rawPlan({ cap: 4, images: 4, raw: 3, overCap: true, overflowPages: 1 }),
                 REASON_SETTINGS,
             ),
         ).toEqual({
@@ -256,7 +259,7 @@ describe('microfiche reason model', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 500 }),
-                rawPlan({ cap: 4, images: 4, raw: 3, overCap: true }),
+                rawPlan({ cap: 4, images: 4, raw: 5, overCap: true, overflowPages: 3 }),
                 REASON_SETTINGS,
             ),
         ).toEqual({

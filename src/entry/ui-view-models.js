@@ -150,8 +150,9 @@ function formatPageWaits(count) {
  * `overCap` when a paginated page stays text. A cap below the slider cap means
  * the raw bucket shrank it, and a page demoted below a cap that still had room
  * means the bucket cannot pay, so both read budget full. A full cap with pages
- * left over reads slots full. Every other state stays neutral. `memoryNext`
- * drives the red treatment.
+ * left over reads slots full, and the count covers page overflow only: the
+ * Keep Raw whole-message tail stays text by design, so it never waits. Every
+ * other state stays neutral. `memoryNext` drives the red treatment.
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work - Work read model; a not-ready batch keeps the line neutral.
  * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts - Sealed plans from the injection writer.
  * @param {{ microficheImageCap?: number } | null | undefined} [settings] - Effective settings carrying the image cap.
@@ -171,7 +172,7 @@ export function buildMicroficheReasonModel(work, sealedFacts, settings = {}) {
     if (cap < sliderCap || images < cap) {
         return { text: 'photo budget full — summarize to free room', memoryNext: true };
     }
-    const waiting = raw.rawTexts.length;
+    const waiting = normalizeBudgetCount(raw.overflowPages);
     return {
         text: `photo slots full ${images}/${cap}, ${formatPageWaits(waiting)} as text — summarize to free a slot`,
         memoryNext: true,

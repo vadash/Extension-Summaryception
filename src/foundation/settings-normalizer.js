@@ -63,10 +63,6 @@ function normalizeMicroficheSettings(settings) {
         settingsRecord.microficheFont = '8x13';
         changed = true;
     }
-    if (Object.hasOwn(settingsRecord, 'microficheStretch')) {
-        settingsRecord.microficheStretch = false;
-        changed = true;
-    }
     for (const [key, values] of /** @type {Array<[string, ReadonlyArray<string>]>} */ ([
         ['microficheFont', MICROFICHE_FONTS],
         ['microficheVariant', MICROFICHE_VARIANTS],
@@ -77,11 +73,7 @@ function normalizeMicroficheSettings(settings) {
             changed = true;
         }
     }
-    for (const key of [
-        'microficheStopwordDim',
-        'microficheMemoryImages',
-        'microficheFrozenRawImages',
-    ]) {
+    for (const key of ['microficheStopwordDim', 'microficheFrozenRawImages']) {
         const value = settings[key] === true;
         if (settings[key] !== value) {
             settings[key] = value;
@@ -121,13 +113,33 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
     normalizeRequestTimeouts(settings);
     const continuitySettingsNormalized = normalizeContinuitySettings(settings);
     const promptSettingsNormalized = normalizePromptSettings(settings);
+    const unknownSettingsDropped = dropUnknownSettings(settings);
     return (
         memorySettingsNormalized ||
         microficheSettingsNormalized ||
         roleMaskSettingsNormalized ||
         continuitySettingsNormalized ||
-        promptSettingsNormalized
+        promptSettingsNormalized ||
+        unknownSettingsDropped
     );
+}
+
+/**
+ * Drop stored keys the defaults no longer declare. A retired control leaves no
+ * reader, and keeping its value would mislead the next settings audit.
+ * @param {ExtensionSettings} settings - Settings object mutated in place.
+ * @returns {boolean} Whether any key was dropped.
+ */
+function dropUnknownSettings(settings) {
+    const settingsRecord = asSettingsRecord(settings);
+    let changed = false;
+    for (const key of Object.keys(settingsRecord)) {
+        if (!Object.hasOwn(defaultSettings, key)) {
+            delete settingsRecord[key];
+            changed = true;
+        }
+    }
+    return changed;
 }
 
 /**

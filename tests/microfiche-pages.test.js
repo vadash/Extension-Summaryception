@@ -10,7 +10,11 @@ import {
     buildMicroficheRawPlan,
     splitMicroficheTexts,
 } from '../src/core/microfiche-policy.js';
-import { createMicrofichePageSource, hashMicroficheShape } from '../src/core/microfiche-pages.js';
+import {
+    createMicrofichePageSource,
+    hashMicroficheShape,
+    selectSealedRegions,
+} from '../src/core/microfiche-pages.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
 import {
@@ -80,6 +84,28 @@ describe('microfiche splitMicroficheTexts', () => {
 
     it('handles empty input', () => {
         expect(splitMicroficheTexts([], 2)).toEqual({ imageTexts: [], rawTexts: [] });
+    });
+});
+
+describe('microfiche region selection', () => {
+    const sealed = {
+        microfiche: { shape: {}, imageTexts: ['memory page'], rawTexts: [] },
+        microficheRaw: { shape: {}, imageTexts: ['raw page'], rawTexts: [] },
+    };
+
+    it('always ships sealed memory and drops raw unless Old Chat Photos is on', () => {
+        expect(selectSealedRegions(sealed, { microficheFrozenRawImages: false })).toEqual({
+            microfiche: sealed.microfiche,
+            microficheRaw: null,
+        });
+        expect(selectSealedRegions(sealed, { microficheFrozenRawImages: true })).toEqual({
+            microfiche: sealed.microfiche,
+            microficheRaw: sealed.microficheRaw,
+        });
+    });
+
+    it('ships nothing before the writer seals', () => {
+        expect(selectSealedRegions(null, {})).toEqual({ microfiche: null, microficheRaw: null });
     });
 });
 

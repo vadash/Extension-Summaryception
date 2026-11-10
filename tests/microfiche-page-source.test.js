@@ -448,7 +448,9 @@ describe('memory injection writer render cache', () => {
         writer.update();
 
         expect(factory.canvases.length).toBeGreaterThan(renders);
-        expect(setExtensionPrompt).toHaveBeenCalledTimes(2);
+        // Memory images ship as markers, so an edit that keeps the same page
+        // count leaves the slot bytes identical and skips the slot write.
+        expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
         const after = readAllPages(writer);
         expect(after[0].text).toContain('brand new detail');
         expect(after[0].text).not.toBe(before[0].text);
@@ -524,11 +526,11 @@ describe('memory injection writer render cache', () => {
 });
 
 describe('memory injection writer microfiche markers', () => {
-    it('writes one marker per image page when memory images are on', () => {
+    it('writes one marker per image page in Microfiche mode', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({
             setExtensionPrompt,
-            settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
+            settings: MICROFICHE_SETTINGS,
         });
         const factory = makeFakeFactory();
         const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
@@ -548,7 +550,7 @@ describe('memory injection writer microfiche markers', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({
             setExtensionPrompt,
-            settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
+            settings: MICROFICHE_SETTINGS,
         });
         const factory = makeFakeFactory();
         const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
@@ -567,9 +569,12 @@ describe('memory injection writer microfiche markers', () => {
         );
     });
 
-    it('keeps the pre-change text payload when both image toggles are off', () => {
+    it('keeps the text payload outside Microfiche mode', () => {
         const setExtensionPrompt = vi.fn();
-        installMicroficheContext({ setExtensionPrompt });
+        installMicroficheContext({
+            setExtensionPrompt,
+            settings: { ...MICROFICHE_SETTINGS, memoryMode: MEMORY_MODES.PREFIX_CACHE },
+        });
         const factory = makeFakeFactory();
         const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
@@ -581,7 +586,7 @@ describe('memory injection writer microfiche markers', () => {
         expect(text).not.toContain(formatMicroficheMarker(0));
     });
 
-    it('leaves memory text alone and appends raw markers when only the frozen raw toggle is on', () => {
+    it('appends raw markers after the always-on memory markers', () => {
         const setExtensionPrompt = vi.fn();
         const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
         installMicroficheContext({
@@ -595,12 +600,13 @@ describe('memory injection writer microfiche markers', () => {
         writer.update();
 
         const text = setExtensionPrompt.mock.calls[0][1];
-        const expected = buildInjection(getChatStore().layers, getEffectiveSettings()).text;
-        expect(text.startsWith(expected)).toBe(true);
         const markers = extractMicroficheMarkers(text);
-        expect(markers.some((marker) => marker.region === 'memory')).toBe(false);
-        const rawMarkers = markers.filter((marker) => marker.region === 'raw');
+        const firstRaw = markers.findIndex((marker) => marker.region === 'raw');
+        expect(firstRaw).toBeGreaterThan(0);
+        expect(markers.slice(0, firstRaw).every((marker) => marker.region === 'memory')).toBe(true);
+        const rawMarkers = markers.slice(firstRaw);
         expect(rawMarkers.length).toBeGreaterThan(0);
+        expect(rawMarkers.every((marker) => marker.region === 'raw')).toBe(true);
         expect(rawMarkers.map((marker) => marker.pageIndex)).toEqual(
             rawMarkers.map((_marker, index) => index),
         );
@@ -617,7 +623,7 @@ describe('memory injection writer microfiche markers', () => {
         expect(rawPages.length).toBe(rawMarkers.length);
     });
 
-    it('renders frozen raw images on empty layers with both toggles on', () => {
+    it('renders frozen raw images on empty layers with the raw toggle on', () => {
         const setExtensionPrompt = vi.fn();
         const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
         installMicroficheContext({
@@ -626,7 +632,6 @@ describe('memory injection writer microfiche markers', () => {
             layers: [],
             settings: {
                 ...MICROFICHE_SETTINGS,
-                microficheMemoryImages: true,
                 microficheFrozenRawImages: true,
             },
         });
@@ -663,7 +668,6 @@ describe('memory injection writer microfiche markers', () => {
             layers: [],
             settings: {
                 ...MICROFICHE_SETTINGS,
-                microficheMemoryImages: true,
                 microficheFrozenRawImages: true,
                 microficheImageCap: 5,
                 verbatimTokenBudget: 20000,

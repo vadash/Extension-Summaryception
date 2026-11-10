@@ -123,10 +123,24 @@ describe('microfiche defaults and bounds', () => {
             microficheFrameSize: 1568,
             microficheModelName: '',
             microficheGeometry: 'anthropic',
-            microficheMemoryImages: false,
             microficheFrozenRawImages: false,
         });
         expect(defaultSettings).not.toHaveProperty('microficheStretch');
+        expect(Object.keys(defaultSettings).filter((key) => key.startsWith('microfiche'))).toEqual([
+            'microficheKeepRaw',
+            'microficheImageCap',
+            'microficheFrozenRawImages',
+            'microficheFont',
+            'microficheCellWidth',
+            'microficheCellHeight',
+            'microficheVariant',
+            'microficheStopwordDim',
+            'microficheColumns',
+            'microficheLineRepeat',
+            'microficheFrameSize',
+            'microficheModelName',
+            'microficheGeometry',
+        ]);
     });
 
     it('declares every numeric bound once in the slider-limits map', () => {
@@ -228,30 +242,24 @@ describe('microfiche normalization', () => {
         expect(settings.microficheGeometry).toBe(defaultSettings.microficheGeometry);
     });
 
-    it('coerces the image placement toggles with strict booleans', () => {
-        const kept = normalize({
-            microficheMemoryImages: true,
-            microficheFrozenRawImages: true,
-        }).settings;
-        expect(kept).toMatchObject({
-            microficheMemoryImages: true,
-            microficheFrozenRawImages: true,
-        });
+    it('coerces the Old Chat Photos toggle and drops retired stored keys', () => {
+        const kept = normalize({ microficheFrozenRawImages: true }).settings;
+        expect(kept.microficheFrozenRawImages).toBe(true);
         const repaired = normalize({
-            microficheMemoryImages: 'true',
+            obsoleteMicroficheToggle: false,
             microficheFrozenRawImages: 1,
         });
-        expect(repaired.settings.microficheMemoryImages).toBe(false);
         expect(repaired.settings.microficheFrozenRawImages).toBe(false);
+        expect(repaired.settings).not.toHaveProperty('obsoleteMicroficheToggle');
         expect(repaired.changed).toBe(true);
     });
 
-    it('repairs stored silver to 8x13 and pins stored stretch false', () => {
+    it('repairs stored silver to 8x13 and drops retired stretch', () => {
         const silver = normalize({ microficheFont: 'silver' });
         expect(silver.settings.microficheFont).toBe('8x13');
         expect(silver.changed).toBe(true);
         const stretched = normalize({ microficheStretch: true });
-        expect(stretched.settings.microficheStretch).toBe(false);
+        expect(stretched.settings).not.toHaveProperty('microficheStretch');
         expect(stretched.changed).toBe(true);
     });
 

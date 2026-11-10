@@ -46,7 +46,7 @@ function makeEventSource() {
 
 /** Empty summary store with a Microfiche-free settings shape. */
 function makeSettings(overrides = {}) {
-    return { microficheMemoryImages: false, microficheFrozenRawImages: false, ...overrides };
+    return { memoryMode: 'balanced', microficheFrozenRawImages: false, ...overrides };
 }
 
 /**
@@ -131,7 +131,7 @@ describe('describeDryRunPrompt', () => {
         const view = describeDryRunPrompt({
             chat,
             epoch: 7,
-            settings: makeSettings({ microficheMemoryImages: true }),
+            settings: makeSettings({ memoryMode: 'microfiche' }),
             resolvedMarkers: 1,
             unresolvedMarkers: [],
             promptManagerReady: true,
@@ -370,7 +370,7 @@ describe('openDryRunPreview', () => {
             warmPages,
             triggerDryRun,
             showView,
-            getSettings: () => /** @type {any} */ (makeSettings({ microficheMemoryImages: true })),
+            getSettings: () => /** @type {any} */ (makeSettings({ memoryMode: 'microfiche' })),
         });
 
         await openDryRunPreview();

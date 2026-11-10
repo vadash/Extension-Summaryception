@@ -98,10 +98,11 @@ export function readSealedMicrofichePlans() {
 }
 
 /**
- * Pick the sealed regions the toggles enable. Billing and marker placement
- * share this so both ship the same regions for one settings read.
+ * Pick the sealed regions to bill and place. Microfiche always images memory,
+ * so the memory plan ships whenever the writer sealed one; the Old Chat Photos
+ * toggle alone can drop the raw region.
  * @param {MicroficheSealedPlans | null} sealed - Writer-sealed plans, if any.
- * @param {{ microficheMemoryImages?: unknown, microficheFrozenRawImages?: unknown } | null | undefined} settings - Effective settings carrying the region toggles.
+ * @param {{ microficheFrozenRawImages?: unknown } | null | undefined} settings - Effective settings carrying the raw region toggle.
  * @returns {{ microfiche: import('./microfiche-policy.js').MicrofichePlan | null, microficheRaw: import('./microfiche-policy.js').MicroficheRawPlan | null }} Enabled sealed regions, null when unsealed or toggled off.
  */
 export function selectSealedRegions(sealed, settings) {
@@ -109,7 +110,7 @@ export function selectSealedRegions(sealed, settings) {
         return { microfiche: null, microficheRaw: null };
     }
     return {
-        microfiche: settings?.microficheMemoryImages === true ? sealed.microfiche : null,
+        microfiche: sealed.microfiche,
         microficheRaw: settings?.microficheFrozenRawImages === true ? sealed.microficheRaw : null,
     };
 }

@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0051
+---
+
 # Frozen Raw Images render without memory
 
 Frozen raw imaging is its own Microfiche region: `microficheFrozenRawImages` pages the Raw Seal — the oldest-first raw slice spanning the queued span and verbatim window — into images even when `layers` is empty, while `microficheMemoryImages` gates memory pages alone. Both regions reuse the same 0.75 Fill Gate and raw bucket: a page images only when it fills three quarters of a frame, and billed(k) is the candidate plus k times frame-minus-page, counting kept images, shipped tail, and the other region's spend (ADR-0046); when the next full image would not fit the engine runs a memory update instead of adding that image. Billing and the engine trigger read the page-source sealed plan, never a fresh re-slice. Memory pages keep `[summaryception-microfiche page=N]`; frozen raw pages carry the region in the marker, `[summaryception-microfiche page=N:raw]`, so the two sealed page lists never collide, and the Raw Seal still clears only on the next Mutation Epoch (ADR-0040).

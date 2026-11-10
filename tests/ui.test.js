@@ -431,6 +431,7 @@ describe('budget reason and header backlog rendering', () => {
                     imageTexts: ['p1', 'p2', 'p3', 'p4'],
                     rawTexts: ['t1'],
                     overCap: true,
+                    overflowPages: 1,
                 },
             },
         );
@@ -447,6 +448,7 @@ describe('budget reason and header backlog rendering', () => {
                     imageTexts: ['p1', 'p2', 'p3', 'p4'],
                     rawTexts: ['t1'],
                     overCap: true,
+                    overflowPages: 1,
                 },
             },
         });

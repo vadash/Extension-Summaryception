@@ -124,7 +124,6 @@ interface ExtensionSettings {
     microficheFrameSize: number;
     microficheModelName: string;
     microficheGeometry: 'anthropic' | 'google' | 'openai' | 'custom';
-    microficheMemoryImages: boolean;
     microficheFrozenRawImages: boolean;
     memoryTokenBudget: number;
     snippetsPerLayer: number;

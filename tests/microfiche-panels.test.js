@@ -84,30 +84,65 @@ describe('microfiche panels', () => {
         );
     });
 
-    it('offers two image placement toggles and keeps the system toggle inert', () => {
-        for (const [id, key] of [
-            ['sc_microfiche_memory_images', 'microficheMemoryImages'],
-            ['sc_microfiche_frozen_raw_images', 'microficheFrozenRawImages'],
+    it('documents Old Chat Photos and always-on memory imaging', () => {
+        const photos = SETTINGS_HELP.microfiche_frozen_raw_images;
+        expect(photos.title).toBe('Old Chat Photos');
+        expect(photos.detail).not.toMatch(/three quarters/i);
+        expect(photos.detail).toContain('Keep Raw leaves the newest whole messages as text');
+        const mode = SETTINGS_HELP.memory_mode_microfiche;
+        expect(mode.detail).toContain('images memory without a toggle');
+        expect(mode.detail).not.toMatch(/three quarters/i);
+    });
+
+    it('renders the Old Chat Photos toggle under the mode radios in both panels', () => {
+        for (const [id, radios] of [
+            ['sc_easy_microfiche_frozen_raw_images', 'Easy Memory Mode'],
+            ['sc_microfiche_frozen_raw_images', 'Memory Mode'],
         ]) {
-            expect(HTML, `#${id}`).toContain(`id="${id}"`);
-            expect(HTML, `#${id} binding`).toContain(`data-sc-setting="${key}"`);
+            const start = HTML.indexOf(`aria-label="${radios}"`);
+            const section = HTML.slice(start, HTML.indexOf('</section>', start));
+            expect(section, `#${id} sits in the mode section`).toContain(`id="${id}"`);
+            expect(section, `#${id} binding`).toContain(
+                'data-sc-setting="microficheFrozenRawImages"',
+            );
+            expect(section, `#${id} microfiche row`).toContain('sc-microfiche-mode-row');
         }
+        expect(HTML).not.toContain('sc_microfiche_memory_images');
+        expect(HTML).not.toContain('>Memory Images<');
         const systemTag =
             HTML.match(/<input\b[^>]*id="sc_microfiche_system_images"[^>]*>/)?.[0] ?? '';
         expect(systemTag).toContain('disabled');
         expect(systemTag).not.toContain('data-sc-setting');
     });
 
-    it('saves each image placement toggle on change and restores it on the next sync', async () => {
-        installSummaryContext({
-            settings: { microficheMemoryImages: false, microficheFrozenRawImages: false },
-        });
+    it('renders Keep Raw under the mode radios in both panels', () => {
+        for (const [id, radios] of [
+            ['sc_easy_microfiche_keep_raw', 'Easy Memory Mode'],
+            ['sc_microfiche_keep_raw', 'Memory Mode'],
+        ]) {
+            const start = HTML.indexOf(`aria-label="${radios}"`);
+            const section = HTML.slice(start, HTML.indexOf('</section>', start));
+            expect(section, `#${id} sits in the mode section`).toContain(`id="${id}"`);
+            expect(section, `#${id} hint`).toContain(
+                'Newest N chat messages stay text, newest first. Slides each turn.',
+            );
+        }
+    });
+
+    it('locks the Old Chat Photos hint copy in both panels', () => {
+        const hint =
+            'Photos of older chat (not yet summarized) to save context. Off keeps old chat as text.';
+        expect(HTML.split(hint).length - 1).toBe(2);
+    });
+
+    it('saves the Old Chat Photos toggle on change and restores it on the next sync', async () => {
+        installSummaryContext({ settings: { microficheFrozenRawImages: false } });
         globalThis.document = {};
         const dom = createJQueryHarness({
             attributes: {
-                '#sc_microfiche_memory_images': {
+                '#sc_easy_microfiche_frozen_raw_images': {
                     type: 'checkbox',
-                    'data-sc-setting': 'microficheMemoryImages',
+                    'data-sc-setting': 'microficheFrozenRawImages',
                 },
                 '#sc_microfiche_frozen_raw_images': {
                     type: 'checkbox',
@@ -125,16 +160,16 @@ describe('microfiche panels', () => {
             manualRunnerDeps: { queue: { isBusy: () => false } },
         });
 
-        for (const [id, key] of [
-            ['sc_microfiche_memory_images', 'microficheMemoryImages'],
-            ['sc_microfiche_frozen_raw_images', 'microficheFrozenRawImages'],
+        for (const id of [
+            'sc_easy_microfiche_frozen_raw_images',
+            'sc_microfiche_frozen_raw_images',
         ]) {
             const $toggle = dom.element(`#${id}`);
             expect($toggle.prop('checked'), id).toBe(false);
             $toggle.prop('checked', true);
             dom.trigger('change', `#${id}`);
-            expect(getSettings()[key], key).toBe(true);
-            expect(getEffectiveSettings()[key], key).toBe(true);
+            expect(getSettings().microficheFrozenRawImages, id).toBe(true);
+            expect(getEffectiveSettings().microficheFrozenRawImages, id).toBe(true);
             // A later render pass re-reads the saved settings into the control.
             $toggle.prop('checked', false);
             syncDataSettingElements(`#${id}`, getSettings());
@@ -266,11 +301,14 @@ describe('microfiche panels', () => {
         expect(line).not.toContain('No images billed');
         delete globalThis.$;
     });
-    it('bills null regions when the image toggles are off despite a live seal', async () => {
+    it('bills memory with no toggle and nulls raw when Old Chat Photos is off', async () => {
         const chat = makeMessages(8, { mes: 'lorem ipsum dolor sit amet '.repeat(170) });
+        const layers = [
+            [{ text: `Snippet ${'word '.repeat(1200)}`, sourceMessageIds: [chat[0].sc_id] }],
+        ];
         installSummaryContext({
             chat,
-            metadata: { summaryception: makeSummaryStore({ layers: [] }) },
+            metadata: { summaryception: makeSummaryStore({ layers }) },
             settings: {
                 ...defaultSettings,
                 memoryMode: MEMORY_MODES.MICROFICHE,
@@ -285,16 +323,14 @@ describe('microfiche panels', () => {
         });
         const writer = makeMemoryInjectionWriter();
         writer.update();
-        expect(readSealedMicrofichePlans().microficheRaw.imageTexts.length).toBeGreaterThan(0);
+        const sealed = readSealedMicrofichePlans();
+        expect(sealed.microfiche.imageTexts.length).toBeGreaterThan(0);
+        expect(sealed.microficheRaw.imageTexts.length).toBeGreaterThan(0);
 
         const { buildUiInjection } = await import('../src/entry/ui.js');
-        const off = {
-            ...getEffectiveSettings(),
-            microficheMemoryImages: false,
-            microficheFrozenRawImages: false,
-        };
+        const off = { ...getEffectiveSettings(), microficheFrozenRawImages: false };
         const billed = buildUiInjection(getChatStore(), off);
-        expect(billed.microfiche).toBeNull();
+        expect(billed.microfiche.imageTexts).toEqual(sealed.microfiche.imageTexts);
         expect(billed.microficheRaw).toBeNull();
     });
 

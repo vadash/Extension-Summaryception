@@ -7,7 +7,7 @@
  * dry-run early return stays untouched.
  */
 
-import { TOAST_TITLE } from '../foundation/constants.js';
+import { MEMORY_MODES, TOAST_TITLE } from '../foundation/constants.js';
 import {
     getChat,
     getEventSource,
@@ -295,7 +295,7 @@ export function describeDryRunPrompt({
     promptManagerReady,
 }) {
     const toggles = {
-        memoryImages: Boolean(settings?.microficheMemoryImages),
+        memoryImages: settings?.memoryMode === MEMORY_MODES.MICROFICHE,
         frozenRawImages: Boolean(settings?.microficheFrozenRawImages),
     };
     const imageParts = countImageParts(chat);

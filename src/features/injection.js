@@ -195,13 +195,12 @@ function buildNextInjection(settings, injection, sealed) {
 }
 
 /**
- * Replace image-backed page text with send-time markers, per region. Memory
- * images own the memory region and frozen raw images own the raw region, so
- * either toggle works alone: the memory region keeps its built text when its
- * toggle is off, and the raw region appends markers even on a chat with no
- * memory. Raw page text needs no slot copy because the chat already carries
- * it; only raw image pages add markers. Both placement toggles off leaves the
- * built payload byte-identical.
+ * Replace image-backed page text with send-time markers, per region. Microfiche
+ * always images memory, so the memory region replaces its page text whenever
+ * the writer sealed a plan, and Old Chat Photos alone controls the raw region.
+ * Raw page text needs no slot copy because the chat already carries it; only
+ * raw image pages add markers. With Old Chat Photos off the payload keeps the
+ * memory markers and adds none for raw text.
  * @param {string} text - Built slot text.
  * @param {import('../core/microfiche-pages.js').MicroficheSealedPlans | null} sealed - Sealed memory and raw plans.
  * @param {ExtensionSettings} settings - Effective settings.

@@ -144,10 +144,6 @@
                                 <div class="sc-slider-row"><input type="range" id="sc_easy_queued_token_budget" min="4000" max="64000" step="1000" data-sc-slider-setting="queuedTokenBudget" data-sc-partner-input="#sc_easy_queued_token_budget_val" /><input id="sc_easy_queued_token_budget_val" class="text_pole sc-val sc-val-wide" type="text" inputmode="numeric" data-sc-slider-setting="queuedTokenBudget" data-sc-partner-input="#sc_easy_queued_token_budget" /></div>
                             </div>
                             <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                <label for="sc_easy_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">Raw text lines kept beside each rendered image. Microfiche only.</small></label>
-                                <div class="sc-slider-row"><input type="range" id="sc_easy_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw_val" /><input id="sc_easy_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="0" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw" /></div>
-                            </div>
-                            <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                 <label for="sc_easy_microfiche_image_cap"><span>Image Cap</span><small class="sc-hint">Most images rendered per call. Microfiche only.</small></label>
                                 <div class="sc-slider-row"><input type="range" id="sc_easy_microfiche_image_cap" min="1" max="80" step="1" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_easy_microfiche_image_cap_val" /><input id="sc_easy_microfiche_image_cap_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_easy_microfiche_image_cap" /></div>
                             </div>
@@ -182,6 +178,14 @@
                                     </span>
                                     <input type="radio" id="sc_easy_memory_mode_microfiche" name="sc_easy_memory_mode" value="microfiche" data-sc-setting="memoryMode" />
                                 </label>
+                            </div>
+                            <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                <label for="sc_easy_microfiche_frozen_raw_images"><span>Old Chat Photos</span><small class="sc-hint">Photos of older chat (not yet summarized) to save context. Off keeps old chat as text.</small></label>
+                                <input id="sc_easy_microfiche_frozen_raw_images" type="checkbox" data-sc-setting="microficheFrozenRawImages" />
+                            </div>
+                            <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                                <label for="sc_easy_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">Newest N chat messages stay text, newest first. Slides each turn.</small></label>
+                                <div class="sc-slider-row"><input type="range" id="sc_easy_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw_val" /><input id="sc_easy_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="0" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_easy_microfiche_keep_raw" /></div>
                             </div>
                         </div>
                     </div>
@@ -651,6 +655,14 @@
                             </label>
                         </div>
                     </div>
+                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                        <label for="sc_microfiche_frozen_raw_images"><span>Old Chat Photos</span><small class="sc-hint">Photos of older chat (not yet summarized) to save context. Off keeps old chat as text.</small></label>
+                        <input id="sc_microfiche_frozen_raw_images" type="checkbox" data-sc-setting="microficheFrozenRawImages" />
+                    </div>
+                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
+                        <label for="sc_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">Newest N chat messages stay text, newest first. Slides each turn.</small></label>
+                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw_val" /><input id="sc_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="0" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw" /></div>
+                    </div>
                     <div id="sc_memory_help_balanced" class="sc-note">
                         <span class="fa-solid fa-circle-info"></span>
                         <small>Default keeps raw chat near the 22k live window and summarizes overflow as it arrives. Use it to keep context in a useful range when prompt caching is unavailable, weak, or not worth planning around.</small>
@@ -939,20 +951,8 @@
                                         <span>Microfiche</span>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                        <label for="sc_microfiche_keep_raw"><span>Keep Raw</span><small class="sc-hint">RAW text lines kept beside each rendered image. Microfiche only.</small></label>
-                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_keep_raw" min="0" max="10" step="1" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw_val" /><input id="sc_microfiche_keep_raw_val" class="text_pole sc-val" type="text" inputmode="numeric" value="0" data-sc-slider-setting="microficheKeepRaw" data-sc-partner-input="#sc_microfiche_keep_raw" /></div>
-                                    </div>
-                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_image_cap"><span>Image Cap</span><small class="sc-hint">Most images rendered per call. Microfiche only.</small></label>
                                         <div class="sc-slider-row"><input type="range" id="sc_microfiche_image_cap" min="1" max="80" step="1" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap_val" /><input id="sc_microfiche_image_cap_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheImageCap" data-sc-partner-input="#sc_microfiche_image_cap" /></div>
-                                    </div>
-                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                        <label for="sc_microfiche_memory_images"><span>Memory Images</span><small class="sc-hint">Send summary memory as rendered images. Off keeps memory as text.</small></label>
-                                        <input id="sc_microfiche_memory_images" type="checkbox" data-sc-setting="microficheMemoryImages" />
-                                    </div>
-                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                        <label for="sc_microfiche_frozen_raw_images"><span>Frozen Raw Images</span><small class="sc-hint">Render the frozen raw chat slice (verbatim window plus queued span) as images, even before any memory exists. Off keeps raw chat as text.</small></label>
-                                        <input id="sc_microfiche_frozen_raw_images" type="checkbox" data-sc-setting="microficheFrozenRawImages" />
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_system_images"><span>System Images</span><small class="sc-hint">Placement belongs to the host system prompt, so this toggle stays disabled.</small></label>

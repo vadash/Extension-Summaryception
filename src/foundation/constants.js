@@ -435,8 +435,7 @@ export const defaultSettings = Object.freeze({
     // Microfiche render knobs; they tune the image render only, never retention.
     microficheKeepRaw: 0,
     microficheImageCap: 8,
-    // Image placement stays off until the user opts in per prompt region.
-    microficheMemoryImages: false,
+    // Old chat photos stay off until the user opts in on the mode picker.
     microficheFrozenRawImages: false,
     microficheFont: '8x13',
     microficheCellWidth: 11,

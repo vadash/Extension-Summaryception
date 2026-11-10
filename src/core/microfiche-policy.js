@@ -24,8 +24,10 @@ import { estimateTextTokens } from './token-count.js';
  */
 
 /**
- * The raw-chat region plan: the shared region fields plus the over-cap flag.
- * @typedef {MicroficheRegionPlan & { overCap: boolean }} MicroficheRawPlan
+ * The raw-chat region plan: the shared region fields plus the over-cap flag and
+ * the page-overflow count. The count excludes the Keep Raw whole-message tail,
+ * so a slots-full reason reports pages that wait, not chat that stays text.
+ * @typedef {MicroficheRegionPlan & { overCap: boolean, overflowPages: number }} MicroficheRawPlan
  */
 
 /**
@@ -170,6 +172,7 @@ export function buildMicroficheRawPlan(
         // The cap or the bucket can leave a page unimaged, and either case
         // requests the memory update.
         overCap: budgeted.imageTexts.length < pages.imageTexts.length,
+        overflowPages: pages.imageTexts.length - budgeted.imageTexts.length,
     };
 }
 
@@ -195,20 +198,17 @@ function resolveFrameTokenEstimate(presetRecord) {
 /**
  * The raw bucket the raw region may spend: the configured raw-chat bucket,
  * less the memory region's image tokens and the overflow page text it keeps
- * raw when that region is toggled on, so both regions debit one figure. The
- * memory plan already charged that text to the same bucket, so leaving it
- * out would let the raw region spend it twice.
- * @param {Record<string, unknown>} settings - Settings carrying toggles and raw budgets.
+ * raw, so both regions debit one figure. Microfiche always images memory, so a
+ * memory plan always debits this bucket. The memory plan already charged that
+ * text to the same bucket, so leaving it out would let the raw region spend it
+ * twice.
+ * @param {Record<string, unknown>} settings - Settings carrying raw budgets.
  * @param {MicrofichePlan | null} memoryPlan - Built memory plan, if any.
  * @returns {number} Bucket tokens available to raw images.
  */
 function resolveRawPlanBucketTokens(settings, memoryPlan) {
     const bucket = resolveRawChatBucketTokens(settings);
-    if (
-        settings.microficheMemoryImages !== true ||
-        memoryPlan === null ||
-        memoryPlan === undefined
-    ) {
+    if (memoryPlan === null || memoryPlan === undefined) {
         return bucket;
     }
     const memorySpend =

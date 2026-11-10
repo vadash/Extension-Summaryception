@@ -38,7 +38,6 @@ function makeGuardSettings(overrides = {}) {
     return {
         enabled: true,
         uiMode: 'advanced',
-        microficheMemoryImages: false,
         microficheFrozenRawImages: false,
         guardMask: true,
         guardMaskMemory: true,

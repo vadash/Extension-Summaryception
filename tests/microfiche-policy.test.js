@@ -298,6 +298,7 @@ describe('microfiche frozen-raw bucket billing', () => {
         expect(plan.imageTexts).toHaveLength(2);
         expect(plan.rawTexts).toHaveLength(1);
         expect(plan.overCap).toBe(true);
+        expect(plan.overflowPages).toBe(1);
     });
 
     it('caps images by the bucket when a frame costs less than its page text', () => {
@@ -373,14 +374,16 @@ describe('microfiche raw keep-text tail', () => {
         expect(plan.overCap).toBe(true);
     });
 
-    it('works with no memory snippets', () => {
+    it('works with no memory snippets and still applies the Keep Raw tail', () => {
+        const slice = makeRawChatSlice(4);
         const plan = buildMicroficheRawPlan(
-            makeRawChatSlice(1),
-            { ...rawSettings, microficheImageCap: 8 },
+            slice,
+            { ...rawSettings, microficheKeepRaw: 2, microficheImageCap: 8 },
             {},
             null,
         );
         expect(plan.imageTexts.length).toBeGreaterThan(0);
+        expect(plan.rawTexts.slice(-2)).toEqual(slice.slice(-2));
     });
 
     it('counts the kept tail in the bucket so tail spend can demote every frame', () => {
