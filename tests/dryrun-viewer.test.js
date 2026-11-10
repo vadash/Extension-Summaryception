@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    applyOutgoingSeamToPreview,
     captureHostDryRun,
     copyPromptChat,
     describeDryRunPrompt,
@@ -9,7 +10,9 @@ import {
     openDryRunPreview,
 } from '../src/entry/dryrun-viewer.js';
 import { onChatCompletionPromptReady } from '../src/entry/events.js';
+import { maskUserRoleAsAssistantInGenerateData } from '../src/core/assistant-role-mask.js';
 import {
+    expandMicrofichePromptChat,
     formatMicroficheMarker,
     formatMicroficheRawMarker,
 } from '../src/core/microfiche-transport.js';
@@ -105,6 +108,112 @@ describe('expandCapturedChat', () => {
             image_url: { url: PAGES.get(0).dataUrl },
         });
         expect(raw[0].content).toBe(`raw ${formatMicroficheRawMarker(0)} tail`);
+    });
+
+    it('keeps memory and raw pages in separate index namespaces', () => {
+        const rawPage = { dataUrl: 'data:image/png;base64,RAW0', text: 'RAW ZERO' };
+        const raw = [
+            {
+                role: 'system',
+                content: `${formatMicroficheMarker(0)}\n${formatMicroficheRawMarker(0)}`,
+            },
+        ];
+        const calls = [];
+        const expanded = expandCapturedChat(raw, (pageIndex, region) => {
+            calls.push({ pageIndex, region });
+            return region === 'raw' ? rawPage : PAGES.get(pageIndex);
+        });
+
+        expect(calls).toEqual([
+            { pageIndex: 0, region: undefined },
+            { pageIndex: 0, region: 'raw' },
+        ]);
+        expect(expanded.chat[0].content).toEqual([
+            { type: 'image_url', image_url: { url: PAGES.get(0).dataUrl } },
+            { type: 'text', text: '\n' },
+            { type: 'image_url', image_url: { url: rawPage.dataUrl } },
+        ]);
+        expect(raw[0].content).toBe(
+            `${formatMicroficheMarker(0)}\n${formatMicroficheRawMarker(0)}`,
+        );
+    });
+
+    it('shows the live payload order and leaves the captured chat untouched', () => {
+        const pages = new Map([
+            [0, { dataUrl: 'data:image/png;base64,ORDER0', text: 'ORDER ZERO' }],
+            [1, { dataUrl: 'data:image/png;base64,ORDER1', text: 'ORDER ONE' }],
+        ]);
+        const captured = [
+            { role: 'system', content: 'preset block one' },
+            { role: 'system', content: 'preset block two' },
+            {
+                role: 'system',
+                content: [0, 1].map((page) => formatMicroficheMarker(page)).join('\n'),
+            },
+            { role: 'user', content: 'raw chat text' },
+        ];
+        const snapshot = JSON.parse(JSON.stringify(captured));
+        const live = JSON.parse(JSON.stringify(captured));
+        const resolvePage = (pageIndex) => pages.get(pageIndex);
+
+        expect(expandMicrofichePromptChat(live, resolvePage)).toBe(2);
+        const expanded = expandCapturedChat(captured, resolvePage);
+        applyOutgoingSeamToPreview(expanded.chat, makeSettings());
+
+        expect(captured).toEqual(snapshot);
+        expect(expanded.chat).toEqual(live);
+        expect(expanded.chat.map((message) => message.role)).toEqual([
+            'system',
+            'system',
+            'system',
+            'user',
+        ]);
+        expect(expanded.chat[0].content).toBe('preset block one');
+        expect(expanded.chat[1].content).toBe('preset block two');
+        expect(expanded.chat[3].content).toBe('raw chat text');
+        expect(expanded.chat[2].content).toEqual([
+            { type: 'image_url', image_url: { url: pages.get(0).dataUrl } },
+            { type: 'text', text: '\n' },
+            { type: 'image_url', image_url: { url: pages.get(1).dataUrl } },
+        ]);
+
+        const view = describeDryRunPrompt({
+            chat: expanded.chat,
+            epoch: 0,
+            settings: makeSettings(),
+            resolvedMarkers: expanded.resolvedMarkers,
+            unresolvedMarkers: expanded.unresolvedMarkers,
+            promptManagerReady: true,
+        });
+        expect(view.chat).toBe(expanded.chat);
+        expect(view.divergences.map((entry) => entry.kind)).toEqual(['unsquashed-systems']);
+        expect(expanded.chat).toEqual(live);
+    });
+
+    it('re-applies the live outgoing seam to the preview clone', () => {
+        const captured = [
+            { role: 'system', content: 'preset block' },
+            { role: 'user', content: 'raw chat text' },
+        ];
+        const settings = makeSettings({
+            enabled: true,
+            maskUserRoleAsAssistant: true,
+            maskUserRoleMode: 'marker_first',
+        });
+        const live = JSON.parse(JSON.stringify(captured));
+        expandMicrofichePromptChat(live, () => undefined);
+        maskUserRoleAsAssistantInGenerateData(live, settings);
+
+        const expanded = expandCapturedChat(captured, () => undefined);
+        applyOutgoingSeamToPreview(expanded.chat, settings);
+
+        expect(expanded.chat).toEqual(live);
+        expect(expanded.chat.map((message) => message.role)).toEqual([
+            'user',
+            'system',
+            'assistant',
+        ]);
+        expect(captured[1].role).toBe('user');
     });
 
     it('keeps markers literal when the page reader resolves nothing', () => {

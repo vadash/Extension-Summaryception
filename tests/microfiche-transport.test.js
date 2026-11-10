@@ -213,6 +213,40 @@ describe('expandMicrofichePromptChat', () => {
         expect(chat[0].role).toBe('system');
     });
 
+    it('keeps chat order and expands a memory slot in encounter order', () => {
+        registerStubPages();
+        const chat = [
+            { role: 'system', content: 'preset block one' },
+            { role: 'system', content: 'preset block two' },
+            {
+                role: 'system',
+                content: [1, 0].map((page) => formatMicroficheMarker(page)).join('\n'),
+            },
+            { role: 'user', content: 'raw chat text' },
+        ];
+        const messageRefs = [...chat];
+        const calls = [];
+        const resolvePage = (pageIndex) => {
+            calls.push(pageIndex);
+            return resolveMicroficheStubPage(pageIndex);
+        };
+
+        expect(expandMicrofichePromptChat(chat, resolvePage)).toBe(2);
+
+        expect(chat).toHaveLength(4);
+        expect(chat.map((message) => message.role)).toEqual(['system', 'system', 'system', 'user']);
+        expect(chat.every((message, index) => message === messageRefs[index])).toBe(true);
+        expect(chat[0].content).toBe('preset block one');
+        expect(chat[1].content).toBe('preset block two');
+        expect(chat[3].content).toBe('raw chat text');
+        expect(chat[2].content).toEqual([
+            { type: 'image_url', image_url: { url: STUB_ONE.dataUrl } },
+            { type: 'text', text: '\n' },
+            { type: 'image_url', image_url: { url: STUB_ZERO.dataUrl } },
+        ]);
+        expect(calls).toEqual([1, 0]);
+    });
+
     it('keeps unknown markers as text and counts only resolved swaps', () => {
         registerStubPages();
         const unknown = formatMicroficheMarker(9);

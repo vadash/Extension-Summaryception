@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import {
+    EXTENSION_PROMPT_POSITIONS,
+    EXTENSION_PROMPT_ROLES,
+    MEMORY_POSITIONS,
+    defaultSettings,
+} from '../src/foundation/constants.js';
 import {
     buildInjection,
     buildMemoryBody,
@@ -13,7 +19,7 @@ import {
     formatSnippetAnchor,
 } from '../src/core/snippet-metadata.js';
 import { countTextTokens } from '../src/core/token-count.js';
-import { installSummaryContext, makeMessages } from './test-helpers.js';
+import { installSummaryContext, makeMemoryInjectionWriter, makeMessages } from './test-helpers.js';
 
 describe('buildMemoryInjectionParts', () => {
     it('joins per-layer chronology sections with no heading of its own', () => {
@@ -211,5 +217,63 @@ describe('renderInjectionTemplate', () => {
         expect(result).toContain('price is $& and $1 special');
         const occurrences = result.split('price is $& and $1 special').length - 1;
         expect(occurrences).toBe(2);
+    });
+});
+
+describe('memory injection placement', () => {
+    // 10000 is the host's maximum injection depth, so the slot clamps to the
+    // first chat-history message: after every preset block, before chat text.
+    it('places the default slot at the start of chat history', () => {
+        const writer = makeMemoryInjectionWriter();
+
+        expect(writer.options(defaultSettings)).toEqual({
+            position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+            depth: 10000,
+            scan: false,
+            role: EXTENSION_PROMPT_ROLES.SYSTEM,
+        });
+    });
+
+    it('writes the default slot with that placement', () => {
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat: makeMessages(4),
+            settings: { ...defaultSettings },
+            setExtensionPrompt,
+        });
+        const writer = makeMemoryInjectionWriter();
+
+        writer.update();
+
+        const [, , position, depth, scan, role] = setExtensionPrompt.mock.calls[0];
+        expect({ position, depth, scan, role }).toEqual({
+            position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+            depth: 10000,
+            scan: false,
+            role: EXTENSION_PROMPT_ROLES.SYSTEM,
+        });
+    });
+
+    it('keeps every explicit placement choice', () => {
+        const writer = makeMemoryInjectionWriter();
+        const options = (customMemoryPosition, customMemoryDepth = 0) =>
+            writer.options({ ...defaultSettings, customMemoryPosition, customMemoryDepth });
+
+        expect(options(MEMORY_POSITIONS.BEFORE_PROMPT)).toMatchObject({
+            position: EXTENSION_PROMPT_POSITIONS.BEFORE_PROMPT,
+            depth: 0,
+        });
+        expect(options(MEMORY_POSITIONS.IN_PROMPT)).toMatchObject({
+            position: EXTENSION_PROMPT_POSITIONS.IN_PROMPT,
+            depth: 0,
+        });
+        expect(options(MEMORY_POSITIONS.IN_CHAT, 3)).toMatchObject({
+            position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+            depth: 3,
+        });
+        expect(options(MEMORY_POSITIONS.MACRO_ONLY)).toMatchObject({
+            position: EXTENSION_PROMPT_POSITIONS.NONE,
+            depth: 0,
+        });
     });
 });

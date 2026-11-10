@@ -426,6 +426,24 @@ describe('microfiche geometry presets', () => {
         delete globalThis.$;
     });
 
+    it('shows the chat depth control for the default placement', async () => {
+        const { syncMemoryModeControls } = await import('../src/entry/ui.js');
+        const toggles = {};
+        globalThis.$ = (selector) => ({
+            toggle(shown) {
+                toggles[selector] = shown;
+            },
+            is: () => false,
+            prop() {},
+        });
+
+        syncMemoryModeControls(defaultSettings);
+        expect(toggles['#sc_custom_memory_depth_row']).toBe(true);
+        expect(toggles['#sc_custom_memory_role_row']).toBe(true);
+        expect(toggles['#sc_macro_memory_note']).toBe(false);
+        delete globalThis.$;
+    });
+
     it('locks explicit geometry inputs unless the geometry is custom', async () => {
         const { syncMemoryModeControls } = await import('../src/entry/ui.js');
         const seen = {};

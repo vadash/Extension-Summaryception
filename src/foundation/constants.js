@@ -419,9 +419,14 @@ export const defaultSettings = Object.freeze({
     // shown even when the extension is off so config stays editable.
     configMode: UI_MODES.EASY,
     uiMode: UI_MODES.EASY,
-    customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
+    // Start of chat history: the host clamps the depth at its maximum
+    // injection depth, so the slot lands after every preset block and before
+    // the oldest chat text, which keeps the image wire order chronological.
+    // The slider max must stay at the host maximum; a deeper default would sit
+    // past the host's injection loop and never ship.
+    customMemoryPosition: MEMORY_POSITIONS.IN_CHAT,
     customMemoryRole: MEMORY_ROLES.SYSTEM,
-    customMemoryDepth: 0,
+    customMemoryDepth: SLIDER_LIMITS.customMemoryDepth.MAX,
     minSummaryTurns: 3,
     maxSummaryTurns: 8,
     layer0SummaryTokenTarget: 280,

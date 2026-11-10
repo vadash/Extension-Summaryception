@@ -174,7 +174,10 @@ export function expandMicroficheContent(content, resolvePage = resolveMicrofiche
 }
 
 /**
- * Expand every marker-bearing message in place and count the swaps.
+ * Expand every marker-bearing message in place and count the swaps. In place
+ * means the chat array and its message objects keep their positions: only
+ * `content` is replaced, because the wire order built upstream is the
+ * chronological order the model must receive.
  * @param {Array<Record<string, unknown>>} chat - Mutable prompt-ready chat.
  * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
  * @returns {number} Resolved marker count; 0 leaves the payload untouched.

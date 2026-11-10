@@ -5,7 +5,7 @@ import {
     bumpSummaryStoreMutationEpoch,
     getChatStore,
 } from '../src/foundation/chat-store.js';
-import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 import { getEffectiveSettings } from '../src/foundation/settings.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
@@ -603,7 +603,11 @@ describe('memory injection writer microfiche markers', () => {
         const markers = extractMicroficheMarkers(text);
         const firstRaw = markers.findIndex((marker) => marker.region === 'raw');
         expect(firstRaw).toBeGreaterThan(0);
-        expect(markers.slice(0, firstRaw).every((marker) => marker.region === 'memory')).toBe(true);
+        const memoryMarkers = markers.slice(0, firstRaw);
+        expect(memoryMarkers.every((marker) => marker.region === 'memory')).toBe(true);
+        expect(memoryMarkers.map((marker) => marker.pageIndex)).toEqual(
+            memoryMarkers.map((_marker, index) => index),
+        );
         const rawMarkers = markers.slice(firstRaw);
         expect(rawMarkers.length).toBeGreaterThan(0);
         expect(rawMarkers.every((marker) => marker.region === 'raw')).toBe(true);
@@ -612,15 +616,51 @@ describe('memory injection writer microfiche markers', () => {
         );
         expect(text).toContain(formatMicroficheRawMarker(0));
 
-        const rawPages = [];
-        for (let index = 0; index < rawMarkers.length; index += 1) {
-            const page = writer.resolveMicrofichePage(index, 'raw');
-            if (!page) {
-                break;
-            }
-            rawPages.push(page);
-        }
-        expect(rawPages.length).toBe(rawMarkers.length);
+        const memoryPages = readAllPages(writer);
+        const rawPages = readAllRawPages(writer);
+        const expanded = expandCapturedChat(
+            [{ role: 'system', content: text }],
+            writer.resolveMicrofichePage,
+        );
+        const imageUrls = expanded.chat[0].content
+            .filter((part) => part.type === 'image_url')
+            .map((part) => part.image_url.url);
+        expect(imageUrls).toEqual([...memoryPages, ...rawPages].map((page) => page.dataUrl));
+        expect(expanded.unresolvedMarkers).toEqual([]);
+    });
+
+    it('ships the raw-only slot at the start of chat history by default', () => {
+        const setExtensionPrompt = vi.fn();
+        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
+        installMicroficheContext({
+            setExtensionPrompt,
+            chat,
+            layers: [],
+            settings: {
+                ...MICROFICHE_SETTINGS,
+                microficheFrozenRawImages: true,
+                customMemoryPosition: defaultSettings.customMemoryPosition,
+                customMemoryDepth: defaultSettings.customMemoryDepth,
+            },
+        });
+        const factory = makeFakeFactory();
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+
+        const [, text, position, depth, scan, role] = setExtensionPrompt.mock.calls[0];
+        expect({ position, depth, scan, role }).toEqual({
+            position: 1,
+            depth: 10000,
+            scan: false,
+            role: 0,
+        });
+        const markers = extractMicroficheMarkers(text);
+        expect(markers.length).toBeGreaterThan(0);
+        expect(markers.every((marker) => marker.region === 'raw')).toBe(true);
+        expect(markers.map((marker) => marker.pageIndex)).toEqual(
+            markers.map((_marker, index) => index),
+        );
     });
 
     it('renders frozen raw images on empty layers with the raw toggle on', () => {
