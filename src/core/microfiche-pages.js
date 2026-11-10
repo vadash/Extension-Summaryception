@@ -31,7 +31,6 @@ const SHAPE_HASH_KEYS = [
  * @typedef {object} MicrofichePageSourceInput
  * @property {import('./microfiche-policy.js').MicrofichePlan | null} plan - Memory plan owning its page list and render shape.
  * @property {import('./microfiche-policy.js').MicroficheRawPlan | null} [rawPlan] - Frozen raw-chat plan owning its own page list and index namespace.
- * @property {string} [text] - Accepted for caller compatibility; pages render from the sealed plan, so this value is not retained.
  * @property {number} epoch - Mutation Epoch the sealed pages belong to.
  */
 
@@ -185,7 +184,7 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
      * the same epoch reuses the sealed page lists and their pixels; the raw
      * list is the Raw Seal (ADR-0040). Memory and raw indexes stay in their own
      * lists, so the same number names a different page per region (ADR-0045).
-     * @param {MicrofichePageSourceInput} input - Plans and epoch; `text` is accepted and ignored.
+     * @param {MicrofichePageSourceInput} input - Plans and epoch.
      * @returns {MicroficheSealedPlans} The plans this call sealed or reused.
      */
     function update({ plan, rawPlan = null, epoch }) {

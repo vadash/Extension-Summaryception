@@ -105,11 +105,10 @@ export function createPlanPageReader(settings) {
         const store = getChatStore();
         const epoch = getSummaryStoreMutationEpoch(store);
         const rawTexts = pageSource.sealRaw({ chat: getChat(), store, settings, epoch });
-        const injection = buildInjection(store.layers, settings, null, rawTexts);
+        const injection = buildInjection(store.layers, settings, null, { rawTexts });
         pageSource.update({
             plan: injection.microfiche,
             rawPlan: injection.microficheRaw,
-            text: injection.text,
             epoch,
         });
         return pageSource;

@@ -91,11 +91,10 @@ function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
             settings,
             epoch,
         });
-        const injection = buildInjection(store.layers, settings, null, rawTexts);
+        const injection = buildInjection(store.layers, settings, null, { rawTexts });
         const sealed = state.pageSource.update({
             plan: injection.microfiche,
             rawPlan: injection.microficheRaw,
-            text: injection.text,
             epoch,
         });
         const nextInjection = buildNextInjection(settings, injection, sealed);

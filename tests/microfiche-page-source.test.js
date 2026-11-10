@@ -162,7 +162,7 @@ describe('microfiche page source', () => {
         const { renderPage } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan: makePlan(texts), text: 'built injection text', epoch: 0 });
+        source.update({ plan: makePlan(texts), epoch: 0 });
 
         expect(source.readPage(0)).toEqual({ dataUrl: 'data:fake:first page', text: 'first page' });
         expect(source.readPage(1).text).toBe('second page');
@@ -176,7 +176,7 @@ describe('microfiche page source', () => {
         expect(source.readPage(0)).toBeUndefined();
         expect(calls.length).toBe(0);
 
-        source.update({ plan: makePlan(['one', 'two']), text: 'built injection text', epoch: 0 });
+        source.update({ plan: makePlan(['one', 'two']), epoch: 0 });
         const warmed = calls.length;
         expect(source.readPage(-1)).toBeUndefined();
         expect(source.readPage(2)).toBeUndefined();
@@ -191,7 +191,7 @@ describe('microfiche page source', () => {
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan: makePlan(texts), text: 'built injection text', epoch: 0 });
+        source.update({ plan: makePlan(texts), epoch: 0 });
         expect(calls.map((call) => call.text)).toEqual(texts);
 
         const first = source.readPage(0);
@@ -202,30 +202,28 @@ describe('microfiche page source', () => {
         expect(source.size()).toBe(texts.length);
     });
 
-    it('keeps pixels on text edits and re-renders on geometry change, ignoring billing extras', () => {
+    it('keeps pixels when the plan repeats and re-renders on geometry change, ignoring billing extras', () => {
         const texts = ['page zero', 'page one'];
         const shape = resolveMicroficheShape(GEMINI_KNOBS);
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan: makePlan(texts, shape), text: 'built injection text', epoch: 0 });
+        source.update({ plan: makePlan(texts, shape), epoch: 0 });
         const first = source.readPage(0);
 
         source.update({
             plan: makePlan(texts, { ...shape, frameTokenEstimate: 999, imageBudget: 5 }),
-            text: 'built injection text',
             epoch: 0,
         });
         expect(source.readPage(0)).toBe(first);
         expect(calls.length).toBe(texts.length);
 
-        source.update({ plan: makePlan(texts, shape), text: 'edited injection text', epoch: 0 });
+        source.update({ plan: makePlan(texts, shape), epoch: 0 });
         expect(source.readPage(0)).toBe(first);
         expect(calls.length).toBe(texts.length);
 
         source.update({
             plan: makePlan(texts, { ...shape, variant: 'sent' }),
-            text: 'edited injection text',
             epoch: 0,
         });
         const reshaped = source.readPage(0);
@@ -235,16 +233,15 @@ describe('microfiche page source', () => {
         expect(calls[texts.length].shape.variant).toBe('sent');
     });
 
-    it('reuses the sealed page list when plan and text change inside one epoch', () => {
+    it('reuses the sealed page list when the plan changes inside one epoch', () => {
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan: makePlan(['alpha', 'beta']), text: 'built A', epoch: 0 });
+        source.update({ plan: makePlan(['alpha', 'beta']), epoch: 0 });
         expect(calls.map((call) => call.text)).toEqual(['alpha', 'beta']);
 
         source.update({
             plan: makePlan(['changed alpha', 'changed beta']),
-            text: 'built B',
             epoch: 0,
         });
 
@@ -258,25 +255,25 @@ describe('microfiche page source', () => {
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan: makePlan(['alpha', 'beta']), text: 'built A', epoch: 0 });
-        source.update({ plan: makePlan(['new alpha', 'new beta']), text: 'built B', epoch: 1 });
+        source.update({ plan: makePlan(['alpha', 'beta']), epoch: 0 });
+        source.update({ plan: makePlan(['new alpha', 'new beta']), epoch: 1 });
 
         expect(calls.map((call) => call.text)).toEqual(['alpha', 'beta', 'new alpha', 'new beta']);
         expect(source.readPage(0).text).toBe('new alpha');
         expect(source.readPage(1).text).toBe('new beta');
     });
 
-    it('drops every page on epoch drift even when text and shape match', () => {
+    it('drops every page on epoch drift even when plan and shape match', () => {
         const texts = ['epoch page', 'epoch page two'];
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
         const plan = makePlan(texts);
 
-        source.update({ plan, text: 'built injection text', epoch: 0 });
+        source.update({ plan, epoch: 0 });
         const first = source.readPage(0);
         expect(calls.length).toBe(texts.length);
 
-        source.update({ plan, text: 'built injection text', epoch: 1 });
+        source.update({ plan, epoch: 1 });
         expect(calls.length).toBe(texts.length * 2);
 
         const drifted = source.readPage(0);
@@ -291,27 +288,26 @@ describe('microfiche page source', () => {
 
         source.update({
             plan: makePlan(['one', 'two', 'three']),
-            text: 'built injection text',
             epoch: 0,
         });
         expect(source.size()).toBe(3);
 
-        source.update({ plan: makePlan(['one', 'two']), text: 'built injection text', epoch: 1 });
+        source.update({ plan: makePlan(['one', 'two']), epoch: 1 });
         expect(source.size()).toBe(2);
         expect(source.readPage(2)).toBeUndefined();
         expect(source.readPage(0).text).toBe('one');
     });
 
-    it('keeps the sealed page set when text changes at a fixed cap', () => {
+    it('keeps the sealed page set when updates repeat at a fixed cap', () => {
         const texts = ['alpha', 'beta', 'gamma'];
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
         const plan = makePlan(texts);
 
-        source.update({ plan, text: 'built A', epoch: 0 });
+        source.update({ plan, epoch: 0 });
         expect(source.size()).toBe(3);
 
-        source.update({ plan, text: 'built B', epoch: 0 });
+        source.update({ plan, epoch: 0 });
         expect(calls.length).toBe(texts.length);
         expect(source.size()).toBe(3);
         expect(source.readPage(0).text).toBe('alpha');
@@ -344,7 +340,7 @@ describe('microfiche page source', () => {
         const { renderPage, calls } = makeFakeRenderer();
         const source = createMicrofichePageSource({ renderPage });
 
-        source.update({ plan, text: 'built injection text', epoch: 0 });
+        source.update({ plan, epoch: 0 });
 
         expect(plan.imageTexts.length).toBeGreaterThan(1);
         expect(calls.map((call) => call.text)).toEqual(plan.imageTexts);
@@ -359,7 +355,7 @@ describe('microfiche page source', () => {
         const factory = makeFakeFactory();
         const source = createMicrofichePageSource({ canvasFactory: factory.canvasFactory });
 
-        source.update({ plan: makePlan(['canvas one', 'canvas two']), text: 'built', epoch: 0 });
+        source.update({ plan: makePlan(['canvas one', 'canvas two']), epoch: 0 });
 
         expect(source.readPage(0).text).toBe('canvas one');
         expect(source.readPage(1).text).toBe('canvas two');
@@ -369,7 +365,7 @@ describe('microfiche page source', () => {
 
     it('returns undefined for every index without a renderer', () => {
         const source = createMicrofichePageSource();
-        source.update({ plan: makePlan(['one', 'two']), text: 'built', epoch: 0 });
+        source.update({ plan: makePlan(['one', 'two']), epoch: 0 });
         expect(source.readPage(0)).toBeUndefined();
         expect(source.size()).toBe(0);
     });

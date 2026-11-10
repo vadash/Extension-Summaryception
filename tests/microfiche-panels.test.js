@@ -245,12 +245,9 @@ describe('microfiche panels', () => {
         const injection = buildUiInjection(getChatStore(), getEffectiveSettings());
 
         expect(injection.microficheRaw.imageTexts).toEqual(sealed.microficheRaw.imageTexts);
-        const fresh = buildInjection(
-            getChatStore().layers,
-            getEffectiveSettings(),
-            null,
-            buildMicroficheRawSlice(chat, getChatStore(), getEffectiveSettings()),
-        );
+        const fresh = buildInjection(getChatStore().layers, getEffectiveSettings(), null, {
+            rawTexts: buildMicroficheRawSlice(chat, getChatStore(), getEffectiveSettings()),
+        });
         expect(fresh.microficheRaw.imageTexts.length).toBeGreaterThan(
             sealed.microficheRaw.imageTexts.length,
         );

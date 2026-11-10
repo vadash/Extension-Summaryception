@@ -93,7 +93,7 @@ describe('microfiche frozen-raw plan', () => {
     };
 
     it('images the oldest raw pages with empty memory layers', () => {
-        const injection = buildInjection([], rawSettings, null, rawChat);
+        const injection = buildInjection([], rawSettings, null, { rawTexts: rawChat });
         expect(injection.microfiche).toBeNull();
         expect(injection.microficheRaw).not.toBeNull();
         expect(injection.microficheRaw.imageTexts.length).toBeGreaterThan(0);
@@ -102,14 +102,14 @@ describe('microfiche frozen-raw plan', () => {
     it('leaves the memory plan unchanged when frozen raw imaging is on', () => {
         const layers = [[{ text: 'word '.repeat(500) }]];
         const withoutRaw = buildInjection(layers, rawSettings);
-        const withRaw = buildInjection(layers, rawSettings, null, rawChat);
+        const withRaw = buildInjection(layers, rawSettings, null, { rawTexts: rawChat });
         expect(withRaw.microfiche).toEqual(withoutRaw.microfiche);
         expect(withRaw.microficheRaw).not.toBeNull();
     });
 
     it('keeps the page after the cap in rawTexts', () => {
         const settings = { ...rawSettings, microficheImageCap: 5 };
-        const injection = buildInjection([], settings, null, rawChat);
+        const injection = buildInjection([], settings, null, { rawTexts: rawChat });
         const shape = injection.microficheRaw.shape;
         const pages = buildMicrofichePageTexts(rawChat, shape).imageTexts;
         expect(pages.length).toBeGreaterThan(5);
@@ -122,7 +122,7 @@ describe('microfiche frozen-raw plan', () => {
             [],
             { ...rawSettings, microficheFrozenRawImages: false },
             null,
-            rawChat,
+            { rawTexts: rawChat },
         );
         expect(injection.microficheRaw).toBeNull();
     });
@@ -134,7 +134,7 @@ describe('microfiche frozen-raw plan', () => {
     });
 
     it('bills raw image tokens from the one raw bucket', () => {
-        const injection = buildInjection([], rawSettings, null, rawChat);
+        const injection = buildInjection([], rawSettings, null, { rawTexts: rawChat });
         const images = injection.microficheRaw.imageTexts.length;
         const imageTokens = images * injection.microficheRaw.frameTokenEstimate;
         const billing = describeMicroficheBilling(injection, rawSettings);
