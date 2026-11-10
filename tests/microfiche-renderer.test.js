@@ -155,10 +155,21 @@ describe('microfiche renderMicrofichePages', () => {
         }
     });
 
+    it('draws stored silver settings from a loaded bitmap instead of blank frames', () => {
+        const factory = makeFakeFactory();
+        const pages = renderMicrofichePages(
+            ['Latin corpus renders'],
+            geminiShape({ font: 'silver' }),
+            factory.canvasFactory,
+        );
+        expect(pages.map((page) => page.text)).toEqual(['Latin corpus renders']);
+        expect(glyphPixels(factory).length).toBeGreaterThan(0);
+    });
+
     it('draws every reference font, ink, dim, column, repeat, and frame combination in order', () => {
         const texts = ['A one two three', 'B four five six'];
         let drawn = 0;
-        for (const font of ['5x8', '8x8', '6x12', '8x13']) {
+        for (const font of ['5x8', '8x8', '6x12', '8x13', 'silver']) {
             for (const variant of ['bw', 'sent']) {
                 for (const stopwordDim of [false, true]) {
                     for (const columns of [1, 2]) {
@@ -188,7 +199,7 @@ describe('microfiche renderMicrofichePages', () => {
                 }
             }
         }
-        expect(drawn).toBe(2 * 4 * 2 * 2 * 2 * 2 * 2);
+        expect(drawn).toBe(2 * 5 * 2 * 2 * 2 * 2 * 2);
     });
 });
 
