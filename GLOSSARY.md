@@ -410,3 +410,13 @@ _Avoid_: system monospace, embedded font
 The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to image-only parts, no page text beside them, and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.
 Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js); `openDryRunPreview` (src/entry/dryrun-viewer.js)
 _Avoid_: prompt inspector view, wire dump
+
+**Memory Slot**:
+The one extension prompt slot into which the host prompt manager places Memory Injection text together with its Microfiche markers; the markers are swapped for images in place there, and the slot's single string is the only place they live.
+Code: `setExtensionPrompt` (src/features/injection.js)
+_Avoid_: injection block, memory prompt
+
+**Wire Order**:
+The outgoing prompt sequence — chronological presets, then memories in seal order, then raw images in seal order, then raw text in chat order — which the image form never reorders.
+Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js)
+_Avoid_: prompt order, send order
