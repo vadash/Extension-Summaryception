@@ -154,6 +154,8 @@ interface ExtensionSettings {
     stripChineseIdeographs: boolean;
     guardMask: boolean;
     guardMaskMemory: boolean;
+    guardMaskCotMode: 'off' | 'auto' | 'on';
+    guardMaskCotCount: number;
     maskUserRoleAsAssistant: boolean;
     maskUserRoleMode: 'marker_first' | 'rewrite_all' | 'marker_last' | 'keep_last_user';
     stripPatterns: string[];

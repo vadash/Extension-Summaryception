@@ -1,4 +1,4 @@
-import { SLIDER_LIMITS } from '../foundation/constants.js';
+import { GUARD_MASK_COT_MODES, SLIDER_LIMITS } from '../foundation/constants.js';
 import { clampToStep } from '../foundation/numeric.js';
 import { getSettings, saveSettings } from '../foundation/settings.js';
 import { formatCompactTokenCount } from '../core/token-count.js';
@@ -331,6 +331,23 @@ export function syncRoleMaskModeControl(enabled) {
  */
 export function syncGuardMaskMemoryControl(enabled) {
     $('#sc_guard_mask_memory').prop('disabled', !enabled);
+}
+
+/**
+ * Gate the Preset CoT controls on the main mask and the selected mode. The
+ * stored mode and count stay untouched, so turning the main mask back on
+ * restores the user's choice. The count slider applies only to the on mode.
+ * @param {boolean} guardMaskEnabled
+ * @param {string} mode
+ * @returns {void}
+ */
+export function syncGuardMaskCotControl(guardMaskEnabled, mode) {
+    $('#sc_guard_mask_cot_mode_row').toggle(guardMaskEnabled);
+    $('#sc_guard_mask_cot_mode').prop('disabled', !guardMaskEnabled);
+    $('#sc_guard_mask_cot_count_row').toggle(guardMaskEnabled);
+    const countEnabled = guardMaskEnabled && mode === GUARD_MASK_COT_MODES.ON;
+    $('#sc_guard_mask_cot_count').prop('disabled', !countEnabled);
+    $('#sc_guard_mask_cot_count_val').prop('disabled', !countEnabled);
 }
 
 /**

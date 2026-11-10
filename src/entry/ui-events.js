@@ -1,5 +1,6 @@
 import {
     TOAST_TITLE,
+    GUARD_MASK_COT_MODES,
     MASK_USER_ROLE_MODES,
     applyMemoryModePreset,
     applyMicroficheGeometryPreset,
@@ -28,6 +29,7 @@ import {
     bindSliderSettingPairs,
     readChecked,
     readString,
+    syncGuardMaskCotControl,
     syncGuardMaskMemoryControl,
     syncRoleMaskModeControl,
 } from './ui-bind.js';
@@ -153,6 +155,7 @@ function bindToggleHandlers(queue) {
         afterSave: (_settings, value) => syncRoleMaskModeControl(Boolean(value)),
     });
 
+    bindGuardMaskCotModeSetting();
     bindDocumentSetting({
         eventName: 'change',
         selector: '#sc_mask_user_role_mode',
@@ -166,6 +169,7 @@ function bindToggleHandlers(queue) {
             }
         },
     });
+
     $(document).on(
         'change',
         'input[name="sc_easy_memory_mode"], input[name="sc_memory_mode"]',
@@ -188,6 +192,31 @@ function bindToggleHandlers(queue) {
 }
 
 /**
+ * Mode select for the trailing Preset CoT exemption. Unknown values fall back
+ * to the shipped default so the saved mode always names a real mode.
+ * @returns {void}
+ */
+function bindGuardMaskCotModeSetting() {
+    bindDocumentSetting({
+        eventName: 'change',
+        selector: '#sc_guard_mask_cot_mode',
+        key: 'guardMaskCotMode',
+        read: readString,
+        beforeSave: (settings, _value, $source) => {
+            const mode = String(_value);
+            if (!(/** @type {string[]} */ (Object.values(GUARD_MASK_COT_MODES)).includes(mode))) {
+                settings.guardMaskCotMode = defaultSettings.guardMaskCotMode;
+                $source.val(defaultSettings.guardMaskCotMode);
+            }
+        },
+        afterSave: (settings) => {
+            syncGuardMaskCotControl(Boolean(settings.guardMask), settings.guardMaskCotMode);
+            refreshFull();
+        },
+    });
+}
+
+/**
  * Re-sync after a plain toggle save so the injection and visible state match
  * the saved settings. The Memory gate control also follows the main guard.
  * @param {ReturnType<typeof getSettings>} settings
@@ -195,6 +224,7 @@ function bindToggleHandlers(queue) {
  */
 function refreshAfterToggleSave(settings) {
     syncGuardMaskMemoryControl(Boolean(settings.guardMask));
+    syncGuardMaskCotControl(Boolean(settings.guardMask), settings.guardMaskCotMode);
     refreshFull();
 }
 

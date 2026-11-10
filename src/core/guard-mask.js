@@ -6,6 +6,14 @@
  * summarizer-side read folds it back to one space.
  */
 
+import {
+    GUARD_MASK_COT_AUTO_COUNT,
+    GUARD_MASK_COT_MODES,
+    SLIDER_LIMITS,
+} from '../foundation/constants.js';
+import { getChat } from '../foundation/context.js';
+import { clampInteger } from '../foundation/numeric.js';
+
 /**
  * Replace every U+0020 with `$$`. The replacer is a function so `$` sequences
  * in the text are inserted literally instead of being read as replacement
@@ -54,9 +62,11 @@ export function maskGuardContentParts(content) {
  * The Memory slot keeps its own gate in memory-injection.js: buildInjection masks
  * the slot text when memory masking is on. When that gate is off, the caller
  * passes the unmasked slot text as `skipContent` so this pass leaves it alone.
- * Runs last at the GENERATE_AFTER_DATA seam, after the user-role rewrite.
+ * Trailing user-role Preset CoT messages after the last chat message stay
+ * unmasked up to the configured window. Runs last at the GENERATE_AFTER_DATA
+ * seam, after the user-role rewrite.
  * @param {Array<{ role?: unknown, content?: unknown }> | null} messages
- * @param {{ enabled?: unknown, guardMask?: unknown }} [settings]
+ * @param {{ enabled?: unknown, guardMask?: unknown, guardMaskCotMode?: unknown, guardMaskCotCount?: unknown }} [settings]
  * @param {string | null} [skipContent] - Exact message content to leave unmasked.
  * @returns {void}
  */
@@ -64,8 +74,13 @@ export function maskGuardContent(messages, settings = {}, skipContent = null) {
     if (!Array.isArray(messages) || !settings.enabled || !settings.guardMask) {
         return;
     }
-    for (const message of messages) {
+    const exempt = collectPresetCotExemptions(messages, settings);
+    for (let index = 0; index < messages.length; index++) {
+        const message = messages[index];
         if (message.role !== 'user' && message.role !== 'assistant') {
+            continue;
+        }
+        if (exempt.has(index)) {
             continue;
         }
         if (skipContent !== null && message.content === skipContent) {
@@ -77,4 +92,140 @@ export function maskGuardContent(messages, settings = {}, skipContent = null) {
         }
         maskGuardContentParts(message.content);
     }
+}
+
+/**
+ * Message indexes in the trailing Preset CoT window. The anchor is the live
+ * chat's last message; a miss exempts nothing because the unseen tail may be
+ * chat content. Only user-role messages after the anchor count toward N.
+ * @param {Array<{ role?: unknown, content?: unknown }>} messages
+ * @param {{ guardMaskCotMode?: unknown, guardMaskCotCount?: unknown }} settings
+ * @returns {Set<number>}
+ */
+function collectPresetCotExemptions(messages, settings) {
+    const count = resolvePresetCotCount(settings);
+    if (count === 0) {
+        return new Set();
+    }
+    const anchorIndex = findLastChatMessageIndex(messages);
+    if (anchorIndex === -1) {
+        return new Set();
+    }
+    const exempt = new Set();
+    for (let index = anchorIndex + 1; index < messages.length && exempt.size < count; index++) {
+        if (messages[index].role === 'user') {
+            exempt.add(index);
+        }
+    }
+    return exempt;
+}
+
+/**
+ * Auto resolves to the fixed window, on clamps the slider, and off disables the
+ * exemption. An unknown mode falls back to auto, the shipped default.
+ * @param {{ guardMaskCotMode?: unknown, guardMaskCotCount?: unknown }} settings
+ * @returns {number}
+ */
+function resolvePresetCotCount(settings) {
+    const mode =
+        settings.guardMaskCotMode === GUARD_MASK_COT_MODES.OFF ||
+        settings.guardMaskCotMode === GUARD_MASK_COT_MODES.ON
+            ? settings.guardMaskCotMode
+            : GUARD_MASK_COT_MODES.AUTO;
+    if (mode === GUARD_MASK_COT_MODES.OFF) {
+        return 0;
+    }
+    if (mode === GUARD_MASK_COT_MODES.AUTO) {
+        return GUARD_MASK_COT_AUTO_COUNT;
+    }
+    const { MIN, MAX } = SLIDER_LIMITS.guardMaskCotCount;
+    return clampInteger(settings.guardMaskCotCount, MIN, MAX);
+}
+
+/**
+ * The last chat message's prompt index, matched from the tail backward.
+ * @param {Array<{ content?: unknown }>} messages
+ * @returns {number} Index, or -1 when the live chat's last message is absent.
+ */
+function findLastChatMessageIndex(messages) {
+    const chat = readLiveChat();
+    const last = /** @type {{ mes?: unknown } | undefined} */ (
+        chat ? chat[chat.length - 1] : undefined
+    );
+    const anchor = normalizeAnchorText(messageText(last?.mes));
+    if (!anchor) {
+        return -1;
+    }
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (matchesAnchor(messageText(messages[index].content), anchor)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/**
+ * A missing runtime is an anchor miss, which masks everything.
+ * @returns {unknown[] | null}
+ */
+function readLiveChat() {
+    try {
+        const chat = getChat();
+        return Array.isArray(chat) ? chat : null;
+    } catch (_e) {
+        return null;
+    }
+}
+
+/**
+ * Text a message carries for anchor comparison. A multipart message is one
+ * message: its text parts join back into one compare string.
+ * @param {unknown} content
+ * @returns {string}
+ */
+function messageText(content) {
+    if (typeof content === 'string') {
+        return content;
+    }
+    if (!Array.isArray(content)) {
+        return '';
+    }
+    let text = '';
+    for (const part of content) {
+        if (!part || typeof part !== 'object') {
+            continue;
+        }
+        const entry = /** @type {{ type?: unknown, text?: unknown }} */ (part);
+        if (entry.type === 'text' && typeof entry.text === 'string') {
+            text += entry.text;
+        }
+    }
+    return text;
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function normalizeAnchorText(text) {
+    return text.replaceAll('\r', '').trim();
+}
+
+/**
+ * Exact match after normalization, or the same text behind one speaker-name
+ * prefix such as `Player1: `.
+ * @param {string} content
+ * @param {string} anchor
+ * @returns {boolean}
+ */
+function matchesAnchor(content, anchor) {
+    const candidate = normalizeAnchorText(content);
+    if (candidate === anchor) {
+        return true;
+    }
+    if (!candidate.endsWith(anchor)) {
+        return false;
+    }
+    const prefix = candidate.slice(0, candidate.length - anchor.length);
+    return /^[^:\n]{1,80}:\s+$/.test(prefix);
 }

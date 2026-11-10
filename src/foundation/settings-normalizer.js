@@ -1,4 +1,5 @@
 import {
+    GUARD_MASK_COT_MODES,
     MASK_USER_ROLE_MODES,
     MEMORY_MODES,
     MEMORY_MODE_PRESETS,
@@ -109,6 +110,7 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
     const memorySettingsNormalized = normalizeMemorySettings(settings);
     const microficheSettingsNormalized = normalizeMicroficheSettings(settings);
     const roleMaskSettingsNormalized = normalizeRoleMaskSettings(settings, hadMaskUserRoleMode);
+    const guardMaskCotSettingsNormalized = normalizeGuardMaskCotSettings(settings);
     normalizeVerbatimWindowSettings(settings);
     normalizeRequestTimeouts(settings);
     const continuitySettingsNormalized = normalizeContinuitySettings(settings);
@@ -118,6 +120,7 @@ export function normalizeSettings(settings, { hadMaskUserRoleMode }) {
         memorySettingsNormalized ||
         microficheSettingsNormalized ||
         roleMaskSettingsNormalized ||
+        guardMaskCotSettingsNormalized ||
         continuitySettingsNormalized ||
         promptSettingsNormalized ||
         unknownSettingsDropped
@@ -228,6 +231,27 @@ function normalizeRoleMaskSettings(settings, hadMode) {
  */
 function isSettingValue(values, value) {
     return values.includes(String(value));
+}
+
+/**
+ * Normalize the Guard Mask trailing Preset CoT exemption in place. An unknown
+ * mode falls back to auto, the same fallback the mask reader uses. The count
+ * clamps silently, like every other slider setting.
+ * @param {ExtensionSettings} settings
+ * @returns {boolean} Whether the mode was repaired.
+ */
+function normalizeGuardMaskCotSettings(settings) {
+    let changed = false;
+    if (!isSettingValue(Object.values(GUARD_MASK_COT_MODES), settings.guardMaskCotMode)) {
+        settings.guardMaskCotMode = defaultSettings.guardMaskCotMode;
+        changed = true;
+    }
+    settings.guardMaskCotCount = clampInteger(
+        settings.guardMaskCotCount,
+        SLIDER_LIMITS.guardMaskCotCount.MIN,
+        SLIDER_LIMITS.guardMaskCotCount.MAX,
+    );
+    return changed;
 }
 
 /**

@@ -19,6 +19,7 @@ import { buildInjection, measureInjection } from '../core/memory-injection.js';
 import { readSealedMicrofichePlans, selectSealedRegions } from '../core/microfiche-pages.js';
 import {
     syncAllSettingsToDOM,
+    syncGuardMaskCotControl,
     syncGuardMaskMemoryControl,
     syncRoleMaskModeControl,
 } from './ui-bind.js';
@@ -58,6 +59,7 @@ export async function updateUI() {
 
         syncRoleMaskModeControl(s.maskUserRoleAsAssistant);
         syncGuardMaskMemoryControl(Boolean(s.guardMask));
+        syncGuardMaskCotControl(Boolean(s.guardMask), s.guardMaskCotMode);
         const work = await describeAutoWork(getChat(), store, effectiveSettings).catch(() => null);
         const ghostedCount = countGhostedMessages();
         const metrics = {

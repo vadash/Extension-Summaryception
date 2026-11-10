@@ -743,6 +743,29 @@
                             </span>
                             <input type="checkbox" id="sc_guard_mask_memory" data-sc-setting="guardMaskMemory" />
                         </label>
+                        <div id="sc_guard_mask_cot_mode_row" class="sc-sub-panel" style="display: none;">
+                            <div class="sc-setting-row">
+                                <label for="sc_guard_mask_cot_mode">
+                                    <span>Preset CoT exemption</span>
+                                    <small class="sc-hint">Trailing Preset CoT messages after your last chat message stay unmasked. Auto covers the last two. Needs the main toggle on.</small>
+                                </label>
+                                <select id="sc_guard_mask_cot_mode" class="text_pole" disabled data-sc-setting="guardMaskCotMode">
+                                    <option value="off">Off: mask every message</option>
+                                    <option value="auto" selected>Auto: last two messages</option>
+                                    <option value="on">On: use the message count</option>
+                                </select>
+                            </div>
+                            <div id="sc_guard_mask_cot_count_row" class="sc-setting-row" style="display: none;">
+                                <label for="sc_guard_mask_cot_count">
+                                    <span>Preset CoT messages</span>
+                                    <small class="sc-hint">Trailing user messages kept unmasked in On mode. A trailing assistant message stays masked.</small>
+                                </label>
+                                <div class="sc-slider-row">
+                                    <input type="range" id="sc_guard_mask_cot_count" min="1" max="5" step="1" value="2" data-sc-slider-setting="guardMaskCotCount" data-sc-partner-input="#sc_guard_mask_cot_count_val" disabled />
+                                    <input id="sc_guard_mask_cot_count_val" class="text_pole sc-val" type="text" inputmode="numeric" value="2" data-sc-slider-setting="guardMaskCotCount" data-sc-partner-input="#sc_guard_mask_cot_count" disabled />
+                                </div>
+                            </div>
+                        </div>
                         <label class="checkbox_label sc-toggle-row" for="sc_mask_user_role_as_assistant">
                             <span class="sc-toggle-icon fa-solid fa-user-secret"></span>
                             <span class="sc-toggle-copy">

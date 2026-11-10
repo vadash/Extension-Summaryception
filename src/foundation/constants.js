@@ -334,6 +334,7 @@ export const SLIDER_LIMITS = Object.freeze({
     microficheLineRepeat: Object.freeze({ MIN: 1, MAX: 2, STEP: 1 }),
     microficheColumns: Object.freeze({ MIN: 1, MAX: 2, STEP: 1 }),
     microficheFrameSize: Object.freeze({ MIN: 512, MAX: 2608, STEP: 8 }),
+    guardMaskCotCount: Object.freeze({ MIN: 1, MAX: 5, STEP: 1 }),
 });
 
 export const MASK_USER_ROLE_MODES = Object.freeze({
@@ -342,6 +343,19 @@ export const MASK_USER_ROLE_MODES = Object.freeze({
     MARKER_LAST: 'marker_last',
     KEEP_LAST_USER: 'keep_last_user',
 });
+
+/**
+ * Guard Mask trailing Preset CoT exemption. Off masks the whole prompt; auto
+ * uses a fixed two-message window; on uses the guardMaskCotCount slider.
+ */
+export const GUARD_MASK_COT_MODES = Object.freeze({
+    OFF: 'off',
+    AUTO: 'auto',
+    ON: 'on',
+});
+
+/** Auto keeps a fixed two-message window, identical to on with this count. */
+export const GUARD_MASK_COT_AUTO_COUNT = 2;
 
 export const MEMORY_POSITIONS = Object.freeze({
     BEFORE_PROMPT: 'before_prompt',
@@ -485,6 +499,10 @@ export const defaultSettings = Object.freeze({
     stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
     guardMask: false, // true = replace spaces with $$ in outgoing main story chat text
     guardMaskMemory: false, // true = also mask stored memory in that request; needs guardMask
+    // Trailing Preset CoT exemption: off masks the whole prompt, auto keeps a
+    // fixed two-message window, on keeps guardMaskCotCount trailing messages.
+    guardMaskCotMode: GUARD_MASK_COT_MODES.AUTO,
+    guardMaskCotCount: GUARD_MASK_COT_AUTO_COUNT,
     maskUserRoleAsAssistant: false, // true = rewrite outgoing user-role request blocks as assistant
     maskUserRoleMode: MASK_USER_ROLE_MODES.MARKER_FIRST,
 
