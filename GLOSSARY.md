@@ -377,22 +377,27 @@ Code: `clearChatData` (src/core/chat-data.js); `#sc_clear_memory`, `/sc-clear`
 _Avoid_: wipe, purge
 
 **Frozen Page**:
-A rendered microfiche image, from memory or the Raw Seal, whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. Rendering images every generation would break provider prefix-cache stability, and uncached input is expensive.
+A rendered microfiche image, from memory or the Raw Seal, whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. A page ships image-only — its text does not also travel — and every full page is always an image; re-rendering every generation would break provider prefix-cache stability, and uncached input is expensive.
 Code: `readPage` / `update` (src/core/microfiche-pages.js)
 _Avoid_: cached image, snapshot
 
 **Fill Gate**:
-The rule that a sealed text span becomes an image only when it fills at least three quarters of a page's capacity (the 0.75 gate), per the provider's geometry and cap; otherwise it stays text. Images, the shipped text tail, and the other region's kept spend all bill the same raw bucket, so billed(k) is candidate plus k times frame-minus-page; when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
+The rule that gates only the last partial page of a sealed text span: it becomes an image only when it fills three quarters of a page's capacity (the 0.75 gate), and the engine runs a memory update instead when it would not fill or would not fit the raw bucket. Full pages are never gated; they always ship as images.
 Code: `applyFillGate` / `fitImagesToBucket` (src/core/microfiche-policy.js)
 _Avoid_: fill threshold, image trigger
 
+**Page Split**:
+Microfiche page boundaries are chosen inside assistant and user messages at `.` or newline boundaries, so a message may span pages. No message ever forces page alignment.
+Code: `buildMicrofichePageTexts` (src/core/microfiche-paginate.js)
+_Avoid_: message-aligned pages, message boundary
+
 **Raw Seal**:
-The frozen raw-chat slice, taken from the Verbatim Window plus queued span, computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw imaging works without memory, so a fresh chat with no snippets still images this slice. While no snippet exists there is no epoch bump to thaw an underfilled first seal, so the slice re-seals as the chat grows; the first snippet starts the per-epoch freeze. Once memory exists, raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
+The frozen raw-chat slice a Frozen Page renders from, taken from the Verbatim Window plus the queued span and reused verbatim until the next Mutation Epoch bump; full pages seal incrementally and only the growing tail ships as text. Sealing a new full page may break part of the provider prefix cache, a break the engine accepts when the saving warrants it; while no snippet exists there is no epoch bump, so the slice re-seals as the chat grows until the first snippet starts the per-epoch freeze.
 Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
 
 **Frozen Raw Images**:
-The Microfiche region that renders Raw Seal pages from the Verbatim Window plus queued span, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone.
+The Microfiche region that pages the Raw Seal into images, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone. Its pages ship image-only, so the raw text they cover no longer travels as text.
 Code: `update` / `readPage` (src/core/microfiche-pages.js); `applyMicroficheMarkers` (src/features/injection.js)
 **Bitmap Glyph**:
 Microfiche page pixels blitted from the snapcompact bitmap fonts through the page-source canvas seam.
@@ -400,6 +405,6 @@ Code: `readPage` (src/core/microfiche-pages.js)
 _Avoid_: system monospace, embedded font
 
 **Dry-Run Preview**:
-The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to text plus image parts and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.
+The modal capture of the expanded main-LLM prompt from a host dry-run generate: the post-`CHAT_COMPLETION_PROMPT_READY` chat array with microfiche markers expanded to image-only parts, no page text beside them, and the outgoing user-role rewrite and Guard Mask re-applied to the clone, so it shows the masked form the live request sends; rendered with inline enlargeable images.
 Code: `expandMicrofichePromptChat` (src/core/microfiche-transport.js); `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js); `openDryRunPreview` (src/entry/dryrun-viewer.js)
 _Avoid_: prompt inspector view, wire dump

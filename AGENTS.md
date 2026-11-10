@@ -16,7 +16,7 @@
 
 ## Documentation
 
-- Domain glossary: `CONTEXT.md`
+- Domain glossary: `GLOSSARY.md`
 - Decisions: `docs/adr/`
 - Conditional source guidance: `src/AGENTS.md`
 - Conditional test guidance: `tests/AGENTS.md`
@@ -34,4 +34,4 @@ Five-role vocabulary pinned in `docs/agents/triage-labels.md`; use its label str
 
 ### Domain docs
 
-Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
