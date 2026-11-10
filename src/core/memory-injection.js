@@ -56,7 +56,7 @@ export function buildMemoryBody(layers) {
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
- * @param {{ rawTexts?: string[] | null }} [options] - Frozen raw-chat slice, oldest first.
+ * @param {{ rawTexts?: string[] | null }} [options] - Options; `rawTexts` is the frozen raw-chat slice, oldest first.
  * @returns {MemoryInjection}
  */
 export function buildInjection(

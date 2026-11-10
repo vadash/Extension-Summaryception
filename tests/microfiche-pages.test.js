@@ -315,7 +315,6 @@ describe('microfiche oldest-to-images proof', () => {
         const source = createMicrofichePageSource({ renderPage });
         source.update({
             plan: { shape, imageTexts: built.imageTexts },
-            text: 'built injection text',
             epoch: 0,
         });
         const pages = built.imageTexts.map((_, index) => source.readPage(index));
