@@ -178,7 +178,7 @@ function normalizeMemorySettings(settings) {
     // depth is an explicit choice, so it passes through.
     if (
         settings.customMemoryPosition === MEMORY_POSITIONS.IN_PROMPT &&
-        settings.customMemoryDepth === 0
+        settings.customMemoryDepth === SLIDER_LIMITS.customMemoryDepth.MIN
     ) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
         settings.customMemoryDepth = defaultSettings.customMemoryDepth;
