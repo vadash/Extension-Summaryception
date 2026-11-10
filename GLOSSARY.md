@@ -64,6 +64,10 @@ The outgoing-only rewrite that replaces every `U+0020` with `$$` in user and ass
 Code: `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js)
 _Avoid_: $$ mode, dollar mode
 
+**Preset CoT**:
+A user-role preset prompt carrying reasoning instructions after chat history.
+_Avoid_: CoT block, chain of thought
+
 **Guard Unmask**:
 The summarizer-side rewrite that turns every literal `$$` into one `U+0020` in user and assistant message content, stored Snippet prose, and Continuity Checkpoint writes; always on regardless of the Guard Mask settings, so pasted or echoed `$$` never reaches a summarizer or Auditor prompt.
 Code: `buildPassageFromRangeWithStats` (src/core/chatutils.js)
