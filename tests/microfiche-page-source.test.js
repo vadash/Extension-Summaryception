@@ -676,10 +676,11 @@ describe('memory injection writer microfiche markers', () => {
         writer.update();
         expect(readAllRawPages(writer)).toHaveLength(0);
 
-        // The first seal froze nothing; growing to the 36k fixture must
-        // re-seal instead of leaving the chat as text for the epoch.
+        // The first seal froze nothing; growing the chat must re-seal instead
+        // of leaving the chat as text for the epoch. Page Split packs full
+        // pages at newlines, so the slice stays under the 36k bucket.
         chat.push(
-            ...makeMessages(36, (index) => ({
+            ...makeMessages(24, (index) => ({
                 isUser: index % 2 === 0,
                 mes: 'grow '.repeat(800),
             })),

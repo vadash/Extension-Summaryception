@@ -217,6 +217,14 @@ describe('microfiche fill gate and bucket debit', () => {
         expect(plan.rawTexts).toEqual([]);
     });
 
+    it('gates only the trailing partial page and images an earlier underfilled page', () => {
+        const text = `a.${'b'.repeat(14)}${'c'.repeat(6)}`;
+        const plan = buildMicrofichePlan([text], settings, {});
+        expect(plan.imageTexts).toHaveLength(2);
+        expect(plan.imageTexts[0]).toBe('a.');
+        expect(plan.rawTexts).toEqual(['cccc']);
+    });
+
     it('caps images by the raw bucket after the text that stays raw', () => {
         const bucketSettings = {
             ...TINY,
@@ -271,6 +279,17 @@ describe('microfiche frozen-raw bucket billing', () => {
         );
         expect(plan.effectiveCap).toBe(0);
         expect(plan.imageTexts).toEqual([]);
+        expect(plan.overCap).toBe(true);
+    });
+
+    it('reports over-cap when only the trailing partial page stays text', () => {
+        const plan = buildMicroficheRawPlan(
+            [`a.${'b'.repeat(14)}${'c'.repeat(4)}`],
+            { ...rawSettings, microficheFrameSize: 64, microficheImageCap: 8 },
+            {},
+        );
+        expect(plan.imageTexts).toHaveLength(2);
+        expect(plan.rawTexts).toHaveLength(1);
         expect(plan.overCap).toBe(true);
     });
 

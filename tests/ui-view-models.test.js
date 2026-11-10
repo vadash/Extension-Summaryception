@@ -160,26 +160,26 @@ describe('trigger gauge model', () => {
 
 describe('billed auto work bars', () => {
     it('bills the sealed frames plus the tail text instead of the live span', async () => {
-        const { work, live } = await sealOneRawPage();
+        const { work, live } = await sealRawPages();
 
-        // One Google frame bills 1120 tokens and holds 3479 tokens of page
-        // text (13916 cells), so the bars total the frame plus the surviving
-        // tail instead of the full live span.
-        const billed = 1120 + (live - 3479);
+        // Two Google frames bill 2240 tokens and hold 6958 tokens of page
+        // text (two 13916-cell frames), so the bars total the frames plus the
+        // surviving tail instead of the full live span.
+        const billed = 2240 + (live - 6958);
         expect(work.verbatimTokens + work.queuedTokens).toBe(billed);
         expect(work.verbatimTokens + work.queuedTokens).toBeLessThan(live);
         expect(work.verbatimImageTokens).toBe(0);
-        expect(work.queuedImageTokens).toBe(1120);
+        expect(work.queuedImageTokens).toBe(2240);
     });
 
     it('renders the image share as its own segment beside the text tail', async () => {
-        const { work } = await sealOneRawPage();
+        const { work } = await sealRawPages();
 
         const parts = buildAutoWorkBudgetParts(work);
         expect(parts.queued.images).toEqual({
             label: 'Images',
             kind: 'microfiche',
-            count: 1120,
+            count: 2240,
             estimated: false,
         });
         expect(parts.recent.images.count).toBe(0);
@@ -196,12 +196,12 @@ describe('billed auto work bars', () => {
 });
 
 /**
- * Seal one full Google page from a chat that fills the raw bucket exactly, so
- * the bars bill the frame plus the surviving tail. Lengths stay in the stub
+ * Seal the full Google pages from a chat that fills the raw bucket, so the
+ * bars bill the frames plus the surviving tail. Lengths stay in the stub
  * tokenizer's char scale (one char counts as one token).
  * @returns {Promise<{ work: import('../src/core/summarization-routes.js').AutoWorkReadModel, live: number }>}
  */
-async function sealOneRawPage() {
+async function sealRawPages() {
     const chat = makeSizedChat(6, { userLength: 2000, assistantLength: 2000 });
     const live = 6 * messageLineTokens(true, 2000) + 6 * messageLineTokens(false, 2000);
     const settings = {
@@ -223,7 +223,7 @@ async function sealOneRawPage() {
     const writer = makeMemoryInjectionWriter();
     writer.update();
     const sealed = readSealedMicrofichePlans();
-    expect(sealed.microficheRaw.imageTexts).toHaveLength(1);
+    expect(sealed.microficheRaw.imageTexts).toHaveLength(2);
     return { work: await describeAutoWork(chat, store, settings), live };
 }
 

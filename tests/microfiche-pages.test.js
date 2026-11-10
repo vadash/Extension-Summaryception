@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
+import { DIM_OFF, DIM_ON, NEWLINE_GLYPH } from '../src/core/microfiche-normalize.js';
 import {
     buildMicrofichePageTexts,
     resolveMicroficheShape,
@@ -298,6 +298,31 @@ describe('microfiche buildMicrofichePageTexts', () => {
     it('folds a narrow-script letter the shape font does not cover', () => {
         const result = buildMicrofichePageTexts(['Вова'], googleShape());
         expect(result.imageTexts).toEqual(['????']);
+    });
+});
+
+describe('microfiche page split', () => {
+    const shape = googleShape({ frameSize: 64 });
+
+    it('breaks a page after the last period before the capacity edge', () => {
+        const result = buildMicrofichePageTexts(['aa. bbb ccc ddd eee'], shape);
+        expect(result.imageTexts).toEqual(['aa. ', 'bbb ccc ddd eee']);
+        expect(result.rawTexts).toEqual([]);
+    });
+
+    it('breaks a page after the newline glyph between messages', () => {
+        const result = buildMicrofichePageTexts(['aaaa bbbb cccc', 'dddd eeee ffff'], shape);
+        expect(result.imageTexts).toEqual([`aaaa bbbb cccc${NEWLINE_GLYPH}`, 'dddd eeee ffff']);
+    });
+
+    it('hard-cuts at capacity when no period or newline fits', () => {
+        const result = buildMicrofichePageTexts(['a'.repeat(40)], shape);
+        expect(result.imageTexts.map((page) => page.length)).toEqual([16, 16, 8]);
+    });
+
+    it('lets one message span pages and share a page with the next', () => {
+        const result = buildMicrofichePageTexts(['x'.repeat(20), 'yy'], shape);
+        expect(result.imageTexts).toEqual(['x'.repeat(16), `xxxx${NEWLINE_GLYPH}yy`]);
     });
 });
 

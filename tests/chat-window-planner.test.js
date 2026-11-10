@@ -219,13 +219,15 @@ describe('buildChatWindowPlan', () => {
         const imageTokens =
             sealed.microficheRaw.imageTexts.length * sealed.microficheRaw.frameTokenEstimate;
         expect(sealed.microficheRaw.overCap).toBe(false);
-        expect(imageTokens).toBe(1120);
+        // Page Split ends the first page at the last newline before capacity,
+        // so both sealed pages fill their frames and the span needs two.
+        expect(imageTokens).toBe(2240);
 
         const plan = await buildChatWindowPlan(chat, store, settings);
 
-        // The raw span plus its frame would cross the bucket, but the image
-        // holds 3479 tokens of that span, so the surviving tail plus the frame
-        // stays below it (ADR-0049).
+        // The raw span plus its frames would cross the bucket, but each frame
+        // holds 3479 tokens of that span, so the billed frames stay below it
+        // (ADR-0049).
         expect(plan.liveTokens).toBe(live);
         expect(live + imageTokens).toBeGreaterThanOrEqual(live);
         expect(plan.tokenBudgetExceeded).toBe(false);

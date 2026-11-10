@@ -181,7 +181,9 @@ export function buildMicroficheRawPlan(
         imageTexts: budgeted.imageTexts,
         rawTexts: budgeted.rawTexts,
         frameTokenEstimate,
-        overCap: budgeted.imageTexts.length < filled.imageTexts.length,
+        // An underfilled trailing page and a bucket demotion both leave a page
+        // unimaged, so either one requests the memory update.
+        overCap: budgeted.imageTexts.length < pages.imageTexts.length,
     };
 }
 
@@ -284,24 +286,24 @@ function fitImagesToBucket(imageTexts, rawTexts, { frameTokenEstimate, bucketTok
 }
 
 /**
- * Keep only the leading pages that fill at least the gate ratio. Pagination
- * fills pages in order, so only the trailing page can fall short.
+ * Gate the trailing partial page only. Earlier pages image even when a
+ * sentence break leaves them under the ratio, because more content follows
+ * them; only the final page can be the growing remainder. Pagination fills
+ * pages in order, so no other page is partial.
  * @param {string[]} pages - Page strings in order.
  * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
- * @returns {{ imageTexts: string[], rawTexts: string[] }} Gated images plus the trailing text pages.
+ * @returns {{ imageTexts: string[], rawTexts: string[] }} Gated images plus the trailing text page.
  */
 function applyFillGate(pages, shape) {
-    const imageTexts = pages.slice();
-    const rawTexts = [];
-    const geo = frameGrid(shape, shape.frameSize);
-    while (imageTexts.length > 0) {
-        const last = imageTexts[imageTexts.length - 1];
-        if (pageFillRatio(last, shape, geo) >= MICROFICHE_FILL_GATE_RATIO) {
-            break;
-        }
-        rawTexts.unshift(/** @type {string} */ (imageTexts.pop()));
+    if (pages.length === 0) {
+        return { imageTexts: [], rawTexts: [] };
     }
-    return { imageTexts, rawTexts };
+    const last = /** @type {string} */ (pages[pages.length - 1]);
+    const geo = frameGrid(shape, shape.frameSize);
+    if (pageFillRatio(last, shape, geo) >= MICROFICHE_FILL_GATE_RATIO) {
+        return { imageTexts: pages.slice(), rawTexts: [] };
+    }
+    return { imageTexts: pages.slice(0, -1), rawTexts: [last] };
 }
 
 /**
