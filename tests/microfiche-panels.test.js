@@ -11,7 +11,10 @@ import {
     lookupModelShapes,
 } from '../src/foundation/constants.js';
 import { buildInjection } from '../src/core/memory-injection.js';
+import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
+import { buildMicroficheRawSlice } from '../src/core/microfiche-raw-slice.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
+import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
 import { getEffectiveSettings, getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
@@ -180,30 +183,80 @@ describe('microfiche panels', () => {
         delete globalThis.$;
     });
 
-    it('bills frozen raw images from the UI injection', async () => {
+    it('bills the re-sealed pages after the writer follows memory-less chat growth', async () => {
         const settings = {
             ...defaultSettings,
             memoryMode: MEMORY_MODES.MICROFICHE,
             microficheGeometry: 'gemini',
             microficheFrameSize: 512,
-            microficheImageCap: 5,
+            microficheImageCap: 8,
             microficheKeepRaw: 0,
             microficheFrozenRawImages: true,
             verbatimTokenBudget: 20000,
             queuedTokenBudget: 16000,
         };
-        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
+        const chat = makeMessages(1, { mes: 'lorem ipsum dolor sit amet '.repeat(170) });
         installSummaryContext({
             chat,
             metadata: { summaryception: makeSummaryStore({ layers: [] }) },
             settings,
         });
+        const writer = createMemoryInjectionWriter();
+        writer.update();
+        const { buildUiInjection } = await import('../src/entry/ui.js');
+        const before = buildUiInjection(getChatStore(), getEffectiveSettings());
+        const sealedBefore = before.microficheRaw.imageTexts.length;
+
+        chat.push(...makeMessages(12, { mes: 'lorem ipsum dolor sit amet '.repeat(170) }));
+        writer.update();
+        const after = buildUiInjection(getChatStore(), getEffectiveSettings());
+
+        expect(sealedBefore).toBeGreaterThan(0);
+        expect(after.microficheRaw.imageTexts.length).toBeGreaterThan(sealedBefore);
+    });
+
+    it('bills the writer-sealed frozen raw pages, not a longer fresh slice', async () => {
+        const settings = {
+            ...defaultSettings,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'gemini',
+            microficheFrameSize: 512,
+            microficheImageCap: 8,
+            microficheKeepRaw: 0,
+            microficheFrozenRawImages: true,
+            verbatimTokenBudget: 20000,
+            queuedTokenBudget: 16000,
+        };
+        const chat = makeMessages(1, { mes: 'lorem ipsum dolor sit amet '.repeat(170) });
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers: [] }) },
+            settings,
+        });
+        const writer = createMemoryInjectionWriter();
+        writer.update();
+        const sealed = readSealedMicrofichePlans();
+        expect(sealed.microficheRaw.imageTexts.length).toBeGreaterThan(0);
+
+        // Chat growth after the seal: the writer has not updated, so billing
+        // must keep the sealed pages even though a fresh slice is now longer.
+        chat.push(...makeMessages(12, { mes: 'lorem ipsum dolor sit amet '.repeat(170) }));
         const { buildUiInjection, syncMicroficheBilling } = await import('../src/entry/ui.js');
         const injection = buildUiInjection(getChatStore(), getEffectiveSettings());
 
-        expect(injection.microficheRaw).not.toBeNull();
+        expect(injection.microficheRaw.imageTexts).toEqual(sealed.microficheRaw.imageTexts);
+        const fresh = buildInjection(
+            getChatStore().layers,
+            getEffectiveSettings(),
+            null,
+            buildMicroficheRawSlice(chat, getChatStore(), getEffectiveSettings()),
+        );
+        expect(fresh.microficheRaw.imageTexts.length).toBeGreaterThan(
+            sealed.microficheRaw.imageTexts.length,
+        );
+
         const billing = describeMicroficheBilling(injection, getEffectiveSettings());
-        expect(billing.images).toBe(injection.microficheRaw.imageTexts.length);
+        expect(billing.images).toBe(sealed.microficheRaw.imageTexts.length);
         expect(billing.imageTokens).toBe(billing.images * 1120);
         expect(billing.bucketAfterImages).toBe(36000 - billing.imageTokens);
 

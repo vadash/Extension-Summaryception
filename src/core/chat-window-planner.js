@@ -1,7 +1,6 @@
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { countedChatMessages, toAssistantTurn } from './chatutils.js';
-import { buildInjection } from './memory-injection.js';
-import { buildMicroficheRawSlice } from './microfiche-raw-slice.js';
+import { readSealedMicrofichePlans } from './microfiche-pages.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
@@ -49,7 +48,7 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     const data = await collectLiveData(chat, sourceStartIdx, settings);
     const verbatimBudget = toTokenBudget(settings.verbatimTokenBudget);
     const queuedBudget = toTokenBudget(settings.queuedTokenBudget);
-    const rawSpend = readRawImageSpend(chat, store, settings);
+    const rawSpend = readRawImageSpend(settings);
     const tokenBudgetExceeded = exceedsTriggerBudget(
         data.liveStats.finalTokens,
         rawSpend,
@@ -118,26 +117,21 @@ function exceedsTriggerBudget(liveTokens, rawSpend, bucketTokens) {
 }
 
 /**
- * The frozen-raw region's share of the trigger: the image tokens its built
- * plan bills and whether a fill-gated page missed the image cap. Over-cap
- * means the next full image would not fit, so the engine runs a memory update
- * instead of adding that image (ADR-0045). Off or plan-less regions spend
- * nothing.
- * @param {ChatMessage[]} chat
- * @param {SummaryceptionStore} store
+ * The frozen-raw region's share of the trigger: the image tokens the writer's
+ * sealed plan bills and whether a fill-gated page missed the image cap. Reading
+ * the seal keeps the trigger on the same pages the prompt writer bound; a
+ * writer update that has not run since the last chat growth leaves the previous
+ * seal in place. Over-cap means the next full image would not fit, so the
+ * engine runs a memory update instead of adding that image (ADR-0045). Off or
+ * plan-less regions spend nothing.
  * @param {ExtensionSettings} settings
  * @returns {{ overCap: boolean, imageTokens: number }}
  */
-function readRawImageSpend(chat, store, settings) {
+function readRawImageSpend(settings) {
     if (settings?.microficheFrozenRawImages !== true) {
         return { overCap: false, imageTokens: 0 };
     }
-    const rawTexts = buildMicroficheRawSlice(chat, store, settings);
-    if (rawTexts.length === 0) {
-        return { overCap: false, imageTokens: 0 };
-    }
-    const injection = buildInjection(store?.layers ?? [], settings, null, rawTexts);
-    const plan = injection.microficheRaw;
+    const plan = readSealedMicrofichePlans()?.microficheRaw;
     if (plan === null || plan === undefined) {
         return { overCap: false, imageTokens: 0 };
     }

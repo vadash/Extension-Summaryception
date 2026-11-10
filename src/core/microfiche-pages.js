@@ -29,18 +29,17 @@ const SHAPE_HASH_KEYS = [
 
 /**
  * @typedef {object} MicrofichePageSourceInput
- * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[], rawTexts?: string[] } | null} plan - Memory plan owning its page list and render shape.
- * @property {{ shape: import('./microfiche-geometry.js').MicroficheShape, imageTexts: string[], rawTexts?: string[] } | null} [rawPlan] - Frozen raw-chat plan owning its own page list and index namespace.
+ * @property {import('./microfiche-policy.js').MicrofichePlan | null} plan - Memory plan owning its page list and render shape.
+ * @property {import('./microfiche-policy.js').MicroficheRawPlan | null} [rawPlan] - Frozen raw-chat plan owning its own page list and index namespace.
  * @property {string} [text] - Accepted for caller compatibility; pages render from the sealed plan, so this value is not retained.
  * @property {number} epoch - Mutation Epoch the sealed pages belong to.
  */
 
 /**
  * @typedef {object} MicroficheSealedPlans
- * @property {MicrofichePageSourceInput['plan']} microfiche - Sealed memory plan.
- * @property {MicrofichePageSourceInput['rawPlan']} microficheRaw - Sealed frozen raw-chat plan.
+ * @property {import('./microfiche-policy.js').MicrofichePlan | null} microfiche - Sealed memory plan.
+ * @property {import('./microfiche-policy.js').MicroficheRawPlan | null} microficheRaw - Sealed frozen raw-chat plan.
  */
-
 /**
  * @typedef {object} MicroficheRawSealInput
  * @property {ChatMessage[]} chat - Live chat array carrying the candidate span.
@@ -61,9 +60,36 @@ const SHAPE_HASH_KEYS = [
  * @property {(input: MicrofichePageSourceInput) => MicroficheSealedPlans} update - Seal both region plans for the epoch, then warm every sealed page.
  * @property {(input: MicroficheRawSealInput) => string[] | null} sealRaw - Seal or reuse the Raw Seal slice for the epoch; null when the region is off.
  * @property {(pageIndex: number, region?: 'memory' | 'raw') => MicrofichePage | undefined} readPage - Read one page by region and index.
+ * @property {() => MicroficheSealedPlans | null} getSealedPlans - Read the plans the last update sealed, or null before the first update.
  * @property {() => number} size - Cached page count.
  * @property {() => void} reset - Drop the sealed plans, every cached page, and the Raw Seal, for a chat switch where the epoch can repeat.
  */
+
+/**
+ * Page source the Memory Injection writer built. The composition root builds
+ * one writer per tab, so this source is the only seal owner for the UI billing
+ * and the engine trigger. Those readers must not build their own raw slice.
+ * @type {MicrofichePageSource | null}
+ */
+let writerPageSource = null;
+
+/**
+ * Register the writer's page source so readers can reach the sealed plans.
+ * @param {MicrofichePageSource} source - Page source owned by the writer.
+ * @returns {void}
+ */
+export function bindWriterMicrofichePageSource(source) {
+    writerPageSource = source;
+}
+
+/**
+ * Read the plans the writer sealed for its current epoch. A null result means
+ * the writer has not sealed once yet, so no pages ship to bill or trigger on.
+ * @returns {MicroficheSealedPlans | null} Sealed plans, or null before the first update.
+ */
+export function readSealedMicrofichePlans() {
+    return writerPageSource?.getSealedPlans() ?? null;
+}
 
 /**
  * Canonical string over geometry keys only, so equal reading geometry
@@ -76,11 +102,26 @@ export function hashMicroficheShape(shape) {
 }
 
 /**
- * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Region plan, if any.
+ * @param {import('./microfiche-policy.js').MicroficheRegionPlan | null | undefined} plan - Region plan, if any.
  * @returns {string} Geometry hash, or an empty string without a plan.
  */
 function hashRegionShape(plan) {
     return plan === null || plan === undefined ? '' : hashMicroficheShape(plan.shape);
+}
+
+/**
+ * @template {import('./microfiche-policy.js').MicroficheRegionPlan} T
+ * @param {T | null | undefined} plan - Region plan to copy.
+ * @returns {T | null} Frozen copy, or null.
+ */
+function sealPlan(plan) {
+    if (plan === null || plan === undefined) {
+        return null;
+    }
+    return {
+        ...plan,
+        imageTexts: Array.isArray(plan.imageTexts) ? [...plan.imageTexts] : [],
+    };
 }
 
 /**
@@ -129,7 +170,7 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
             : canvasFactory !== null && canvasFactory !== undefined
               ? (text, shape) => renderMicrofichePages([text], shape, canvasFactory)[0]
               : null;
-    /** @type {{ epoch: number, shapeHash: string, plans: { memory: MicrofichePageSourceInput['plan'], raw: MicrofichePageSourceInput['rawPlan'] } } | null} */
+    /** @type {{ epoch: number, shapeHash: string, plans: { memory: import('./microfiche-policy.js').MicrofichePlan | null, raw: import('./microfiche-policy.js').MicroficheRawPlan | null } } | null} */
     let sealed = null;
     /** @type {Map<string, MicrofichePage>} */
     const pages = new Map();
@@ -160,21 +201,7 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
     }
 
     /**
-     * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Region plan to copy.
-     * @returns {MicrofichePageSourceInput['plan']} Frozen copy, or null.
-     */
-    function sealPlan(plan) {
-        if (plan === null || plan === undefined) {
-            return null;
-        }
-        return {
-            ...plan,
-            imageTexts: Array.isArray(plan.imageTexts) ? [...plan.imageTexts] : [],
-        };
-    }
-
-    /**
-     * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Sealed region plan, if any.
+     * @param {import('./microfiche-policy.js').MicroficheRegionPlan | null | undefined} plan - Sealed region plan, if any.
      * @param {'memory' | 'raw'} region - Page region to warm.
      * @returns {void}
      */
@@ -218,6 +245,16 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
     }
 
     /**
+     * @returns {MicroficheSealedPlans | null}
+     */
+    function getSealedPlans() {
+        if (sealed === null) {
+            return null;
+        }
+        return { microfiche: sealed.plans.memory, microficheRaw: sealed.plans.raw };
+    }
+
+    /**
      * @returns {number}
      */
     function size() {
@@ -243,7 +280,7 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         pages.clear();
     }
 
-    return { update, sealRaw: rawSeal.sealRaw, readPage, size, reset };
+    return { update, sealRaw: rawSeal.sealRaw, readPage, getSealedPlans, size, reset };
 }
 
 /**

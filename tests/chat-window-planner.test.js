@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 import { buildChatWindowPlan } from '../src/core/chat-window-planner.js';
-import { buildInjection } from '../src/core/memory-injection.js';
-import { buildMicroficheRawSlice } from '../src/core/microfiche-raw-slice.js';
+import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
+import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import {
+    installSummaryContext,
     makeMessage,
     makeSizedChat,
     makeSummaryStore,
@@ -177,10 +178,12 @@ describe('buildChatWindowPlan', () => {
         };
         const chat = makeSizedChat(10, { userLength: 1000, assistantLength: 1000 });
         const store = makeSummaryStore();
-        const rawTexts = buildMicroficheRawSlice(chat, store, settings);
-        const injection = buildInjection([], settings, null, rawTexts);
-        expect(injection.microficheRaw.overCap).toBe(true);
-        expect(injection.microficheRaw.imageTexts).toHaveLength(5);
+        installSummaryContext({ chat, metadata: { summaryception: store }, settings });
+        const writer = createMemoryInjectionWriter();
+        writer.update();
+        const sealed = readSealedMicrofichePlans();
+        expect(sealed.microficheRaw.overCap).toBe(true);
+        expect(sealed.microficheRaw.imageTexts).toHaveLength(5);
 
         const plan = await buildChatWindowPlan(chat, store, settings);
 

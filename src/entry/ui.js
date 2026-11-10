@@ -16,7 +16,7 @@ import { formatCompactTokenCount } from '../core/token-count.js';
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
-import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
+import { readSealedMicrofichePlans } from '../core/microfiche-pages.js';
 import {
     syncAllSettingsToDOM,
     syncGuardMaskMemoryControl,
@@ -85,20 +85,19 @@ export async function updateUI({ queue }) {
 }
 
 /**
- * Build the injection the UI bills and previews. Billing reads the built
- * injection, so the frozen raw slice must enter here exactly as it enters the
- * injection writer; otherwise `microficheRaw` is always null and raw images
- * never debit the raw bucket.
+ * Build the injection the UI bills and previews. Both region plans come from
+ * the writer's seal, so billing counts the pages the prompt writer sealed for
+ * this Mutation Epoch instead of a fresh slice that may hold pages the writer
+ * never bound. A writer update that has not run since the last chat growth
+ * leaves the previous seal in place.
  * @param {SummaryceptionStore} store - Store owning memory layers and boundary.
  * @param {ExtensionSettings} settings - Effective settings.
  * @returns {import('../core/memory-injection.js').MemoryInjection}
  */
 export function buildUiInjection(store, settings) {
-    const rawTexts =
-        settings.microficheFrozenRawImages === true
-            ? buildMicroficheRawSlice(getChat(), store, settings)
-            : null;
-    return buildInjection(store.layers, settings, null, rawTexts);
+    const injection = buildInjection(store.layers, settings);
+    const sealed = readSealedMicrofichePlans();
+    return sealed === null ? injection : { ...injection, ...sealed };
 }
 
 /**

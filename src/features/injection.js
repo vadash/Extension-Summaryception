@@ -11,7 +11,10 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection, renderInjectionTemplate } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
-import { createMicrofichePageSource } from '../core/microfiche-pages.js';
+import {
+    bindWriterMicrofichePageSource,
+    createMicrofichePageSource,
+} from '../core/microfiche-pages.js';
 import { formatMicroficheMarker, formatMicroficheRawMarker } from '../core/microfiche-transport.js';
 import { maskGuardText } from '../core/guard-mask.js';
 
@@ -58,6 +61,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         memoryMacroRegistered: false,
         pageSource: createMicrofichePageSource({ canvasFactory }),
     };
+    bindWriterMicrofichePageSource(state.pageSource);
 
     return {
         update: (updateOptions) => updateMemoryInjection(state, updateOptions),
