@@ -136,7 +136,6 @@ describe('openDryRunPreview guard mask', () => {
         expect(Array.isArray(content)).toBe(true);
         expect(content.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
             'before$$',
-            'PAGE$$ZERO$$TEXT',
             '$$after',
         ]);
         expect(content.filter((part) => part.type === 'image_url')).toEqual([
@@ -166,7 +165,6 @@ describe('openDryRunPreview guard mask', () => {
         const content = /** @type {any[]} */ (view.chat[0].content);
         expect(content.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
             'hello$$world$$',
-            'PAGE$$ZERO$$TEXT',
             '$$tail',
         ]);
     });

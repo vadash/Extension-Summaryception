@@ -84,7 +84,7 @@ describe('expandCapturedChat', () => {
             type: 'image_url',
             image_url: { url: PAGES.get(0).dataUrl },
         });
-        expect(expanded.chat[0].content).toContainEqual({
+        expect(expanded.chat[0].content).not.toContainEqual({
             type: 'text',
             text: PAGES.get(0).text,
         });

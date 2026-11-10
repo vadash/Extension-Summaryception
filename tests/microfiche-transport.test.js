@@ -112,7 +112,7 @@ describe('expandMicroficheContent', () => {
         expect(result.content).toBe(`a ${marker} b`);
     });
 
-    it('swaps each registered marker for text plus image parts in order', () => {
+    it('swaps each registered marker for image-only parts in order', () => {
         registerStubPages();
         const content = `before ${formatMicroficheMarker(0)} between ${formatMicroficheMarker(1)} after`;
         const result = expandMicroficheContent(content);
@@ -126,15 +126,16 @@ describe('expandMicroficheContent', () => {
             .filter((part) => part.type === 'text')
             .map((part) => part.text)
             .join('');
-        expect(text).toBe(`before ${STUB_ZERO.text} between ${STUB_ONE.text} after`);
+        expect(text).toBe('before  between  after');
+        expect(text).not.toContain(STUB_ZERO.text);
+        expect(text).not.toContain(STUB_ONE.text);
     });
 
-    it('pins the OpenAI image part shape as the stub contract', () => {
+    it('pins the OpenAI image-only part shape as the stub contract', () => {
         registerStubPages();
         const result = expandMicroficheContent(formatMicroficheMarker(0));
         expect(result.swapped).toBe(1);
         expect(result.content).toEqual([
-            { type: 'text', text: STUB_ZERO.text },
             { type: 'image_url', image_url: { url: STUB_ZERO.dataUrl } },
         ]);
     });
@@ -166,7 +167,6 @@ describe('expandMicroficheContent', () => {
         expect(result.swapped).toBe(1);
         expect(result.content).toEqual([
             { type: 'text', text: 'a ' },
-            { type: 'text', text: STUB_ONE.text },
             { type: 'image_url', image_url: { url: STUB_ONE.dataUrl } },
             kept,
         ]);
@@ -257,7 +257,7 @@ describe('prompt slot stays text-only', () => {
 });
 
 describe('stub pages round-trip end to end', () => {
-    it('expands two stub pages with surrounding text preserved', () => {
+    it('expands two stub pages image-only with surrounding text preserved', () => {
         registerStubPages();
         const chat = [
             {
@@ -276,7 +276,9 @@ describe('stub pages round-trip end to end', () => {
             .filter((part) => part.type === 'text')
             .map((part) => part.text)
             .join('');
-        expect(text).toBe(`recall ${STUB_ZERO.text} mid ${STUB_ONE.text} end`);
+        expect(text).toBe('recall  mid  end');
+        expect(text).not.toContain(STUB_ZERO.text);
+        expect(text).not.toContain(STUB_ONE.text);
     });
 });
 
@@ -287,7 +289,6 @@ describe('onChatCompletionPromptReady microfiche transport', () => {
         onChatCompletionPromptReady({ chat });
         expect(chat[0].content).toEqual([
             { type: 'text', text: 'mem ' },
-            { type: 'text', text: STUB_ZERO.text },
             { type: 'image_url', image_url: { url: STUB_ZERO.dataUrl } },
             { type: 'text', text: ' tail' },
         ]);

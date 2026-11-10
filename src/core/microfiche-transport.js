@@ -101,7 +101,7 @@ export function extractMicroficheMarkers(text) {
  * the real renderer registers its own pages in a later ticket. Raw pages use
  * their own key space so a raw stub never resolves a memory page.
  * @param {number} pageIndex - Zero-based page index.
- * @param {{ dataUrl: string, text: string }} page - Stub image URL and fallback text.
+ * @param {{ dataUrl: string, text: string }} page - Stub image URL and page text.
  * @param {MicroficheRegion} [region] - Page region; memory by default.
  * @returns {void}
  */
@@ -153,10 +153,12 @@ function validatePageIndex(pageIndex) {
 }
 
 /**
- * Swap markers for text-plus-image parts. Strings become part arrays only
- * when at least one marker resolves; unknown markers stay plain text. Memory
- * markers call the reader with one argument; raw markers add `'raw'` so a
- * memory-only reader keeps its old contract.
+ * Swap markers for image-only parts. Strings become part arrays only when at
+ * least one marker resolves; unknown markers stay plain text. A resolved page
+ * ships its image alone: the frozen page text never reaches the prompt, so the
+ * page costs its image frame plus the real tail text only. Memory markers call
+ * the reader with one argument; raw markers add `'raw'` so a memory-only reader
+ * keeps its old contract.
  * @param {unknown} content - String or OpenAI-style part array.
  * @param {(index: number, region?: MicroficheRegion) => ({ dataUrl: string, text: string } | undefined)} [resolvePage] - Page reader.
  * @returns {{ content: unknown, swapped: number }} Expanded content and swap count.
@@ -213,7 +215,6 @@ function expandStringContent(text, resolvePage) {
         }
         const start = typeof match.index === 'number' ? match.index : cursor;
         pushTextPart(parts, text.slice(cursor, start));
-        pushTextPart(parts, page.text);
         // OpenAI chat-compatible image part; the stub dataUrl stands in for
         // the real renderer output until that ticket lands.
         parts.push({ type: 'image_url', image_url: { url: page.dataUrl } });

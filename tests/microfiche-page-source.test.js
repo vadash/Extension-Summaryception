@@ -388,7 +388,7 @@ describe('memory injection writer render cache', () => {
             type: 'image_url',
             image_url: { url: page.dataUrl },
         });
-        expect(chat[0].content).toContainEqual({ type: 'text', text: page.text });
+        expect(chat[0].content).not.toContainEqual({ type: 'text', text: page.text });
     });
 
     it('serves only the split page count even when the image cap is higher', () => {

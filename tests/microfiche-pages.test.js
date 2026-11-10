@@ -357,8 +357,9 @@ describe('microfiche oldest-to-images proof', () => {
             .filter((part) => part.type === 'text')
             .map((part) => part.text)
             .join(' ');
-        expect(textParts.indexOf('alpha')).toBeLessThan(textParts.indexOf('beta'));
         expect(textParts).toContain('gamma three');
+        expect(textParts).not.toContain('alpha one');
+        expect(textParts).not.toContain('beta two');
         expect(imageParts.length).toBe(pages.length);
     });
 });

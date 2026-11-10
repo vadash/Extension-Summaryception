@@ -27,7 +27,7 @@ const SHAPE_HASH_KEYS = [
 /**
  * @typedef {object} MicrofichePage
  * @property {string} dataUrl - PNG data URL for the rendered page.
- * @property {string} text - Page text for the marker-expansion path.
+ * @property {string} text - Page text identifying the sealed page (never shipped beside the image).
  */
 
 /**
