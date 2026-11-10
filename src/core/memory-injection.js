@@ -153,16 +153,16 @@ function buildMemoryPlanEntry(layers, settings, host, maskMemory) {
 
 /**
  * @param {unknown} rawChatTexts - Frozen raw-chat slice, oldest first.
- * @param {boolean} maskMemory - Whether the caller masks outgoing text.
+ * @param {boolean} maskRaw - Whether the caller masks the outgoing raw chat.
  * @returns {string[]} String slice in place order.
  */
-function maskRawChatTexts(rawChatTexts, maskMemory) {
+function maskRawChatTexts(rawChatTexts, maskRaw) {
     if (!Array.isArray(rawChatTexts)) {
         return [];
     }
     return rawChatTexts
         .filter((text) => typeof text === 'string' && text.length > 0)
-        .map((text) => (maskMemory ? maskGuardText(text) : text));
+        .map((text) => (maskRaw ? maskGuardText(text) : text));
 }
 
 /**

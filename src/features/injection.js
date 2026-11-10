@@ -1,7 +1,6 @@
 import {
     EXTENSION_PROMPT_POSITIONS,
     EXTENSION_PROMPT_ROLES,
-    MEMORY_MODES,
     MEMORY_POSITIONS,
     MEMORY_ROLES,
     MODULE_NAME,
@@ -13,7 +12,6 @@ import { debug, isDebugEnabled, warn } from '../foundation/logger.js';
 import { buildInjection, renderInjectionTemplate } from '../core/memory-injection.js';
 import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import { createMicrofichePageSource } from '../core/microfiche-pages.js';
-import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
 import { formatMicroficheMarker, formatMicroficheRawMarker } from '../core/microfiche-transport.js';
 import { maskGuardText } from '../core/guard-mask.js';
 
@@ -27,8 +25,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * @property {string | null} activeInjectionSnapshot - Last committed slot text.
  * @property {{ position: number, depth: number, scan: boolean, role: number } | null} activeInjectionOptions - Options committed with that text.
  * @property {boolean} memoryMacroRegistered - Whether ST accepted the macro registration.
- * @property {import('../core/microfiche-pages.js').MicrofichePageSource} pageSource - Sealed Microfiche page source.
- * @property {{ epoch: number, texts: string[], chatLength: number } | null} sealedRawSlice - Raw Seal for the current epoch and the chat length it sealed.
+ * @property {import('../core/microfiche-pages.js').MicrofichePageSource} pageSource - Sealed Microfiche page source, which owns the Raw Seal.
  */
 
 /**
@@ -40,8 +37,8 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * cleared on epoch or geometry drift. A chat switch clears it explicitly
  * because each chat's epoch starts at zero and can repeat the sealed one. The
  * same instance owns the slot markers for image-backed memory and frozen
- * raw-chat pages (ADR-0042), and seals the raw-chat slice per Mutation Epoch
- * (ADR-0040).
+ * raw-chat pages (ADR-0042); its page source seals the raw-chat slice per
+ * Mutation Epoch (ADR-0040).
  * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
@@ -60,7 +57,6 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
         activeInjectionOptions: null,
         memoryMacroRegistered: false,
         pageSource: createMicrofichePageSource({ canvasFactory }),
-        sealedRawSlice: null,
     };
 
     return {
@@ -84,12 +80,13 @@ function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
         const store = getChatStore();
         const settings = getEffectiveSettings();
         const epoch = getSummaryStoreMutationEpoch(store);
-        const injection = buildInjection(
-            store.layers,
+        const rawTexts = state.pageSource.sealRaw({
+            chat: getChat(),
+            store,
             settings,
-            null,
-            getFrozenRawSlice(state, store, settings, epoch),
-        );
+            epoch,
+        });
+        const injection = buildInjection(store.layers, settings, null, rawTexts);
         const sealed = state.pageSource.update({
             plan: injection.microfiche,
             rawPlan: injection.microficheRaw,
@@ -118,119 +115,6 @@ function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
 }
 
 /**
- * The Raw Seal: the raw-chat span is selected once per Mutation Epoch and
- * reused verbatim until the epoch bump clears it, so chat growth inside
- * one epoch ships as text (ADR-0040). Only the frozen-raw toggle reads it.
- * A memory-less chat is the exception: with no store mutation to bump the
- * epoch, the first seal would freeze an underfilled slice forever, so the
- * seal follows chat growth until the first snippet exists. Once memory
- * exists, the epoch owns it and prefix-cache stability resumes.
- * @param {MemoryInjectionWriterState} state - Writer state.
- * @param {SummaryceptionStore} store - Store owning the summarized boundary.
- * @param {ExtensionSettings} settings - Effective settings.
- * @param {number} epoch - Mutation Epoch being sealed.
- * @returns {string[] | null} Oldest-first raw slice, or null when the region is off.
- */
-function getFrozenRawSlice(state, store, settings, epoch) {
-    if (!isFrozenRawEnabled(settings)) {
-        return null;
-    }
-    const chat = getChat();
-    const chatLength = Array.isArray(chat) ? chat.length : 0;
-    const memoryless = !hasStoredMemory(store);
-    if (needsRawReseal(state.sealedRawSlice, epoch, memoryless, chatLength)) {
-        resealRawSlice(state, { chat, store, settings, epoch, chatLength, memoryless });
-    }
-    return state.sealedRawSlice?.texts ?? null;
-}
-
-/**
- * Rebuild the raw slice for this update. A same-epoch rebuild only happens
- * while memory is absent, and it must drop the older slice's pixels because
- * the page source keys them by epoch alone.
- * @param {MemoryInjectionWriterState} state - Writer state.
- * @param {{
- *   chat: ChatMessage[],
- *   store: SummaryceptionStore,
- *   settings: ExtensionSettings,
- *   epoch: number,
- *   chatLength: number,
- *   memoryless: boolean,
- * }} input - Everything the rebuild reads.
- * @returns {void}
- */
-function resealRawSlice(state, { chat, store, settings, epoch, chatLength, memoryless }) {
-    const sealed = state.sealedRawSlice;
-    const epochDrift = sealed === null || sealed.epoch !== epoch;
-    const texts = buildMicroficheRawSlice(chat, store, settings);
-    if (!shouldReplaceRawSeal(epochDrift, texts, sealed)) {
-        return;
-    }
-    state.sealedRawSlice = { epoch, texts, chatLength };
-    if (!epochDrift && memoryless) {
-        state.pageSource.reset();
-    }
-}
-
-/**
- * @param {boolean} epochDrift - Whether the epoch changed.
- * @param {string[]} texts - Freshly built raw slice.
- * @param {{ epoch: number, texts: string[], chatLength: number } | null} sealed - Current seal.
- * @returns {boolean} Whether the fresh slice replaces the current seal.
- */
-function shouldReplaceRawSeal(epochDrift, texts, sealed) {
-    if (epochDrift) {
-        return true;
-    }
-    if (texts.length > 0) {
-        return true;
-    }
-    return (sealed?.texts.length ?? 0) === 0;
-}
-
-/**
- * @param {ExtensionSettings} settings - Effective settings.
- * @returns {boolean} Whether the frozen-raw region is on.
- */
-function isFrozenRawEnabled(settings) {
-    return Boolean(
-        settings?.enabled &&
-        settings.memoryMode === MEMORY_MODES.MICROFICHE &&
-        settings.microficheFrozenRawImages === true,
-    );
-}
-
-/**
- * A seal survives an epoch unless it is empty or the chat grew while no
- * memory exists; only the first snippet gives the epoch something to freeze.
- * @param {{ epoch: number, texts: string[], chatLength: number } | null} sealed - Current seal.
- * @param {number} epoch - Mutation Epoch being sealed.
- * @param {boolean} memoryless - Whether the store holds no snippets.
- * @param {number} chatLength - Current chat length.
- * @returns {boolean} Whether to rebuild the raw slice.
- */
-function needsRawReseal(sealed, epoch, memoryless, chatLength) {
-    if (sealed === null || sealed.epoch !== epoch) {
-        return true;
-    }
-    if (!memoryless) {
-        return false;
-    }
-    return sealed.chatLength !== chatLength || sealed.texts.length === 0;
-}
-
-/**
- * @param {SummaryceptionStore} store - Store owning the memory layers.
- * @returns {boolean} Whether any layer already holds a snippet.
- */
-function hasStoredMemory(store) {
-    return (
-        Array.isArray(store?.layers) &&
-        store.layers.some((layer) => Array.isArray(layer) && layer.length > 0)
-    );
-}
-
-/**
  * Read one rendered Microfiche page for the transport expansion seam.
  * Memory pages are the default region; raw markers pass `'raw'`.
  * Unrendered indexes stay undefined.
@@ -256,7 +140,6 @@ function resolveMemoryMicrofichePage(state, pageIndex, region = 'memory') {
  * @returns {void}
  */
 function resetMemoryMicrofichePages(state) {
-    state.sealedRawSlice = null;
     state.pageSource.reset();
 }
 

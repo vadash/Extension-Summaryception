@@ -91,9 +91,23 @@ export async function countTextTokens(text) {
     }
 
     return {
-        count: estimateTokenCount(normalizedText),
+        count: estimateTextTokens(normalizedText),
         estimated: true,
     };
+}
+
+/**
+ * Estimate tokens for plain text with the shared fallback ratio. Synchronous
+ * by design, so planners bill the same scale the async count falls back to.
+ * @param {string} text - Text to estimate.
+ * @returns {number} Estimated token count.
+ */
+export function estimateTextTokens(text) {
+    const value = String(text ?? '');
+    if (!value) {
+        return 0;
+    }
+    return Math.max(1, Math.ceil(value.length / APPROX_TEXT_UNITS_PER_TOKEN));
 }
 
 /**
@@ -296,18 +310,6 @@ async function countWithActiveTokenizer(text) {
     } catch (_e) {
         return null;
     }
-}
-
-/**
- * Provide a stable fallback when the runtime tokenizer is unavailable.
- * @param {string} text - Text to estimate
- * @returns {number}
- */
-function estimateTokenCount(text) {
-    if (!text) {
-        return 0;
-    }
-    return Math.max(1, Math.ceil(text.length / APPROX_TEXT_UNITS_PER_TOKEN));
 }
 
 /**

@@ -6,7 +6,7 @@ import { MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
 import { charCells, frameGrid, usesWideCells } from './microfiche-geometry.js';
 import { buildMicrofichePageTexts, resolveMicroficheShape } from './microfiche-paginate.js';
 import { resolveRawChatBucketTokens } from './token-budget.js';
-import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
+import { APPROX_TEXT_UNITS_PER_TOKEN, estimateTextTokens } from './token-count.js';
 
 // A page images only when it fills at least three quarters of its capacity.
 // The trailing partial page stays text, because an underfilled frame spends a
@@ -14,26 +14,24 @@ import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
 const MICROFICHE_FILL_GATE_RATIO = 0.75;
 
 /**
- * @typedef {object} MicrofichePlan
+ * The sealed region plan fields memory and raw pages share. Each region keeps
+ * its own list so the same page index never crosses regions (ADR-0045).
+ * @typedef {object} MicroficheRegionPlan
  * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
- * @property {number} keepRaw - Normalized newest-K raw-text count.
  * @property {number} effectiveCap - Images per injection after budget reconciliation.
  * @property {string[]} imageTexts - Fill-gated page texts bound for image frames.
- * @property {string[]} rawTexts - Overflow pages, gated tail, then kept-raw texts, in order.
+ * @property {string[]} rawTexts - Pages that stay text, in order.
  * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
  */
 
 /**
- * The raw-chat plan entry: the frozen Raw Seal paged for the frozen-raw image
- * region. It is a separate list from the memory plan so the two page indexes
- * never collide; markers carry the region (ADR-0042).
- * @typedef {object} MicroficheRawPlan
- * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
- * @property {number} effectiveCap - Raw images after slider, host, preset, and bucket reconciliation.
- * @property {string[]} imageTexts - Fill-gated raw page texts bound for image frames, oldest first.
- * @property {string[]} rawTexts - Underfilled and over-cap raw pages that stay text, in order.
- * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
- * @property {boolean} overCap - True when a fill-gated page missed the image cap and stayed text.
+ * The memory region plan: the shared region fields plus the newest-K count.
+ * @typedef {MicroficheRegionPlan & { keepRaw: number }} MicrofichePlan
+ */
+
+/**
+ * The raw-chat region plan: the shared region fields plus the over-cap flag.
+ * @typedef {MicroficheRegionPlan & { overCap: boolean }} MicroficheRawPlan
  */
 
 /**
@@ -109,7 +107,11 @@ export function buildMicrofichePlan(textsOldestFirst, settings, host = null) {
     const frameTokenEstimate = Number(presetRecord.frameTokenEstimate);
     const estimate =
         Number.isFinite(frameTokenEstimate) && frameTokenEstimate > 0 ? frameTokenEstimate : 0;
-    const budgeted = applyBucketGate(imageTexts, rawTexts, estimate, { settings: source });
+    const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
+        frameTokenEstimate: estimate,
+        bucketTokens: Math.max(0, resolveRawChatBucketTokens(source)),
+        chargeRawText: true,
+    });
     return {
         shape,
         keepRaw: normalizeKeepRaw(keepRaw),
@@ -170,7 +172,11 @@ export function buildMicroficheRawPlan(
     );
     const imageTexts = filled.imageTexts.slice(0, effectiveCap);
     const rawTexts = [...filled.imageTexts.slice(effectiveCap), ...filled.rawTexts];
-    const budgeted = applyRawImageTokenGate(imageTexts, rawTexts, frameTokenEstimate, bucketTokens);
+    const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
+        frameTokenEstimate,
+        bucketTokens,
+        chargeRawText: false,
+    });
     return {
         shape,
         effectiveCap,
@@ -250,23 +256,31 @@ function resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate) {
 }
 
 /**
- * The raw region's bucket gate: image tokens spend from the raw bucket, while
- * the remaining raw text is the bucket's own candidate slice, so charging it a
- * second time would double-count. Drop the newest image pages until the image
- * bill fits; the dropped pages stay text.
- * @param {string[]} imageTexts - Fill-gated raw pages, oldest first.
- * @param {string[]} rawTexts - Overflow and underfilled pages that stay text.
- * @param {number} frameTokenEstimate - Image-token cost per frame, or 0 when unknown.
- * @param {number} bucketTokens - Raw bucket available to this region.
+ * Move the newest image pages back to text until the images fit the bucket.
+ * The memory region's raw text is extra context that spends the same bucket,
+ * so it is charged; the raw region's text is the bucket's own candidate slice
+ * and is already charged, so it passes `chargeRawText: false` (ADR-0045).
+ * @param {string[]} imageTexts - Fill-gated image pages, oldest first.
+ * @param {string[]} rawTexts - Pages that stay text.
+ * @param {{ frameTokenEstimate: number, bucketTokens: number, chargeRawText: boolean }} budget - Frame cost, bucket size, and whether text already pays.
  * @returns {{ imageTexts: string[], rawTexts: string[] }} Bucket-fitting split.
  */
-function applyRawImageTokenGate(imageTexts, rawTexts, frameTokenEstimate, bucketTokens) {
+function fitImagesToBucket(
+    imageTexts,
+    rawTexts,
+    { frameTokenEstimate, bucketTokens, chargeRawText },
+) {
     if (frameTokenEstimate <= 0) {
         return { imageTexts, rawTexts };
     }
     const images = imageTexts.slice();
     const text = rawTexts.slice();
-    while (images.length > 0 && images.length * frameTokenEstimate > bucketTokens) {
+    while (images.length > 0) {
+        const billed =
+            images.length * frameTokenEstimate + (chargeRawText ? estimateRawTextTokens(text) : 0);
+        if (billed <= bucketTokens) {
+            break;
+        }
         text.unshift(/** @type {string} */ (images.pop()));
     }
     return { imageTexts: images, rawTexts: text };
@@ -314,44 +328,11 @@ function pageFillRatio(page, shape, geo) {
 }
 
 /**
- * Image tokens spend from the same raw-chat bucket as the text kept raw. Drop
- * the newest image pages until the billed total fits, because an image that
- * does not fit waits for the next memory update instead of inflating context.
- * @param {string[]} imageTexts - Fill-gated image pages, oldest first.
- * @param {string[]} rawTexts - Text pages and kept raw texts that stay text.
- * @param {number} frameTokenEstimate - Image-token cost per frame, or 0 when unknown.
- * @param {{ settings: Record<string, unknown>, bucketTokens?: number }} options - Raw budget settings and an already-reduced shared bucket, when any.
- * @returns {{ imageTexts: string[], rawTexts: string[] }} Bucket-fitting split.
- */
-function applyBucketGate(imageTexts, rawTexts, frameTokenEstimate, { settings, bucketTokens }) {
-    if (frameTokenEstimate <= 0) {
-        return { imageTexts, rawTexts };
-    }
-    const bucket =
-        typeof bucketTokens === 'number' && Number.isFinite(bucketTokens)
-            ? Math.max(0, bucketTokens)
-            : resolveRawChatBucketTokens(settings);
-    const images = imageTexts.slice();
-    const text = rawTexts.slice();
-    while (images.length > 0) {
-        const billed = images.length * frameTokenEstimate + estimateRawTextTokens(text);
-        if (billed <= bucket) {
-            break;
-        }
-        text.unshift(/** @type {string} */ (images.pop()));
-    }
-    return { imageTexts: images, rawTexts: text };
-}
-
-/**
  * @param {string[]} texts - Text that ships as text.
  * @returns {number} Approximate token count.
  */
 function estimateRawTextTokens(texts) {
-    return texts.reduce(
-        (sum, text) => sum + Math.ceil(String(text ?? '').length / APPROX_TEXT_UNITS_PER_TOKEN),
-        0,
-    );
+    return texts.reduce((sum, text) => sum + estimateTextTokens(text), 0);
 }
 
 /**

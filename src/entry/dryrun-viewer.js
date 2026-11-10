@@ -24,11 +24,11 @@ import { debug, warn } from '../foundation/logger.js';
 import {
     expandMicrofichePromptChat,
     extractMicroficheMarkers,
+    resolveMicroficheRegion,
 } from '../core/microfiche-transport.js';
 import { buildInjection } from '../core/memory-injection.js';
-import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
-import { renderMicrofichePages } from '../core/microfiche-pages.js';
+import { createMicrofichePageSource } from '../core/microfiche-pages.js';
 
 /** Guard against a host dry run that never emits its prompt-ready event. */
 const CAPTURE_TIMEOUT_MS = 15000;
@@ -87,49 +87,34 @@ export function initDryRunViewer(deps) {
 
 /**
  * Fallback page reader for callers without writer access (tests and headless
- * wiring). It re-renders the same sealed plans through the core renderer, so
- * the pixels match what the writer sealed for this Mutation Epoch; the
+ * wiring). It binds the same page source seam as the writer: the source seals
+ * the Raw Seal and renders each plan once, then every read returns that sealed
+ * state, so the pixels match the writer's for this Mutation Epoch. The
  * composition root normally injects `writer.resolveMicrofichePage` instead.
- * Both regions render lazily: memory from the memory plan and raw pages from a
- * fresh Raw Seal slice, so a marker-free prompt draws nothing.
  * @param {ExtensionSettings} settings - Effective settings.
  * @returns {(pageIndex: number, region?: import('../core/microfiche-transport.js').MicroficheRegion) => MicrofichePageRef | undefined} Page reader.
  */
 export function createPlanPageReader(settings) {
-    /** @type {{ memory: import('../core/microfiche-pages.js').MicrofichePage[], raw: import('../core/microfiche-pages.js').MicrofichePage[] } | null} */
-    let pages = null;
-    const readPages = () => {
-        if (pages !== null) {
-            return pages;
+    const pageSource = createMicrofichePageSource({ canvasFactory: createBrowserCanvas });
+    let bound = false;
+    const bindSealedPages = () => {
+        if (bound) {
+            return pageSource;
         }
+        bound = true;
         const store = getChatStore();
-        const rawTexts =
-            settings?.microficheFrozenRawImages === true
-                ? buildMicroficheRawSlice(getChat(), store, settings)
-                : null;
+        const epoch = getSummaryStoreMutationEpoch(store);
+        const rawTexts = pageSource.sealRaw({ chat: getChat(), store, settings, epoch });
         const injection = buildInjection(store.layers, settings, null, rawTexts);
-        pages = {
-            memory:
-                injection.microfiche && injection.microfiche.imageTexts.length > 0
-                    ? renderMicrofichePages(
-                          injection.microfiche.imageTexts,
-                          injection.microfiche.shape,
-                          createBrowserCanvas,
-                      )
-                    : [],
-            raw:
-                injection.microficheRaw && injection.microficheRaw.imageTexts.length > 0
-                    ? renderMicrofichePages(
-                          injection.microficheRaw.imageTexts,
-                          injection.microficheRaw.shape,
-                          createBrowserCanvas,
-                      )
-                    : [],
-        };
-        return pages;
+        pageSource.update({
+            plan: injection.microfiche,
+            rawPlan: injection.microficheRaw,
+            text: injection.text,
+            epoch,
+        });
+        return pageSource;
     };
-    return (pageIndex, region = 'memory') =>
-        (region === 'raw' ? readPages().raw : readPages().memory)[pageIndex];
+    return (pageIndex, region = 'memory') => bindSealedPages().readPage(pageIndex, region);
 }
 
 /**
@@ -195,8 +180,8 @@ function collectUnresolvedMarkers(chat) {
         }
         for (const text of contentTexts(/** @type {{ content?: unknown }} */ (message).content)) {
             for (const marker of extractMicroficheMarkers(text)) {
-                const label =
-                    marker.region === 'raw' ? `${marker.pageIndex}:raw` : marker.pageIndex;
+                const suffix = resolveMicroficheRegion(marker.region).suffix;
+                const label = suffix ? `${marker.pageIndex}${suffix}` : marker.pageIndex;
                 if (!found.has(label)) {
                     found.add(label);
                     labels.push(label);

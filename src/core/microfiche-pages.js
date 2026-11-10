@@ -2,7 +2,10 @@
 // then read page N by index; the Raw Seal, the per-page cache, its per-epoch
 // clear, and canvas capture stay behind this seam.
 
+import { MEMORY_MODES } from '../foundation/constants.js';
 import { drawMicrofichePage } from './microfiche-render.js';
+import { buildMicroficheRawSlice } from './microfiche-raw-slice.js';
+import { resolveMicroficheRegion } from './microfiche-transport.js';
 
 // Geometry keys only: a key change always means new pixels. Billing or
 // provider hints never land here.
@@ -39,11 +42,27 @@ const SHAPE_HASH_KEYS = [
  */
 
 /**
+ * @typedef {object} MicroficheRawSealInput
+ * @property {ChatMessage[]} chat - Live chat array carrying the candidate span.
+ * @property {SummaryceptionStore} store - Store owning the summarized boundary and mutation epoch.
+ * @property {object | null} settings - Settings carrying the frozen-raw toggle and budgets.
+ * @property {number} epoch - Mutation Epoch being sealed.
+ */
+
+/**
+ * @typedef {object} MicroficheRawSeal
+ * @property {number} epoch - Epoch this slice was sealed for.
+ * @property {string[]} texts - Oldest-first raw slice.
+ * @property {number} chatLength - Chat length the slice sealed.
+ */
+
+/**
  * @typedef {object} MicrofichePageSource
  * @property {(input: MicrofichePageSourceInput) => MicroficheSealedPlans} update - Seal both region plans for the epoch, then warm every sealed page.
+ * @property {(input: MicroficheRawSealInput) => string[] | null} sealRaw - Seal or reuse the Raw Seal slice for the epoch; null when the region is off.
  * @property {(pageIndex: number, region?: 'memory' | 'raw') => MicrofichePage | undefined} readPage - Read one page by region and index.
  * @property {() => number} size - Cached page count.
- * @property {() => void} reset - Drop the sealed plans and every cached page, for a chat switch where the epoch can repeat.
+ * @property {() => void} reset - Drop the sealed plans, every cached page, and the Raw Seal, for a chat switch where the epoch can repeat.
  */
 
 /**
@@ -54,6 +73,14 @@ const SHAPE_HASH_KEYS = [
  */
 export function hashMicroficheShape(shape) {
     return SHAPE_HASH_KEYS.map((key) => `${key}=${String(shape?.[key])}`).join('|');
+}
+
+/**
+ * @param {MicrofichePageSourceInput['plan'] | undefined} plan - Region plan, if any.
+ * @returns {string} Geometry hash, or an empty string without a plan.
+ */
+function hashRegionShape(plan) {
+    return plan === null || plan === undefined ? '' : hashMicroficheShape(plan.shape);
 }
 
 /**
@@ -102,10 +129,11 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
             : canvasFactory !== null && canvasFactory !== undefined
               ? (text, shape) => renderMicrofichePages([text], shape, canvasFactory)[0]
               : null;
-    /** @type {{ epoch: number, shapeHash: string, plan: MicrofichePageSourceInput['plan'], rawPlan: MicrofichePageSourceInput['rawPlan'] } | null} */
+    /** @type {{ epoch: number, shapeHash: string, plans: { memory: MicrofichePageSourceInput['plan'], raw: MicrofichePageSourceInput['rawPlan'] } } | null} */
     let sealed = null;
     /** @type {Map<string, MicrofichePage>} */
     const pages = new Map();
+    const rawSeal = createRawSealSource(clearSealedPlans);
 
     /**
      * Seal both region plans on the first update of an epoch or a geometry
@@ -117,23 +145,18 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
      * @returns {MicroficheSealedPlans} The plans this call sealed or reused.
      */
     function update({ plan, rawPlan = null, epoch }) {
-        const planShape = plan === null || plan === undefined ? null : plan.shape;
-        const rawShape = rawPlan === null || rawPlan === undefined ? null : rawPlan.shape;
-        const planHash = planShape === null ? '' : hashMicroficheShape(planShape);
-        const rawHash = rawShape === null ? '' : hashMicroficheShape(rawShape);
-        const shapeHash = `${planHash}|${rawHash}`;
+        const shapeHash = `${hashRegionShape(plan)}|${hashRegionShape(rawPlan)}`;
         if (sealed === null || sealed.epoch !== epoch || sealed.shapeHash !== shapeHash) {
             pages.clear();
             sealed = {
                 epoch,
                 shapeHash,
-                plan: sealPlan(plan),
-                rawPlan: sealPlan(rawPlan),
+                plans: { memory: sealPlan(plan), raw: sealPlan(rawPlan) },
             };
         }
-        warmPages(sealed.plan, 'memory');
-        warmPages(sealed.rawPlan, 'raw');
-        return { microfiche: sealed.plan, microficheRaw: sealed.rawPlan };
+        warmPages(sealed.plans.memory, 'memory');
+        warmPages(sealed.plans.raw, 'raw');
+        return { microfiche: sealed.plans.memory, microficheRaw: sealed.plans.raw };
     }
 
     /**
@@ -172,7 +195,8 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         if (sealed === null || renderer === null) {
             return undefined;
         }
-        const plan = region === 'raw' ? sealed.rawPlan : sealed.plan;
+        const spec = resolveMicroficheRegion(region);
+        const plan = sealed.plans[spec.key];
         if (plan === null || plan === undefined || !Array.isArray(plan.imageTexts)) {
             return undefined;
         }
@@ -183,7 +207,7 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
         if (pageIndex >= plan.imageTexts.length) {
             return undefined;
         }
-        const cacheKey = `${region === 'raw' ? 'raw' : 'memory'}:${pageIndex}`;
+        const cacheKey = `${spec.key}:${pageIndex}`;
         const hit = pages.get(cacheKey);
         if (hit !== undefined) {
             return hit;
@@ -201,15 +225,137 @@ export function createMicrofichePageSource({ canvasFactory = null, renderPage = 
     }
 
     /**
-     * Drop the sealed plan and every cached page. A chat switch calls this
+     * Drop the sealed plans and every cached page. A chat switch calls this
      * because the next chat's epoch can equal the sealed one, so epoch
      * equality alone cannot prove the pixels belong to the loaded chat.
      * @returns {void}
      */
     function reset() {
+        clearSealedPlans();
+        rawSeal.reset();
+    }
+
+    /**
+     * @returns {void}
+     */
+    function clearSealedPlans() {
         sealed = null;
         pages.clear();
     }
 
-    return { update, readPage, size, reset };
+    return { update, sealRaw: rawSeal.sealRaw, readPage, size, reset };
+}
+
+/**
+ * Build the Raw Seal state machine. It owns the sealed slice and its epoch, so
+ * the page source only asks for the slice and drops pixels when a memory-less
+ * chat re-seals inside the same epoch.
+ * @param {() => void} clearPages - Drops the sealed plans and their cached pixels.
+ * @returns {{ sealRaw: (input: MicroficheRawSealInput) => string[] | null, reset: () => void }} Seal source.
+ */
+function createRawSealSource(clearPages) {
+    /** @type {MicroficheRawSeal | null} */
+    let seal = null;
+
+    /**
+     * Seal the Raw Seal slice for the epoch, or reuse the current seal verbatim
+     * (ADR-0040). A memory-less chat follows growth: a same-epoch rebuild drops
+     * the sealed plans and pixels so the next update renders the new slice.
+     * @param {MicroficheRawSealInput} input - Chat, store, settings, and epoch.
+     * @returns {string[] | null} Oldest-first raw slice, or null when the region is off.
+     */
+    function sealRaw({ chat, store, settings, epoch }) {
+        if (!isFrozenRawEnabled(settings)) {
+            return null;
+        }
+        const chatLength = Array.isArray(chat) ? chat.length : 0;
+        const memoryless = !hasStoredMemory(store);
+        if (needsRawReseal(seal, epoch, memoryless, chatLength)) {
+            rebuild({ chat, store, settings, epoch, chatLength, memoryless });
+        }
+        return seal?.texts ?? null;
+    }
+
+    /**
+     * @param {MicroficheRawSealInput & { chatLength: number, memoryless: boolean }} input - Rebuild inputs.
+     * @returns {void}
+     */
+    function rebuild({ chat, store, settings, epoch, chatLength, memoryless }) {
+        const epochDrift = seal === null || seal.epoch !== epoch;
+        const texts = buildMicroficheRawSlice(chat, store, settings);
+        if (!shouldReplaceRawSeal(epochDrift, texts, seal)) {
+            return;
+        }
+        if (!epochDrift && memoryless) {
+            clearPages();
+        }
+        seal = { epoch, texts, chatLength };
+    }
+
+    /**
+     * @returns {void}
+     */
+    function reset() {
+        seal = null;
+    }
+
+    return { sealRaw, reset };
+}
+
+/**
+ * @param {object | null} settings - Settings carrying the frozen-raw toggle.
+ * @returns {boolean} Whether the frozen-raw region is on.
+ */
+function isFrozenRawEnabled(settings) {
+    return Boolean(
+        settings?.enabled &&
+        settings.memoryMode === MEMORY_MODES.MICROFICHE &&
+        settings.microficheFrozenRawImages === true,
+    );
+}
+
+/**
+ * @param {SummaryceptionStore} store - Store owning the memory layers.
+ * @returns {boolean} Whether any layer already holds a snippet.
+ */
+function hasStoredMemory(store) {
+    return (
+        Array.isArray(store?.layers) &&
+        store.layers.some((layer) => Array.isArray(layer) && layer.length > 0)
+    );
+}
+
+/**
+ * A seal survives an epoch unless it is empty or the chat grew while no
+ * memory exists; only the first snippet gives the epoch something to freeze.
+ * @param {MicroficheRawSeal | null} seal - Current seal.
+ * @param {number} epoch - Mutation Epoch being sealed.
+ * @param {boolean} memoryless - Whether the store holds no snippets.
+ * @param {number} chatLength - Current chat length.
+ * @returns {boolean} Whether to rebuild the raw slice.
+ */
+function needsRawReseal(seal, epoch, memoryless, chatLength) {
+    if (seal === null || seal.epoch !== epoch) {
+        return true;
+    }
+    if (!memoryless) {
+        return false;
+    }
+    return seal.chatLength !== chatLength || seal.texts.length === 0;
+}
+
+/**
+ * @param {boolean} epochDrift - Whether the epoch changed.
+ * @param {string[]} texts - Freshly built raw slice.
+ * @param {MicroficheRawSeal | null} seal - Current seal.
+ * @returns {boolean} Whether the fresh slice replaces the current seal.
+ */
+function shouldReplaceRawSeal(epochDrift, texts, seal) {
+    if (epochDrift) {
+        return true;
+    }
+    if (texts.length > 0) {
+        return true;
+    }
+    return (seal?.texts.length ?? 0) === 0;
 }

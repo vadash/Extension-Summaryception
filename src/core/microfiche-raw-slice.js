@@ -8,7 +8,7 @@
 import { formatMessageSpeakerLine, isSummarizerConversationMessage } from './chatutils.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { resolveRawChatBucketTokens } from './token-budget.js';
-import { APPROX_TEXT_UNITS_PER_TOKEN } from './token-count.js';
+import { estimateTextTokens } from './token-count.js';
 
 /**
  * Select the Raw Seal slice: the verbatim window plus queued span, oldest
@@ -41,7 +41,7 @@ export function buildMicroficheRawSlice(chat, store, settings) {
             continue;
         }
         const line = formatMessageSpeakerLine(message, text);
-        const lineTokens = Math.ceil(line.length / APPROX_TEXT_UNITS_PER_TOKEN);
+        const lineTokens = estimateTextTokens(line);
         if (bounded && lines.length > 0 && tokens + lineTokens > bucket) {
             break;
         }

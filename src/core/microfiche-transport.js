@@ -14,6 +14,31 @@ const MICROFICHE_MARKER_RE = /\[summaryception-microfiche page=(\d+)(:raw)?\]/g;
  */
 
 /**
+ * Canonical spelling of one page region: the key used by page and stub maps,
+ * the marker suffix that namespaces it, and the extra page-reader argument.
+ * @typedef {object} MicroficheRegionSpec
+ * @property {MicroficheRegion} key - Cache and plan-map key.
+ * @property {string} suffix - Marker suffix for this region.
+ * @property {MicroficheRegion | null} readerArg - Extra page-reader argument, when the region needs one.
+ */
+
+/** @type {Record<MicroficheRegion, MicroficheRegionSpec>} */
+const MICROFICHE_REGIONS = {
+    memory: { key: 'memory', suffix: '', readerArg: null },
+    raw: { key: 'raw', suffix: ':raw', readerArg: 'raw' },
+};
+
+/**
+ * Normalize any region label to its canonical spec. This is the one place
+ * that decides what counts as raw.
+ * @param {MicroficheRegion | null | undefined} [region] - Page region; memory by default.
+ * @returns {MicroficheRegionSpec} Canonical region spec.
+ */
+export function resolveMicroficheRegion(region) {
+    return region === 'raw' ? MICROFICHE_REGIONS.raw : MICROFICHE_REGIONS.memory;
+}
+
+/**
  * @typedef {object} MicroficheMarker
  * @property {number} pageIndex - Zero-based page index within the region.
  * @property {MicroficheRegion} region - Page region the marker names.
@@ -48,9 +73,7 @@ export function formatMicroficheRawMarker(pageIndex) {
  */
 function formatRegionMarker(pageIndex, region) {
     validatePageIndex(pageIndex);
-    return region === 'raw'
-        ? `[summaryception-microfiche page=${pageIndex}:raw]`
-        : `[summaryception-microfiche page=${pageIndex}]`;
+    return `[summaryception-microfiche page=${pageIndex}${resolveMicroficheRegion(region).suffix}]`;
 }
 
 /**
@@ -125,7 +148,7 @@ export function resolveMicroficheStubPage(pageIndex, region = 'memory') {
  * @returns {string} Cache key.
  */
 function stubKey(pageIndex, region) {
-    return `${region === 'raw' ? 'raw' : 'memory'}:${pageIndex}`;
+    return `${resolveMicroficheRegion(region).key}:${pageIndex}`;
 }
 
 /**
@@ -191,8 +214,11 @@ function expandStringContent(text, resolvePage) {
     let cursor = 0;
     for (const match of text.matchAll(MICROFICHE_MARKER_RE)) {
         const pageIndex = Number(match[1]);
-        const region = match[2] === ':raw' ? 'raw' : 'memory';
-        const page = region === 'raw' ? resolvePage(pageIndex, 'raw') : resolvePage(pageIndex);
+        const spec = resolveMicroficheRegion(match[2] === ':raw' ? 'raw' : 'memory');
+        const page =
+            spec.readerArg === null
+                ? resolvePage(pageIndex)
+                : resolvePage(pageIndex, spec.readerArg);
         if (!page || typeof page.text !== 'string' || typeof page.dataUrl !== 'string') {
             continue;
         }
