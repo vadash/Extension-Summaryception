@@ -14,6 +14,7 @@ import { countTextTokens, formatTokenCount } from '../core/token-count.js';
 import {
     bindWriterMicrofichePageSource,
     createMicrofichePageSource,
+    selectSealedRegions,
 } from '../core/microfiche-pages.js';
 import { formatMicroficheMarker, formatMicroficheRawMarker } from '../core/microfiche-transport.js';
 import { maskGuardText } from '../core/guard-mask.js';
@@ -210,8 +211,10 @@ function applyMicroficheMarkers(text, sealed, settings) {
     if (!settings?.enabled) {
         return text;
     }
-    const memoryPlan = settings?.microficheMemoryImages === true ? sealed?.microfiche : null;
-    const rawPlan = settings?.microficheFrozenRawImages === true ? sealed?.microficheRaw : null;
+    const { microfiche: memoryPlan, microficheRaw: rawPlan } = selectSealedRegions(
+        sealed,
+        settings,
+    );
     const memoryText = formatMemoryRegionText(memoryPlan);
     const rawText = formatRawRegionText(rawPlan);
     if (memoryText === null && rawText === null) {

@@ -14,7 +14,6 @@ import { buildInjection } from '../src/core/memory-injection.js';
 import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
 import { buildMicroficheRawSlice } from '../src/core/microfiche-raw-slice.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
-import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { getChatStore } from '../src/foundation/chat-store.js';
 import { getEffectiveSettings, getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
@@ -23,6 +22,7 @@ import {
     createJQueryHarness,
     installSummaryContext,
     makeForegroundGate,
+    makeMemoryInjectionWriter,
     makeMessages,
     makeSummaryStore,
 } from './test-helpers.js';
@@ -201,7 +201,7 @@ describe('microfiche panels', () => {
             metadata: { summaryception: makeSummaryStore({ layers: [] }) },
             settings,
         });
-        const writer = createMemoryInjectionWriter();
+        const writer = makeMemoryInjectionWriter();
         writer.update();
         const { buildUiInjection } = await import('../src/entry/ui.js');
         const before = buildUiInjection(getChatStore(), getEffectiveSettings());
@@ -233,7 +233,7 @@ describe('microfiche panels', () => {
             metadata: { summaryception: makeSummaryStore({ layers: [] }) },
             settings,
         });
-        const writer = createMemoryInjectionWriter();
+        const writer = makeMemoryInjectionWriter();
         writer.update();
         const sealed = readSealedMicrofichePlans();
         expect(sealed.microficheRaw.imageTexts.length).toBeGreaterThan(0);
@@ -254,8 +254,11 @@ describe('microfiche panels', () => {
 
         const billing = describeMicroficheBilling(injection, getEffectiveSettings());
         expect(billing.images).toBe(sealed.microficheRaw.imageTexts.length);
-        expect(billing.imageTokens).toBe(billing.images * 1120);
-        expect(billing.bucketAfterImages).toBe(36000 - billing.imageTokens);
+        const frameEstimate = MICROFICHE_GEOMETRY_PRESETS.gemini.frameTokenEstimate;
+        const bucket =
+            getEffectiveSettings().verbatimTokenBudget + getEffectiveSettings().queuedTokenBudget;
+        expect(billing.imageTokens).toBe(billing.images * frameEstimate);
+        expect(billing.bucketAfterImages).toBe(bucket - billing.imageTokens);
 
         globalThis.$ = createJQueryHarness().$;
         syncMicroficheBilling(injection, getEffectiveSettings());
@@ -281,7 +284,7 @@ describe('microfiche panels', () => {
                 queuedTokenBudget: 16000,
             },
         });
-        const writer = createMemoryInjectionWriter();
+        const writer = makeMemoryInjectionWriter();
         writer.update();
         expect(readSealedMicrofichePlans().microficheRaw.imageTexts.length).toBeGreaterThan(0);
 

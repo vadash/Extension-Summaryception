@@ -18,8 +18,12 @@ import {
 } from '../src/core/microfiche-transport.js';
 import { describeDryRunPrompt, expandCapturedChat } from '../src/entry/dryrun-viewer.js';
 import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
-import { createMemoryInjectionWriter } from '../src/features/injection.js';
-import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
+import {
+    installSummaryContext,
+    makeMemoryInjectionWriter,
+    makeMessages,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -376,7 +380,7 @@ describe('memory injection writer render cache', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
         writer.update();
         const page = writer.resolveMicrofichePage(0);
         expect(page).toBeDefined();
@@ -400,7 +404,7 @@ describe('memory injection writer render cache', () => {
             settings: { ...MICROFICHE_SETTINGS, microficheImageCap: 8 },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         const pages = readAllPages(writer);
@@ -413,7 +417,7 @@ describe('memory injection writer render cache', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         const pages = readAllPages(writer);
@@ -437,7 +441,7 @@ describe('memory injection writer render cache', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         const before = readAllPages(writer);
@@ -462,7 +466,7 @@ describe('memory injection writer render cache', () => {
             const setExtensionPrompt = vi.fn();
             installMicroficheContext({ setExtensionPrompt });
             const factory = makeFakeFactory();
-            const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+            const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
             writer.update();
             const firstChatPages = readAllPages(writer);
@@ -505,7 +509,7 @@ describe('memory injection writer render cache', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         const pages = readAllPages(writer);
@@ -533,7 +537,7 @@ describe('memory injection writer microfiche markers', () => {
             settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
 
@@ -553,7 +557,7 @@ describe('memory injection writer microfiche markers', () => {
             settings: { ...MICROFICHE_SETTINGS, microficheMemoryImages: true },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
 
@@ -573,7 +577,7 @@ describe('memory injection writer microfiche markers', () => {
         const setExtensionPrompt = vi.fn();
         installMicroficheContext({ setExtensionPrompt });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
 
@@ -592,7 +596,7 @@ describe('memory injection writer microfiche markers', () => {
             settings: { ...MICROFICHE_SETTINGS, microficheFrozenRawImages: true },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
 
@@ -633,7 +637,7 @@ describe('memory injection writer microfiche markers', () => {
             },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
 
@@ -673,7 +677,7 @@ describe('memory injection writer microfiche markers', () => {
             },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         expect(readAllRawPages(writer)).toHaveLength(0);
@@ -710,7 +714,7 @@ describe('memory injection writer microfiche markers', () => {
             settings: { ...MICROFICHE_SETTINGS, microficheFrozenRawImages: true },
         });
         const factory = makeFakeFactory();
-        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+        const writer = makeMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
 
         writer.update();
         const sealedTexts = readAllRawPages(writer).map((page) => page.text);

@@ -16,7 +16,7 @@ import { formatCompactTokenCount } from '../core/token-count.js';
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
-import { readSealedMicrofichePlans } from '../core/microfiche-pages.js';
+import { readSealedMicrofichePlans, selectSealedRegions } from '../core/microfiche-pages.js';
 import {
     syncAllSettingsToDOM,
     syncGuardMaskMemoryControl,
@@ -99,15 +99,7 @@ export async function updateUI({ queue }) {
  */
 export function buildUiInjection(store, settings) {
     const injection = buildInjection(store.layers, settings);
-    const sealed = readSealedMicrofichePlans();
-    if (sealed === null) {
-        return injection;
-    }
-    return {
-        ...injection,
-        microfiche: settings.microficheMemoryImages === true ? sealed.microfiche : null,
-        microficheRaw: settings.microficheFrozenRawImages === true ? sealed.microficheRaw : null,
-    };
+    return { ...injection, ...selectSealedRegions(readSealedMicrofichePlans(), settings) };
 }
 
 /**

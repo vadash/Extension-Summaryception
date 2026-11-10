@@ -95,6 +95,23 @@ export function readSealedMicrofichePlans() {
 }
 
 /**
+ * Pick the sealed regions the toggles enable. Billing and marker placement
+ * share this so both ship the same regions for one settings read.
+ * @param {MicroficheSealedPlans | null} sealed - Writer-sealed plans, if any.
+ * @param {{ microficheMemoryImages?: unknown, microficheFrozenRawImages?: unknown } | null | undefined} settings - Effective settings carrying the region toggles.
+ * @returns {{ microfiche: import('./microfiche-policy.js').MicrofichePlan | null, microficheRaw: import('./microfiche-policy.js').MicroficheRawPlan | null }} Enabled sealed regions, null when unsealed or toggled off.
+ */
+export function selectSealedRegions(sealed, settings) {
+    if (sealed === null || sealed === undefined) {
+        return { microfiche: null, microficheRaw: null };
+    }
+    return {
+        microfiche: settings?.microficheMemoryImages === true ? sealed.microfiche : null,
+        microficheRaw: settings?.microficheFrozenRawImages === true ? sealed.microficheRaw : null,
+    };
+}
+
+/**
  * Canonical string over geometry keys only, so equal reading geometry
  * hashes equal even when billing extras ride along.
  * @param {import('./microfiche-geometry.js').MicroficheShape & Record<string, unknown>} shape - Render shape.

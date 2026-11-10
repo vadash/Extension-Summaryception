@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 import { buildChatWindowPlan } from '../src/core/chat-window-planner.js';
 import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
-import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import {
     installSummaryContext,
+    makeMemoryInjectionWriter,
     makeMessage,
     makeSizedChat,
     makeSummaryStore,
@@ -179,7 +179,7 @@ describe('buildChatWindowPlan', () => {
         const chat = makeSizedChat(10, { userLength: 1000, assistantLength: 1000 });
         const store = makeSummaryStore();
         installSummaryContext({ chat, metadata: { summaryception: store }, settings });
-        const writer = createMemoryInjectionWriter();
+        const writer = makeMemoryInjectionWriter();
         writer.update();
         const sealed = readSealedMicrofichePlans();
         expect(sealed.microficheRaw.overCap).toBe(true);

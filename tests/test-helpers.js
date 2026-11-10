@@ -39,10 +39,11 @@ export function makeChatPersistence() {
 /**
  * Build one Memory Injection writer for a test, so the last-written key and
  * the committed snapshot stay isolated from other tests' instances.
+ * @param {Parameters<typeof createMemoryInjectionWriter>[0]} [deps] - Injected canvas source, if the test renders pages.
  * @returns {ReturnType<typeof createMemoryInjectionWriter>}
  */
-export function makeMemoryInjectionWriter() {
-    return createMemoryInjectionWriter();
+export function makeMemoryInjectionWriter(deps) {
+    return createMemoryInjectionWriter(deps);
 }
 
 /**
