@@ -1,5 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { MEMORY_MODES, MEMORY_MODE_PRESETS } from '../src/foundation/constants.js';
+import {
+    EXTENSION_PROMPT_POSITIONS,
+    EXTENSION_PROMPT_ROLES,
+    MEMORY_MODES,
+    MEMORY_MODE_PRESETS,
+    SLIDER_LIMITS,
+    defaultSettings,
+} from '../src/foundation/constants.js';
 import { installMicroficheFonts } from '../src/core/microfiche-font-cache.js';
 import { MICROFICHE_FONT_FILES, parseMicroficheFont } from '../src/core/microfiche-fonts.js';
 import { createForegroundGate } from '../src/core/foreground-gate.js';
@@ -67,6 +74,31 @@ export function makeChatPersistence() {
  */
 export function makeMemoryInjectionWriter(deps) {
     return createMemoryInjectionWriter(deps);
+}
+
+/**
+ * Expected slot options for the shipped default placement: the host's deepest
+ * chat slot, which lands after every preset block and before chat text.
+ * @returns {{ position: number, depth: number, scan: boolean, role: number }}
+ */
+export function defaultSlotOptions() {
+    return {
+        position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+        depth: SLIDER_LIMITS.customMemoryDepth.MAX,
+        scan: false,
+        role: EXTENSION_PROMPT_ROLES.SYSTEM,
+    };
+}
+
+/**
+ * Read the slot options out of a recorded setExtensionPrompt call.
+ * @param {import('vitest').Mock} setExtensionPrompt - Host setter mock.
+ * @param {number} [callIndex] - Recorded call to read.
+ * @returns {{ position: number, depth: number, scan: boolean, role: number }}
+ */
+export function injectedSlotOptions(setExtensionPrompt, callIndex = 0) {
+    const [, , position, depth, scan, role] = setExtensionPrompt.mock.calls[callIndex];
+    return { position, depth, scan, role };
 }
 
 /**
@@ -170,9 +202,9 @@ export function makeSummarySettings(overrides = {}) {
         uiMode: 'advanced',
         memoryMode: 'balanced',
         atomicPartitions: false,
-        customMemoryPosition: 'in_prompt',
-        customMemoryRole: 'system',
-        customMemoryDepth: 0,
+        customMemoryPosition: defaultSettings.customMemoryPosition,
+        customMemoryRole: defaultSettings.customMemoryRole,
+        customMemoryDepth: defaultSettings.customMemoryDepth,
         applyRegexScripts: false,
         hideNonTextMessages: true,
         maxSummaryTurns: 5,

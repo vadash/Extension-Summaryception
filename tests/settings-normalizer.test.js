@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { MEMORY_MODES, SLIDER_LIMITS, defaultSettings } from '../src/foundation/constants.js';
+import {
+    MEMORY_MODES,
+    MEMORY_POSITIONS,
+    SLIDER_LIMITS,
+    defaultSettings,
+} from '../src/foundation/constants.js';
 import { CONNECTION_ROUTES } from '../src/foundation/connection-routes.js';
 import { normalizeSettings } from '../src/foundation/settings-normalizer.js';
 
@@ -47,6 +52,40 @@ describe('normalizeSettings', () => {
         expect(normalize({ memoryMode: 'not-a-mode' }).settings.memoryMode).toBe(
             MEMORY_MODES.BALANCED,
         );
+    });
+
+    it('moves the stored legacy placement pair to the chat-start default', () => {
+        const { settings, changed } = normalize({
+            customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
+            customMemoryDepth: 0,
+        });
+
+        expect(changed).toBe(true);
+        expect(settings.customMemoryPosition).toBe(MEMORY_POSITIONS.IN_CHAT);
+        expect(settings.customMemoryDepth).toBe(SLIDER_LIMITS.customMemoryDepth.MAX);
+    });
+
+    it('keeps an explicit non-default placement or depth', () => {
+        const promptDepth = normalize({
+            customMemoryPosition: MEMORY_POSITIONS.IN_PROMPT,
+            customMemoryDepth: 5,
+        });
+        expect(promptDepth.changed).toBe(false);
+        expect(promptDepth.settings.customMemoryPosition).toBe(MEMORY_POSITIONS.IN_PROMPT);
+        expect(promptDepth.settings.customMemoryDepth).toBe(5);
+
+        const chatDepth = normalize({
+            customMemoryPosition: MEMORY_POSITIONS.IN_CHAT,
+            customMemoryDepth: SLIDER_LIMITS.customMemoryDepth.MAX,
+        });
+        expect(chatDepth.changed).toBe(false);
+        expect(chatDepth.settings.customMemoryPosition).toBe(MEMORY_POSITIONS.IN_CHAT);
+        expect(chatDepth.settings.customMemoryDepth).toBe(SLIDER_LIMITS.customMemoryDepth.MAX);
+    });
+
+    it('defaults an invalid placement to the chat-start default', () => {
+        const { settings } = normalize({ customMemoryPosition: 'bogus' });
+        expect(settings.customMemoryPosition).toBe(MEMORY_POSITIONS.IN_CHAT);
     });
 
     it('defaults and clamps independent recent and queued budgets', () => {

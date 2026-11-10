@@ -170,6 +170,7 @@ describe('data-attr setting binding engine', () => {
 
         dom.element('#sc_strip_patterns').val('  foo\n\nbar ');
         dom.trigger('change', '#sc_strip_patterns');
+        dom.element('#sc_custom_memory_position').val('in_prompt');
         dom.trigger('change', '#sc_custom_memory_position');
         expect(getSettings().stripPatterns).toEqual(['foo', 'bar']);
         expect(getSettings().customMemoryPosition).toBe('in_prompt');

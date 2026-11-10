@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     EXTENSION_PROMPT_POSITIONS,
-    EXTENSION_PROMPT_ROLES,
     MEMORY_POSITIONS,
     defaultSettings,
 } from '../src/foundation/constants.js';
@@ -19,7 +18,13 @@ import {
     formatSnippetAnchor,
 } from '../src/core/snippet-metadata.js';
 import { countTextTokens } from '../src/core/token-count.js';
-import { installSummaryContext, makeMemoryInjectionWriter, makeMessages } from './test-helpers.js';
+import {
+    defaultSlotOptions,
+    injectedSlotOptions,
+    installSummaryContext,
+    makeMemoryInjectionWriter,
+    makeMessages,
+} from './test-helpers.js';
 
 describe('buildMemoryInjectionParts', () => {
     it('joins per-layer chronology sections with no heading of its own', () => {
@@ -221,17 +226,12 @@ describe('renderInjectionTemplate', () => {
 });
 
 describe('memory injection placement', () => {
-    // 10000 is the host's maximum injection depth, so the slot clamps to the
-    // first chat-history message: after every preset block, before chat text.
+    // The default depth is the host maximum, so the slot clamps to the first
+    // chat-history message: after every preset block, before chat text.
     it('places the default slot at the start of chat history', () => {
         const writer = makeMemoryInjectionWriter();
 
-        expect(writer.options(defaultSettings)).toEqual({
-            position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
-            depth: 10000,
-            scan: false,
-            role: EXTENSION_PROMPT_ROLES.SYSTEM,
-        });
+        expect(writer.options(defaultSettings)).toEqual(defaultSlotOptions());
     });
 
     it('writes the default slot with that placement', () => {
@@ -245,13 +245,7 @@ describe('memory injection placement', () => {
 
         writer.update();
 
-        const [, , position, depth, scan, role] = setExtensionPrompt.mock.calls[0];
-        expect({ position, depth, scan, role }).toEqual({
-            position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
-            depth: 10000,
-            scan: false,
-            role: EXTENSION_PROMPT_ROLES.SYSTEM,
-        });
+        expect(injectedSlotOptions(setExtensionPrompt)).toEqual(defaultSlotOptions());
     });
 
     it('keeps every explicit placement choice', () => {

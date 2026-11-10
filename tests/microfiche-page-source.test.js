@@ -19,6 +19,8 @@ import {
 import { describeDryRunPrompt, expandCapturedChat } from '../src/entry/dryrun-viewer.js';
 import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
 import {
+    defaultSlotOptions,
+    injectedSlotOptions,
     installSummaryContext,
     makeMemoryInjectionWriter,
     makeMessages,
@@ -648,13 +650,8 @@ describe('memory injection writer microfiche markers', () => {
 
         writer.update();
 
-        const [, text, position, depth, scan, role] = setExtensionPrompt.mock.calls[0];
-        expect({ position, depth, scan, role }).toEqual({
-            position: 1,
-            depth: 10000,
-            scan: false,
-            role: 0,
-        });
+        const [, text] = setExtensionPrompt.mock.calls[0];
+        expect(injectedSlotOptions(setExtensionPrompt)).toEqual(defaultSlotOptions());
         const markers = extractMicroficheMarkers(text);
         expect(markers.length).toBeGreaterThan(0);
         expect(markers.every((marker) => marker.region === 'raw')).toBe(true);

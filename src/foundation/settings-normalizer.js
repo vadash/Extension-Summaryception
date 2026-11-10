@@ -171,6 +171,19 @@ function normalizeMemorySettings(settings) {
             changed = true;
         }
     }
+    // The former shipped default pinned the slot in the prompt at depth 0, which
+    // keeps the memory and raw pages ahead of every preset block. Repair that
+    // exact pair to the chat-start default so stored profiles reach the same
+    // chronological wire order as fresh ones. Any other position or a nonzero
+    // depth is an explicit choice, so it passes through.
+    if (
+        settings.customMemoryPosition === MEMORY_POSITIONS.IN_PROMPT &&
+        settings.customMemoryDepth === 0
+    ) {
+        settings.customMemoryPosition = defaultSettings.customMemoryPosition;
+        settings.customMemoryDepth = defaultSettings.customMemoryDepth;
+        changed = true;
+    }
     if (!isSettingValue(Object.values(MEMORY_POSITIONS), settings.customMemoryPosition)) {
         settings.customMemoryPosition = defaultSettings.customMemoryPosition;
         changed = true;
