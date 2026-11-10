@@ -12,10 +12,17 @@ import {
 } from '../src/foundation/constants.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../src/core/token-budget.js';
+import { getChatStore } from '../src/foundation/chat-store.js';
 import { getEffectiveSettings, getSettings } from '../src/foundation/settings.js';
 import { SETTINGS_HELP } from '../src/entry/settings-help-data.js';
 import { syncDataSettingElements } from '../src/entry/ui-bind.js';
-import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
+import {
+    createJQueryHarness,
+    installSummaryContext,
+    makeForegroundGate,
+    makeMessages,
+    makeSummaryStore,
+} from './test-helpers.js';
 
 const HTML = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
 
@@ -170,6 +177,41 @@ describe('microfiche panels', () => {
             expect(line, selector).toContain('-4k');
             expect(line, selector).toContain('48k');
         }
+        delete globalThis.$;
+    });
+
+    it('bills frozen raw images from the UI injection', async () => {
+        const settings = {
+            ...defaultSettings,
+            memoryMode: MEMORY_MODES.MICROFICHE,
+            microficheGeometry: 'gemini',
+            microficheFrameSize: 512,
+            microficheImageCap: 5,
+            microficheKeepRaw: 0,
+            microficheFrozenRawImages: true,
+            verbatimTokenBudget: 20000,
+            queuedTokenBudget: 16000,
+        };
+        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers: [] }) },
+            settings,
+        });
+        const { buildUiInjection, syncMicroficheBilling } = await import('../src/entry/ui.js');
+        const injection = buildUiInjection(getChatStore(), getEffectiveSettings());
+
+        expect(injection.microficheRaw).not.toBeNull();
+        const billing = describeMicroficheBilling(injection, getEffectiveSettings());
+        expect(billing.images).toBe(injection.microficheRaw.imageTexts.length);
+        expect(billing.imageTokens).toBe(billing.images * 1120);
+        expect(billing.bucketAfterImages).toBe(36000 - billing.imageTokens);
+
+        globalThis.$ = createJQueryHarness().$;
+        syncMicroficheBilling(injection, getEffectiveSettings());
+        const line = globalThis.$('#sc_microfiche_cost').text();
+        expect(line).toContain('to images');
+        expect(line).not.toContain('No images billed');
         delete globalThis.$;
     });
 

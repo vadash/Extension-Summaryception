@@ -2,6 +2,8 @@
 
 The Raw Seal is the raw-chat slice a Frozen Page renders from: it is computed once per Mutation Epoch and reused verbatim until the next store mutation bumps that epoch and clears it, so tail growth ships as text and a page render only reads the epoch as its cache key rather than resealing mid-epoch. This extends the Frozen Page rule (ADR-0038) from pixels to the raw slice, and the reason is the mutation epoch itself (ADR-0003): raw-chat growth does not bump it, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
 
+A memory-less chat is the one exception. With no snippet there is no mutation to bump the epoch, so freezing the first seal would leave an underfilled slice frozen forever and every later turn would ship as text. The Raw Seal therefore follows chat growth while `layers` is empty, re-sealing and dropping the older slice's pixels on each length change; the first snippet starts the per-epoch freeze, so prefix-cache stability holds as soon as there is memory to stabilize.
+
 ## Considered Options
 
 - **Re-slice the raw chat each generation** — rejected: the slice and page keys would re-hash every turn, breaking provider prefix-cache stability.

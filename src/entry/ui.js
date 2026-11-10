@@ -16,6 +16,7 @@ import { formatCompactTokenCount } from '../core/token-count.js';
 import { describeAutoWork } from '../core/summarization-routes.js';
 import { describeMicroficheBilling, estimateContextPreview } from '../core/token-budget.js';
 import { buildInjection, measureInjection } from '../core/memory-injection.js';
+import { buildMicroficheRawSlice } from '../core/microfiche-raw-slice.js';
 import {
     syncAllSettingsToDOM,
     syncGuardMaskMemoryControl,
@@ -46,7 +47,7 @@ export async function updateUI({ queue }) {
         const effectiveSettings = getEffectiveSettings();
         const store = getChatStore();
 
-        const memoryInjection = buildInjection(store.layers, effectiveSettings);
+        const memoryInjection = buildUiInjection(store, effectiveSettings);
         syncSettingsInputs(s, effectiveSettings, memoryInjection);
         const enabledContent = buildEnabledContentModel(readOperationMode(s), {
             autoPaused: s.autoPaused,
@@ -81,6 +82,23 @@ export async function updateUI({ queue }) {
     } catch (e) {
         warn('updateUI error:', e);
     }
+}
+
+/**
+ * Build the injection the UI bills and previews. Billing reads the built
+ * injection, so the frozen raw slice must enter here exactly as it enters the
+ * injection writer; otherwise `microficheRaw` is always null and raw images
+ * never debit the raw bucket.
+ * @param {SummaryceptionStore} store - Store owning memory layers and boundary.
+ * @param {ExtensionSettings} settings - Effective settings.
+ * @returns {import('../core/memory-injection.js').MemoryInjection}
+ */
+export function buildUiInjection(store, settings) {
+    const rawTexts =
+        settings.microficheFrozenRawImages === true
+            ? buildMicroficheRawSlice(getChat(), store, settings)
+            : null;
+    return buildInjection(store.layers, settings, null, rawTexts);
 }
 
 /**

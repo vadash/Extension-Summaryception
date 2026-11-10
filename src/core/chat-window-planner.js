@@ -1,5 +1,7 @@
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { countedChatMessages, toAssistantTurn } from './chatutils.js';
+import { buildInjection } from './memory-injection.js';
+import { buildMicroficheRawSlice } from './microfiche-raw-slice.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
@@ -47,7 +49,12 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     const data = await collectLiveData(chat, sourceStartIdx, settings);
     const verbatimBudget = toTokenBudget(settings.verbatimTokenBudget);
     const queuedBudget = toTokenBudget(settings.queuedTokenBudget);
-    const tokenBudgetExceeded = data.liveStats.finalTokens >= verbatimBudget + queuedBudget;
+    const rawSpend = readRawImageSpend(chat, store, settings);
+    const tokenBudgetExceeded = exceedsTriggerBudget(
+        data.liveStats.finalTokens,
+        rawSpend,
+        verbatimBudget + queuedBudget,
+    );
     const verbatimStartIdx = findVerbatimStart(data.entries, verbatimBudget, sourceStartIdx);
     const eligibleTurns = data.visibleTurns.filter((turn) => turn.index < verbatimStartIdx);
     const queuedEndIdx = eligibleTurns.at(-1)?.index ?? -1;
@@ -98,6 +105,48 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
 
     return await buildReadyPlan({ ...readyBase, reason: 'ready' });
 }
+/**
+ * The trigger line counts raw image spend against the shared bucket, and an
+ * over-cap raw plan asks for memory even when the text alone still fits.
+ * @param {number} liveTokens - Live window text tokens.
+ * @param {{ overCap: boolean, imageTokens: number }} rawSpend - Raw image spend.
+ * @param {number} bucketTokens - Combined verbatim and queued budget.
+ * @returns {boolean} Whether summarization should run.
+ */
+function exceedsTriggerBudget(liveTokens, rawSpend, bucketTokens) {
+    return rawSpend.overCap || liveTokens + rawSpend.imageTokens >= bucketTokens;
+}
+
+/**
+ * The frozen-raw region's share of the trigger: the image tokens its built
+ * plan bills and whether a fill-gated page missed the image cap. Over-cap
+ * means the next full image would not fit, so the engine runs a memory update
+ * instead of adding that image (ADR-0045). Off or plan-less regions spend
+ * nothing.
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
+ * @param {ExtensionSettings} settings
+ * @returns {{ overCap: boolean, imageTokens: number }}
+ */
+function readRawImageSpend(chat, store, settings) {
+    if (settings?.microficheFrozenRawImages !== true) {
+        return { overCap: false, imageTokens: 0 };
+    }
+    const rawTexts = buildMicroficheRawSlice(chat, store, settings);
+    if (rawTexts.length === 0) {
+        return { overCap: false, imageTokens: 0 };
+    }
+    const injection = buildInjection(store?.layers ?? [], settings, null, rawTexts);
+    const plan = injection.microficheRaw;
+    if (plan === null || plan === undefined) {
+        return { overCap: false, imageTokens: 0 };
+    }
+    return {
+        overCap: plan.overCap === true,
+        imageTokens: plan.imageTexts.length * plan.frameTokenEstimate,
+    };
+}
+
 /**
  * @typedef {{ index: number, message: ChatMessage, stats: import('./token-count.js').CountedBudgetMessage }} LiveEntry
  * @typedef {{ entries: LiveEntry[], liveStats: import('./token-count.js').BudgetStats, visibleTurns: import('./chatutils.js').AssistantTurn[] }} LiveData

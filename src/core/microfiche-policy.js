@@ -33,6 +33,7 @@ const MICROFICHE_FILL_GATE_RATIO = 0.75;
  * @property {string[]} imageTexts - Fill-gated raw page texts bound for image frames, oldest first.
  * @property {string[]} rawTexts - Underfilled and over-cap raw pages that stay text, in order.
  * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
+ * @property {boolean} overCap - True when a fill-gated page missed the image cap and stayed text.
  */
 
 /**
@@ -176,6 +177,7 @@ export function buildMicroficheRawPlan(
         imageTexts: budgeted.imageTexts,
         rawTexts: budgeted.rawTexts,
         frameTokenEstimate,
+        overCap: effectiveCap > 0 && budgeted.imageTexts.length < filled.imageTexts.length,
     };
 }
 
@@ -200,8 +202,10 @@ function resolveFrameTokenEstimate(presetRecord) {
 
 /**
  * The raw bucket the raw region may spend: the configured raw-chat bucket,
- * less the memory region's image tokens when that region is toggled on, so
- * both regions debit one figure. Memory text cost stays with the memory plan.
+ * less the memory region's image tokens and the memory text that stays raw
+ * when that region is toggled on, so both regions debit one figure. The
+ * memory plan already charged that text to the same bucket, so leaving it
+ * out would let the raw region spend it twice.
  * @param {Record<string, unknown>} settings - Settings carrying toggles and raw budgets.
  * @param {MicrofichePlan | null} memoryPlan - Built memory plan, if any.
  * @returns {number} Bucket tokens available to raw images.
@@ -215,7 +219,10 @@ function resolveRawPlanBucketTokens(settings, memoryPlan) {
     ) {
         return bucket;
     }
-    return Math.max(0, bucket - memoryPlan.imageTexts.length * memoryPlan.frameTokenEstimate);
+    const memorySpend =
+        memoryPlan.imageTexts.length * memoryPlan.frameTokenEstimate +
+        estimateRawTextTokens(memoryPlan.rawTexts);
+    return Math.max(0, bucket - memorySpend);
 }
 
 /**

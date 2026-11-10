@@ -146,6 +146,18 @@ function readAllPages(writer, limit = 16) {
     return pages;
 }
 
+function readAllRawPages(writer, limit = 16) {
+    const pages = [];
+    for (let index = 0; index < limit; index += 1) {
+        const page = writer.resolveMicrofichePage(index, 'raw');
+        if (!page) {
+            break;
+        }
+        pages.push(page);
+    }
+    return pages;
+}
+
 describe('microfiche page source', () => {
     it('serves each live page by index in plan order', () => {
         const texts = ['first page', 'second page', 'third page'];
@@ -643,5 +655,68 @@ describe('memory injection writer microfiche markers', () => {
             promptManagerReady: true,
         });
         expect(view.imageParts).toBeGreaterThan(0);
+    });
+
+    it('reseals a growing memory-less chat until the raw bucket fills', () => {
+        const setExtensionPrompt = vi.fn();
+        const chat = makeMessages(2, { mes: 'seed '.repeat(40) });
+        installMicroficheContext({
+            setExtensionPrompt,
+            chat,
+            layers: [],
+            settings: {
+                ...MICROFICHE_SETTINGS,
+                microficheMemoryImages: true,
+                microficheFrozenRawImages: true,
+                microficheImageCap: 5,
+                verbatimTokenBudget: 20000,
+                queuedTokenBudget: 16000,
+            },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+        expect(readAllRawPages(writer)).toHaveLength(0);
+
+        // The first seal froze nothing; growing to the 36k fixture must
+        // re-seal instead of leaving the chat as text for the epoch.
+        chat.push(
+            ...makeMessages(36, (index) => ({
+                isUser: index % 2 === 0,
+                mes: 'grow '.repeat(800),
+            })),
+        );
+        writer.update();
+
+        const rawPages = readAllRawPages(writer);
+        expect(rawPages).toHaveLength(5);
+        const text = setExtensionPrompt.mock.calls.at(-1)[1];
+        const markers = extractMicroficheMarkers(text);
+        expect(markers.filter((marker) => marker.region === 'memory')).toHaveLength(0);
+        expect(markers.filter((marker) => marker.region === 'raw')).toHaveLength(5);
+        expect(getChatStore().layers).toHaveLength(0);
+    });
+
+    it('keeps the raw seal frozen once memory exists', () => {
+        const setExtensionPrompt = vi.fn();
+        const chat = makeMessages(24, { mes: 'lorem ipsum dolor sit amet '.repeat(80) });
+        installMicroficheContext({
+            setExtensionPrompt,
+            chat,
+            settings: { ...MICROFICHE_SETTINGS, microficheFrozenRawImages: true },
+        });
+        const factory = makeFakeFactory();
+        const writer = createMemoryInjectionWriter({ canvasFactory: factory.canvasFactory });
+
+        writer.update();
+        const sealedTexts = readAllRawPages(writer).map((page) => page.text);
+        expect(sealedTexts.length).toBeGreaterThan(0);
+
+        chat.push(...makeMessages(4, { mes: 'tail '.repeat(200) }));
+        writer.update();
+
+        expect(readAllRawPages(writer).map((page) => page.text)).toEqual(sealedTexts);
+        expect(setExtensionPrompt).toHaveBeenCalledTimes(1);
     });
 });

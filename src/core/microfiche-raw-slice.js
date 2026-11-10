@@ -2,7 +2,8 @@
 // region pages. It starts just after the summarized boundary and takes whole
 // messages until the combined Recent + Queued budget fills, so everything the
 // epoch did not seal keeps shipping as the text tail. The page source seals
-// the result for the epoch, so this module never re-runs inside one epoch.
+// the result for the epoch; the writer re-runs this only while the chat has no
+// memory, because there is no epoch bump to thaw an underfilled first seal.
 
 import { formatMessageSpeakerLine, isSummarizerConversationMessage } from './chatutils.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';

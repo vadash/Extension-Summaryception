@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
 import { buildChatWindowPlan } from '../src/core/chat-window-planner.js';
+import { buildInjection } from '../src/core/memory-injection.js';
+import { buildMicroficheRawSlice } from '../src/core/microfiche-raw-slice.js';
 import {
     makeMessage,
     makeSizedChat,
@@ -155,5 +158,36 @@ describe('buildChatWindowPlan', () => {
         expect(plan.liveTokens).toBe(
             2 * messageLineTokens(true, 40) + 2 * messageLineTokens(false, 40),
         );
+    });
+
+    it('requests a memory update when a fill-gated raw page misses the image cap', async () => {
+        const settings = {
+            ...defaultSettings,
+            ...windowSettings({
+                memoryMode: MEMORY_MODES.MICROFICHE,
+                microficheGeometry: 'gemini',
+                microficheFrameSize: 512,
+                microficheImageCap: 5,
+                microficheKeepRaw: 0,
+                microficheFrozenRawImages: true,
+                verbatimTokenBudget: 20000,
+                queuedTokenBudget: 16000,
+                minSummaryTurns: 1,
+            }),
+        };
+        const chat = makeSizedChat(10, { userLength: 1000, assistantLength: 1000 });
+        const store = makeSummaryStore();
+        const rawTexts = buildMicroficheRawSlice(chat, store, settings);
+        const injection = buildInjection([], settings, null, rawTexts);
+        expect(injection.microficheRaw.overCap).toBe(true);
+        expect(injection.microficheRaw.imageTexts).toHaveLength(5);
+
+        const plan = await buildChatWindowPlan(chat, store, settings);
+
+        // Text alone stays below the shared bucket; only the over-cap image
+        // spend makes the trigger fire.
+        expect(plan.liveTokens).toBeLessThan(36000);
+        expect(plan.tokenBudgetExceeded).toBe(true);
+        expect(plan.reason).toBe('ready');
     });
 });
