@@ -341,8 +341,8 @@ async function renderVerbatimBudget(s, work) {
         const { text, images } = buildAutoWorkBudgetParts(work).recent;
         return {
             budget: s.verbatimTokenBudget,
-            verbatim: text,
-            layers: [images],
+            verbatim: images.count > 0 ? images : text,
+            layers: images.count > 0 ? [text] : [],
         };
     });
 }
@@ -358,16 +358,12 @@ async function renderTriggerGauge(s, work) {
             throw new Error('Summary work read model unavailable');
         }
         const model = buildTriggerGaugeModel(work, s);
-        const { images } = buildAutoWorkBudgetParts(work).queued;
+        const { text, images } = buildAutoWorkBudgetParts(work).queued;
+        const queuedText = { ...text, count: Math.max(0, model.queuedTokens - images.count) };
         return {
             budget: model.triggerTokens,
-            verbatim: {
-                label: 'Queued',
-                kind: 'pending',
-                count: model.queuedTokens,
-                estimated: model.queuedEstimated,
-            },
-            layers: [images],
+            verbatim: images.count > 0 ? images : queuedText,
+            layers: images.count > 0 ? [queuedText] : [],
             marker: { positionTokens: model.triggerTokens, label: model.label },
         };
     });
