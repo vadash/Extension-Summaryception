@@ -34,8 +34,9 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
 /**
  * Build the Memory Injection writer: one instance owns the prompt slot's
  * last-written key, its committed snapshot, and the macro registration flag.
- * The composition root constructs it once (ADR-0031); a test builds its own
- * instance instead of resetting module state. The instance also holds the
+ * The composition root constructs it once (ADR-0031) and construction binds
+ * its page source for the sealed-plan readers; a test builds its own
+ * instance and rebinds by constructing. The instance also holds the
  * Microfiche page source: tab memory only, sealed per Mutation Epoch, and
  * cleared on epoch or geometry drift. A chat switch clears it explicitly
  * because each chat's epoch starts at zero and can repeat the sealed one. The

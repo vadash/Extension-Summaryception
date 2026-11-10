@@ -88,8 +88,11 @@ export async function updateUI({ queue }) {
  * Build the injection the UI bills and previews. Both region plans come from
  * the writer's seal, so billing counts the pages the prompt writer sealed for
  * this Mutation Epoch instead of a fresh slice that may hold pages the writer
- * never bound. A writer update that has not run since the last chat growth
- * leaves the previous seal in place.
+ * never bound. `injection.text` carries no markers, so grafting sealed plans
+ * onto the fresh text keeps one epoch: text is seal-independent. A writer
+ * update that has not run since the last chat growth leaves the previous seal
+ * in place. Regions whose toggle is off bill null even when the seal still
+ * holds their pages.
  * @param {SummaryceptionStore} store - Store owning memory layers and boundary.
  * @param {ExtensionSettings} settings - Effective settings.
  * @returns {import('../core/memory-injection.js').MemoryInjection}
@@ -97,7 +100,14 @@ export async function updateUI({ queue }) {
 export function buildUiInjection(store, settings) {
     const injection = buildInjection(store.layers, settings);
     const sealed = readSealedMicrofichePlans();
-    return sealed === null ? injection : { ...injection, ...sealed };
+    if (sealed === null) {
+        return injection;
+    }
+    return {
+        ...injection,
+        microfiche: settings.microficheMemoryImages === true ? sealed.microfiche : null,
+        microficheRaw: settings.microficheFrozenRawImages === true ? sealed.microficheRaw : null,
+    };
 }
 
 /**

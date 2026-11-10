@@ -267,6 +267,37 @@ describe('microfiche panels', () => {
         expect(line).not.toContain('No images billed');
         delete globalThis.$;
     });
+    it('bills null regions when the image toggles are off despite a live seal', async () => {
+        const chat = makeMessages(8, { mes: 'lorem ipsum dolor sit amet '.repeat(170) });
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers: [] }) },
+            settings: {
+                ...defaultSettings,
+                memoryMode: MEMORY_MODES.MICROFICHE,
+                microficheGeometry: 'gemini',
+                microficheFrameSize: 512,
+                microficheImageCap: 8,
+                microficheKeepRaw: 0,
+                microficheFrozenRawImages: true,
+                verbatimTokenBudget: 20000,
+                queuedTokenBudget: 16000,
+            },
+        });
+        const writer = createMemoryInjectionWriter();
+        writer.update();
+        expect(readSealedMicrofichePlans().microficheRaw.imageTexts.length).toBeGreaterThan(0);
+
+        const { buildUiInjection } = await import('../src/entry/ui.js');
+        const off = {
+            ...getEffectiveSettings(),
+            microficheMemoryImages: false,
+            microficheFrozenRawImages: false,
+        };
+        const billed = buildUiInjection(getChatStore(), off);
+        expect(billed.microfiche).toBeNull();
+        expect(billed.microficheRaw).toBeNull();
+    });
 
     it('reports unknown image billing instead of a zero-image split for custom geometry', async () => {
         const settings = {

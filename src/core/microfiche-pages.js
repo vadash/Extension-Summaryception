@@ -40,6 +40,7 @@ const SHAPE_HASH_KEYS = [
  * @property {import('./microfiche-policy.js').MicrofichePlan | null} microfiche - Sealed memory plan.
  * @property {import('./microfiche-policy.js').MicroficheRawPlan | null} microficheRaw - Sealed frozen raw-chat plan.
  */
+
 /**
  * @typedef {object} MicroficheRawSealInput
  * @property {ChatMessage[]} chat - Live chat array carrying the candidate span.
@@ -67,14 +68,17 @@ const SHAPE_HASH_KEYS = [
 
 /**
  * Page source the Memory Injection writer built. The composition root builds
- * one writer per tab, so this source is the only seal owner for the UI billing
- * and the engine trigger. Those readers must not build their own raw slice.
+ * one writer per tab and that writer binds once at construction, so this is
+ * entry-owned wiring (same class as `viewerDeps`): UI billing and the engine
+ * trigger read the seal through it instead of rebuilding a raw slice. Tests
+ * construct a writer per case and rebind per case.
  * @type {MicrofichePageSource | null}
  */
 let writerPageSource = null;
 
 /**
  * Register the writer's page source so readers can reach the sealed plans.
+ * Entry construction calls this once per writer; tests once per writer built.
  * @param {MicrofichePageSource} source - Page source owned by the writer.
  * @returns {void}
  */
@@ -100,7 +104,6 @@ export function readSealedMicrofichePlans() {
 export function hashMicroficheShape(shape) {
     return SHAPE_HASH_KEYS.map((key) => `${key}=${String(shape?.[key])}`).join('|');
 }
-
 /**
  * @param {import('./microfiche-policy.js').MicroficheRegionPlan | null | undefined} plan - Region plan, if any.
  * @returns {string} Geometry hash, or an empty string without a plan.
@@ -111,8 +114,8 @@ function hashRegionShape(plan) {
 
 /**
  * @template {import('./microfiche-policy.js').MicroficheRegionPlan} T
- * @param {T | null | undefined} plan - Region plan to copy.
- * @returns {T | null} Frozen copy, or null.
+ * @param {T | null | undefined} plan - Region plan to copy; the copy owns its page list.
+ * @returns {T | null} Copy, or null.
  */
 function sealPlan(plan) {
     if (plan === null || plan === undefined) {

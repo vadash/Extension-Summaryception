@@ -14,7 +14,7 @@ import { getChatStore, saveChatStore } from './src/foundation/chat-store.js';
 import { initChatPersistence } from './src/core/persist-state.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
 import { getEffectiveSettings, getSettings } from './src/foundation/settings.js';
-import { buildInjection } from './src/core/memory-injection.js';
+import { buildUiInjection } from './src/entry/ui.js';
 import { initSnippetBrowser } from './src/entry/ui-snippets.js';
 import { createSummarizerQueue } from './src/core/summarizer-queue.js';
 import { createSummarizerDispatch } from './src/core/summarizer-request.js';
@@ -122,7 +122,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
         updateUI: (options) => updateUI({ ...options, queue }),
         updatePreview: () => {
             const settings = getEffectiveSettings();
-            const injection = buildInjection(getChatStore().layers, settings);
+            const injection = buildUiInjection(getChatStore(), settings);
             syncLLMContextPreview(injection, settings);
             syncMicroficheBilling(injection, settings);
         },
