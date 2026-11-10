@@ -138,13 +138,44 @@ const ALPHA_RUN = /[a-zA-ZÀ-ÖØ-öø-ÿ]+/g;
 // Splitter keeps the zero-width toggles as their own segments. Built from
 // strings so no literal control byte lands in a regex class.
 const DIM_MARKER_SPLIT = new RegExp(`(${'\\u000e'}|${'\\u000f'})`);
-
+// Canvas2D draws every script, so narrow letters, numbers, and marks stay
+// printable; wide glyphs keep the '?' fold because the grid lays them out in
+// two cells while fillText advances one, and symbols without a fold entry
+// fall back to '?'.
+const SCRIPT_PRINTABLE = /[\p{L}\p{N}\p{M}]/u;
+// East Asian wide/fullwidth ranges, mirrored from microfiche-geometry.js so
+// normalize stays host-free with no module cycle.
+const WIDE_RANGES = [
+    [0x1100, 0x115f],
+    [0x2e80, 0x2eff],
+    [0x2f00, 0x2fdf],
+    [0x3000, 0x303e],
+    [0x3041, 0x33ff],
+    [0x3400, 0x4dbf],
+    [0x4e00, 0x9fff],
+    [0xa000, 0xa4cf],
+    [0xac00, 0xd7a3],
+    [0xf900, 0xfaff],
+    [0xfe30, 0xfe4f],
+    [0xff00, 0xff60],
+    [0xffe0, 0xffe6],
+    [0x20000, 0x2fffd],
+    [0x30000, 0x3fffd],
+];
 /**
  * @param {number} codePoint
  * @returns {boolean} True for the bitmap fonts' printable ASCII/Latin-1 range.
  */
 function isAsciiOrLatin1(codePoint) {
     return (codePoint >= 0x20 && codePoint < 0x7f) || (codePoint >= 0xa0 && codePoint <= 0xff);
+}
+
+/**
+ * @param {number} codePoint
+ * @returns {boolean} True for East Asian wide/fullwidth ranges.
+ */
+function isWideCodePoint(codePoint) {
+    return WIDE_RANGES.some(([low, high]) => codePoint >= low && codePoint <= high);
 }
 /**
  * Aggressive single-code-point ASCII fold via NFKD: compatibility forms
@@ -242,6 +273,11 @@ function normalizeWithStats(text, options = {}) {
         }
         if (ch === DIM_ON || ch === DIM_OFF || ch === NEWLINE_GLYPH) {
             out.push(ch);
+            continue;
+        }
+        if (SCRIPT_PRINTABLE.test(ch) && !isWideCodePoint(codePoint)) {
+            out.push(ch);
+            totalGraphics += 1;
             continue;
         }
         const folded = foldNonAscii(ch, codePoint);

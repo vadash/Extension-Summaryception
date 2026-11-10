@@ -277,6 +277,13 @@ describe('microfiche buildMicrofichePageTexts', () => {
         );
         expect(result.imageTexts[0]).toContain(`${DIM_ON}the${DIM_OFF}`);
     });
+
+    it('keeps narrow-script letters printable instead of folding them to ?', () => {
+        const result = buildMicrofichePageTexts(['Вова$$засмотрелся$$на$$ее'], geminiShape());
+        expect(result.imageTexts.length).toBe(1);
+        expect(result.imageTexts[0]).toBe('Вова$$засмотрелся$$на$$ее');
+        expect(result.imageTexts[0]).not.toMatch(/\?{3}/);
+    });
 });
 
 describe('microfiche hashMicroficheShape', () => {
