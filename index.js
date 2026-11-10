@@ -64,7 +64,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
             canvas.width = width;
             canvas.height = height;
             const ctx =
-                /** @type {{ fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void }} */ (
+                /** @type {{ fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void }} */ (
                     canvas.getContext('2d')
                 );
             return { canvas, ctx };

@@ -44,7 +44,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * same instance owns the slot markers for image-backed memory and frozen
  * raw-chat pages (ADR-0042); its page source seals the raw-chat slice per
  * Mutation Epoch (ADR-0040).
- * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
+ * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
  *   reassert: () => void,
