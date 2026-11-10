@@ -5,8 +5,10 @@ import { describeAutoWork } from '../src/core/summarization-routes.js';
 import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
 import {
     buildAutoWorkBudgetParts,
+    buildBacklogSplitModel,
     buildContextBudgetViewModel,
     buildEnabledContentModel,
+    buildMicroficheReasonModel,
     buildTriggerGaugeModel,
     formatBudgetTokenLabel,
     getContextColorClass,
@@ -192,6 +194,159 @@ describe('billed auto work bars', () => {
         const kinds = view.segments.map((segment) => segment.kind);
         expect(kinds).toEqual(expect.arrayContaining(['pending', 'microfiche']));
         expect(view.used).toBe(parts.queued.text.count + parts.queued.images.count);
+    });
+});
+
+/**
+ * Synthetic sealed plans: the reason and split builders read only the raw
+ * region's cap, kept pages, and over-cap flag, so the cases stay independent
+ * of pagination geometry.
+ * @param {{ cap: number, images: number, raw: number, overCap: boolean }} input - Raw plan facts.
+ * @returns {{ microficheRaw: { effectiveCap: number, imageTexts: string[], rawTexts: string[], overCap: boolean } }}
+ */
+function rawPlan({ cap, images, raw, overCap }) {
+    return {
+        microficheRaw: {
+            effectiveCap: cap,
+            imageTexts: Array.from({ length: images }, (_value, index) => `page ${index}`),
+            rawTexts: Array.from({ length: raw }, (_value, index) => `text ${index}`),
+            overCap,
+        },
+    };
+}
+
+/**
+ * @param {{ backlog?: number, billed?: number, ready?: boolean }} [input] - Read model facts.
+ * @returns {import('../src/core/summarization-routes.js').AutoWorkReadModel}
+ */
+function workModel({ backlog = 0, billed = 0, ready = true } = {}) {
+    return {
+        ready,
+        backlog,
+        verbatimTokens: billed,
+        verbatimEstimated: false,
+        verbatimImageTokens: 0,
+        queuedTokens: 0,
+        queuedEstimated: false,
+        queuedImageTokens: 0,
+    };
+}
+
+const REASON_SETTINGS = {
+    microficheImageCap: 4,
+    verbatimTokenBudget: 1000,
+    queuedTokenBudget: 1000,
+};
+
+describe('microfiche reason model', () => {
+    it('says at cap when every cap slot holds an image and a page waits', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 500 }),
+                rawPlan({ cap: 4, images: 4, raw: 1, overCap: true }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'at cap 4/4 images, next page waits, memory update next',
+            memoryNext: true,
+        });
+    });
+
+    it('says fill gated when the trailing page misses the 0.75 fill gate', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 500 }),
+                rawPlan({ cap: 4, images: 1, raw: 1, overCap: true }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'last page under 0.75, memory update next',
+            memoryNext: true,
+        });
+    });
+
+    it('says bucket full when the raw bucket shrank the effective cap', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 2000 }),
+                rawPlan({ cap: 2, images: 2, raw: 1, overCap: true }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'raw bucket full, memory update next',
+            memoryNext: true,
+        });
+    });
+
+    it('treats an unaffordable cap of zero as bucket full', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 500 }),
+                rawPlan({ cap: 0, images: 0, raw: 1, overCap: true }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'raw bucket full, memory update next',
+            memoryNext: true,
+        });
+    });
+
+    it('stays neutral while imaging proceeds', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 500 }),
+                rawPlan({ cap: 4, images: 2, raw: 0, overCap: false }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'imaging 2/4 images',
+            memoryNext: false,
+        });
+    });
+
+    it('stays neutral when no sealed raw plan exists', () => {
+        expect(buildMicroficheReasonModel(workModel(), null, REASON_SETTINGS)).toEqual({
+            text: 'imaging idle',
+            memoryNext: false,
+        });
+    });
+});
+
+describe('backlog split model', () => {
+    it('splits the backlog into sealed images plus queued text', () => {
+        expect(
+            buildBacklogSplitModel(
+                workModel({ backlog: 10 }),
+                rawPlan({ cap: 4, images: 4, raw: 0, overCap: false }),
+            ),
+        ).toEqual({ backlog: 10, images: 4, text: 6 });
+    });
+
+    it('never counts more sealed images than waiting turns', () => {
+        expect(
+            buildBacklogSplitModel(
+                workModel({ backlog: 3 }),
+                rawPlan({ cap: 4, images: 4, raw: 0, overCap: false }),
+            ),
+        ).toEqual({ backlog: 3, images: 3, text: 0 });
+    });
+
+    it('reads a missing work model or raw plan as an empty split', () => {
+        expect(buildBacklogSplitModel(null, null)).toEqual({ backlog: 0, images: 0, text: 0 });
+        expect(buildBacklogSplitModel(workModel({ backlog: 5 }), { microficheRaw: null })).toEqual({
+            backlog: 5,
+            images: 0,
+            text: 5,
+        });
+    });
+
+    it('drops the split while no batch is ready', () => {
+        expect(
+            buildBacklogSplitModel(
+                workModel({ backlog: 5, ready: false }),
+                rawPlan({ cap: 4, images: 2, raw: 0, overCap: false }),
+            ),
+        ).toEqual({ backlog: 0, images: 0, text: 0 });
     });
 });
 

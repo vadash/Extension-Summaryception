@@ -138,6 +138,58 @@ export function buildTriggerGaugeModel(work, s) {
 }
 
 /**
+ * The blocked-step line under the Microfiche bars. A page waits when the sealed
+ * raw plan reports `overCap`, which the policy sets when the Fill Gate, the
+ * image cap, or the raw bucket leaves a page as text. The binding cap tells the
+ * three cases apart: a cap below the configured image cap means the raw bucket
+ * shrank it, a full cap with a page waiting means the cap is reached, and a
+ * short page list under a full cap means the trailing page missed the 0.75
+ * Fill Gate. `memoryNext` drives the red treatment.
+ * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work - Work read model; a not-ready batch keeps the line neutral.
+ * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts - Sealed plans from the injection writer.
+ * @param {{ microficheImageCap?: number } | null | undefined} [settings] - Effective settings carrying the image cap.
+ * @returns {{ text: string, memoryNext: boolean }}
+ */
+export function buildMicroficheReasonModel(work, sealedFacts, settings = {}) {
+    const raw = sealedFacts?.microficheRaw ?? null;
+    const images = Array.isArray(raw?.imageTexts) ? raw.imageTexts.length : 0;
+    const cap = normalizeBudgetCount(raw?.effectiveCap);
+    const sliderCap = normalizeBudgetCount(settings?.microficheImageCap);
+    if (raw === null || raw.overCap !== true || work?.ready === false) {
+        return {
+            text: raw === null ? 'imaging idle' : `imaging ${images}/${cap} images`,
+            memoryNext: false,
+        };
+    }
+    if (cap < sliderCap) {
+        return { text: 'raw bucket full, memory update next', memoryNext: true };
+    }
+    if (images >= cap) {
+        return {
+            text: `at cap ${images}/${cap} images, next page waits, memory update next`,
+            memoryNext: true,
+        };
+    }
+    return { text: 'last page under 0.75, memory update next', memoryNext: true };
+}
+
+/**
+ * Split the assistant turns waiting for summarization into sealed image pages
+ * and queued text. The frozen raw region owns the pages that cover the backlog,
+ * so its sealed image count caps the image share and the rest stays text.
+ * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work - Work read model carrying the backlog.
+ * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts - Sealed plans from the injection writer.
+ * @returns {{ backlog: number, images: number, text: number }}
+ */
+export function buildBacklogSplitModel(work, sealedFacts) {
+    const backlog = work?.ready ? normalizeBudgetCount(work.backlog) : 0;
+    const raw = sealedFacts?.microficheRaw ?? null;
+    const sealedImages = Array.isArray(raw?.imageTexts) ? raw.imageTexts.length : 0;
+    const images = Math.min(backlog, normalizeBudgetCount(sealedImages));
+    return { backlog, images, text: backlog - images };
+}
+
+/**
  * Mode-derived chrome for one settings render: the Off banner, the visible
  * complexity panel, and the controls the Operation Mode gates. The Off banner
  * keeps the remembered panel visible so configuration stays editable while
