@@ -25,6 +25,7 @@ import {
 import { updateSnippetBrowser } from './ui-snippets.js';
 import { syncConnectionPanels } from './ui-connection.js';
 import {
+    buildAutoWorkBudgetParts,
     buildContextBudgetViewModel,
     buildEnabledContentModel,
     buildTriggerGaugeModel,
@@ -309,15 +310,11 @@ async function renderVerbatimBudget(s, work) {
         if (!work) {
             throw new Error('Summary work read model unavailable');
         }
+        const { text, images } = buildAutoWorkBudgetParts(work).recent;
         return {
             budget: s.verbatimTokenBudget,
-            verbatim: {
-                label: 'Recent Chat',
-                kind: 'verbatim',
-                count: work.verbatimTokens,
-                estimated: work.verbatimEstimated,
-            },
-            layers: [],
+            verbatim: text,
+            layers: [images],
         };
     });
 }
@@ -333,6 +330,7 @@ async function renderTriggerGauge(s, work) {
             throw new Error('Summary work read model unavailable');
         }
         const model = buildTriggerGaugeModel(work, s);
+        const { images } = buildAutoWorkBudgetParts(work).queued;
         return {
             budget: model.triggerTokens,
             verbatim: {
@@ -341,7 +339,7 @@ async function renderTriggerGauge(s, work) {
                 count: model.queuedTokens,
                 estimated: model.queuedEstimated,
             },
-            layers: [],
+            layers: [images],
             marker: { positionTokens: model.triggerTokens, label: model.label },
         };
     });

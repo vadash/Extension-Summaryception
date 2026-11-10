@@ -2,6 +2,7 @@ import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { countedChatMessages, toAssistantTurn } from './chatutils.js';
 import { readSealedMicrofichePlans } from './microfiche-pages.js';
 import { buildLayer0Partitions } from './partition-planner.js';
+import { describeMicroficheBilling } from './token-budget.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
 /**
@@ -48,10 +49,10 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     const data = await collectLiveData(chat, sourceStartIdx, settings);
     const verbatimBudget = toTokenBudget(settings.verbatimTokenBudget);
     const queuedBudget = toTokenBudget(settings.queuedTokenBudget);
-    const rawSpend = readRawImageSpend(settings);
+    const rawBilling = readSealedRawBilling(settings);
     const tokenBudgetExceeded = exceedsTriggerBudget(
         data.liveStats.finalTokens,
-        rawSpend,
+        rawBilling,
         verbatimBudget + queuedBudget,
     );
     const verbatimStartIdx = findVerbatimStart(data.entries, verbatimBudget, sourceStartIdx);
@@ -105,39 +106,48 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     return await buildReadyPlan({ ...readyBase, reason: 'ready' });
 }
 /**
- * The trigger line counts raw image spend against the shared bucket, and an
- * over-cap raw plan asks for memory even when the text alone still fits.
+ * The trigger line bills the prompt the run actually sends: each sealed Frozen
+ * Page bills its frame tokens and the text it holds stops billing as text, so
+ * the billed cost is the surviving tail plus the frames. An over-cap raw plan
+ * asks for memory even when the text alone still fits, because the next full
+ * image would not.
  * @param {number} liveTokens - Live window text tokens.
- * @param {{ overCap: boolean, imageTokens: number }} rawSpend - Raw image spend.
+ * @param {{ overCap: boolean, imageTokens: number, heldTokens: number }} rawBilling - Sealed raw spend.
  * @param {number} bucketTokens - Combined verbatim and queued budget.
  * @returns {boolean} Whether summarization should run.
  */
-function exceedsTriggerBudget(liveTokens, rawSpend, bucketTokens) {
-    return rawSpend.overCap || liveTokens + rawSpend.imageTokens >= bucketTokens;
+function exceedsTriggerBudget(liveTokens, rawBilling, bucketTokens) {
+    const tailTokens = Math.max(0, liveTokens - rawBilling.heldTokens);
+    return rawBilling.overCap || tailTokens + rawBilling.imageTokens >= bucketTokens;
 }
 
 /**
- * The frozen-raw region's share of the trigger: the image tokens the writer's
- * sealed plan bills and whether a fill-gated page missed the image cap. Reading
- * the seal keeps the trigger on the same pages the prompt writer bound; a
- * writer update that has not run since the last chat growth leaves the previous
- * seal in place. Over-cap means the next full image would not fit, so the
- * engine runs a memory update instead of adding that image (ADR-0045). Off or
- * plan-less regions spend nothing.
- * @param {ExtensionSettings} settings
- * @returns {{ overCap: boolean, imageTokens: number }}
+ * The frozen-raw region's billed spend: frame tokens for the sealed images and
+ * the text tokens those frames hold. The writer seals the Raw Seal for its
+ * current Mutation Epoch, so the bars and the trigger read the same pages the
+ * prompt ships. A custom geometry has no frame estimate, so image spend is
+ * unknown and the raw text keeps billing at full price rather than inventing a
+ * saving. Off or unsealed regions spend nothing.
+ * @param {ExtensionSettings} settings - Settings carrying the frozen-raw toggle and budgets.
+ * @returns {{ overCap: boolean, imageTokens: number, heldTokens: number }}
  */
-function readRawImageSpend(settings) {
+export function readSealedRawBilling(settings) {
+    const noSpend = { overCap: false, imageTokens: 0, heldTokens: 0 };
     if (settings?.microficheFrozenRawImages !== true) {
-        return { overCap: false, imageTokens: 0 };
+        return noSpend;
     }
     const plan = readSealedMicrofichePlans()?.microficheRaw;
     if (plan === null || plan === undefined) {
-        return { overCap: false, imageTokens: 0 };
+        return noSpend;
+    }
+    const billing = describeMicroficheBilling({ microficheRaw: plan }, settings);
+    if (billing === null || billing.imageTokens <= 0) {
+        return { ...noSpend, overCap: plan.overCap === true };
     }
     return {
         overCap: plan.overCap === true,
-        imageTokens: plan.imageTexts.length * plan.frameTokenEstimate,
+        imageTokens: billing.imageTokens,
+        heldTokens: billing.heldTokens,
     };
 }
 

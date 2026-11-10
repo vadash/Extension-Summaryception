@@ -23,10 +23,18 @@ function planImageTokens(plan) {
 }
 
 /**
+ * Billing reads only the two image plans, so a caller holding one sealed region
+ * bills that region directly; a built Memory Injection satisfies the same shape.
+ * @typedef {object} MicroficheBillingSource
+ * @property {import('./memory-injection.js').MemoryInjection['microfiche']} [microfiche] - Memory plan, when the caller has one.
+ * @property {import('./memory-injection.js').MemoryInjection['microficheRaw']} [microficheRaw] - Frozen raw-chat plan, when the caller has one.
+ */
+
+/**
  * The injected splits are the billing source: page count and frame rate come
  * from them, never from the budget knobs that produced them. Memory and
  * frozen-raw regions both spend the same raw bucket, so both bill here.
- * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @param {MicroficheBillingSource | null} [injection] - Built Memory Injection, or the sealed plans alone.
  * @returns {number}
  */
 function microficheInjectionTokens(injection = null) {
@@ -65,7 +73,7 @@ function resolveRawChatMax(settings, imageTokens) {
  * capacity and billed tokens from the preset frame estimate, so the settings
  * line and the context preview agree without tokenizing image text. Memory
  * and frozen-raw plans bill together against the one raw-chat bucket.
- * @param {import('./memory-injection.js').MemoryInjection | null} [injection] - Built Memory Injection, if any.
+ * @param {MicroficheBillingSource | null} [injection] - Built Memory Injection, or the sealed plans alone.
  * @param {object | null} [settings] - Settings carrying the raw text budgets.
  * @returns {{ images: number, heldTokens: number, imageTokens: number, netTokens: number | null, bucketTokens: number, bucketAfterImages: number } | null}
  */

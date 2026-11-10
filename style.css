@@ -316,6 +316,7 @@
 .sc-context-pending { background: #3fae86; }
 .sc-context-layer { background: #9b51e0; }
 .sc-context-wrapper { background: #f2994a; }
+.sc-context-microfiche { background: #f2c94c; }
 .sc-context-free {
     background: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 18%, transparent);
     color: color-mix(in srgb, var(--SmartThemeBodyColor, #ddd) 78%, transparent);

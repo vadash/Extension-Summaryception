@@ -193,4 +193,42 @@ describe('buildChatWindowPlan', () => {
         expect(plan.tokenBudgetExceeded).toBe(true);
         expect(plan.reason).toBe('ready');
     });
+
+    it('bills the sealed frames plus the tail instead of the full raw span', async () => {
+        const chat = makeSizedChat(6, { userLength: 2000, assistantLength: 2000 });
+        const live = 6 * messageLineTokens(true, 2000) + 6 * messageLineTokens(false, 2000);
+        const settings = {
+            ...defaultSettings,
+            ...windowSettings({
+                memoryMode: MEMORY_MODES.MICROFICHE,
+                microficheGeometry: 'google',
+                microficheFrameSize: 1568,
+                microficheImageCap: 5,
+                microficheKeepRaw: 0,
+                microficheFrozenRawImages: true,
+                verbatimTokenBudget: live / 2,
+                queuedTokenBudget: live / 2,
+                minSummaryTurns: 1,
+            }),
+        };
+        const store = makeSummaryStore();
+        installSummaryContext({ chat, metadata: { summaryception: store }, settings });
+        const writer = makeMemoryInjectionWriter();
+        writer.update();
+        const sealed = readSealedMicrofichePlans();
+        const imageTokens =
+            sealed.microficheRaw.imageTexts.length * sealed.microficheRaw.frameTokenEstimate;
+        expect(sealed.microficheRaw.overCap).toBe(false);
+        expect(imageTokens).toBe(1120);
+
+        const plan = await buildChatWindowPlan(chat, store, settings);
+
+        // The raw span plus its frame would cross the bucket, but the image
+        // holds 3479 tokens of that span, so the surviving tail plus the frame
+        // stays below it (ADR-0049).
+        expect(plan.liveTokens).toBe(live);
+        expect(live + imageTokens).toBeGreaterThanOrEqual(live);
+        expect(plan.tokenBudgetExceeded).toBe(false);
+        expect(plan.reason).toBe('none');
+    });
 });

@@ -82,14 +82,56 @@ export function formatBudgetTokenLabel(count, estimated = false) {
 }
 
 /**
+ * Billed segments for the Recent and Trigger budget bars. Sealed Frozen Pages
+ * bill their frame tokens instead of the text they hold, so each bar splits
+ * into its surviving text tail plus the image share that covers it, and the
+ * View Model colors the share on its own (ADR-0049). A span with no images
+ * collapses to the plain text segment.
+ * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
+ * @returns {{ recent: { text: ContextBudgetTokenPart, images: ContextBudgetTokenPart }, queued: { text: ContextBudgetTokenPart, images: ContextBudgetTokenPart } }}
+ */
+export function buildAutoWorkBudgetParts(work) {
+    return {
+        recent: buildSpanBudgetParts({
+            label: 'Recent Chat',
+            kind: 'verbatim',
+            billedTokens: work?.verbatimTokens,
+            imageTokens: work?.verbatimImageTokens,
+            estimated: work?.verbatimEstimated,
+        }),
+        queued: buildSpanBudgetParts({
+            label: 'Queued',
+            kind: 'pending',
+            billedTokens: work?.queuedTokens,
+            imageTokens: work?.queuedImageTokens,
+            estimated: work?.queuedEstimated,
+        }),
+    };
+}
+
+/**
+ * @param {{ label: string, kind: string, billedTokens: number | undefined, imageTokens: number | undefined, estimated: boolean | undefined }} span - Span billing inputs.
+ * @returns {{ text: ContextBudgetTokenPart, images: ContextBudgetTokenPart }}
+ */
+function buildSpanBudgetParts({ label, kind, billedTokens, imageTokens, estimated }) {
+    const billed = normalizeBudgetCount(billedTokens ?? 0);
+    const images = normalizeBudgetCount(imageTokens ?? 0);
+    return {
+        text: { label, kind, count: Math.max(0, billed - images), estimated: Boolean(estimated) },
+        images: { label: 'Images', kind: 'microfiche', count: images, estimated: false },
+    };
+}
+
+/**
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
  * @param {ReturnType<import('../foundation/settings.js').getEffectiveSettings>} s
  * @returns {{ queuedTokens: number, queuedEstimated: boolean, triggerTokens: number, label: string }}
  */
 export function buildTriggerGaugeModel(work, s) {
+    const { text } = buildAutoWorkBudgetParts(work).queued;
     return {
-        queuedTokens: normalizeBudgetCount(work?.queuedTokens ?? 0),
-        queuedEstimated: Boolean(work?.queuedEstimated),
+        queuedTokens: text.count,
+        queuedEstimated: text.estimated,
         triggerTokens: normalizeBudgetCount(s.queuedTokenBudget),
         label: 'Summarize at Recent + Queued',
     };

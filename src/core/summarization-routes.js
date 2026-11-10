@@ -1,4 +1,4 @@
-import { buildChatWindowPlan } from './chat-window-planner.js';
+import { buildChatWindowPlan, readSealedRawBilling } from './chat-window-planner.js';
 import { getSlopBreakerPlan } from './slop-breaker.js';
 
 export const SUMMARY_ROUTES = Object.freeze({
@@ -75,14 +75,20 @@ export async function buildAutoSummaryRoutePlan(chat, store, settings) {
 }
 
 /**
- * Flat auto-work read model for status rendering.
+ * Flat auto-work read model for status rendering. The token fields bill the
+ * prompt cost, not the live text: sealed Frozen Pages bill their frame tokens
+ * and the text they hold stops billing as text, so each span carries its
+ * surviving text tail plus the image share that covers it. The image fields
+ * let the View Model color that share as its own segment.
  * @typedef {object} AutoWorkReadModel
  * @property {boolean} ready Whether an automatic batch is ready now.
  * @property {number} backlog Eligible turns awaiting summarization.
- * @property {number} verbatimTokens Token count of the verbatim tail.
- * @property {boolean} verbatimEstimated Whether the verbatim count is an estimate.
- * @property {number} queuedTokens Token count of the queued window.
- * @property {boolean} queuedEstimated Whether the queued count is an estimate.
+ * @property {number} verbatimTokens Billed token cost of the recent span.
+ * @property {boolean} verbatimEstimated Whether the recent text tail is an estimate.
+ * @property {number} verbatimImageTokens Frame tokens billed for the recent span.
+ * @property {number} queuedTokens Billed token cost of the queued span.
+ * @property {boolean} queuedEstimated Whether the queued text tail is an estimate.
+ * @property {number} queuedImageTokens Frame tokens billed for the queued span.
  */
 
 /**
@@ -96,10 +102,38 @@ export async function describeAutoWork(chat, store, settings) {
     return {
         ready: plan.ready,
         backlog: Math.max(plan.batchTurns.length, plan.overflowCount),
-        verbatimTokens: plan.tokenStats.verbatimTokens ?? 0,
-        verbatimEstimated: plan.tokenStats.verbatimEstimated ?? false,
-        queuedTokens: plan.tokenStats.queuedTokens ?? 0,
-        queuedEstimated: plan.tokenStats.queuedEstimated ?? false,
+        ...describeBilledSpans(plan.tokenStats, readSealedRawBilling(settings)),
+    };
+}
+
+/**
+ * Split billed raw spend across the recent and queued spans. The Raw Seal
+ * starts at the oldest live message, so its frames hold the oldest text first:
+ * the queued span pays for the covered text it owns, then the recent span pays
+ * for any spill. Image tokens follow the held text, because a frame's cost
+ * belongs to the pages it replaced. A tail that is fully covered bills no text
+ * and carries no estimate.
+ * @param {SummaryRouteTokenStats} stats Route text stats for both spans.
+ * @param {{ imageTokens: number, heldTokens: number }} rawBilling Sealed raw spend.
+ * @returns {{ verbatimTokens: number, verbatimEstimated: boolean, verbatimImageTokens: number, queuedTokens: number, queuedEstimated: boolean, queuedImageTokens: number }}
+ */
+function describeBilledSpans(stats, rawBilling) {
+    const verbatimLive = stats.verbatimTokens ?? 0;
+    const queuedLive = stats.queuedTokens ?? 0;
+    const heldTokens = rawBilling.heldTokens;
+    const queuedHeld = Math.min(queuedLive, heldTokens);
+    const verbatimHeld = Math.min(verbatimLive, Math.max(0, heldTokens - queuedLive));
+    const queuedImageTokens =
+        heldTokens > 0 ? Math.round((rawBilling.imageTokens * queuedHeld) / heldTokens) : 0;
+    const verbatimTail = verbatimLive - verbatimHeld;
+    const queuedTail = queuedLive - queuedHeld;
+    return {
+        verbatimTokens: verbatimTail + rawBilling.imageTokens - queuedImageTokens,
+        verbatimEstimated: verbatimTail > 0 && (stats.verbatimEstimated ?? false),
+        verbatimImageTokens: rawBilling.imageTokens - queuedImageTokens,
+        queuedTokens: queuedTail + queuedImageTokens,
+        queuedEstimated: queuedTail > 0 && (stats.queuedEstimated ?? false),
+        queuedImageTokens,
     };
 }
 
