@@ -17,3 +17,4 @@ Never guess an ADR slug: `glob docs/adr/*.md` for the number→filename mapping.
 | 0014 | Continuity Checkpoint: payload in message extra, latest wins | 0017 |
 | 0024 | One Route Series owns one Narrative Chain hop | 0035 |
 | 0030 | One Call Session per summarizer call | 0035 |
+| 0039 | A sealed text span becomes an image only when it fills a page | 0050 |

@@ -377,28 +377,30 @@ Code: `clearChatData` (src/core/chat-data.js); `#sc_clear_memory`, `/sc-clear`
 _Avoid_: wipe, purge
 
 **Frozen Page**:
-A rendered microfiche image, from memory or the Raw Seal, whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. A page ships image-only — its text does not also travel — and every full page is always an image; re-rendering every generation would break provider prefix-cache stability, and uncached input is expensive.
+A rendered microfiche image, from memory or the Raw Seal, whose pixels stay fixed until the next Mutation Epoch bump; per-generation deltas ship as a text tail, never as a re-render. A page ships image-only — its text does not also travel — and every sealed page images on seal; re-rendering every generation would break provider prefix-cache stability, and uncached input is expensive.
 Code: `readPage` / `update` (src/core/microfiche-pages.js)
 _Avoid_: cached image, snapshot
-
-**Fill Gate**:
-The rule that gates only the last partial page of a sealed text span: it becomes an image only when it fills three quarters of a page's capacity (the 0.75 gate), and the engine runs a memory update instead when it would not fill or would not fit the raw bucket. Full pages are never gated; they always ship as images.
-Code: `applyFillGate` / `fitImagesToBucket` (src/core/microfiche-policy.js)
-_Avoid_: fill threshold, image trigger
 
 **Page Split**:
 Microfiche page boundaries are chosen inside assistant and user messages at `.` or newline boundaries, so a message may span pages. No message ever forces page alignment.
 Code: `buildMicrofichePageTexts` (src/core/microfiche-paginate.js)
 _Avoid_: message-aligned pages, message boundary
 
+**Keep Raw**:
+The newest-N chat messages the Old Chat Photos plan keeps as text instead of imaging, re-selected every generation so the tail slides; a message images once newer chat pushes it out. Memory snippets always image and ignore it.
+Code: `microficheKeepRaw` (src/foundation/constants.js)
+_Avoid_: snippet count, text lines
+
 **Raw Seal**:
 The frozen raw-chat slice a Frozen Page renders from, taken from the Verbatim Window plus the queued span and reused verbatim until the next Mutation Epoch bump; full pages seal incrementally and only the growing tail ships as text. Sealing a new full page may break part of the provider prefix cache, a break the engine accepts when the saving warrants it; while no snippet exists there is no epoch bump, so the slice re-seals as the chat grows until the first snippet starts the per-epoch freeze.
 Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
 
-**Frozen Raw Images**:
-The Microfiche region that pages the Raw Seal into images, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone. Its pages ship image-only, so the raw text they cover no longer travels as text.
-Code: `update` / `readPage` (src/core/microfiche-pages.js); `applyMicroficheMarkers` (src/features/injection.js)
+**Old Chat Photos**:
+The opt-in Microfiche region that pages the Raw Seal into images to save context; off keeps old chat as text. Its pages ship image-only, so the raw text they cover no longer travels as text.
+Code: `microficheFrozenRawImages` (src/foundation/constants.js); `update` / `readPage` (src/core/microfiche-pages.js)
+_Avoid_: Frozen Raw Images, frozen raw slice
+
 **Bitmap Glyph**:
 Microfiche page pixels blitted from the snapcompact bitmap fonts through the page-source canvas seam.
 Code: `readPage` (src/core/microfiche-pages.js)
