@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MEMORY_MODES } from '../src/foundation/constants.js';
 import { estimateTextTokens } from '../src/core/token-count.js';
 import { buildInjection } from '../src/core/memory-injection.js';
+import { buildMicrofichePageTexts } from '../src/core/microfiche-paginate.js';
 import {
     buildMicrofichePlan,
     buildMicroficheRawPlan,
@@ -197,7 +198,7 @@ describe('microfiche buildMicrofichePlan', () => {
     });
 });
 
-describe('microfiche fill gate and bucket debit', () => {
+describe('microfiche page imaging and bucket debit', () => {
     const settings = {
         ...TINY,
         microficheGeometry: 'custom',
@@ -205,27 +206,33 @@ describe('microfiche fill gate and bucket debit', () => {
         microficheImageCap: 8,
     };
 
-    it('keeps a trailing span below three quarters of a page as text', () => {
+    it('images a partial trailing page when the cap has room', () => {
         const plan = buildMicrofichePlan([`${'a'.repeat(16)}${'b'.repeat(4)}`], settings, {});
-        expect(plan.imageTexts).toEqual(['a'.repeat(16)]);
-        expect(plan.rawTexts).toEqual(['b'.repeat(4)]);
-    });
-
-    it('images a trailing span that reaches the three quarter fill floor', () => {
-        const plan = buildMicrofichePlan([`${'a'.repeat(16)}${'b'.repeat(12)}`], settings, {});
-        expect(plan.imageTexts).toEqual(['a'.repeat(16), 'b'.repeat(12)]);
+        expect(plan.imageTexts).toEqual(['a'.repeat(16), 'b'.repeat(4)]);
         expect(plan.rawTexts).toEqual([]);
     });
 
-    it('gates only the trailing partial page and images an earlier underfilled page', () => {
+    it('images every page, including a sentence-broken trailing page', () => {
         const text = `a.${'b'.repeat(14)}${'c'.repeat(6)}`;
         const plan = buildMicrofichePlan([text], settings, {});
-        expect(plan.imageTexts).toHaveLength(2);
-        expect(plan.imageTexts[0]).toBe('a.');
-        expect(plan.rawTexts).toEqual(['cccc']);
+        expect(plan.imageTexts).toEqual(['a.', `${'b'.repeat(14)}cc`, 'cccc']);
+        expect(plan.rawTexts).toEqual([]);
     });
 
-    it('caps images by the raw bucket after the text that stays raw', () => {
+    it('images every memory snippet regardless of the keep-raw setting', () => {
+        const texts = Array.from({ length: 8 }, (_value, index) => `msg${index} ${'x'.repeat(16)}`);
+        const plan = buildMicrofichePlan(
+            texts,
+            { ...settings, microficheKeepRaw: 4, microficheImageCap: 80 },
+            {},
+        );
+        const pages = buildMicrofichePageTexts(texts, plan.shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(8);
+        expect(plan.imageTexts).toEqual(pages);
+        expect(plan.rawTexts).toEqual([]);
+    });
+
+    it('bills images against the raw bucket and keeps overflow as text', () => {
         const bucketSettings = {
             ...TINY,
             microficheGeometry: 'google',
@@ -266,7 +273,7 @@ describe('microfiche frozen-raw bucket billing', () => {
         expect(billedRawTokens(plan)).toBeLessThanOrEqual(bucket);
     });
 
-    it('reports over-cap when gated pages wait on a zero bucket cap', () => {
+    it('reports over-cap when pages wait on a zero bucket cap', () => {
         const plan = buildMicroficheRawPlan(
             ['x'.repeat(18000)],
             {
@@ -282,10 +289,10 @@ describe('microfiche frozen-raw bucket billing', () => {
         expect(plan.overCap).toBe(true);
     });
 
-    it('reports over-cap when only the trailing partial page stays text', () => {
+    it('reports over-cap when the image cap leaves a page as text', () => {
         const plan = buildMicroficheRawPlan(
             [`a.${'b'.repeat(14)}${'c'.repeat(4)}`],
-            { ...rawSettings, microficheFrameSize: 64, microficheImageCap: 8 },
+            { ...rawSettings, microficheFrameSize: 64, microficheImageCap: 2 },
             {},
         );
         expect(plan.imageTexts).toHaveLength(2);
@@ -293,7 +300,7 @@ describe('microfiche frozen-raw bucket billing', () => {
         expect(plan.overCap).toBe(true);
     });
 
-    it('keeps the cap maximum when a frame costs less than its page text', () => {
+    it('caps images by the bucket when a frame costs less than its page text', () => {
         const plan = buildMicroficheRawPlan(
             makeRawChatSlice(9),
             {
@@ -304,8 +311,96 @@ describe('microfiche frozen-raw bucket billing', () => {
             },
             {},
         );
-        expect(plan.effectiveCap).toBe(4);
-        expect(plan.imageTexts).toHaveLength(4);
+        const pages = buildMicrofichePageTexts(makeRawChatSlice(9), plan.shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(8);
+        expect(plan.effectiveCap).toBe(8);
+        expect(plan.imageTexts).toEqual(pages.slice(0, 8));
+        expect(plan.rawTexts).toEqual(pages.slice(8));
+        expect(plan.overCap).toBe(true);
+    });
+});
+
+describe('microfiche raw keep-text tail', () => {
+    const rawSettings = {
+        ...GEMINI_KNOBS,
+        microficheGeometry: 'google',
+        microficheKeepRaw: 0,
+        microficheFrozenRawImages: true,
+        verbatimTokenBudget: 20000,
+        queuedTokenBudget: 16000,
+    };
+
+    it('keeps the newest raw messages whole and slides the tail as chat grows', () => {
+        const slice = makeRawChatSlice(4);
+        const settings = {
+            ...rawSettings,
+            microficheKeepRaw: 2,
+            microficheFrameSize: 512,
+            microficheImageCap: 8,
+        };
+        const before = buildMicroficheRawPlan(slice, settings, {});
+        expect(before.rawTexts.slice(-2)).toEqual(slice.slice(-2));
+        expect(before.rawTexts.slice(0, -2).length).toBeGreaterThan(0);
+
+        const grown = [...slice, `Message 4 ${'lorem ipsum dolor sit amet '.repeat(600)}`];
+        const after = buildMicroficheRawPlan(grown, settings, {});
+        expect(after.rawTexts.slice(-2)).toEqual(grown.slice(-2));
+        expect(after.rawTexts.slice(-2)).not.toEqual(before.rawTexts.slice(-2));
+    });
+
+    it('images every emitted raw page when the keep count is zero', () => {
+        const slice = makeRawChatSlice(2);
+        const settings = { ...rawSettings, microficheKeepRaw: 0, microficheImageCap: 80 };
+        const plan = buildMicroficheRawPlan(slice, settings, {});
+        const pages = buildMicrofichePageTexts(slice, plan.shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(0);
+        expect(plan.imageTexts).toEqual(pages);
+        expect(plan.rawTexts).toEqual([]);
+        expect(plan.overCap).toBe(false);
+    });
+
+    it('orders overspill pages before the kept tail', () => {
+        const slice = makeRawChatSlice(3);
+        const plan = buildMicroficheRawPlan(
+            slice,
+            { ...rawSettings, microficheKeepRaw: 1, microficheImageCap: 1 },
+            {},
+        );
+        const pages = buildMicrofichePageTexts(slice.slice(0, 2), plan.shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(1);
+        expect(plan.imageTexts).toEqual(pages.slice(0, 1));
+        expect(plan.rawTexts).toEqual([...pages.slice(1), slice[2]]);
+        expect(plan.overCap).toBe(true);
+    });
+
+    it('works with no memory snippets', () => {
+        const plan = buildMicroficheRawPlan(
+            makeRawChatSlice(1),
+            { ...rawSettings, microficheImageCap: 8 },
+            {},
+            null,
+        );
+        expect(plan.imageTexts.length).toBeGreaterThan(0);
+    });
+
+    it('counts the kept tail in the bucket so tail spend can demote every frame', () => {
+        const slice = makeRawChatSlice(4);
+        const plan = buildMicroficheRawPlan(
+            slice,
+            {
+                ...rawSettings,
+                microficheKeepRaw: 2,
+                microficheFrameSize: 256,
+                microficheImageCap: 8,
+                verbatimTokenBudget: 5000,
+                queuedTokenBudget: 4000,
+            },
+            {},
+        );
+        const pages = buildMicrofichePageTexts(slice.slice(0, 2), plan.shape).imageTexts;
+        expect(pages.length).toBeGreaterThan(8);
+        expect(plan.imageTexts).toEqual([]);
+        expect(plan.rawTexts).toEqual([...pages, slice[2], slice[3]]);
         expect(plan.overCap).toBe(true);
     });
 });

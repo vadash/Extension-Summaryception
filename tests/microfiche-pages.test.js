@@ -131,10 +131,10 @@ describe('microfiche frozen-raw plan', () => {
         expect(injection.microficheRaw).toBeNull();
     });
 
-    it('keeps an underfilled trailing raw page as text', () => {
+    it('images a short raw page when the cap has room', () => {
         const plan = buildMicroficheRawPlan(['short raw line'], rawSettings, {});
-        expect(plan.imageTexts).toEqual([]);
-        expect(plan.rawTexts.length).toBe(1);
+        expect(plan.imageTexts).toEqual(['short raw line']);
+        expect(plan.rawTexts).toEqual([]);
     });
 
     it('bills raw image tokens from the one raw bucket', () => {
@@ -166,9 +166,10 @@ describe('microfiche frozen-raw plan', () => {
         };
         const slice = makeRawChatSlice(3);
         const plan = buildMicroficheRawPlan(slice, settings, {});
-        expect(plan.effectiveCap).toBe(2);
-        expect(plan.imageTexts.length).toBe(2);
-        expect(plan.rawTexts.length).toBeGreaterThan(0);
+        const pages = buildMicrofichePageTexts(slice, plan.shape).imageTexts;
+        expect(plan.effectiveCap).toBe(3);
+        expect(plan.imageTexts).toEqual(pages.slice(0, 3));
+        expect(plan.rawTexts).toEqual(pages.slice(3));
     });
 });
 
@@ -233,8 +234,8 @@ describe('microfiche buildMicrofichePageTexts from settings', () => {
     });
 });
 
-describe('microfiche buildMicrofichePlan split order', () => {
-    it('orders overflow pages before the kept-raw tail', () => {
+describe('microfiche buildMicrofichePlan page order', () => {
+    it('orders overflow pages after the image pages and ignores the keep-raw setting', () => {
         const texts = [
             'one alpha one two',
             'two beta two three',
@@ -248,12 +249,10 @@ describe('microfiche buildMicrofichePlan split order', () => {
             microficheKeepRaw: 2,
         };
         const plan = buildMicrofichePlan(texts, settings, {});
-        const split = splitMicroficheTexts(texts, 2);
-        const pages = buildMicrofichePageTexts(split.imageTexts, plan.shape).imageTexts;
+        const pages = buildMicrofichePageTexts(texts, plan.shape).imageTexts;
         expect(pages.length).toBeGreaterThan(2);
-        expect(plan.keepRaw).toBe(2);
         expect(plan.imageTexts).toEqual(pages.slice(0, 2));
-        expect(plan.rawTexts).toEqual([...pages.slice(2), ...split.rawTexts]);
+        expect(plan.rawTexts).toEqual(pages.slice(2));
     });
 });
 

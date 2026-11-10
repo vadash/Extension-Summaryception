@@ -478,14 +478,13 @@ describe('microfiche geometry presets', () => {
             memoryMode: MEMORY_MODES.MICROFICHE,
             microficheGeometry: 'anthropic',
             microficheFrameSize: 512,
-            microficheImageCap: 5,
+            microficheImageCap: 80,
             microficheKeepRaw: 0,
         };
         const layers = [[{ text: 'word '.repeat(1200) }]];
         const injection = buildInjection(layers, settings);
         expect(injection.microfiche).not.toBeNull();
-        expect(injection.microfiche.imageTexts.length).toBeGreaterThan(0);
-        expect(injection.microfiche.imageTexts.length).toBeLessThan(5);
+        expect(injection.microfiche.imageTexts).toHaveLength(5);
         const noImages = estimateContextPreview(settings, null);
         const preview = estimateContextPreview(settings, injection);
         const billedFrameTokens =

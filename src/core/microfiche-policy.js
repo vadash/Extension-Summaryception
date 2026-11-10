@@ -1,17 +1,11 @@
-// Microfiche policy: the one owner of cap reconciliation, the Fill Gate, and
-// the oldest-to-images / newest-K-text split. Readers consume the plan, so the
-// preview count and the injected split always agree.
+// Microfiche policy: the one owner of cap reconciliation, oldest-first
+// pagination, and the raw region's whole-message keep-text tail. Readers consume
+// the plan, so the preview count and the injected split always agree.
 
 import { MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constants.js';
-import { charCells, frameGrid, usesWideCells } from './microfiche-geometry.js';
 import { buildMicrofichePageTexts, resolveMicroficheShape } from './microfiche-paginate.js';
 import { resolveRawChatBucketTokens } from './token-budget.js';
-import { APPROX_TEXT_UNITS_PER_TOKEN, estimateTextTokens } from './token-count.js';
-
-// A page images only when it fills at least three quarters of its capacity.
-// The trailing partial page stays text, because an underfilled frame spends a
-// full image cost for little covered text.
-const MICROFICHE_FILL_GATE_RATIO = 0.75;
+import { estimateTextTokens } from './token-count.js';
 
 /**
  * The sealed region plan fields memory and raw pages share. Each region keeps
@@ -19,14 +13,14 @@ const MICROFICHE_FILL_GATE_RATIO = 0.75;
  * @typedef {object} MicroficheRegionPlan
  * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
  * @property {number} effectiveCap - Cap input before the bucket fit; kept images are `imageTexts.length`.
- * @property {string[]} imageTexts - Fill-gated page texts bound for image frames.
- * @property {string[]} rawTexts - Pages that stay text, in order.
+ * @property {string[]} imageTexts - Page texts bound for image frames.
+ * @property {string[]} rawTexts - Page and whole-message texts that stay text, oldest first.
  * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
  */
 
 /**
- * The memory region plan: the shared region fields plus the newest-K count.
- * @typedef {MicroficheRegionPlan & { keepRaw: number }} MicrofichePlan
+ * The memory region plan: the shared region fields.
+ * @typedef {MicroficheRegionPlan} MicrofichePlan
  */
 
 /**
@@ -55,11 +49,11 @@ export function resolveMicroficheEffectiveCap(sliderCap, hostBudget, presetBudge
 }
 
 /**
- * Split oldest-first snippet texts: the oldest paginate to images, the
- * newest K stay raw. keepRaw 0 means all-to-images; keepRaw past the input
- * length keeps everything raw.
- * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
- * @param {number} keepRaw - Newest texts kept as raw text.
+ * Split oldest-first raw chat texts: the oldest paginate to images, the newest
+ * K stay whole as raw text. keepRaw 0 means all-to-images; keepRaw past the
+ * input length keeps every message raw.
+ * @param {string[]} textsOldestFirst - Raw chat message texts in chronological order.
+ * @param {number} keepRaw - Newest whole messages kept as raw text.
  * @returns {{ imageTexts: string[], rawTexts: string[] }} Image-bound and raw text lists.
  */
 export function splitMicroficheTexts(textsOldestFirst, keepRaw) {
@@ -70,9 +64,11 @@ export function splitMicroficheTexts(textsOldestFirst, keepRaw) {
 }
 
 /**
- * One plan every Microfiche reader consumes: shape, cap, fill gate, split, and
- * the per-frame image-token estimate. Unknown geometry carries no preset budget
- * and no frame estimate, so custom stays fully slider/host driven.
+ * One plan every Microfiche reader consumes: shape, cap, pagination, and the
+ * per-frame image-token estimate. Every snippet text paginates to an image
+ * page; the cap and the raw bucket decide how many ship. Unknown geometry
+ * carries no preset budget and no frame estimate, so custom stays fully
+ * slider/host driven.
  * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
  * @param {Record<string, unknown>} settings - Settings carrying knobs, slider cap, and preset name.
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
@@ -81,57 +77,47 @@ export function splitMicroficheTexts(textsOldestFirst, keepRaw) {
 export function buildMicrofichePlan(textsOldestFirst, settings, host = null) {
     const source = settings ?? {};
     const shape = resolveMicroficheShape(source);
-    const name = String(source.microficheGeometry ?? '');
-    const preset = MICROFICHE_GEOMETRY_PRESETS[name] ?? null;
-    const presetRecord = /** @type {Record<string, unknown>} */ (preset ?? {});
-    const presetBudget = 'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined;
-    const hostBudget =
-        host !== null && host !== undefined
-            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
-            : undefined;
+    const presetRecord = resolveMicrofichePresetRecord(source);
     const effectiveCap = resolveMicroficheEffectiveCap(
         source.microficheImageCap,
-        hostBudget,
-        presetBudget,
+        host !== null && host !== undefined
+            ? /** @type {{ imageBudget?: unknown }} */ (host).imageBudget
+            : undefined,
+        'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined,
     );
-    const keepRaw = Number(source.microficheKeepRaw);
-    const split = splitMicroficheTexts(textsOldestFirst, keepRaw);
-    const pages = buildMicrofichePageTexts(split.imageTexts, shape);
-    const filled = applyFillGate(pages.imageTexts, shape);
-    const imageTexts = filled.imageTexts.slice(0, effectiveCap);
-    const rawTexts = [
-        ...filled.imageTexts.slice(effectiveCap),
-        ...filled.rawTexts,
-        ...split.rawTexts,
-    ];
-    const frameTokenEstimate = Number(presetRecord.frameTokenEstimate);
-    const estimate =
-        Number.isFinite(frameTokenEstimate) && frameTokenEstimate > 0 ? frameTokenEstimate : 0;
+    const texts = (Array.isArray(textsOldestFirst) ? textsOldestFirst : []).filter(
+        (text) => typeof text === 'string',
+    );
+    const pages = buildMicrofichePageTexts(texts, shape);
+    const imageTexts = pages.imageTexts.slice(0, effectiveCap);
+    const rawTexts = pages.imageTexts.slice(effectiveCap);
+    const frameTokenEstimate = resolveFrameTokenEstimate(presetRecord);
     const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
-        frameTokenEstimate: estimate,
+        frameTokenEstimate,
         bucketTokens: Math.max(0, resolveRawChatBucketTokens(source)),
     });
     return {
         shape,
-        keepRaw: normalizeKeepRaw(keepRaw),
         effectiveCap,
         imageTexts: budgeted.imageTexts,
         rawTexts: budgeted.rawTexts,
-        frameTokenEstimate: estimate,
+        frameTokenEstimate,
     };
 }
 
 /**
- * Build the frozen-raw plan entry from an oldest-first raw slice. The slice
- * is the Raw Seal (verbatim window + queued span) selected by the writer, so
- * pagination, the Fill Gate, and the bucket gate match the memory region's
- * rules while page indexes stay in their own list. Tail growth is never in
- * this slice: it ships as text until the next Mutation Epoch (ADR-0040).
+ * Build the frozen-raw plan entry from an oldest-first raw slice. The slice is
+ * the Raw Seal (verbatim window + queued span) selected by the writer. The
+ * newest `microficheKeepRaw` messages stay whole text before pagination, so
+ * the tail slides each generation while older messages image. Pagination and
+ * the bucket gate match the memory region's rules while page indexes stay in
+ * their own list. Tail growth is never in this slice: it ships as text until
+ * the next Mutation Epoch (ADR-0040).
  * @param {string[]} rawTextsOldestFirst - Frozen raw-chat texts in chronological order.
- * @param {Record<string, unknown>} settings - Settings carrying knobs, cap, preset, and the region toggle.
+ * @param {Record<string, unknown>} settings - Settings carrying knobs, cap, preset, keep count, and the region toggle.
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
  * @param {MicrofichePlan | null} [memoryPlan] - Memory plan whose images spend the same raw bucket.
- * @returns {MicroficheRawPlan | null} Raw plan, or null when the region is off, empty, or unpaged.
+ * @returns {MicroficheRawPlan | null} Raw plan, or null when the region is off or has no raw text.
  */
 export function buildMicroficheRawPlan(
     rawTextsOldestFirst,
@@ -158,19 +144,19 @@ export function buildMicroficheRawPlan(
             : undefined,
         'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined,
     );
-    const pages = buildMicrofichePageTexts(texts, shape);
-    if (pages.imageTexts.length === 0) {
-        return null;
-    }
-    const filled = applyFillGate(pages.imageTexts, shape);
+    const { imageTexts: paginatedTexts, rawTexts: keptTail } = splitMicroficheTexts(
+        texts,
+        Number(source.microficheKeepRaw),
+    );
+    const pages = buildMicrofichePageTexts(paginatedTexts, shape);
     const frameTokenEstimate = resolveFrameTokenEstimate(presetRecord);
     const bucketTokens = resolveRawPlanBucketTokens(source, memoryPlan);
     const effectiveCap = Math.min(
         baseCap,
-        resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate),
+        resolveRawBucketImageCap(bucketTokens, frameTokenEstimate),
     );
-    const imageTexts = filled.imageTexts.slice(0, effectiveCap);
-    const rawTexts = [...filled.imageTexts.slice(effectiveCap), ...filled.rawTexts];
+    const imageTexts = pages.imageTexts.slice(0, effectiveCap);
+    const rawTexts = [...pages.imageTexts.slice(effectiveCap), ...keptTail];
     const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
         frameTokenEstimate,
         bucketTokens,
@@ -181,8 +167,8 @@ export function buildMicroficheRawPlan(
         imageTexts: budgeted.imageTexts,
         rawTexts: budgeted.rawTexts,
         frameTokenEstimate,
-        // An underfilled trailing page and a bucket demotion both leave a page
-        // unimaged, so either one requests the memory update.
+        // The cap or the bucket can leave a page unimaged, and either case
+        // requests the memory update.
         overCap: budgeted.imageTexts.length < pages.imageTexts.length,
     };
 }
@@ -208,8 +194,8 @@ function resolveFrameTokenEstimate(presetRecord) {
 
 /**
  * The raw bucket the raw region may spend: the configured raw-chat bucket,
- * less the memory region's image tokens and the memory text that stays raw
- * when that region is toggled on, so both regions debit one figure. The
+ * less the memory region's image tokens and the overflow page text it keeps
+ * raw when that region is toggled on, so both regions debit one figure. The
  * memory plan already charged that text to the same bucket, so leaving it
  * out would let the raw region spend it twice.
  * @param {Record<string, unknown>} settings - Settings carrying toggles and raw budgets.
@@ -232,27 +218,17 @@ function resolveRawPlanBucketTokens(settings, memoryPlan) {
 }
 
 /**
- * Budget-derived image cap for the raw region: image tokens spend from the raw
- * bucket, but at least one fill-gated page (three quarters of a page's text
- * capacity) stays text, because an underfilled frame spends a full image cost
- * for little coverage. The sixth image in the user's 36k example therefore
- * waits for the next memory update instead of printing.
+ * Budget-derived image cap for the raw region: each image bills one frame from
+ * the raw bucket, so the bucket holds floor(bucket / frameCost) frames.
  * @param {number} bucketTokens - Raw bucket available to this region.
- * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
  * @param {number} frameTokenEstimate - Image-token cost per frame, or 0 when unknown.
  * @returns {number} Budget cap; Infinity when the frame cost is unknown.
  */
-function resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate) {
+function resolveRawBucketImageCap(bucketTokens, frameTokenEstimate) {
     if (frameTokenEstimate <= 0) {
         return Infinity;
     }
-    const geo = frameGrid(shape, shape.frameSize);
-    const pageTextTokens = geo.capacity / APPROX_TEXT_UNITS_PER_TOKEN;
-    if (!Number.isFinite(pageTextTokens)) {
-        return Infinity;
-    }
-    const fillFloor = pageTextTokens * MICROFICHE_FILL_GATE_RATIO;
-    return Math.max(0, Math.floor((bucketTokens - fillFloor) / frameTokenEstimate));
+    return Math.max(0, Math.floor(bucketTokens / frameTokenEstimate));
 }
 
 /**
@@ -260,8 +236,8 @@ function resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate) {
  * newest page's text costs less than a frame. A page whose text costs at least
  * one frame is never demoted, because demoting it raises the bill and no split
  * can fit; the kept maximum then relies on overCap to trigger a memory update.
- * @param {string[]} imageTexts - Fill-gated image pages, oldest first.
- * @param {string[]} rawTexts - Pages that stay text.
+ * @param {string[]} imageTexts - Image pages, oldest first.
+ * @param {string[]} rawTexts - Page and whole-message texts that stay text.
  * @param {{ frameTokenEstimate: number, bucketTokens: number }} budget - Frame cost and bucket size.
  * @returns {{ imageTexts: string[], rawTexts: string[] }} Bucket-fitting split.
  */
@@ -283,47 +259,6 @@ function fitImagesToBucket(imageTexts, rawTexts, { frameTokenEstimate, bucketTok
         text.unshift(/** @type {string} */ (images.pop()));
     }
     return { imageTexts: images, rawTexts: text };
-}
-
-/**
- * Gate the trailing partial page only. Earlier pages image even when a
- * sentence break leaves them under the ratio, because more content follows
- * them; only the final page can be the growing remainder. Pagination fills
- * pages in order, so no other page is partial.
- * @param {string[]} pages - Page strings in order.
- * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
- * @returns {{ imageTexts: string[], rawTexts: string[] }} Gated images plus the trailing text page.
- */
-function applyFillGate(pages, shape) {
-    if (pages.length === 0) {
-        return { imageTexts: [], rawTexts: [] };
-    }
-    const last = /** @type {string} */ (pages[pages.length - 1]);
-    const geo = frameGrid(shape, shape.frameSize);
-    if (pageFillRatio(last, shape, geo) >= MICROFICHE_FILL_GATE_RATIO) {
-        return { imageTexts: pages.slice(), rawTexts: [] };
-    }
-    return { imageTexts: pages.slice(0, -1), rawTexts: [last] };
-}
-
-/**
- * Fraction of a page's capacity the page text occupies.
- * @param {string} page - Page string.
- * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
- * @param {import('./microfiche-geometry.js').MicroficheGeometry} geo - Frame grid.
- * @returns {number} Fill ratio from 0 to 1.
- */
-function pageFillRatio(page, shape, geo) {
-    if (shape.columns === 2) {
-        const lines = String(page).split('\n').length;
-        return Math.min(1, lines / Math.max(1, 2 * geo.rows));
-    }
-    const wideCells = usesWideCells(shape);
-    let cells = 0;
-    for (const ch of String(page)) {
-        cells += charCells(ch, wideCells);
-    }
-    return geo.capacity > 0 ? Math.min(1, cells / geo.capacity) : 0;
 }
 
 /**

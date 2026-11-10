@@ -39,7 +39,7 @@ describe('context limit and trigger gauge UI models', () => {
         });
     });
 
-    it('bills no images for a span below the fill floor', () => {
+    it('images a short span as one partial page and bills its frame', () => {
         const settings = {
             ...defaultSettings,
             memoryTokenBudget: 10000,
@@ -58,12 +58,17 @@ describe('context limit and trigger gauge UI models', () => {
         ];
         const injection = buildInjection(layers, settings);
         expect(injection.microfiche).not.toBeNull();
-        expect(injection.microfiche.imageTexts).toEqual([]);
-        expect(injection.microfiche.rawTexts.length).toBeGreaterThan(0);
+        expect(injection.microfiche.imageTexts).toHaveLength(1);
+        expect(injection.microfiche.rawTexts).toEqual([]);
+        const frameTokens =
+            injection.microfiche.imageTexts.length * injection.microfiche.frameTokenEstimate;
         const noImages = estimateContextPreview(settings, null);
         expect(noImages.mainMin).toBe(26000);
         expect(noImages.mainMax).toBe(58000);
-        expect(estimateContextPreview(settings, injection)).toEqual(noImages);
+        const preview = estimateContextPreview(settings, injection);
+        expect(preview.rawChatMax).toBe(noImages.rawChatMax - frameTokens);
+        expect(preview.mainMin).toBe(noImages.mainMin + frameTokens);
+        expect(preview.mainMax).toBe(noImages.mainMax);
         const textOnly = buildInjection(layers, { ...settings, memoryMode: MEMORY_MODES.BALANCED });
         expect(textOnly.microfiche).toBeNull();
         expect(estimateContextPreview(settings, textOnly).mainMin).toBe(noImages.mainMin);
@@ -83,7 +88,7 @@ describe('context limit and trigger gauge UI models', () => {
         };
         const injection = buildInjection([[{ text: 'word '.repeat(500) }]], settings);
         expect(injection.microfiche).not.toBeNull();
-        expect(injection.microfiche.imageTexts.length).toBe(1);
+        expect(injection.microfiche.imageTexts.length).toBe(2);
         const imageTokens =
             injection.microfiche.imageTexts.length * injection.microfiche.frameTokenEstimate;
         const noImages = estimateContextPreview(settings, null);

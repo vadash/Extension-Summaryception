@@ -161,7 +161,7 @@ describe('buildChatWindowPlan', () => {
         );
     });
 
-    it('requests a memory update when a fill-gated raw page misses the image cap', async () => {
+    it('requests a memory update when a raw page misses the image cap', async () => {
         const settings = {
             ...defaultSettings,
             ...windowSettings({
@@ -220,7 +220,7 @@ describe('buildChatWindowPlan', () => {
             sealed.microficheRaw.imageTexts.length * sealed.microficheRaw.frameTokenEstimate;
         expect(sealed.microficheRaw.overCap).toBe(false);
         // Page Split ends the first page at the last newline before capacity,
-        // so both sealed pages fill their frames and the span needs two.
+        // so the span needs two pages.
         expect(imageTokens).toBe(2240);
 
         const plan = await buildChatWindowPlan(chat, store, settings);
