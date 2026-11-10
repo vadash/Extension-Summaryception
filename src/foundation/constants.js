@@ -433,7 +433,7 @@ export const defaultSettings = Object.freeze({
     // Stamped from the memory-mode preset on mode transitions/reset.
     atomicPartitions: false,
     // Microfiche render knobs; they tune the image render only, never retention.
-    microficheKeepRaw: 2,
+    microficheKeepRaw: 0,
     microficheImageCap: 8,
     // Image placement stays off until the user opts in per prompt region.
     microficheMemoryImages: false,

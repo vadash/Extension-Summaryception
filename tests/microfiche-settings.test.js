@@ -111,7 +111,7 @@ describe('microfiche memory mode', () => {
 describe('microfiche defaults and bounds', () => {
     it('ships the Anthropic family winner as the default', () => {
         expect(defaultSettings).toMatchObject({
-            microficheKeepRaw: 2,
+            microficheKeepRaw: 0,
             microficheImageCap: 8,
             microficheFont: '8x13',
             microficheCellWidth: 11,
