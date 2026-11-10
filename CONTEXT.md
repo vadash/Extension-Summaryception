@@ -382,8 +382,8 @@ Code: `readPage` / `update` (src/core/microfiche-pages.js)
 _Avoid_: cached image, snapshot
 
 **Fill Gate**:
-The rule that a sealed text span becomes an image only when it fills at least three quarters of a page's capacity (the 0.75 gate), per the provider's geometry and cap; otherwise it stays text. Image tokens spend from the same raw bucket, so when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
-Code: `buildMicrofichePlan` / `splitMicroficheTexts` (src/core/microfiche-policy.js)
+The rule that a sealed text span becomes an image only when it fills at least three quarters of a page's capacity (the 0.75 gate), per the provider's geometry and cap; otherwise it stays text. Images, the shipped text tail, and the other region's kept spend all bill the same raw bucket, so billed(k) is candidate plus k times frame-minus-page; when the next image would not fill or would not fit, the engine runs a memory update instead of adding the image.
+Code: `applyFillGate` / `fitImagesToBucket` (src/core/microfiche-policy.js)
 _Avoid_: fill threshold, image trigger
 
 **Raw Seal**:

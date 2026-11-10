@@ -1,0 +1,3 @@
+# Raw bucket bills text plus images
+
+Both Microfiche regions bill the same shared bucket as `images × frame + tail text + other region spend ≤ verbatimTokenBudget + queuedTokenBudget`: the fit loop demotes newest images to text until the kept images, the shipped tail, and the other region's kept spend all fit, so a raw slice never bills more than the bucket holds (ADR-0045's cap-only arithmetic is replaced). `overCap` means fill-gated pages exist but zero kept images fit, and billing plus the engine trigger read the page-source sealed plan rather than a fresh re-slice. The worker `text` slot and the positional raw-slice argument are removed as compat shims.
