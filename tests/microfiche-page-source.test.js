@@ -697,7 +697,11 @@ describe('memory injection writer microfiche markers', () => {
         const text = setExtensionPrompt.mock.calls.at(-1)[1];
         const markers = extractMicroficheMarkers(text);
         expect(markers.filter((marker) => marker.region === 'memory')).toHaveLength(0);
-        expect(markers.filter((marker) => marker.region === 'raw')).toHaveLength(rawPages.length);
+        const rawMarkers = markers.filter((marker) => marker.region === 'raw');
+        expect(rawMarkers).toHaveLength(rawPages.length);
+        expect(rawMarkers.map((marker) => marker.pageIndex)).toEqual(
+            rawPages.map((_page, index) => index),
+        );
         expect(getChatStore().layers).toHaveLength(0);
     });
 

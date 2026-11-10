@@ -18,7 +18,7 @@ const MICROFICHE_FILL_GATE_RATIO = 0.75;
  * its own list so the same page index never crosses regions (ADR-0045).
  * @typedef {object} MicroficheRegionPlan
  * @property {import('./microfiche-geometry.js').MicroficheShape} shape - Resolved render shape.
- * @property {number} effectiveCap - Images per injection after budget reconciliation.
+ * @property {number} effectiveCap - Cap input before the bucket fit; kept images are `imageTexts.length`.
  * @property {string[]} imageTexts - Fill-gated page texts bound for image frames.
  * @property {string[]} rawTexts - Pages that stay text, in order.
  * @property {number} frameTokenEstimate - Image-token estimate per frame, or 0 for custom.
@@ -254,9 +254,10 @@ function resolveRawBucketImageCap(bucketTokens, shape, frameTokenEstimate) {
 }
 
 /**
- * Move the newest image pages back to text until the kept images and the
- * shipped tail fit the bucket. A page whose text costs at least one frame is
- * never demoted, because demoting it raises the bill and no split can fit.
+ * Bill the minimum over all newest-to-text demotions: keep demoting while the
+ * newest page's text costs less than a frame. A page whose text costs at least
+ * one frame is never demoted, because demoting it raises the bill and no split
+ * can fit; the kept maximum then relies on overCap to trigger a memory update.
  * @param {string[]} imageTexts - Fill-gated image pages, oldest first.
  * @param {string[]} rawTexts - Pages that stay text.
  * @param {{ frameTokenEstimate: number, bucketTokens: number }} budget - Frame cost and bucket size.

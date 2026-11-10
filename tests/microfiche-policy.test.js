@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MEMORY_MODES } from '../src/foundation/constants.js';
+import { estimateTextTokens } from '../src/core/token-count.js';
 import { buildInjection } from '../src/core/memory-injection.js';
 import {
     buildMicrofichePlan,
@@ -243,10 +244,7 @@ describe('microfiche frozen-raw bucket billing', () => {
 
     function billedRawTokens(plan) {
         const frameTokens = plan.imageTexts.length * plan.frameTokenEstimate;
-        const tailTokens = plan.rawTexts.reduce(
-            (sum, text) => sum + Math.max(1, Math.ceil(text.length / 4)),
-            0,
-        );
+        const tailTokens = plan.rawTexts.reduce((sum, text) => sum + estimateTextTokens(text), 0);
         return frameTokens + tailTokens;
     }
 
@@ -256,7 +254,8 @@ describe('microfiche frozen-raw bucket billing', () => {
             { ...rawSettings, microficheFrameSize: 256, microficheImageCap: 8 },
             {},
         );
-        expect(billedRawTokens(plan)).toBeLessThanOrEqual(36000);
+        const bucket = rawSettings.verbatimTokenBudget + rawSettings.queuedTokenBudget;
+        expect(billedRawTokens(plan)).toBeLessThanOrEqual(bucket);
     });
 
     it('reports over-cap when gated pages wait on a zero bucket cap', () => {
