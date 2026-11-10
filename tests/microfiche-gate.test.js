@@ -182,6 +182,28 @@ describe('microfiche engine gate', () => {
         ]);
     });
 
+    it('passes a capable reader to the idle verdict on an empty chat', async () => {
+        installSummaryContext({
+            settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
+            chat: [],
+        });
+        const { gate } = makeForegroundGate();
+        const recorder = makeNotifyRecorder();
+        const queue = { setPhase: vi.fn(), getPhase: () => 'idle' };
+        const dispatch = vi.fn();
+
+        const outcome = await runElasticAutoCycle(queue, {
+            gate,
+            notify: recorder,
+            dispatch,
+            microficheHost: { canInlineImages: true },
+        });
+
+        expect(outcome).toEqual({ status: 'idle' });
+        expect(dispatch).not.toHaveBeenCalled();
+        expect(recorder.events).toEqual([]);
+    });
+
     it('aborts a manual run with the blocked verdict on no-vision', async () => {
         const { runManual, ELASTIC_STRATEGIES } = await import('../src/core/summarizer-engine.js');
         const usageLedger = await (await import('./test-helpers.js')).makeUsageLedger();

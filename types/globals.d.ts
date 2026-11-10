@@ -295,7 +295,12 @@ interface SillyTavernContext {
     extensionPrompts?: Record<string, { value?: unknown }>;
     chatMetadata: Record<string, SummaryceptionStore>;
     maxContext?: number;
-    chatCompletionSettings?: { openai_max_context?: number; openai_max_tokens?: number };
+    chatCompletionSettings?: {
+        openai_max_context?: number;
+        openai_max_tokens?: number;
+        media_inlining?: boolean;
+        chat_completion_source?: string;
+    };
     loadWorldInfo?: (name: string) => Promise<Record<string, unknown> | null>;
     saveWorldInfo?: (
         name: string,

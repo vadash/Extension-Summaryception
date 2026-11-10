@@ -9,7 +9,13 @@
  */
 
 import { LOG_PREFIX } from './src/foundation/constants.js';
-import { getChat, getContext, saveChat, saveMetadata } from './src/foundation/context.js';
+import {
+    canInlineImages as probeCanInlineImages,
+    getChat,
+    getContext,
+    saveChat,
+    saveMetadata,
+} from './src/foundation/context.js';
 import { getChatStore, saveChatStore } from './src/foundation/chat-store.js';
 import { initChatPersistence } from './src/core/persist-state.js';
 import { initRefreshPort, refreshPreview, refreshUi } from './src/foundation/refresh.js';
@@ -79,12 +85,17 @@ import { registerSlashCommands } from './src/entry/commands.js';
     const notify = createToastrNotifyAdapter();
     const usage = createUsageLedger();
     const dispatch = createSummarizerDispatch({ usage });
+    const microficheHost = {
+        get canInlineImages() {
+            return probeCanInlineImages();
+        },
+    };
     const queue = createSummarizerQueue({
         gate,
         notify,
         dispatch,
         usage,
-        microficheHost: { canInlineImages: false },
+        microficheHost,
     });
     const manualRunnerDeps = {
         queue,
@@ -92,7 +103,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
         withRun: usage.withRun,
         gate,
         dispatch: dispatch.call,
-        microficheHost: { canInlineImages: false },
+        microficheHost,
     };
     const continuityAuditor = createContinuityAuditor({
         dispatch: dispatch.call,

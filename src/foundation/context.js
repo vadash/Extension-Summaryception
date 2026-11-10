@@ -309,6 +309,31 @@ export function isGeneratingFlagSet() {
 }
 
 /**
+ * Whether the active chat-completion connection can inline images in
+ * prompts. Only OpenAI-compatible Custom endpoints expose SillyTavern's
+ * media-inlining toggle; every other connection — or a missing host
+ * context — cannot.
+ * @returns {boolean}
+ */
+export function canInlineImages() {
+    try {
+        const ctx = getContext();
+        if (String(ctx?.mainApi ?? '') !== 'openai') {
+            return false;
+        }
+
+        const settings = ctx?.chatCompletionSettings;
+        if (!settings || settings.media_inlining !== true) {
+            return false;
+        }
+
+        return String(settings.chat_completion_source ?? '') === 'custom';
+    } catch (_e) {
+        return false;
+    }
+}
+
+/**
  * @returns {boolean}
  */
 export function isSendButtonInStopMode() {
