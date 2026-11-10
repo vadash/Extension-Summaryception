@@ -63,7 +63,6 @@ describe('microfiche panels', () => {
             'sc_microfiche_font',
             'sc_microfiche_cell_width',
             'sc_microfiche_cell_height',
-            'sc_microfiche_stretch',
             'sc_microfiche_variant',
             'sc_microfiche_stopword_dim',
             'sc_microfiche_columns',
@@ -152,20 +151,20 @@ describe('microfiche panels', () => {
             verbatimTokenBudget: 16000,
             queuedTokenBudget: 32000,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheImageCap: 8,
             microficheKeepRaw: 0,
         };
         const injection = buildInjection([[{ text: 'word '.repeat(5000) }]], settings);
-        expect(injection.microfiche.imageTexts).toHaveLength(1);
+        expect(injection.microfiche.imageTexts).toHaveLength(2);
         const billing = describeMicroficheBilling(injection, settings);
         expect(billing).toMatchObject({
-            images: 1,
-            heldTokens: 5952,
-            imageTokens: 1120,
-            netTokens: -4832,
+            images: 2,
+            heldTokens: 6958,
+            imageTokens: 2240,
+            netTokens: -4718,
             bucketTokens: 48000,
-            bucketAfterImages: 46880,
+            bucketAfterImages: 45760,
         });
         const preview = estimateContextPreview(settings, injection);
         expect(preview.rawChatMax).toBe(billing.bucketTokens - billing.imageTokens);
@@ -175,8 +174,8 @@ describe('microfiche panels', () => {
         syncMicroficheBilling(injection, settings);
         for (const selector of ['#sc_microfiche_cost', '#sc_llm_context_microfiche']) {
             const line = globalThis.$(selector).text();
-            expect(line, selector).toContain('5k');
-            expect(line, selector).toContain('1k');
+            expect(line, selector).toContain('6k');
+            expect(line, selector).toContain('2k');
             expect(line, selector).toContain('-4k');
             expect(line, selector).toContain('48k');
         }
@@ -187,7 +186,7 @@ describe('microfiche panels', () => {
         const settings = {
             ...defaultSettings,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheFrameSize: 512,
             microficheImageCap: 8,
             microficheKeepRaw: 0,
@@ -219,7 +218,7 @@ describe('microfiche panels', () => {
         const settings = {
             ...defaultSettings,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheFrameSize: 512,
             microficheImageCap: 8,
             microficheKeepRaw: 0,
@@ -254,7 +253,7 @@ describe('microfiche panels', () => {
 
         const billing = describeMicroficheBilling(injection, getEffectiveSettings());
         expect(billing.images).toBe(sealed.microficheRaw.imageTexts.length);
-        const frameEstimate = MICROFICHE_GEOMETRY_PRESETS.gemini.frameTokenEstimate;
+        const frameEstimate = MICROFICHE_GEOMETRY_PRESETS.google.frameTokenEstimate;
         const bucket =
             getEffectiveSettings().verbatimTokenBudget + getEffectiveSettings().queuedTokenBudget;
         expect(billing.imageTokens).toBe(billing.images * frameEstimate);
@@ -275,7 +274,7 @@ describe('microfiche panels', () => {
             settings: {
                 ...defaultSettings,
                 memoryMode: MEMORY_MODES.MICROFICHE,
-                microficheGeometry: 'gemini',
+                microficheGeometry: 'google',
                 microficheFrameSize: 512,
                 microficheImageCap: 8,
                 microficheKeepRaw: 0,
@@ -330,38 +329,41 @@ describe('microfiche panels', () => {
 });
 
 describe('microfiche geometry presets', () => {
-    it('stamps a named preset into the explicit knobs', () => {
-        installSummaryContext({ settings: { microficheGeometry: 'gemini' } });
+    it('stamps the Google family preset into the explicit knobs', () => {
         const settings = { ...defaultSettings, microficheGeometry: 'custom' };
-        expect(applyMicroficheGeometryPreset(settings, 'deepseek')).toBe(true);
-        expect(settings.microficheGeometry).toBe('deepseek');
+        expect(applyMicroficheGeometryPreset(settings, 'google')).toBe(true);
         expect(settings).toMatchObject({
-            microficheFont: MICROFICHE_GEOMETRY_PRESETS.deepseek.font,
-            microficheCellWidth: MICROFICHE_GEOMETRY_PRESETS.deepseek.cellWidth,
-            microficheCellHeight: MICROFICHE_GEOMETRY_PRESETS.deepseek.cellHeight,
-            microficheVariant: MICROFICHE_GEOMETRY_PRESETS.deepseek.variant,
-            microficheFrameSize: MICROFICHE_GEOMETRY_PRESETS.deepseek.frameSize,
+            microficheGeometry: 'google',
+            microficheFont: '8x13',
+            microficheCellWidth: 8,
+            microficheCellHeight: 22,
+            microficheVariant: 'bw',
+            microficheStopwordDim: false,
+            microficheColumns: 1,
+            microficheLineRepeat: 1,
+            microficheFrameSize: 1568,
         });
+        expect(settings).not.toHaveProperty('microficheStretch');
     });
 
     it('keeps values when switching to custom and when the preset repeats', () => {
-        const settings = { ...defaultSettings, microficheGeometry: 'gemini' };
+        const settings = { ...defaultSettings, microficheGeometry: 'anthropic' };
         expect(applyMicroficheGeometryPreset(settings, 'custom')).toBe(true);
         expect(settings.microficheGeometry).toBe('custom');
         expect(settings.microficheFont).toBe(defaultSettings.microficheFont);
         expect(applyMicroficheGeometryPreset(settings, 'custom')).toBe(false);
         const stamped = { ...settings };
-        expect(applyMicroficheGeometryPreset(stamped, 'gemini')).toBe(true);
-        expect(applyMicroficheGeometryPreset(stamped, 'gemini')).toBe(false);
+        expect(applyMicroficheGeometryPreset(stamped, 'anthropic')).toBe(true);
+        expect(applyMicroficheGeometryPreset(stamped, 'anthropic')).toBe(false);
     });
 
     it('loads a looked-up shape as the custom starting point', () => {
         const [shape] = lookupModelShapes('deep');
-        expect(shape.preset).toBe('deepseek');
-        const settings = { ...defaultSettings, microficheGeometry: 'gemini' };
+        expect(shape.preset).toBe('openai');
+        const settings = { ...defaultSettings, microficheGeometry: 'anthropic' };
         expect(applyMicroficheShapeAsCustom(settings, shape.preset)).toBe(true);
         expect(settings.microficheGeometry).toBe('custom');
-        expect(settings.microficheFrameSize).toBe(MICROFICHE_GEOMETRY_PRESETS.deepseek.frameSize);
+        expect(settings.microficheFrameSize).toBe(MICROFICHE_GEOMETRY_PRESETS.openai.frameSize);
         expect(applyMicroficheShapeAsCustom(settings, 'bogus')).toBe(false);
     });
 
@@ -378,7 +380,7 @@ describe('microfiche geometry presets', () => {
 
         syncMemoryModeControls({
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
         });
         expect(toggles['.sc-microfiche-mode-row']).toBe(true);
         expect(toggles['.sc-cache-mode-row']).toBe(false);
@@ -409,14 +411,13 @@ describe('microfiche geometry presets', () => {
             '#sc_microfiche_font',
             '#sc_microfiche_cell_width',
             '#sc_microfiche_cell_height',
-            '#sc_microfiche_stretch',
             '#sc_microfiche_variant',
             '#sc_microfiche_stopword_dim',
             '#sc_microfiche_columns',
             '#sc_microfiche_line_repeat',
             '#sc_microfiche_frame_size',
         ];
-        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED, microficheGeometry: 'gemini' });
+        syncMemoryModeControls({ memoryMode: MEMORY_MODES.BALANCED, microficheGeometry: 'google' });
         for (const selector of locked) {
             expect(seen[`${selector}:disabled`]).toBe(true);
         }
@@ -431,7 +432,7 @@ describe('microfiche geometry presets', () => {
 
     it('renders every looked-up shape and loads the clicked shape as custom', async () => {
         installSummaryContext({
-            settings: { microficheModelName: '', microficheGeometry: 'gemini' },
+            settings: { microficheModelName: '', microficheGeometry: 'google' },
         });
         globalThis.document = {};
         const dom = createJQueryHarness();
@@ -455,16 +456,18 @@ describe('microfiche geometry presets', () => {
         dom.element('#sc_microfiche_model_name').val('');
         dom.trigger('click', '#sc_microfiche_lookup');
         expect(created.map((button) => button.attr('data-sc-microfiche-shape'))).toEqual([
-            'gemini',
-            'deepseek',
-            'glm',
+            'anthropic',
+            'google',
+            'openai',
         ]);
-        const glmButton = created.find(
-            (button) => button.attr('data-sc-microfiche-shape') === 'glm',
+        const anthropicButton = created.find(
+            (button) => button.attr('data-sc-microfiche-shape') === 'anthropic',
         );
-        dom.trigger('click', '[data-sc-microfiche-shape]', glmButton);
+        dom.trigger('click', '[data-sc-microfiche-shape]', anthropicButton);
         expect(getSettings().microficheGeometry).toBe('custom');
-        expect(getSettings().microficheFrameSize).toBe(MICROFICHE_GEOMETRY_PRESETS.glm.frameSize);
+        expect(getSettings().microficheFrameSize).toBe(
+            MICROFICHE_GEOMETRY_PRESETS.anthropic.frameSize,
+        );
         delete globalThis.$;
         delete globalThis.document;
     });
@@ -473,7 +476,7 @@ describe('microfiche geometry presets', () => {
         const settings = {
             ...defaultSettings,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'glm',
+            microficheGeometry: 'anthropic',
             microficheFrameSize: 512,
             microficheImageCap: 5,
             microficheKeepRaw: 0,
@@ -487,7 +490,7 @@ describe('microfiche geometry presets', () => {
         const preview = estimateContextPreview(settings, injection);
         const billedFrameTokens =
             injection.microfiche.imageTexts.length *
-            MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate;
+            MICROFICHE_GEOMETRY_PRESETS.anthropic.frameTokenEstimate;
         expect(preview.rawChatMax).toBe(noImages.rawChatMax - billedFrameTokens);
         expect(preview.mainMax).toBe(noImages.mainMax);
         expect(preview.mainMin).toBe(

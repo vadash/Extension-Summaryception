@@ -141,12 +141,12 @@ export function applyMicroficheGeometryPreset(settings, name) {
         return true;
     }
     const preset =
-        /** @type {{ font: string, cellWidth: number, cellHeight: number, stretch: boolean, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} */ (
-            MICROFICHE_GEOMETRY_PRESETS[/** @type {'gemini'|'deepseek'|'glm'} */ (key)]
+        /** @type {{ font: string, cellWidth: number, cellHeight: number, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} */ (
+            MICROFICHE_GEOMETRY_PRESETS[/** @type {'anthropic'|'google'|'openai'} */ (key)]
         );
     let changed = settings.microficheGeometry !== key;
     changed = stampMicroficheGeometryValues(settings, preset) || changed;
-    settings.microficheGeometry = /** @type {'gemini'|'deepseek'|'glm'|'custom'} */ (key);
+    settings.microficheGeometry = /** @type {'anthropic'|'google'|'openai'|'custom'} */ (key);
     return changed;
 }
 
@@ -173,7 +173,7 @@ export function applyMicroficheShapeAsCustom(settings, preset) {
 /**
  * Copy one geometry preset's render knobs into the explicit settings keys.
  * @param {ExtensionSettings} settings
- * @param {{ font: string, cellWidth: number, cellHeight: number, stretch: boolean, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} preset
+ * @param {{ font: string, cellWidth: number, cellHeight: number, variant: string, stopwordDim: boolean, columns: number, lineRepeat: number, frameSize: number }} preset
  * @returns {boolean} true when a knob changed.
  */
 function stampMicroficheGeometryValues(settings, preset) {
@@ -181,7 +181,6 @@ function stampMicroficheGeometryValues(settings, preset) {
         microficheFont: preset.font,
         microficheCellWidth: preset.cellWidth,
         microficheCellHeight: preset.cellHeight,
-        microficheStretch: preset.stretch,
         microficheVariant: preset.variant,
         microficheStopwordDim: preset.stopwordDim,
         microficheColumns: preset.columns,
@@ -198,46 +197,19 @@ function stampMicroficheGeometryValues(settings, preset) {
     return changed;
 }
 /**
- * Microfiche geometry catalogue: named render shapes with the host readers
- * that can serve them. The finder list mirrors the presets so the model-name
- * lookup can suggest a starting shape; `custom` unlocks explicit geometry.
+ * Microfiche geometry catalogue: named family render shapes with the host
+ * readers that can serve them. The finder list mirrors the presets so the
+ * model-name lookup can suggest a starting shape; `custom` unlocks explicit
+ * geometry.
  */
-export const MICROFICHE_FONTS = Object.freeze(['5x8', '8x8', '6x12', '8x13', 'silver']);
+export const MICROFICHE_FONTS = Object.freeze(['5x8', '8x8', '6x12', '8x13']);
 export const MICROFICHE_VARIANTS = Object.freeze(['bw', 'sent']);
-export const MICROFICHE_GEOMETRY_NAMES = Object.freeze(['gemini', 'deepseek', 'glm', 'custom']);
+export const MICROFICHE_GEOMETRY_NAMES = Object.freeze(['anthropic', 'google', 'openai', 'custom']);
 export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
-    gemini: Object.freeze({
-        font: '8x8',
-        cellWidth: 8,
-        cellHeight: 22,
-        stretch: false,
-        variant: 'bw',
-        stopwordDim: false,
-        columns: 1,
-        lineRepeat: 1,
-        frameSize: 2048,
-        frameTokenEstimate: 1120,
-        imageBudget: 200,
-        readers: Object.freeze(['gemini']),
-    }),
-    deepseek: Object.freeze({
-        font: '8x8',
-        cellWidth: 8,
-        cellHeight: 22,
-        stretch: false,
-        variant: 'bw',
-        stopwordDim: false,
-        columns: 1,
-        lineRepeat: 1,
-        frameSize: 1568,
-        frameTokenEstimate: 994,
-        readers: Object.freeze(['deepseek']),
-    }),
-    glm: Object.freeze({
+    anthropic: Object.freeze({
         font: '8x13',
-        cellWidth: 8,
+        cellWidth: 11,
         cellHeight: 16,
-        stretch: false,
         variant: 'bw',
         stopwordDim: false,
         columns: 1,
@@ -245,7 +217,32 @@ export const MICROFICHE_GEOMETRY_PRESETS = Object.freeze({
         frameSize: 1568,
         frameTokenEstimate: 3136,
         imageBudget: 5,
-        readers: Object.freeze(['glm']),
+        readers: Object.freeze(['anthropic']),
+    }),
+    google: Object.freeze({
+        font: '8x13',
+        cellWidth: 8,
+        cellHeight: 22,
+        variant: 'bw',
+        stopwordDim: false,
+        columns: 1,
+        lineRepeat: 1,
+        frameSize: 1568,
+        frameTokenEstimate: 1120,
+        imageBudget: 200,
+        readers: Object.freeze(['google']),
+    }),
+    openai: Object.freeze({
+        font: '8x13',
+        cellWidth: 8,
+        cellHeight: 22,
+        variant: 'bw',
+        stopwordDim: false,
+        columns: 1,
+        lineRepeat: 1,
+        frameSize: 1568,
+        frameTokenEstimate: 994,
+        readers: Object.freeze(['openai']),
     }),
     custom: null,
 });
@@ -259,9 +256,9 @@ function microficheShape(id, label, preset, match) {
     });
 }
 export const MICROFICHE_SHAPES = Object.freeze([
-    microficheShape('gemini', 'Gemini', 'gemini', ['gemini']),
-    microficheShape('deepseek', 'DeepSeek', 'deepseek', ['deepseek']),
-    microficheShape('glm', 'GLM', 'glm', ['glm']),
+    microficheShape('anthropic', 'Anthropic', 'anthropic', ['anthropic', 'claude', 'glm']),
+    microficheShape('google', 'Google', 'google', ['google', 'gemini']),
+    microficheShape('openai', 'OpenAI', 'openai', ['openai', 'gpt', 'deepseek']),
 ]);
 /**
  * Suggest up to three shapes for a model name by case-insensitive substring
@@ -441,17 +438,16 @@ export const defaultSettings = Object.freeze({
     // Image placement stays off until the user opts in per prompt region.
     microficheMemoryImages: false,
     microficheFrozenRawImages: false,
-    microficheFont: '8x8',
-    microficheCellWidth: 8,
-    microficheCellHeight: 22,
-    microficheStretch: false,
+    microficheFont: '8x13',
+    microficheCellWidth: 11,
+    microficheCellHeight: 16,
     microficheVariant: 'bw',
     microficheStopwordDim: false,
     microficheColumns: 1,
     microficheLineRepeat: 1,
-    microficheFrameSize: 2048,
+    microficheFrameSize: 1568,
     microficheModelName: '',
-    microficheGeometry: 'gemini',
+    microficheGeometry: 'anthropic',
     memoryTokenBudget: 10000,
     snippetsPerLayer: 24,
     snippetsPerPromotion: 3,

@@ -58,7 +58,7 @@ describe('microfiche buildMicrofichePlan', () => {
     it('reconciles the slider cap when host and preset budgets are unbounded', () => {
         const settings = {
             ...TINY,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheKeepRaw: 0,
             microficheImageCap: 8,
         };
@@ -70,7 +70,7 @@ describe('microfiche buildMicrofichePlan', () => {
     it('takes the min of slider, host, and preset budgets', () => {
         const settings = {
             ...TINY,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheKeepRaw: 0,
             microficheImageCap: 8,
         };
@@ -78,13 +78,13 @@ describe('microfiche buildMicrofichePlan', () => {
         expect(hosted.effectiveCap).toBe(3);
         expect(hosted.imageTexts.length).toBe(3);
 
-        const glm = buildMicrofichePlan(SNIPPETS, {
+        const anthropic = buildMicrofichePlan(SNIPPETS, {
             ...settings,
-            microficheGeometry: 'glm',
+            microficheGeometry: 'anthropic',
             microficheImageCap: 80,
         });
-        expect(glm.effectiveCap).toBe(5);
-        expect(glm.imageTexts.length).toBe(5);
+        expect(anthropic.effectiveCap).toBe(5);
+        expect(anthropic.imageTexts.length).toBe(5);
     });
 
     it('reads no preset budget for custom geometry', () => {
@@ -102,7 +102,7 @@ describe('microfiche buildMicrofichePlan', () => {
     it('sends every page to raw text when the host budget is zero', () => {
         const settings = {
             ...TINY,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheKeepRaw: 0,
             microficheImageCap: 8,
         };
@@ -119,7 +119,7 @@ describe('microfiche buildMicrofichePlan', () => {
                 {
                     ...TINY,
                     memoryMode: MEMORY_MODES.MICROFICHE,
-                    microficheGeometry: 'gemini',
+                    microficheGeometry: 'google',
                     microficheKeepRaw: 0,
                     microficheImageCap: 80,
                 },
@@ -130,18 +130,18 @@ describe('microfiche buildMicrofichePlan', () => {
                 {
                     ...TINY,
                     memoryMode: MEMORY_MODES.MICROFICHE,
-                    microficheGeometry: 'gemini',
+                    microficheGeometry: 'google',
                     microficheKeepRaw: 0,
                     microficheImageCap: 8,
                 },
                 { imageBudget: 3 },
             ],
             [
-                'glm preset cap',
+                'anthropic preset cap',
                 {
                     ...TINY,
                     memoryMode: MEMORY_MODES.MICROFICHE,
-                    microficheGeometry: 'glm',
+                    microficheGeometry: 'anthropic',
                     microficheKeepRaw: 0,
                     microficheImageCap: 80,
                 },
@@ -163,7 +163,7 @@ describe('microfiche buildMicrofichePlan', () => {
                 {
                     ...TINY,
                     memoryMode: MEMORY_MODES.MICROFICHE,
-                    microficheGeometry: 'gemini',
+                    microficheGeometry: 'google',
                     microficheKeepRaw: 0,
                     microficheImageCap: 8,
                 },
@@ -179,9 +179,9 @@ describe('microfiche buildMicrofichePlan', () => {
 
     it('carries the resolved shape and the preset frame token estimate', () => {
         const cases = [
-            ['gemini', 1120],
-            ['deepseek', 994],
-            ['glm', 3136],
+            ['google', 1120],
+            ['openai', 994],
+            ['anthropic', 3136],
             ['custom', 0],
         ];
         for (const [geometry, frameTokenEstimate] of cases) {
@@ -220,7 +220,7 @@ describe('microfiche fill gate and bucket debit', () => {
     it('caps images by the raw bucket after the text that stays raw', () => {
         const bucketSettings = {
             ...TINY,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheKeepRaw: 0,
             microficheImageCap: 8,
             verbatimTokenBudget: 1125,
@@ -235,7 +235,7 @@ describe('microfiche fill gate and bucket debit', () => {
 describe('microfiche frozen-raw bucket billing', () => {
     const rawSettings = {
         ...GEMINI_KNOBS,
-        microficheGeometry: 'gemini',
+        microficheGeometry: 'google',
         microficheKeepRaw: 0,
         microficheFrozenRawImages: true,
         verbatimTokenBudget: 20000,

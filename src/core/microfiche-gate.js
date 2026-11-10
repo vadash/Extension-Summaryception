@@ -25,7 +25,9 @@ export function resolveMicroficheReaders(settings) {
     }
     const preset =
         MICROFICHE_GEOMETRY_PRESETS[
-            /** @type {'gemini' | 'deepseek' | 'glm' | 'custom'} */ (settings?.microficheGeometry)
+            /** @type {'anthropic' | 'google' | 'openai' | 'custom'} */ (
+                settings?.microficheGeometry
+            )
         ];
     return [...(preset?.readers ?? [])];
 }

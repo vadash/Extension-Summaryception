@@ -235,7 +235,6 @@ const MICROFICHE_GEOMETRY_INPUTS = Object.freeze([
     '#sc_microfiche_cell_width_val',
     '#sc_microfiche_cell_height',
     '#sc_microfiche_cell_height_val',
-    '#sc_microfiche_stretch',
     '#sc_microfiche_variant',
     '#sc_microfiche_stopword_dim',
     '#sc_microfiche_columns',

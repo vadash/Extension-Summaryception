@@ -166,7 +166,7 @@ describe('buildChatWindowPlan', () => {
             ...defaultSettings,
             ...windowSettings({
                 memoryMode: MEMORY_MODES.MICROFICHE,
-                microficheGeometry: 'gemini',
+                microficheGeometry: 'google',
                 microficheFrameSize: 512,
                 microficheImageCap: 5,
                 microficheKeepRaw: 0,

@@ -25,7 +25,7 @@ export function resolveMicroficheShape(settings) {
         ),
         cellWidth: /** @type {number} */ (source.microficheCellWidth),
         cellHeight: /** @type {number} */ (source.microficheCellHeight),
-        stretch: /** @type {boolean} */ (source.microficheStretch),
+        stretch: false,
         variant: /** @type {import('./microfiche-geometry.js').MicroficheShape['variant']} */ (
             source.microficheVariant
         ),

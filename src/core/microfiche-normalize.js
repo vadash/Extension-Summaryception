@@ -6,7 +6,7 @@ import { isWideCodePoint } from './microfiche-wide.js';
 
 /**
  * @typedef {object} MicroficheNormalizeOptions
- * @property {'5x8' | '8x8' | '6x12' | '8x13' | 'silver'} [font] - Bitmap preset
+ * @property {'5x8' | '8x8' | '6x12' | '8x13'} [font] - Bitmap preset
  * label whose parsed glyph coverage gates narrow-script passthrough.
  */
 

@@ -139,7 +139,7 @@ describe('microfiche effective cap in production injection', () => {
             microficheLineRepeat: 1,
             microficheFrameSize: 64,
             microficheKeepRaw: 0,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheImageCap: 8,
         };
         const layers = [

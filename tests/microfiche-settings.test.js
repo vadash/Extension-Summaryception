@@ -109,24 +109,24 @@ describe('microfiche memory mode', () => {
 });
 
 describe('microfiche defaults and bounds', () => {
-    it('ships the per-model winner geometry as the default', () => {
+    it('ships the Anthropic family winner as the default', () => {
         expect(defaultSettings).toMatchObject({
             microficheKeepRaw: 2,
             microficheImageCap: 8,
-            microficheFont: '8x8',
-            microficheCellWidth: 8,
-            microficheCellHeight: 22,
-            microficheStretch: false,
+            microficheFont: '8x13',
+            microficheCellWidth: 11,
+            microficheCellHeight: 16,
             microficheVariant: 'bw',
             microficheStopwordDim: false,
             microficheColumns: 1,
             microficheLineRepeat: 1,
-            microficheFrameSize: 2048,
+            microficheFrameSize: 1568,
             microficheModelName: '',
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'anthropic',
             microficheMemoryImages: false,
             microficheFrozenRawImages: false,
         });
+        expect(defaultSettings).not.toHaveProperty('microficheStretch');
     });
 
     it('declares every numeric bound once in the slider-limits map', () => {
@@ -194,12 +194,12 @@ describe('microfiche normalization', () => {
     });
 
     it('keeps every listed font, variant, and geometry name', () => {
-        expect(constants.MICROFICHE_FONTS).toEqual(['5x8', '8x8', '6x12', '8x13', 'silver']);
+        expect(constants.MICROFICHE_FONTS).toEqual(['5x8', '8x8', '6x12', '8x13']);
         expect(constants.MICROFICHE_VARIANTS).toEqual(['bw', 'sent']);
         expect(constants.MICROFICHE_GEOMETRY_NAMES).toEqual([
-            'gemini',
-            'deepseek',
-            'glm',
+            'anthropic',
+            'google',
+            'openai',
             'custom',
         ]);
         for (const font of constants.MICROFICHE_FONTS ?? []) {
@@ -246,12 +246,53 @@ describe('microfiche normalization', () => {
         expect(repaired.changed).toBe(true);
     });
 
-    it('coerces stretch and stopword dim with strict booleans', () => {
-        const kept = normalize({ microficheStretch: true, microficheStopwordDim: true }).settings;
-        expect(kept).toMatchObject({ microficheStretch: true, microficheStopwordDim: true });
-        const dropped = normalize({ microficheStretch: 'true', microficheStopwordDim: 1 }).settings;
-        expect(dropped.microficheStretch).toBe(false);
+    it('repairs stored silver to 8x13 and pins stored stretch false', () => {
+        const silver = normalize({ microficheFont: 'silver' });
+        expect(silver.settings.microficheFont).toBe('8x13');
+        expect(silver.changed).toBe(true);
+        const stretched = normalize({ microficheStretch: true });
+        expect(stretched.settings.microficheStretch).toBe(false);
+        expect(stretched.changed).toBe(true);
+    });
+
+    it('keeps stopword dim a strict boolean', () => {
+        const kept = normalize({ microficheStopwordDim: true }).settings;
+        expect(kept.microficheStopwordDim).toBe(true);
+        const dropped = normalize({ microficheStopwordDim: 1 }).settings;
         expect(dropped.microficheStopwordDim).toBe(false);
+    });
+
+    it('maps each legacy geometry to its family preset and stamps its knobs', () => {
+        const cases = [
+            ['gemini', 'google'],
+            ['deepseek', 'openai'],
+            ['glm', 'anthropic'],
+        ];
+        for (const [stored, family] of cases) {
+            const { settings, changed } = normalize({ microficheGeometry: stored });
+            expect(settings.microficheGeometry).toBe(family);
+            expect(settings).toMatchObject({
+                microficheFont: constants.MICROFICHE_GEOMETRY_PRESETS[family].font,
+                microficheCellWidth: constants.MICROFICHE_GEOMETRY_PRESETS[family].cellWidth,
+                microficheCellHeight: constants.MICROFICHE_GEOMETRY_PRESETS[family].cellHeight,
+                microficheVariant: constants.MICROFICHE_GEOMETRY_PRESETS[family].variant,
+                microficheLineRepeat: constants.MICROFICHE_GEOMETRY_PRESETS[family].lineRepeat,
+                microficheFrameSize: constants.MICROFICHE_GEOMETRY_PRESETS[family].frameSize,
+            });
+            expect(changed).toBe(true);
+        }
+    });
+
+    it('repairs stored silver and legacy geometry on the settings load path', () => {
+        const settings = settingsFor({
+            microficheFont: 'silver',
+            microficheGeometry: 'gemini',
+        });
+        expect(settings.microficheFont).toBe('8x13');
+        expect(settings.microficheGeometry).toBe('google');
+        expect(settings.microficheCellWidth).toBe(8);
+        expect(settings.microficheCellHeight).toBe(22);
+        expect(settings.microficheFrameSize).toBe(1568);
     });
 
     it('resets a non-string model name and leaves text untouched', () => {
@@ -270,39 +311,11 @@ describe('microfiche geometry catalogue', () => {
         expect(Object.isFrozen(constants.MICROFICHE_GEOMETRY_PRESETS)).toBe(true);
     });
 
-    it('mirrors each preset geometry with its reader list', () => {
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.gemini).toEqual({
-            font: '8x8',
-            cellWidth: 8,
-            cellHeight: 22,
-            stretch: false,
-            variant: 'bw',
-            stopwordDim: false,
-            columns: 1,
-            lineRepeat: 1,
-            frameSize: 2048,
-            frameTokenEstimate: 1120,
-            imageBudget: 200,
-            readers: ['gemini'],
-        });
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek).toEqual({
-            font: '8x8',
-            cellWidth: 8,
-            cellHeight: 22,
-            stretch: false,
-            variant: 'bw',
-            stopwordDim: false,
-            columns: 1,
-            lineRepeat: 1,
-            frameSize: 1568,
-            frameTokenEstimate: 994,
-            readers: ['deepseek'],
-        });
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm).toEqual({
+    it('mirrors each family preset with its reader list', () => {
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.anthropic).toEqual({
             font: '8x13',
-            cellWidth: 8,
+            cellWidth: 11,
             cellHeight: 16,
-            stretch: false,
             variant: 'bw',
             stopwordDim: false,
             columns: 1,
@@ -310,18 +323,43 @@ describe('microfiche geometry catalogue', () => {
             frameSize: 1568,
             frameTokenEstimate: 3136,
             imageBudget: 5,
-            readers: ['glm'],
+            readers: ['anthropic'],
+        });
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.google).toEqual({
+            font: '8x13',
+            cellWidth: 8,
+            cellHeight: 22,
+            variant: 'bw',
+            stopwordDim: false,
+            columns: 1,
+            lineRepeat: 1,
+            frameSize: 1568,
+            frameTokenEstimate: 1120,
+            imageBudget: 200,
+            readers: ['google'],
+        });
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.openai).toEqual({
+            font: '8x13',
+            cellWidth: 8,
+            cellHeight: 22,
+            variant: 'bw',
+            stopwordDim: false,
+            columns: 1,
+            lineRepeat: 1,
+            frameSize: 1568,
+            frameTokenEstimate: 994,
+            readers: ['openai'],
         });
         expect(constants.MICROFICHE_GEOMETRY_PRESETS.custom).toBeNull();
     });
 
     it('resolves billing and budgets from the preset name, never from knobs', () => {
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.gemini.frameTokenEstimate).toBe(1120);
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.gemini.imageBudget).toBe(200);
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek.frameTokenEstimate).toBe(994);
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.deepseek.imageBudget).toBeUndefined();
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm.frameTokenEstimate).toBe(3136);
-        expect(constants.MICROFICHE_GEOMETRY_PRESETS.glm.imageBudget).toBe(5);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.anthropic.frameTokenEstimate).toBe(3136);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.anthropic.imageBudget).toBe(5);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.google.frameTokenEstimate).toBe(1120);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.google.imageBudget).toBe(200);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.openai.frameTokenEstimate).toBe(994);
+        expect(constants.MICROFICHE_GEOMETRY_PRESETS.openai.imageBudget).toBeUndefined();
         expect(constants.MICROFICHE_GEOMETRY_PRESETS.custom).toBeNull();
     });
 
@@ -331,13 +369,21 @@ describe('microfiche geometry catalogue', () => {
             microficheGeometry: 'custom',
             microficheFrameSize: 512,
         };
-        expect(constants.applyMicroficheGeometryPreset(settings, 'glm')).toBe(true);
-        expect(settings.microficheGeometry).toBe('glm');
-        expect(settings.microficheFrameSize).toBe(1568);
+        expect(constants.applyMicroficheGeometryPreset(settings, 'google')).toBe(true);
+        expect(settings.microficheGeometry).toBe('google');
+        expect(settings).toMatchObject({
+            microficheFont: '8x13',
+            microficheCellWidth: 8,
+            microficheCellHeight: 22,
+            microficheVariant: 'bw',
+            microficheLineRepeat: 1,
+            microficheFrameSize: 1568,
+        });
         expect(settings).not.toHaveProperty('frameTokenEstimate');
         expect(settings).not.toHaveProperty('imageBudget');
-        const customStart = { ...defaultSettings, microficheGeometry: 'gemini' };
-        expect(constants.applyMicroficheShapeAsCustom(customStart, 'deepseek')).toBe(true);
+        expect(settings).not.toHaveProperty('microficheStretch');
+        const customStart = { ...defaultSettings, microficheGeometry: 'anthropic' };
+        expect(constants.applyMicroficheShapeAsCustom(customStart, 'openai')).toBe(true);
         expect(customStart.microficheGeometry).toBe('custom');
         expect(customStart).not.toHaveProperty('frameTokenEstimate');
         expect(customStart).not.toHaveProperty('imageBudget');
@@ -346,7 +392,7 @@ describe('microfiche geometry catalogue', () => {
     it('holds three finder shapes mirroring the presets', () => {
         const shapes = constants.MICROFICHE_SHAPES ?? [];
         expect(shapes).toHaveLength(3);
-        expect(shapes.map((shape) => shape.preset)).toEqual(['gemini', 'deepseek', 'glm']);
+        expect(shapes.map((shape) => shape.preset)).toEqual(['anthropic', 'google', 'openai']);
         for (const shape of shapes) {
             expect(shape.match).toContain(shape.preset);
             expect(shape).toMatchObject(constants.MICROFICHE_GEOMETRY_PRESETS[shape.preset]);
@@ -356,15 +402,17 @@ describe('microfiche geometry catalogue', () => {
     it('looks up shapes by case-insensitive substring', () => {
         expect(typeof constants.lookupModelShapes).toBe('function');
         expect(constants.lookupModelShapes('').map((shape) => shape.preset)).toEqual([
-            'gemini',
-            'deepseek',
-            'glm',
+            'anthropic',
+            'google',
+            'openai',
         ]);
-        expect(constants.lookupModelShapes('GEM').map((shape) => shape.preset)).toEqual(['gemini']);
+        expect(constants.lookupModelShapes('GEM').map((shape) => shape.preset)).toEqual(['google']);
         expect(constants.lookupModelShapes('deep').map((shape) => shape.preset)).toEqual([
-            'deepseek',
+            'openai',
         ]);
-        expect(constants.lookupModelShapes('glm').map((shape) => shape.preset)).toEqual(['glm']);
+        expect(constants.lookupModelShapes('glm').map((shape) => shape.preset)).toEqual([
+            'anthropic',
+        ]);
         expect(constants.lookupModelShapes('no-such-model')).toEqual([]);
         expect(constants.lookupModelShapes('e').length).toBeLessThanOrEqual(3);
     });

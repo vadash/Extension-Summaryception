@@ -958,11 +958,11 @@
                                         <input id="sc_microfiche_system_images" type="checkbox" disabled />
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                        <label for="sc_microfiche_geometry"><span>Geometry</span><small class="sc-hint">Named render shape. A preset stamps the explicit knobs below. Custom unlocks hand-tuning.</small></label>
+                                        <label for="sc_microfiche_geometry"><span>Geometry</span><small class="sc-hint">Family render preset. A preset stamps font, cell, variant, line repeat, and frame size. Custom unlocks hand-tuning.</small></label>
                                         <select id="sc_microfiche_geometry" class="text_pole" data-sc-setting="microficheGeometry">
-                                            <option value="gemini">Gemini</option>
-                                            <option value="deepseek">DeepSeek</option>
-                                            <option value="glm">GLM</option>
+                                            <option value="anthropic">Anthropic</option>
+                                            <option value="google">Google</option>
+                                            <option value="openai">OpenAI</option>
                                             <option value="custom">Custom</option>
                                         </select>
                                     </div>
@@ -982,16 +982,15 @@
                                             <option value="8x8">8x8</option>
                                             <option value="6x12">6x12</option>
                                             <option value="8x13">8x13</option>
-                                            <option value="silver">silver</option>
                                         </select>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_cell_width"><span>Cell Width</span><small class="sc-hint">Pixels per glyph cell across.</small></label>
-                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_width" min="5" max="16" step="1" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width_val" /><input id="sc_microfiche_cell_width_val" class="text_pole sc-val" type="text" inputmode="numeric" value="8" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width" /></div>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_width" min="5" max="16" step="1" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width_val" /><input id="sc_microfiche_cell_width_val" class="text_pole sc-val" type="text" inputmode="numeric" value="11" data-sc-slider-setting="microficheCellWidth" data-sc-partner-input="#sc_microfiche_cell_width" /></div>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_cell_height"><span>Cell Height</span><small class="sc-hint">Pixels per glyph cell down.</small></label>
-                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_height" min="6" max="22" step="1" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height_val" /><input id="sc_microfiche_cell_height_val" class="text_pole sc-val" type="text" inputmode="numeric" value="22" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height" /></div>
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_cell_height" min="6" max="22" step="1" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height_val" /><input id="sc_microfiche_cell_height_val" class="text_pole sc-val" type="text" inputmode="numeric" value="16" data-sc-slider-setting="microficheCellHeight" data-sc-partner-input="#sc_microfiche_cell_height" /></div>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_line_repeat"><span>Line Repeat</span><small class="sc-hint">Repeated lines per text row.</small></label>
@@ -999,11 +998,7 @@
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_frame_size"><span>Frame Size</span><small class="sc-hint">Pixels per rendered frame.</small></label>
-                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_frame_size" min="512" max="2608" step="8" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size_val" /><input id="sc_microfiche_frame_size_val" class="text_pole sc-val" type="text" inputmode="numeric" value="2048" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size" /></div>
-                                    </div>
-                                    <div class="sc-row sc-microfiche-mode-row" style="display: none;">
-                                        <label for="sc_microfiche_stretch"><span>Stretch</span><small class="sc-hint">Stretch glyphs to fill the cell.</small></label>
-                                        <input id="sc_microfiche_stretch" type="checkbox" data-sc-setting="microficheStretch" />
+                                        <div class="sc-slider-row"><input type="range" id="sc_microfiche_frame_size" min="512" max="2608" step="8" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size_val" /><input id="sc_microfiche_frame_size_val" class="text_pole sc-val" type="text" inputmode="numeric" value="1568" data-sc-slider-setting="microficheFrameSize" data-sc-partner-input="#sc_microfiche_frame_size" /></div>
                                     </div>
                                     <div class="sc-row sc-microfiche-mode-row" style="display: none;">
                                         <label for="sc_microfiche_variant"><span>Variant</span><small class="sc-hint">Render palette.</small></label>

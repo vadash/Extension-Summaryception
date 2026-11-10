@@ -9,14 +9,26 @@ import {
     MICROFICHE_VARIANTS,
     PROMPT_SETTING_KEYS,
     SLIDER_LIMITS,
+    applyMicroficheGeometryPreset,
     defaultSettings,
 } from './constants.js';
 import { CONNECTION_ROUTES, getRouteTimeoutLimits } from './connection-routes.js';
 import { clampInteger, clampToStep } from './numeric.js';
+
+// Stored names from the per-model catalogue before the family presets landed.
+// The family preset stamps its knobs, so a stored geometry lands on the whole
+// new shape rather than only a renamed selector.
+const LEGACY_MICROFICHE_GEOMETRY = Object.freeze({
+    gemini: 'google',
+    deepseek: 'openai',
+    glm: 'anthropic',
+});
+
 /**
  * Normalize the Microfiche render knobs in place. Bounds declare once in the
  * slider-limits map; this pass only enforces them, same as the retention
- * budgets.
+ * budgets. Stored silver fonts and legacy geometry names repair outright,
+ * without a had-stored guard.
  * @param {ExtensionSettings} settings - Settings object mutated in place.
  * @returns {boolean} Whether settings were changed.
  */
@@ -42,6 +54,19 @@ function normalizeMicroficheSettings(settings) {
         }
     }
     const settingsRecord = asSettingsRecord(settings);
+    const legacyGeometry = LEGACY_MICROFICHE_GEOMETRY[String(settingsRecord.microficheGeometry)];
+    if (legacyGeometry) {
+        applyMicroficheGeometryPreset(settings, legacyGeometry);
+        changed = true;
+    }
+    if (settingsRecord.microficheFont === 'silver') {
+        settingsRecord.microficheFont = '8x13';
+        changed = true;
+    }
+    if (Object.hasOwn(settingsRecord, 'microficheStretch')) {
+        settingsRecord.microficheStretch = false;
+        changed = true;
+    }
     for (const [key, values] of /** @type {Array<[string, ReadonlyArray<string>]>} */ ([
         ['microficheFont', MICROFICHE_FONTS],
         ['microficheVariant', MICROFICHE_VARIANTS],
@@ -53,7 +78,6 @@ function normalizeMicroficheSettings(settings) {
         }
     }
     for (const key of [
-        'microficheStretch',
         'microficheStopwordDim',
         'microficheMemoryImages',
         'microficheFrozenRawImages',

@@ -41,7 +41,7 @@ const GEMINI_KNOBS = {
 
 const TINY = { ...GEMINI_KNOBS, microficheFrameSize: 64 };
 
-function geminiShape(overrides = {}) {
+function googleShape(overrides = {}) {
     return { ...resolveMicroficheShape(GEMINI_KNOBS), ...overrides };
 }
 
@@ -88,7 +88,7 @@ describe('microfiche frozen-raw plan', () => {
     const rawSettings = {
         ...GEMINI_KNOBS,
         memoryMode: 'microfiche',
-        microficheGeometry: 'gemini',
+        microficheGeometry: 'google',
         microficheKeepRaw: 0,
         microficheImageCap: 8,
         verbatimTokenBudget: 20000,
@@ -155,7 +155,7 @@ describe('microfiche frozen-raw plan', () => {
         const settings = {
             ...GEMINI_KNOBS,
             memoryMode: 'microfiche',
-            microficheGeometry: 'glm',
+            microficheGeometry: 'anthropic',
             microficheFont: '8x13',
             microficheCellHeight: 16,
             microficheFrameSize: 1568,
@@ -177,7 +177,7 @@ describe('microfiche buildMicrofichePageTexts from settings', () => {
         ...GEMINI_KNOBS,
         microficheKeepRaw: 0,
         microficheImageCap: 8,
-        microficheGeometry: 'gemini',
+        microficheGeometry: 'google',
     };
     const tiny = { ...knobs, microficheFrameSize: 64 };
     const snippets = [
@@ -210,15 +210,15 @@ describe('microfiche buildMicrofichePageTexts from settings', () => {
         ).imageTexts;
         expect(hostPlan.imageTexts).toEqual(hostUncapped.slice(0, 1));
         expect(hostPlan.rawTexts.join('\n')).toContain(hostUncapped.slice(1).join('\n'));
-        const glmKnobs = { ...tiny, microficheGeometry: 'glm', microficheImageCap: 80 };
-        const glmPlan = buildMicrofichePlan(snippets, glmKnobs, {});
-        const glmUncapped = buildMicrofichePageTexts(
+        const anthropicKnobs = { ...tiny, microficheGeometry: 'anthropic', microficheImageCap: 80 };
+        const anthropicPlan = buildMicrofichePlan(snippets, anthropicKnobs, {});
+        const anthropicUncapped = buildMicrofichePageTexts(
             splitMicroficheTexts(snippets, 0).imageTexts,
-            glmPlan.shape,
+            anthropicPlan.shape,
         ).imageTexts;
-        expect(glmUncapped.length).toBeGreaterThan(5);
-        expect(glmPlan.imageTexts).toEqual(glmUncapped.slice(0, 5));
-        expect(glmPlan.rawTexts.join('\n')).toContain(glmUncapped.slice(5).join('\n'));
+        expect(anthropicUncapped.length).toBeGreaterThan(5);
+        expect(anthropicPlan.imageTexts).toEqual(anthropicUncapped.slice(0, 5));
+        expect(anthropicPlan.rawTexts.join('\n')).toContain(anthropicUncapped.slice(5).join('\n'));
     });
 
     it('reads no preset budget for custom geometry', () => {
@@ -260,7 +260,7 @@ describe('microfiche buildMicrofichePlan split order', () => {
 describe('microfiche buildMicrofichePageTexts', () => {
     it('emits no image payloads, only page strings', () => {
         const split = splitMicroficheTexts(['alpha one', 'beta two', 'gamma three'], 1);
-        const result = buildMicrofichePageTexts(split.imageTexts, geminiShape());
+        const result = buildMicrofichePageTexts(split.imageTexts, googleShape());
         expect(result.imageTexts.length).toBe(1);
         expect(typeof result.imageTexts[0]).toBe('string');
         expect(JSON.stringify(result)).not.toContain('data:image');
@@ -268,7 +268,7 @@ describe('microfiche buildMicrofichePageTexts', () => {
     });
 
     it('yields no pages for whitespace-only input', () => {
-        expect(buildMicrofichePageTexts(['   '], geminiShape())).toEqual({
+        expect(buildMicrofichePageTexts(['   '], googleShape())).toEqual({
             imageTexts: [],
             rawTexts: [],
         });
@@ -277,13 +277,13 @@ describe('microfiche buildMicrofichePageTexts', () => {
     it('dims stopwords after pagination when the shape asks for it', () => {
         const result = buildMicrofichePageTexts(
             ['the cat sat'],
-            geminiShape({ stopwordDim: true }),
+            googleShape({ stopwordDim: true }),
         );
         expect(result.imageTexts[0]).toContain(`${DIM_ON}the${DIM_OFF}`);
     });
 
     it('keeps narrow-script letters printable instead of folding them to ?', () => {
-        const shape = geminiShape({ font: '8x13', cellWidth: 11, cellHeight: 16 });
+        const shape = googleShape({ font: '8x13', cellWidth: 11, cellHeight: 16 });
         const result = buildMicrofichePageTexts(['Вова$$засмотрелся$$на$$ее'], shape);
         expect(result.imageTexts.length).toBe(1);
         expect(result.imageTexts[0]).toBe('Вова$$засмотрелся$$на$$ее');
@@ -291,25 +291,25 @@ describe('microfiche buildMicrofichePageTexts', () => {
     });
 
     it('folds a wide CJK glyph to ? until the CJK font follow-up', () => {
-        const result = buildMicrofichePageTexts(['界'], geminiShape());
+        const result = buildMicrofichePageTexts(['界'], googleShape());
         expect(result.imageTexts).toEqual(['?']);
     });
 
     it('folds a narrow-script letter the shape font does not cover', () => {
-        const result = buildMicrofichePageTexts(['Вова'], geminiShape());
+        const result = buildMicrofichePageTexts(['Вова'], googleShape());
         expect(result.imageTexts).toEqual(['????']);
     });
 });
 
 describe('microfiche hashMicroficheShape', () => {
     it('covers geometry keys only', () => {
-        const shape = geminiShape();
-        expect(hashMicroficheShape(shape)).toBe(hashMicroficheShape(geminiShape()));
+        const shape = googleShape();
+        expect(hashMicroficheShape(shape)).toBe(hashMicroficheShape(googleShape()));
         expect(hashMicroficheShape(shape)).not.toBe(
-            hashMicroficheShape(geminiShape({ frameSize: 1568 })),
+            hashMicroficheShape(googleShape({ frameSize: 1568 })),
         );
         expect(hashMicroficheShape(shape)).not.toBe(
-            hashMicroficheShape(geminiShape({ variant: 'sent' })),
+            hashMicroficheShape(googleShape({ variant: 'sent' })),
         );
         expect(hashMicroficheShape({ ...shape, frameTokenEstimate: 999 })).toBe(
             hashMicroficheShape(shape),
@@ -322,7 +322,7 @@ describe('microfiche hashMicroficheShape', () => {
 
 describe('microfiche oldest-to-images proof', () => {
     it('expands oldest pages to images in order while the raw tail stays text', () => {
-        const shape = geminiShape();
+        const shape = googleShape();
         const snippets = ['alpha one', 'beta two', 'gamma three'];
         const split = splitMicroficheTexts(snippets, 1);
         expect(split).toEqual({

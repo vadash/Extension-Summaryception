@@ -20,12 +20,10 @@ export function installMicroficheFonts(parsed) {
 }
 
 /**
- * Read one parsed font by preset label. Slice 3 removes the silver preset, so
- * stored silver settings draw with the 8x13 bitmap until then instead of a
- * blank page.
+ * Read one parsed font by preset label.
  * @param {string} name - Preset label from the render shape.
  * @returns {import('./microfiche-fonts.js').MicroficheFont | null} Parsed font, or null before the loader runs.
  */
 export function getMicroficheFont(name) {
-    return fonts.get(name === 'silver' ? '8x13' : name) ?? null;
+    return fonts.get(name) ?? null;
 }

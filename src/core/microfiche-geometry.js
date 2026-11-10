@@ -6,7 +6,7 @@ import { isWideCodePoint } from './microfiche-wide.js';
 
 /**
  * @typedef {object} MicroficheShape
- * @property {'5x8' | '8x8' | '6x12' | '8x13' | 'silver'} font - Bitmap cell family.
+ * @property {'5x8' | '8x8' | '6x12' | '8x13'} font - Bitmap cell family.
  * @property {number} cellWidth - Target cell advance in pixels.
  * @property {number} cellHeight - Target cell pitch in pixels.
  * @property {boolean} stretch - Lanczos stretch when the cell differs.
@@ -42,13 +42,13 @@ export function charCells(ch, wideCells) {
 }
 
 /**
- * Wide glyphs span two cells in every shape except silver, whose square
- * cells already fit a full-width glyph.
- * @param {Pick<MicroficheShape, 'font'>} shape
+ * Bitmap glyphs span one cell, so a wide code point takes two cells in every
+ * shape.
+ * @param {Pick<MicroficheShape, 'font'>} _shape
  * @returns {boolean} True when wide code points take two cells.
  */
-export function usesWideCells(shape) {
-    return shape.font !== 'silver';
+export function usesWideCells(_shape) {
+    return true;
 }
 
 /**

@@ -39,7 +39,7 @@ const GEMINI_KNOBS = {
 
 const MICROFICHE_SETTINGS = {
     memoryMode: MEMORY_MODES.MICROFICHE,
-    microficheGeometry: 'gemini',
+    microficheGeometry: 'google',
     microficheKeepRaw: 0,
     microficheImageCap: 8,
     microficheFrameSize: 512,
@@ -330,7 +330,7 @@ describe('microfiche page source', () => {
                 ...GEMINI_KNOBS,
                 microficheKeepRaw: 0,
                 microficheImageCap: 8,
-                microficheGeometry: 'gemini',
+                microficheGeometry: 'google',
                 microficheFrameSize: 64,
             },
             {},

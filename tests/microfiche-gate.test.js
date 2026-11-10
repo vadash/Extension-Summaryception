@@ -40,11 +40,11 @@ describe('microfiche gate pure checks', () => {
 
     it('resolves curated readers per geometry', () => {
         expect(
-            resolveMicroficheReaders({ memoryMode: 'microfiche', microficheGeometry: 'gemini' }),
-        ).toEqual(['gemini']);
+            resolveMicroficheReaders({ memoryMode: 'microfiche', microficheGeometry: 'google' }),
+        ).toEqual(['google']);
         expect(resolveMicroficheReaders({ memoryMode: 'microfiche' })).toEqual([]);
         expect(
-            resolveMicroficheReaders({ memoryMode: 'balanced', microficheGeometry: 'gemini' }),
+            resolveMicroficheReaders({ memoryMode: 'balanced', microficheGeometry: 'google' }),
         ).toEqual([]);
         expect(
             resolveMicroficheReaders({ memoryMode: 'microfiche', microficheGeometry: 'custom' }),
@@ -63,13 +63,13 @@ describe('microfiche gate pure checks', () => {
     it('reports no-vision when the host cannot inline images', () => {
         expect(
             checkMicroficheReadiness({
-                settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+                settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
                 host: { canInlineImages: false },
             }),
         ).toEqual({ ok: false, reason: 'no-vision' });
         expect(
             checkMicroficheReadiness({
-                settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+                settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
             }),
         ).toEqual({ ok: false, reason: 'no-vision' });
     });
@@ -77,7 +77,7 @@ describe('microfiche gate pure checks', () => {
     it('passes a curated geometry with a capable host', () => {
         expect(
             checkMicroficheReadiness({
-                settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+                settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
                 host: { canInlineImages: true },
             }),
         ).toEqual({ ok: true });
@@ -101,7 +101,7 @@ describe('microfiche gate pure checks', () => {
 
     it('emits the reader red kind for no-vision', () => {
         const recorder = makeNotifyRecorder();
-        const settings = { memoryMode: 'microfiche', microficheGeometry: 'gemini' };
+        const settings = { memoryMode: 'microfiche', microficheGeometry: 'google' };
         const result = gateMicroficheMode({ settings, host: {}, notify: recorder });
         expect(result).toEqual({ ok: false, reason: 'no-vision' });
         expect(recorder.events).toHaveLength(1);
@@ -112,7 +112,7 @@ describe('microfiche gate pure checks', () => {
     });
 
     it('stays silent without a notify adapter', () => {
-        const settings = { memoryMode: 'microfiche', microficheGeometry: 'gemini' };
+        const settings = { memoryMode: 'microfiche', microficheGeometry: 'google' };
         expect(gateMicroficheMode({ settings, host: {} })).toEqual({
             ok: false,
             reason: 'no-vision',
@@ -135,7 +135,7 @@ describe('microfiche gate pure checks', () => {
 describe('microfiche engine gate', () => {
     it('aborts the auto cycle before preflight with zero requests on no-vision', async () => {
         installSummaryContext({
-            settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+            settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
             chat: [],
         });
         const { gate } = makeForegroundGate();
@@ -186,7 +186,7 @@ describe('microfiche engine gate', () => {
         const { runManual, ELASTIC_STRATEGIES } = await import('../src/core/summarizer-engine.js');
         const usageLedger = await (await import('./test-helpers.js')).makeUsageLedger();
         installSummaryContext({
-            settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+            settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
             chat: [],
         });
         const { gate } = makeForegroundGate();
@@ -214,7 +214,7 @@ describe('microfiche engine gate', () => {
         const { runManual, ELASTIC_STRATEGIES } = await import('../src/core/summarizer-engine.js');
         const usageLedger = await (await import('./test-helpers.js')).makeUsageLedger();
         installSummaryContext({
-            settings: { memoryMode: 'microfiche', microficheGeometry: 'gemini' },
+            settings: { memoryMode: 'microfiche', microficheGeometry: 'google' },
             chat: [],
         });
         const { gate } = makeForegroundGate();

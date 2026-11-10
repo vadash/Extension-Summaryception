@@ -45,7 +45,7 @@ describe('context limit and trigger gauge UI models', () => {
             verbatimTokenBudget: 16000,
             queuedTokenBudget: 32000,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'glm',
+            microficheGeometry: 'anthropic',
             microficheImageCap: 80,
         };
         const layers = [
@@ -75,7 +75,7 @@ describe('context limit and trigger gauge UI models', () => {
             verbatimTokenBudget: 16000,
             queuedTokenBudget: 32000,
             memoryMode: MEMORY_MODES.MICROFICHE,
-            microficheGeometry: 'gemini',
+            microficheGeometry: 'google',
             microficheFrameSize: 512,
             microficheImageCap: 8,
             microficheKeepRaw: 0,

@@ -127,10 +127,11 @@ describe('microfiche text geometry', () => {
         });
     });
 
-    it('keeps silver geometry with wide cells off', () => {
-        expect(usesWideCells(geminiShape({ font: 'silver' }))).toBe(false);
-        expect(usesWideCells(geminiShape())).toBe(true);
-        expect(frameGrid(geminiShape({ font: 'silver' }), 2048)).toEqual({
+    it('counts wide glyphs across two cells for every bitmap font', () => {
+        for (const font of ['5x8', '8x8', '6x12', '8x13']) {
+            expect(usesWideCells(geminiShape({ font }))).toBe(true);
+        }
+        expect(frameGrid(geminiShape({ font: '8x13' }), 2048)).toEqual({
             cols: 256,
             rows: 93,
             capacity: 23808,

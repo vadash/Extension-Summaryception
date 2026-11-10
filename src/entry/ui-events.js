@@ -138,7 +138,6 @@ function bindToggleHandlers(queue) {
             '#sc_microfiche_variant',
             '#sc_microfiche_columns',
             '#sc_microfiche_model_name',
-            '#sc_microfiche_stretch',
             '#sc_microfiche_stopword_dim',
             '#sc_microfiche_memory_images',
             '#sc_microfiche_frozen_raw_images',
