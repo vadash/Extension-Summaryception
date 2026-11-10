@@ -373,7 +373,7 @@ describe('enabled content rendering', () => {
 describe('status budget bar order', () => {
     const html = readFileSync(new URL('../settings.html', import.meta.url), 'utf8');
 
-    it('renders Memory Block above Verbatim Window above Queued Trigger', () => {
+    it('renders Memory Block above Verbatim Window above Queued Trigger with the reason under the bars', () => {
         const memory = html.indexOf('id="sc_memory_budget_bar"');
         const verbatim = html.indexOf('id="sc_verbatim_budget_bar"');
         const trigger = html.indexOf('id="sc_trigger_budget_bar"');
@@ -384,13 +384,16 @@ describe('status budget bar order', () => {
         expect(memory).toBeLessThan(verbatim);
         expect(verbatim).toBeLessThan(trigger);
         expect(trigger).toBeLessThan(html.indexOf('id="sc_budget_reason"'));
-        expect(html.indexOf('id="sc_budget_reason"')).toBeLessThan(
-            html.indexOf('id="sc_backlog_strip"'),
-        );
+    });
+
+    it('carries the backlog split in the header and drops the old strips', () => {
+        expect(html.indexOf('id="sc_status_backlog"')).toBeGreaterThan(-1);
+        expect(html).not.toContain('id="sc_backlog_strip"');
+        expect(html).not.toContain('id="sc_status_worker"');
     });
 });
 
-describe('budget reason and backlog strip rendering', () => {
+describe('budget reason and header backlog rendering', () => {
     const SETTINGS = {
         memoryTokenBudget: 10000,
         verbatimTokenBudget: 20000,
@@ -408,8 +411,8 @@ describe('budget reason and backlog strip rendering', () => {
         queuedImageTokens: 3000,
     };
 
-    it('prints the at-cap reason in red above the backlog split', async () => {
-        const { renderBudgetStatus } = await import('../src/entry/ui.js');
+    it('prints the at-cap reason in red and the split in the header', async () => {
+        const { renderBudgetStatus, renderStatusOverview } = await import('../src/entry/ui.js');
         const dom = createJQueryHarness();
         globalThis.$ = dom.$;
 
@@ -426,6 +429,22 @@ describe('budget reason and backlog strip rendering', () => {
                 },
             },
         );
+        await renderStatusOverview('sc_status', 'enabled', {
+            settings: SETTINGS,
+            modeLabel: 'Advanced',
+            work: WORK,
+            ghostedCount: 0,
+            metrics: { totalSnippets: 0 },
+            busy: false,
+            sealedFacts: {
+                microficheRaw: {
+                    effectiveCap: 4,
+                    imageTexts: ['p1', 'p2', 'p3', 'p4'],
+                    rawTexts: ['t1'],
+                    overCap: true,
+                },
+            },
+        });
 
         expect(dom.element('#sc_memory_budget_total').text()).toBe('0 / 10k');
         expect(dom.element('#sc_verbatim_budget_total').text()).toBe('16k / 20k');
@@ -434,30 +453,35 @@ describe('budget reason and backlog strip rendering', () => {
             'at cap 4/4 images, next page waits, memory update next',
         );
         expect(dom.element('#sc_budget_reason').hasClass('sc-context-total-over')).toBe(true);
-        expect(dom.element('#sc_backlog_strip').text()).toBe('backlog 10 = 4 images + 6 text');
+        expect(dom.element('#sc_status_backlog').text()).toBe('backlog 10 = 4 images + 6 text');
     });
 
-    it('keeps the reason neutral when imaging is not blocked', async () => {
-        const { renderBudgetStatus } = await import('../src/entry/ui.js');
+    it('keeps the reason neutral and still splits the header backlog', async () => {
+        const { renderBudgetStatus, renderStatusOverview } = await import('../src/entry/ui.js');
         const dom = createJQueryHarness();
         globalThis.$ = dom.$;
 
-        await renderBudgetStatus(
-            SETTINGS,
-            WORK,
-            { parts: [] },
-            {
-                microficheRaw: {
-                    effectiveCap: 4,
-                    imageTexts: ['p1', 'p2'],
-                    rawTexts: [],
-                    overCap: false,
-                },
+        const sealedFacts = {
+            microficheRaw: {
+                effectiveCap: 4,
+                imageTexts: ['p1', 'p2'],
+                rawTexts: [],
+                overCap: false,
             },
-        );
+        };
+        await renderBudgetStatus(SETTINGS, WORK, { parts: [] }, sealedFacts);
+        await renderStatusOverview('sc_status', 'enabled', {
+            settings: SETTINGS,
+            modeLabel: 'Advanced',
+            work: WORK,
+            ghostedCount: 0,
+            metrics: { totalSnippets: 0 },
+            busy: false,
+            sealedFacts,
+        });
 
         expect(dom.element('#sc_budget_reason').text()).toBe('imaging 2/4 images');
         expect(dom.element('#sc_budget_reason').hasClass('sc-context-total-over')).toBe(false);
-        expect(dom.element('#sc_backlog_strip').text()).toBe('backlog 10 = 2 images + 8 text');
+        expect(dom.element('#sc_status_backlog').text()).toBe('backlog 10 = 2 images + 8 text');
     });
 });

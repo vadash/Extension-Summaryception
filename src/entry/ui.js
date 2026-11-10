@@ -39,12 +39,11 @@ const CONTEXT_COLOR_CLASSES = 'sc-ctx-safe sc-ctx-warn sc-ctx-caution sc-ctx-dan
 
 /**
  * Re-render the entire Summaryception UI from current settings and chat store.
- * Entry re-renders through the Refresh Port, whose composition root binding
- * supplies the queue.
- * @param {{ queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
+ * Entry re-renders through the Refresh Port; the queue stays with the
+ * composition root and no longer feeds the status header.
  * @returns {Promise<void>}
  */
-export async function updateUI({ queue }) {
+export async function updateUI() {
     try {
         const s = getSettings();
         const effectiveSettings = getEffectiveSettings();
@@ -71,7 +70,7 @@ export async function updateUI({ queue }) {
             work,
             ghostedCount,
             metrics,
-            busy: queue.isBusy(),
+            sealedFacts: memoryInjection,
         };
         const memoryUsage = await measureInjection(memoryInjection);
 
@@ -205,31 +204,34 @@ function formatMicroficheBillingLine(billing) {
         `${formatCompactTokenCount(billing.bucketAfterImages)} left for text.`
     );
 }
-
-async function renderStatusOverview(prefix, modeField, overview) {
-    const { settings: s, modeLabel, work, ghostedCount, metrics, busy } = overview;
+/**
+ * Render one status header: mode, backlog split, snippet and ghost counts.
+ * @param {string} prefix - Header element prefix.
+ * @param {string} modeField - Mode label element suffix.
+ * @param {{ modeLabel: string, work: import('../core/summarization-routes.js').AutoWorkReadModel | null, ghostedCount: number, metrics: { totalSnippets: number }, sealedFacts: { microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null }} overview - Header facts.
+ * @returns {Promise<void>}
+ */
+export async function renderStatusOverview(prefix, modeField, overview) {
+    const { modeLabel, work, ghostedCount, metrics, sealedFacts } = overview;
     $(`#${prefix}_${modeField}`).text(modeLabel);
-    $(`#${prefix}_worker`).text(await getWorkerLabel(s, work, busy));
+    renderBacklogSplit(prefix, work, sealedFacts);
     $(`#${prefix}_snippets`).text(String(metrics.totalSnippets));
     $(`#${prefix}_ghosted`).text(String(ghostedCount));
 }
 
 /**
- * @param {ReturnType<typeof getEffectiveSettings>} s
+ * Write the backlog split into the header when the header owns a backlog
+ * slot, otherwise no-op. The advanced header carries the split now; the
+ * easy header keeps worker/snippets/ghosted without it.
+ * @param {string} prefix - Status header prefix owning the backlog slot.
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work
- * @param {boolean} busy - Whether any summarizer work is live
- * @returns {Promise<string>}
+ * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts
+ * @returns {void}
  */
-async function getWorkerLabel(s, work, busy) {
-    if (busy) {
-        return 'Running';
-    }
-    if (!s.enabled) {
-        return 'Off';
-    }
-
-    const backlogCount = work?.ready ? work.backlog : 0;
-    return backlogCount > 0 ? `Backlog ${backlogCount}` : 'Idle';
+export function renderBacklogSplit(prefix, work, sealedFacts) {
+    const slot = $(`#${prefix}_backlog`);
+    const split = buildBacklogSplitModel(work, sealedFacts);
+    slot.text(`backlog ${split.backlog} = ${split.images} images + ${split.text} text`);
 }
 
 const MICROFICHE_GEOMETRY_INPUTS = Object.freeze([
@@ -307,10 +309,6 @@ function renderBudgetNarrative(s, work, sealedFacts) {
     $('#sc_budget_reason')
         .text(reason.text)
         .toggleClass('sc-context-total-over', reason.memoryNext);
-    const split = buildBacklogSplitModel(work, sealedFacts);
-    $('#sc_backlog_strip').text(
-        `backlog ${split.backlog} = ${split.images} images + ${split.text} text`,
-    );
 }
 
 /**

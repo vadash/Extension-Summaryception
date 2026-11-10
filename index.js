@@ -122,7 +122,7 @@ import { registerSlashCommands } from './src/entry/commands.js';
             });
         },
         updateContinuityMarker,
-        updateUI: (options) => updateUI({ ...options, queue }),
+        updateUI: () => updateUI(),
         updatePreview: () => {
             const settings = getEffectiveSettings();
             const injection = buildUiInjection(getChatStore(), settings);
