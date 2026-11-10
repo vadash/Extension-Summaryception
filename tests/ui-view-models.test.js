@@ -239,7 +239,7 @@ const REASON_SETTINGS = {
 };
 
 describe('microfiche reason model', () => {
-    it('says at cap when every cap slot holds an image and a page waits', () => {
+    it('says slots full with one waiting page', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 500 }),
@@ -247,12 +247,25 @@ describe('microfiche reason model', () => {
                 REASON_SETTINGS,
             ),
         ).toEqual({
-            text: 'at cap 4/4 images, next page waits, memory update next',
+            text: 'photo slots full 4/4, 1 page waits as text — summarize to free a slot',
             memoryNext: true,
         });
     });
 
-    it('says fill gated when the trailing page misses the 0.75 fill gate', () => {
+    it('pluralizes the waiting pages', () => {
+        expect(
+            buildMicroficheReasonModel(
+                workModel({ billed: 500 }),
+                rawPlan({ cap: 4, images: 4, raw: 3, overCap: true }),
+                REASON_SETTINGS,
+            ),
+        ).toEqual({
+            text: 'photo slots full 4/4, 3 pages wait as text — summarize to free a slot',
+            memoryNext: true,
+        });
+    });
+
+    it('says budget full when the bucket demotes a page below the cap', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 500 }),
@@ -260,12 +273,12 @@ describe('microfiche reason model', () => {
                 REASON_SETTINGS,
             ),
         ).toEqual({
-            text: 'last page under 0.75, memory update next',
+            text: 'photo budget full — summarize to free room',
             memoryNext: true,
         });
     });
 
-    it('says bucket full when the raw bucket shrank the effective cap', () => {
+    it('says budget full when the raw bucket shrank the effective cap', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 2000 }),
@@ -273,12 +286,12 @@ describe('microfiche reason model', () => {
                 REASON_SETTINGS,
             ),
         ).toEqual({
-            text: 'raw bucket full, memory update next',
+            text: 'photo budget full — summarize to free room',
             memoryNext: true,
         });
     });
 
-    it('treats an unaffordable cap of zero as bucket full', () => {
+    it('treats an unaffordable cap of zero as budget full', () => {
         expect(
             buildMicroficheReasonModel(
                 workModel({ billed: 500 }),
@@ -286,7 +299,7 @@ describe('microfiche reason model', () => {
                 REASON_SETTINGS,
             ),
         ).toEqual({
-            text: 'raw bucket full, memory update next',
+            text: 'photo budget full — summarize to free room',
             memoryNext: true,
         });
     });

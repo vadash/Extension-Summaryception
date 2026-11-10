@@ -416,7 +416,7 @@ describe('budget reason and header backlog rendering', () => {
         queuedImageTokens: 3000,
     };
 
-    it('prints the at-cap reason in red and the split in the header', async () => {
+    it('prints the slots-full reason in red and the split in the header', async () => {
         const { renderBudgetStatus, renderStatusOverview } = await import('../src/entry/ui.js');
         const dom = createJQueryHarness();
         globalThis.$ = dom.$;
@@ -455,7 +455,7 @@ describe('budget reason and header backlog rendering', () => {
         expect(dom.element('#sc_verbatim_budget_total').text()).toBe('16k / 20k');
         expect(dom.element('#sc_trigger_budget_total').text()).toBe('3k / 16k');
         expect(dom.element('#sc_budget_reason').text()).toBe(
-            'at cap 4/4 images, next page waits, memory update next',
+            'photo slots full 4/4, 1 page waits as text — summarize to free a slot',
         );
         expect(dom.element('#sc_budget_reason').hasClass('sc-context-total-over')).toBe(true);
         expect(dom.element('#sc_status_backlog').text()).toBe('backlog 10 = 4 images + 6 text');

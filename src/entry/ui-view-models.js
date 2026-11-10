@@ -138,13 +138,20 @@ export function buildTriggerGaugeModel(work, s) {
 }
 
 /**
- * The blocked-step line under the Microfiche bars. A page waits when the sealed
- * raw plan reports `overCap`, which the policy sets when the Fill Gate, the
- * image cap, or the raw bucket leaves a page as text. The binding cap tells the
- * three cases apart: a cap below the configured image cap means the raw bucket
- * shrank it, a full cap with a page waiting means the cap is reached, and a
- * short page list under a full cap means the trailing page missed the 0.75
- * Fill Gate. `memoryNext` drives the red treatment.
+ * @param {number} count - Pages left as text.
+ * @returns {string} Wait clause whose verb agrees with the count.
+ */
+function formatPageWaits(count) {
+    return count === 1 ? '1 page waits' : `${count} pages wait`;
+}
+
+/**
+ * The blocked-step line under the Microfiche bars. The sealed raw plan reports
+ * `overCap` when a paginated page stays text. A cap below the slider cap means
+ * the raw bucket shrank it, and a page demoted below a cap that still had room
+ * means the bucket cannot pay, so both read budget full. A full cap with pages
+ * left over reads slots full. Every other state stays neutral. `memoryNext`
+ * drives the red treatment.
  * @param {import('../core/summarization-routes.js').AutoWorkReadModel | null} work - Work read model; a not-ready batch keeps the line neutral.
  * @param {{ microficheRaw?: import('../core/microfiche-policy.js').MicroficheRawPlan | null } | null} sealedFacts - Sealed plans from the injection writer.
  * @param {{ microficheImageCap?: number } | null | undefined} [settings] - Effective settings carrying the image cap.
@@ -161,16 +168,14 @@ export function buildMicroficheReasonModel(work, sealedFacts, settings = {}) {
             memoryNext: false,
         };
     }
-    if (cap < sliderCap) {
-        return { text: 'raw bucket full, memory update next', memoryNext: true };
+    if (cap < sliderCap || images < cap) {
+        return { text: 'photo budget full — summarize to free room', memoryNext: true };
     }
-    if (images >= cap) {
-        return {
-            text: `at cap ${images}/${cap} images, next page waits, memory update next`,
-            memoryNext: true,
-        };
-    }
-    return { text: 'last page under 0.75, memory update next', memoryNext: true };
+    const waiting = raw.rawTexts.length;
+    return {
+        text: `photo slots full ${images}/${cap}, ${formatPageWaits(waiting)} as text — summarize to free a slot`,
+        memoryNext: true,
+    };
 }
 
 /**
