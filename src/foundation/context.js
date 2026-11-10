@@ -284,6 +284,21 @@ export function getStreamingProcessor() {
 }
 
 /**
+ * Fetch a bundled extension asset as text. The caller passes a URL resolved
+ * from its module location, so the request follows the installed extension
+ * folder and never assumes a host path.
+ * @param {string | URL} url - Asset URL.
+ * @returns {Promise<string>} Response body.
+ */
+export async function fetchTextAsset(url) {
+    const response = await globalThis.fetch(String(url));
+    if (!response.ok) {
+        throw new Error(`Extension asset fetch failed (${response.status}): ${String(url)}`);
+    }
+    return await response.text();
+}
+
+/**
  * Read the host body[data-generating] liveness flag. ST keeps the flag set
  * past GENERATION_ENDED until activateSendButtons clears it, so a true here
  * means the teardown window is still running.

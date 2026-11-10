@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { DIM_OFF, DIM_ON } from '../src/core/microfiche-normalize.js';
 import {
@@ -17,11 +17,15 @@ import {
     expandMicrofichePromptChat,
     formatMicroficheMarker,
 } from '../src/core/microfiche-transport.js';
-import { makeRawChatSlice } from './test-helpers.js';
+import { makeRawChatSlice, installTestMicroficheFonts } from './test-helpers.js';
 
 // Pagination, the split plan, and the page source seam live here: this suite
 // pins page strings, split order, and marker expansion. It never compares PNG
 // bytes; the fake renderer below is a deterministic placeholder.
+
+beforeAll(() => {
+    installTestMicroficheFonts();
+});
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -279,10 +283,21 @@ describe('microfiche buildMicrofichePageTexts', () => {
     });
 
     it('keeps narrow-script letters printable instead of folding them to ?', () => {
-        const result = buildMicrofichePageTexts(['Вова$$засмотрелся$$на$$ее'], geminiShape());
+        const shape = geminiShape({ font: '8x13', cellWidth: 11, cellHeight: 16 });
+        const result = buildMicrofichePageTexts(['Вова$$засмотрелся$$на$$ее'], shape);
         expect(result.imageTexts.length).toBe(1);
         expect(result.imageTexts[0]).toBe('Вова$$засмотрелся$$на$$ее');
         expect(result.imageTexts[0]).not.toMatch(/\?{3}/);
+    });
+
+    it('folds a wide CJK glyph to ? until the CJK font follow-up', () => {
+        const result = buildMicrofichePageTexts(['界'], geminiShape());
+        expect(result.imageTexts).toEqual(['?']);
+    });
+
+    it('folds a narrow-script letter the shape font does not cover', () => {
+        const result = buildMicrofichePageTexts(['Вова'], geminiShape());
+        expect(result.imageTexts).toEqual(['????']);
     });
 });
 

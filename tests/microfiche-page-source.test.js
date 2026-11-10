@@ -71,12 +71,6 @@ function makeFakeCanvas() {
 function makeFakeContext(calls, pageIndex) {
     const ctx = {
         fillStyle: '#000000',
-        font: '',
-        textBaseline: '',
-        textAlign: '',
-        fillText(ch, x, y) {
-            calls.push({ type: 'fillText', ch, x, y, fillStyle: ctx.fillStyle, page: pageIndex });
-        },
         fillRect(x, y, w, h) {
             calls.push({ type: 'fillRect', x, y, w, h, fillStyle: ctx.fillStyle, page: pageIndex });
         },

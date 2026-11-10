@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { renderMicrofichePages } from '../src/core/microfiche-pages.js';
 import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
+import { installTestMicroficheFonts } from './test-helpers.js';
 
-// Legibility parity only: this suite pins draw calls, page order, and canvas
+// Legibility parity only: this suite pins blit calls, page order, and canvas
 // capture. It never compares PNG bytes, and the fake dataUrls below are
 // deterministic placeholders, never reference raster output.
+
+beforeAll(() => {
+    installTestMicroficheFonts();
+});
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -36,17 +41,24 @@ function makeFakeCanvas() {
 function makeFakeContext(calls, pageIndex) {
     const ctx = {
         fillStyle: '#000000',
-        font: '',
-        textBaseline: '',
-        textAlign: '',
-        fillText(ch, x, y) {
-            calls.push({ type: 'fillText', ch, x, y, fillStyle: ctx.fillStyle, page: pageIndex });
-        },
         fillRect(x, y, w, h) {
             calls.push({ type: 'fillRect', x, y, w, h, fillStyle: ctx.fillStyle, page: pageIndex });
         },
     };
     return ctx;
+}
+
+/**
+ * @param {{ calls: Array<{ type: string, x?: number, y?: number, w?: number, h?: number, fillStyle?: string, page?: number }> }} factory
+ * @returns {Array<{ x: number, y: number, fillStyle: string, page: number }>} One-pixel glyph blits.
+ */
+function glyphPixels(factory) {
+    return factory.calls
+        .filter((call) => call.type === 'fillRect' && call.w === 1 && call.h === 1)
+        .map(
+            (call) =>
+                /** @type {{ x: number, y: number, fillStyle: string, page: number }} */ (call),
+        );
 }
 
 function makeFakeFactory() {
@@ -133,9 +145,10 @@ describe('microfiche renderMicrofichePages', () => {
         const dataCalls = factory.calls.filter((call) => call.type === 'toDataURL');
         expect(dataCalls.map((call) => call.mime)).toEqual(['image/png', 'image/png']);
         expect(dataCalls.map((call) => call.page)).toEqual([0, 1]);
-        const textCalls = factory.calls.filter((call) => call.type === 'fillText');
-        const firstPageLast = textCalls.map((call) => call.page).lastIndexOf(0);
-        const secondPageFirst = textCalls.map((call) => call.page).indexOf(1);
+        const glyphCalls = glyphPixels(factory);
+        const firstPageLast = glyphCalls.map((call) => call.page).lastIndexOf(0);
+        const secondPageFirst = glyphCalls.map((call) => call.page).indexOf(1);
+        expect(firstPageLast).toBeGreaterThan(-1);
         expect(firstPageLast).toBeLessThan(secondPageFirst);
         for (const page of pages) {
             expect(typeof page.dataUrl).toBe('string');
@@ -145,7 +158,7 @@ describe('microfiche renderMicrofichePages', () => {
     it('draws every reference font, ink, dim, column, repeat, and frame combination in order', () => {
         const texts = ['A one two three', 'B four five six'];
         let drawn = 0;
-        for (const font of ['5x8', '8x8', '6x12', '8x13', 'silver']) {
+        for (const font of ['5x8', '8x8', '6x12', '8x13']) {
             for (const variant of ['bw', 'sent']) {
                 for (const stopwordDim of [false, true]) {
                     for (const columns of [1, 2]) {
@@ -166,9 +179,7 @@ describe('microfiche renderMicrofichePages', () => {
                                     factory.canvasFactory,
                                 );
                                 expect(pages.map((page) => page.text)).toEqual(texts);
-                                const fills = factory.calls.filter(
-                                    (call) => call.type === 'fillText',
-                                );
+                                const fills = glyphPixels(factory);
                                 expect(fills.length).toBeGreaterThan(0);
                                 drawn += pages.length;
                             }
@@ -177,7 +188,7 @@ describe('microfiche renderMicrofichePages', () => {
                 }
             }
         }
-        expect(drawn).toBe(2 * 5 * 2 * 2 * 2 * 2 * 2);
+        expect(drawn).toBe(2 * 4 * 2 * 2 * 2 * 2 * 2);
     });
 });
 

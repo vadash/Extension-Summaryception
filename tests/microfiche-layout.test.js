@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import { DIM_OFF, DIM_ON, normalize } from '../src/core/microfiche-normalize.js';
 import {
@@ -13,10 +13,15 @@ import {
     resolveMicroficheShape,
 } from '../src/core/microfiche-paginate.js';
 import { drawMicrofichePage } from '../src/core/microfiche-render.js';
+import { installTestMicroficheFonts } from './test-helpers.js';
 
 // One layout truth: the frame table, the cell rules, and the draw walk agree
-// cell-for-cell. Appearance assertions pin the visible draw structure only;
+// cell-for-cell. Appearance assertions pin the visible blit structure only;
 // PNG bytes are never compared.
+
+beforeAll(() => {
+    installTestMicroficheFonts();
+});
 
 const GEMINI_KNOBS = {
     microficheFont: '8x8',
@@ -50,18 +55,6 @@ function makeRecordingFactory() {
         };
         const ctx = {
             fillStyle: '#000000',
-            font: '',
-            textBaseline: '',
-            fillText(ch, x, y) {
-                calls.push({
-                    type: 'fillText',
-                    ch,
-                    x,
-                    y,
-                    fillStyle: ctx.fillStyle,
-                    page: pageIndex,
-                });
-            },
             fillRect(x, y, w, h) {
                 calls.push({
                     type: 'fillRect',
@@ -80,8 +73,17 @@ function makeRecordingFactory() {
     return { canvasFactory, calls, canvases };
 }
 
-function fillTexts(factory) {
-    return factory.calls.filter((call) => call.type === 'fillText');
+/**
+ * @param {{ calls: Array<{ type: string, x?: number, y?: number, w?: number, h?: number, fillStyle?: string, page?: number }> }} factory
+ * @returns {Array<{ x: number, y: number, fillStyle: string, page: number }>} One-pixel glyph blits.
+ */
+function glyphPixels(factory) {
+    return factory.calls
+        .filter((call) => call.type === 'fillRect' && call.w === 1 && call.h === 1)
+        .map(
+            (call) =>
+                /** @type {{ x: number, y: number, fillStyle: string, page: number }} */ (call),
+        );
 }
 
 const EDGE_CORPUS = [
@@ -256,56 +258,121 @@ describe('microfiche draw appearance', () => {
         expect(tall.height).toBeGreaterThan(64);
     });
 
-    it('sets the monospace font and top baseline from the cell pitch', () => {
-        const shape = geminiShape();
+    it('blits natural-size glyph bits at the font ascent from the cell top', () => {
+        // 5x8 'a' BITMAP rows 00 00 00 70 90 90 70 00, ascent 7, height 8,
+        // yOffset -1, so the glyph top lands on the cell top and row 3 prints
+        // at y 3 in black ink.
+        const shape = geminiShape({
+            font: '5x8',
+            cellWidth: 5,
+            cellHeight: 8,
+            frameSize: 64,
+        });
         const factory = makeRecordingFactory();
-        drawMicrofichePage('Hi', shape, factory.canvasFactory);
-        const { ctx } = factory.canvases[0];
-        expect(ctx.font).toBe(
-            `${Math.max(1, Math.min(shape.cellHeight, shape.cellWidth / 0.6))}px monospace`,
+        const drawn = drawMicrofichePage('a', shape, factory.canvasFactory);
+        expect(drawn.cells.map((cell) => cell.ch)).toEqual(['a']);
+        const pixels = glyphPixels(factory);
+        expect(pixels.map(({ x, y }) => ({ x, y }))).toEqual([
+            { x: 1, y: 3 },
+            { x: 2, y: 3 },
+            { x: 3, y: 3 },
+            { x: 0, y: 4 },
+            { x: 3, y: 4 },
+            { x: 0, y: 5 },
+            { x: 3, y: 5 },
+            { x: 1, y: 6 },
+            { x: 2, y: 6 },
+            { x: 3, y: 6 },
+        ]);
+        expect(new Set(pixels.map((pixel) => pixel.fillStyle))).toEqual(new Set(['#000000']));
+    });
+
+    it('keeps natural size and pads below the baseline on a taller cell', () => {
+        const shape = geminiShape({ font: '8x13', cellWidth: 11, cellHeight: 16, frameSize: 64 });
+        const factory = makeRecordingFactory();
+        drawMicrofichePage('A', shape, factory.canvasFactory);
+        const pixels = glyphPixels(factory);
+        expect(new Set(pixels.map((pixel) => pixel.y))).toEqual(
+            new Set([2, 3, 4, 5, 6, 7, 8, 9, 10]),
         );
-        expect(ctx.textBaseline).toBe('top');
+        expect(Math.max(...pixels.map((pixel) => pixel.x))).toBe(6);
+        expect(pixels.every((pixel) => pixel.x <= 7)).toBe(true);
+    });
+
+    it('blits the worked-example Cyrillic page from 8x13 bits', () => {
+        const shape = geminiShape({ font: '8x13', cellWidth: 11, cellHeight: 16, frameSize: 1568 });
+        const source = 'Вова$$засмотрелся$$на$$ее';
+        const result = buildMicrofichePageTexts([source], shape);
+        expect(result.imageTexts).toEqual([source]);
+
+        const factory = makeRecordingFactory();
+        const drawn = drawMicrofichePage(result.imageTexts[0], shape, factory.canvasFactory);
+        expect(drawn.cells.map((cell) => cell.ch).join('')).toBe(source);
+        const pixels = glyphPixels(factory);
+        expect(pixels.length).toBeGreaterThan(0);
+        const maxX = Math.max(...pixels.map((pixel) => pixel.x));
+        expect(maxX).toBeLessThan(shape.frameSize);
+        expect(factory.calls.some((call) => call.type === 'fillText')).toBe(false);
+    });
+
+    it('paints a full-block cell as one solid cell rect', () => {
+        const shape = geminiShape({ frameSize: 64, cellWidth: 8, cellHeight: 22 });
+        const factory = makeRecordingFactory();
+        drawMicrofichePage('█', shape, factory.canvasFactory);
+        expect(
+            factory.calls.filter(
+                (call) => call.type === 'fillRect' && call.fillStyle === '#000000',
+            ),
+        ).toEqual([{ type: 'fillRect', x: 0, y: 0, w: 8, h: 22, fillStyle: '#000000', page: 0 }]);
+    });
+
+    it('skips a cell whose code point has no glyph in the shape font', () => {
+        const shape = geminiShape({ font: '8x13', cellWidth: 11, cellHeight: 16, frameSize: 64 });
+        const factory = makeRecordingFactory();
+        const drawn = drawMicrofichePage('界', shape, factory.canvasFactory);
+        expect(drawn.cells.map((cell) => cell.ch)).toEqual(['界']);
+        expect(glyphPixels(factory)).toEqual([]);
     });
 
     it('places every glyph at its grid x and row y', () => {
         const shape = geminiShape({ frameSize: 64 });
         const factory = makeRecordingFactory();
         drawMicrofichePage('abcdefghij', shape, factory.canvasFactory);
-        expect(fillTexts(factory).map(({ ch, x, y }) => ({ ch, x, y }))).toEqual([
-            { ch: 'a', x: 0, y: 0 },
-            { ch: 'b', x: 8, y: 0 },
-            { ch: 'c', x: 16, y: 0 },
-            { ch: 'd', x: 24, y: 0 },
-            { ch: 'e', x: 32, y: 0 },
-            { ch: 'f', x: 40, y: 0 },
-            { ch: 'g', x: 48, y: 0 },
-            { ch: 'h', x: 56, y: 0 },
-            { ch: 'i', x: 0, y: 22 },
-            { ch: 'j', x: 8, y: 22 },
-        ]);
+        const pixels = glyphPixels(factory);
+        const firstRow = new Set(
+            pixels.filter((pixel) => pixel.y < 22).map((pixel) => Math.floor(pixel.x / 8)),
+        );
+        const secondRow = new Set(
+            pixels.filter((pixel) => pixel.y >= 22).map((pixel) => Math.floor(pixel.x / 8)),
+        );
+        expect(firstRow).toEqual(new Set([0, 1, 2, 3, 4, 5, 6, 7]));
+        expect(secondRow).toEqual(new Set([0, 1]));
     });
 
     it('cycles sentence hues only for the sent variant', () => {
         const text = 'Hello world. Again here.';
         const bwFactory = makeRecordingFactory();
         drawMicrofichePage(text, geminiShape({ variant: 'bw' }), bwFactory.canvasFactory);
-        const bwInks = new Set(fillTexts(bwFactory).map((call) => call.fillStyle));
+        const bwInks = new Set(glyphPixels(bwFactory).map((call) => call.fillStyle));
         expect(bwInks.size).toBe(1);
 
         const sentFactory = makeRecordingFactory();
         drawMicrofichePage(text, geminiShape({ variant: 'sent' }), sentFactory.canvasFactory);
-        const sentInks = new Set(fillTexts(sentFactory).map((call) => call.fillStyle));
+        const sentInks = new Set(glyphPixels(sentFactory).map((call) => call.fillStyle));
         expect(sentInks.size).toBeGreaterThan(1);
     });
 
     it('prints dim spans in dim ink', () => {
+        // Cells: t 0, h 8, e 16, space 24, c 32, a 40, t 48.
         const factory = makeRecordingFactory();
         drawMicrofichePage(`${DIM_ON}the${DIM_OFF} cat`, geminiShape(), factory.canvasFactory);
-        const fills = fillTexts(factory);
-        expect(fills.filter((call) => call.fillStyle === '#808080').map((call) => call.ch)).toEqual(
-            ['t', 'h', 'e'],
-        );
-        expect(fills.some((call) => call.fillStyle !== '#808080')).toBe(true);
+        const pixels = glyphPixels(factory);
+        const dim = pixels.filter((pixel) => pixel.fillStyle === '#808080');
+        expect(dim.length).toBeGreaterThan(0);
+        expect(dim.every((pixel) => pixel.x < 24)).toBe(true);
+        const bright = pixels.filter((pixel) => pixel.fillStyle !== '#808080');
+        expect(bright.length).toBeGreaterThan(0);
+        expect(bright.every((pixel) => pixel.x >= 32)).toBe(true);
     });
 
     it('paints a highlight band only when lines repeat', () => {
@@ -338,6 +405,6 @@ describe('microfiche draw appearance', () => {
         }
         const factory = makeRecordingFactory();
         drawMicrofichePage(lines.join('\n'), shape, factory.canvasFactory);
-        expect(fillTexts(factory).some((call) => call.x >= secondColumnX)).toBe(true);
+        expect(glyphPixels(factory).some((call) => call.x >= secondColumnX)).toBe(true);
     });
 });

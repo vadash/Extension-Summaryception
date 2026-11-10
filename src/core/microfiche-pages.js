@@ -2,8 +2,11 @@
 // then read page N by index; the Raw Seal, the per-page cache, its per-epoch
 // clear, and canvas capture stay behind this seam.
 
+import { fetchTextAsset } from '../foundation/context.js';
 import { MEMORY_MODES } from '../foundation/constants.js';
 import { drawMicrofichePage } from './microfiche-render.js';
+import { installMicroficheFonts } from './microfiche-font-cache.js';
+import { MICROFICHE_FONT_FILES, parseMicroficheFont } from './microfiche-fonts.js';
 import { buildMicroficheRawSlice } from './microfiche-raw-slice.js';
 import { resolveMicroficheRegion } from './microfiche-transport.js';
 
@@ -143,13 +146,43 @@ function sealPlan(plan) {
     };
 }
 
+// Bundled font URLs follow the installed extension folder because each one
+// resolves from this module's own location.
+const FONT_ASSET_URLS = Object.freeze(
+    Object.fromEntries(
+        Object.entries(MICROFICHE_FONT_FILES).map(([name, file]) => [
+            name,
+            new URL(`../../fonts/${file}`, import.meta.url).href,
+        ]),
+    ),
+);
+
+/**
+ * Fetch and parse every bundled bitmap font, then install the set for the
+ * synchronous draw and normalize paths. Entry init awaits this once before it
+ * builds the Microfiche page source.
+ * @returns {Promise<void>}
+ */
+export async function loadMicroficheFonts() {
+    const entries = await Promise.all(
+        Object.entries(FONT_ASSET_URLS).map(async ([name, url]) => {
+            const text = await fetchTextAsset(url);
+            return /** @type {[string, import('./microfiche-fonts.js').MicroficheFont]} */ ([
+                name,
+                parseMicroficheFont(name, text),
+            ]);
+        }),
+    );
+    installMicroficheFonts(Object.fromEntries(entries));
+}
+
 /**
  * Render ordered page strings into transport pages. The draw runs on one
  * injected canvas per page, and toDataURL runs on that same canvas, so the
  * image matches the laid-out text. Input order in, page order out.
  * @param {string[]} imageTexts - Page strings in chronological order.
  * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
- * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }} canvasFactory - Injected canvas source.
+ * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }} canvasFactory - Injected canvas source.
  * @returns {MicrofichePage[]} Pages in input order.
  */
 export function renderMicrofichePages(imageTexts, shape, canvasFactory) {
@@ -177,7 +210,7 @@ export function renderMicrofichePages(imageTexts, shape, canvasFactory) {
  * and a chat switch calls reset because each chat's mutation epoch starts at
  * zero and can repeat the epoch this chat sealed.
  * @param {{
- *   canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }) | null,
+ *   canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }) | null,
  *   renderPage?: ((text: string, shape: import('./microfiche-geometry.js').MicroficheShape) => MicrofichePage) | null,
  * }} [deps] - Injected canvas source or per-page renderer.
  * @returns {MicrofichePageSource} Page source.

@@ -46,6 +46,7 @@ const foundationMocks = vi.hoisted(() => {
         callTokenCountAsync: vi.fn(),
         isDryRunEvent: vi.fn(),
         getRequestHeaders: vi.fn(),
+        fetchTextAsset: vi.fn(),
         getPromptManager: vi.fn(),
         getConnectionManagerRequestService: vi.fn(),
         getSlashCommandParser: vi.fn(),

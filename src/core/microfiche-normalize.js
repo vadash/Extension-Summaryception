@@ -1,10 +1,13 @@
-// Microfiche glyph normalization: renderer-blind text folding for Canvas2D
-// fillText. String transforms only, no host or canvas access.
+// Microfiche glyph normalization: renderer-blind text folding for the bitmap
+// glyph renderer. String transforms only, no host or canvas access.
+
+import { getMicroficheFont } from './microfiche-font-cache.js';
+import { isWideCodePoint } from './microfiche-wide.js';
 
 /**
  * @typedef {object} MicroficheNormalizeOptions
- * @property {'5x8' | '8x8' | '6x12' | '8x13' | 'silver'} [font] - Bitmap cell
- * family hint; reserved for font-aware coverage checks, ASCII behavior today.
+ * @property {'5x8' | '8x8' | '6x12' | '8x13' | 'silver'} [font] - Bitmap preset
+ * label whose parsed glyph coverage gates narrow-script passthrough.
  */
 
 /**
@@ -138,30 +141,11 @@ const ALPHA_RUN = /[a-zA-ZÀ-ÖØ-öø-ÿ]+/g;
 // Splitter keeps the zero-width toggles as their own segments. Built from
 // strings so no literal control byte lands in a regex class.
 const DIM_MARKER_SPLIT = new RegExp(`(${'\\u000e'}|${'\\u000f'})`);
-// Canvas2D draws every script, so narrow letters, numbers, and marks stay
-// printable; wide glyphs keep the '?' fold because the grid lays them out in
-// two cells while fillText advances one, and symbols without a fold entry
-// fall back to '?'.
+// Narrow scripts, numbers, and marks stay printable when the shape's bitmap
+// font carries the glyph. Wide glyphs keep the '?' fold because their bitmap
+// font coverage arrives with the CJK follow-up, and symbols without a fold
+// entry fall back to '?'.
 const SCRIPT_PRINTABLE = /[\p{L}\p{N}\p{M}]/u;
-// East Asian wide/fullwidth ranges, mirrored from microfiche-geometry.js so
-// normalize stays host-free with no module cycle.
-const WIDE_RANGES = [
-    [0x1100, 0x115f],
-    [0x2e80, 0x2eff],
-    [0x2f00, 0x2fdf],
-    [0x3000, 0x303e],
-    [0x3041, 0x33ff],
-    [0x3400, 0x4dbf],
-    [0x4e00, 0x9fff],
-    [0xa000, 0xa4cf],
-    [0xac00, 0xd7a3],
-    [0xf900, 0xfaff],
-    [0xfe30, 0xfe4f],
-    [0xff00, 0xff60],
-    [0xffe0, 0xffe6],
-    [0x20000, 0x2fffd],
-    [0x30000, 0x3fffd],
-];
 /**
  * @param {number} codePoint
  * @returns {boolean} True for the bitmap fonts' printable ASCII/Latin-1 range.
@@ -170,13 +154,6 @@ function isAsciiOrLatin1(codePoint) {
     return (codePoint >= 0x20 && codePoint < 0x7f) || (codePoint >= 0xa0 && codePoint <= 0xff);
 }
 
-/**
- * @param {number} codePoint
- * @returns {boolean} True for East Asian wide/fullwidth ranges.
- */
-function isWideCodePoint(codePoint) {
-    return WIDE_RANGES.some(([low, high]) => codePoint >= low && codePoint <= high);
-}
 /**
  * Aggressive single-code-point ASCII fold via NFKD: compatibility forms
  * decompose, marks drop, and the ASCII/Latin-1 skeleton survives. Residual
@@ -207,13 +184,30 @@ function foldToAscii(ch) {
 }
 
 /**
+ * @param {number} codePoint - Box-drawing code point.
+ * @returns {string} ASCII stand-in that keeps tables readable.
+ */
+function foldBoxDrawing(codePoint) {
+    if (codePoint === 0x2502 || codePoint === 0x2503) {
+        return '|';
+    }
+    if (codePoint === 0x2500 || codePoint === 0x2501) {
+        return '-';
+    }
+    return '+';
+}
+
+/**
  * Fold one non-ASCII character: emoji and punctuation tables, box drawing
- * to ASCII, NFKD decomposition, decorative emoji drop, '?' last resort.
+ * to ASCII, NFKD decomposition, glyphs the shape's font covers, decorative
+ * emoji drop, '?' last resort. Wide code points keep the '?' fold until the
+ * CJK font follow-up.
  * @param {string} ch - One Unicode character.
  * @param {number} codePoint - Its code point.
+ * @param {import('./microfiche-fonts.js').MicroficheFont | null} font - Parsed font for the shape, if loaded.
  * @returns {{ glyph: string, fallback: boolean } | null} Glyph or null to drop.
  */
-function foldNonAscii(ch, codePoint) {
+function foldNonAscii(ch, codePoint, font) {
     const emoji = EMOJI_FOLD[ch];
     if (emoji !== undefined) {
         return { glyph: emoji, fallback: false };
@@ -223,13 +217,15 @@ function foldNonAscii(ch, codePoint) {
         return { glyph: fold, fallback: false };
     }
     if (codePoint >= 0x2500 && codePoint <= 0x257f) {
-        if (codePoint === 0x2502 || codePoint === 0x2503) {
-            return { glyph: '|', fallback: false };
-        }
-        if (codePoint === 0x2500 || codePoint === 0x2501) {
-            return { glyph: '-', fallback: false };
-        }
-        return { glyph: '+', fallback: false };
+        return { glyph: foldBoxDrawing(codePoint), fallback: false };
+    }
+    if (
+        font !== null &&
+        !isWideCodePoint(codePoint) &&
+        !EMOJI_PICTOGRAPH.test(ch) &&
+        font.glyphs.has(codePoint)
+    ) {
+        return { glyph: ch, fallback: false };
     }
     const folded = foldToAscii(ch);
     if (folded !== undefined) {
@@ -247,11 +243,11 @@ function foldNonAscii(ch, codePoint) {
  * kept Unicode prints through, decorative emoji drops, and unknown glyphs
  * become '?' with stats for the renderability scan.
  * @param {string} text - Raw snippet text.
- * @param {MicroficheNormalizeOptions} [options] - Font hint, reserved.
+ * @param {MicroficheNormalizeOptions} [options] - Font hint for coverage.
  * @returns {{ text: string, totalGraphics: number, fallbackCount: number }} Folded text with fallback stats.
  */
 function normalizeWithStats(text, options = {}) {
-    void options;
+    const font = getMicroficheFont(String(options.font ?? ''));
     const stripped = String(text).replace(ANSI_RE, '');
     const collapsed = stripped
         .replace(COLLAPSIBLE, (run) =>
@@ -275,12 +271,16 @@ function normalizeWithStats(text, options = {}) {
             out.push(ch);
             continue;
         }
-        if (SCRIPT_PRINTABLE.test(ch) && !isWideCodePoint(codePoint)) {
+        if (
+            SCRIPT_PRINTABLE.test(ch) &&
+            !isWideCodePoint(codePoint) &&
+            (font === null || font.glyphs.has(codePoint))
+        ) {
             out.push(ch);
             totalGraphics += 1;
             continue;
         }
-        const folded = foldNonAscii(ch, codePoint);
+        const folded = foldNonAscii(ch, codePoint, font);
         if (folded === null) {
             continue;
         }
@@ -301,7 +301,7 @@ function normalizeWithStats(text, options = {}) {
  * Prepare text for printing: strip ANSI sequences, collapse whitespace,
  * fold unsupported symbols, keep renderable Unicode, drop decorative emoji.
  * @param {unknown} text - Raw snippet text; non-strings become ''.
- * @param {MicroficheNormalizeOptions} [options] - Font hint, reserved.
+ * @param {MicroficheNormalizeOptions} [options] - Font hint for glyph coverage.
  * @returns {string} Normalized printable text.
  */
 export function normalize(text, options = {}) {
@@ -315,7 +315,7 @@ export function normalize(text, options = {}) {
  * Scan text on the same folding path as normalize; unsafe means more than
  * 5% of graphic characters would hit the '?' fallback.
  * @param {unknown} text - Raw snippet text; non-strings scan as safe.
- * @param {MicroficheNormalizeOptions} [options] - Font hint, reserved.
+ * @param {MicroficheNormalizeOptions} [options] - Font hint for glyph coverage.
  * @returns {MicroficheRenderability} Safety verdict and fallback ratio.
  */
 export function scanRenderability(text, options = {}) {

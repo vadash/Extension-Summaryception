@@ -4,6 +4,7 @@
 // and drawing cannot disagree. Row-major grid or two newspaper columns.
 
 import { DIM_OFF, DIM_ON } from './microfiche-normalize.js';
+import { getMicroficheFont } from './microfiche-font-cache.js';
 import {
     DOC_GUTTER,
     charCells,
@@ -24,10 +25,6 @@ const REPEAT_BAND = '#fff7c2';
 
 // Vision processors reject tiny frames, so short pages pad to this height.
 const MIN_FRAME_HEIGHT = 64;
-// Monospace advance runs about 0.6em, so the px size is the cell pitch
-// clamped to the advance-fit width; every fillText lands in its cell box.
-const MONOSPACE_ADVANCE = 0.6;
-const FONT_FAMILY = 'monospace';
 
 /**
  * @param {string} ch - One Unicode character.
@@ -179,12 +176,44 @@ function layoutPage(pageText, shape, cols, rows) {
 }
 
 /**
+ * Blit one glyph's bitmask rows at (`left`, `top`). One fillRect per set
+ * pixel keeps the palette ink exact; rows and columns outside the canvas are
+ * skipped so oversized glyphs clip without a path.
+ * @param {{ ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void }, glyph: import('./microfiche-fonts.js').MicroficheGlyph, left: number, top: number, width: number, height: number }} options - Blit target, glyph, and canvas bounds.
+ * @returns {void}
+ */
+function blitGlyph({ ctx, glyph, left, top, width, height }) {
+    for (let row = 0; row < glyph.rows.length; row += 1) {
+        const bits = glyph.rows[row] ?? 0;
+        if (bits === 0) {
+            continue;
+        }
+        const y = top + row;
+        if (y < 0 || y >= height) {
+            continue;
+        }
+        for (let column = 0; column < glyph.width; column += 1) {
+            if ((bits & (0x80 >> column)) === 0) {
+                continue;
+            }
+            const x = left + column;
+            if (x >= 0 && x < width) {
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+}
+
+/**
  * Draw one normalized page string on an injected canvas. The canvas factory
  * keeps this module host-free: the browser passes document-backed creation
- * while tests record calls. Height hugs the printed rows with a 64px floor.
+ * while tests record calls. Glyphs blit from the parsed bitmap font at natural
+ * size with the baseline at the font ascent from each cell top, so taller
+ * cells pad below the baseline. Height hugs the printed rows with a 64px
+ * floor.
  * @param {string} pageText - Normalized page string with ink toggles.
  * @param {import('./microfiche-geometry.js').MicroficheShape} shape - Render shape.
- * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, font: string, textBaseline: string, fillRect: (x: number, y: number, w: number, h: number) => void, fillText: (text: string, x: number, y: number) => void } }} canvasFactory - Injected canvas source.
+ * @param {(width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }} canvasFactory - Injected canvas source.
  * @returns {MicroficheDrawnPage} Canvas size plus laid-out cells.
  */
 export function drawMicrofichePage(pageText, shape, canvasFactory) {
@@ -193,6 +222,7 @@ export function drawMicrofichePage(pageText, shape, canvasFactory) {
     const contentHeight = usedRows * repeat * shape.cellHeight;
     const height = Math.max(MIN_FRAME_HEIGHT, contentHeight);
     const { canvas, ctx } = canvasFactory(shape.frameSize, height);
+    const font = getMicroficheFont(shape.font);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, shape.frameSize, height);
     // Copies after the first sit on a pale highlight band (redundancy coding).
@@ -207,21 +237,35 @@ export function drawMicrofichePage(pageText, shape, canvasFactory) {
             }
         }
     }
-    ctx.font = `${Math.max(1, Math.min(shape.cellHeight, shape.cellWidth / MONOSPACE_ADVANCE))}px ${FONT_FAMILY}`;
-    ctx.textBaseline = 'top';
     for (const cell of cells) {
         for (let copy = 0; copy < repeat; copy += 1) {
-            const y = (cell.row * repeat + copy) * shape.cellHeight;
-            if (y >= contentHeight) {
+            const cellTop = (cell.row * repeat + copy) * shape.cellHeight;
+            if (cellTop >= contentHeight) {
                 continue;
             }
             if (cell.ch === FULL_BLOCK) {
                 ctx.fillStyle = BLACK_INK;
-                ctx.fillRect(cell.x, y, shape.cellWidth, shape.cellHeight);
+                ctx.fillRect(cell.x, cellTop, shape.cellWidth, shape.cellHeight);
+                continue;
+            }
+            if (font === null) {
+                continue;
+            }
+            const glyph = font.glyphs.get(cell.ch.codePointAt(0) ?? -1);
+            if (glyph === undefined || glyph.rows.length === 0) {
                 continue;
             }
             ctx.fillStyle = cell.ink;
-            ctx.fillText(cell.ch, cell.x, y);
+            const left = cell.x + glyph.xOffset;
+            const top = cellTop + font.ascent - glyph.height - glyph.yOffset;
+            blitGlyph({
+                ctx,
+                glyph,
+                left,
+                top,
+                width: canvas.width,
+                height: canvas.height,
+            });
         }
     }
     return { width: canvas.width, height: canvas.height, cells };

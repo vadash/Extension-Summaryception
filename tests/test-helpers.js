@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { MEMORY_MODES, MEMORY_MODE_PRESETS } from '../src/foundation/constants.js';
+import { installMicroficheFonts } from '../src/core/microfiche-font-cache.js';
+import { MICROFICHE_FONT_FILES, parseMicroficheFont } from '../src/core/microfiche-fonts.js';
 import { createForegroundGate } from '../src/core/foreground-gate.js';
 import { initChatPersistence } from '../src/core/persist-state.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
@@ -11,6 +14,26 @@ import { vi } from 'vitest';
  */
 
 let nextMessageId = 0;
+
+/**
+ * Parse the bundled bitmap fonts from disk and install them for the
+ * synchronous draw and normalize paths. Tests call this once per file because
+ * vitest isolates each file's module graph.
+ * @returns {Record<string, import('../src/core/microfiche-fonts.js').MicroficheFont>} Installed fonts.
+ */
+export function installTestMicroficheFonts() {
+    const fonts = Object.fromEntries(
+        Object.entries(MICROFICHE_FONT_FILES).map(([name, file]) => [
+            name,
+            parseMicroficheFont(
+                name,
+                readFileSync(new URL(`../fonts/${file}`, import.meta.url), 'utf8'),
+            ),
+        ]),
+    );
+    installMicroficheFonts(fonts);
+    return fonts;
+}
 
 /**
  * Build one Foreground Gate for a test, with recorded collaborators and an

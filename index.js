@@ -28,6 +28,7 @@ import { initConnectionUI } from './src/entry/ui-connection.js';
 import { initSettingsHelp } from './src/entry/settings-help.js';
 import { initSettingsTabs } from './src/entry/ui-tabs.js';
 import { createMemoryInjectionWriter } from './src/features/injection.js';
+import { loadMicroficheFonts } from './src/core/microfiche-pages.js';
 import { updateContinuityInjection } from './src/features/continuity-injection.js';
 import { updateContinuityMarker } from './src/entry/continuity-marker.js';
 import {
@@ -54,7 +55,9 @@ import { registerSlashCommands } from './src/entry/commands.js';
     getSettings();
     // The gate's requeue reads the queue lazily; the queue is built next.
     // Microfiche renders on a document canvas so the page source captures the
-    // same laid-out pixels the main LLM receives.
+    // same laid-out pixels the main LLM receives. The bitmap fonts load once
+    // here because the draw path is synchronous.
+    await loadMicroficheFonts();
     const writer = createMemoryInjectionWriter({
         canvasFactory: (width, height) => {
             const canvas = document.createElement('canvas');
