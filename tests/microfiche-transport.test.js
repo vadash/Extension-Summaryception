@@ -6,7 +6,6 @@ import {
     expandMicroficheContent,
     expandMicrofichePromptChat,
     extractMicroficheMarkers,
-    extractMicrofichePageIndices,
     formatMicroficheMarker,
     formatMicroficheRawMarker,
     registerMicroficheStubPage,
@@ -45,7 +44,6 @@ describe('microfiche marker codec', () => {
         expect(rawMarker).toBe('[summaryception-microfiche page=0:raw]');
         expect(rawMarker).not.toBe(formatMicroficheMarker(0));
         expect(extractMicroficheMarkers(rawMarker)).toEqual([{ pageIndex: 0, region: 'raw' }]);
-        expect(extractMicrofichePageIndices(rawMarker)).toEqual([0]);
     });
 
     it('rejects negative and non-integer raw page indexes', () => {
@@ -55,19 +53,22 @@ describe('microfiche marker codec', () => {
 
     it('round-trips page indexes through extract', () => {
         const text = `before ${formatMicroficheMarker(0)} mid ${formatMicroficheMarker(12)} after`;
-        expect(extractMicrofichePageIndices(text)).toEqual([0, 12]);
+        expect(extractMicroficheMarkers(text)).toEqual([
+            { pageIndex: 0, region: 'memory' },
+            { pageIndex: 12, region: 'memory' },
+        ]);
     });
 
     it('ignores narrative, declined, and prose lookalikes', () => {
         const text =
             '<narrative>story</narrative> <declined>busy</declined> [NARRATIVE] page=3 ' +
             '[summaryception-microfiche page=] [summaryception-microfiche]';
-        expect(extractMicrofichePageIndices(text)).toEqual([]);
+        expect(extractMicroficheMarkers(text)).toEqual([]);
     });
 
-    it('returns no indexes for non-string input', () => {
-        expect(extractMicrofichePageIndices(null)).toEqual([]);
-        expect(extractMicrofichePageIndices(42)).toEqual([]);
+    it('returns no markers for non-string input', () => {
+        expect(extractMicroficheMarkers(null)).toEqual([]);
+        expect(extractMicroficheMarkers(42)).toEqual([]);
     });
 });
 

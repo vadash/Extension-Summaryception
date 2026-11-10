@@ -56,7 +56,7 @@ export function buildMemoryBody(layers) {
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} [settings]
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
- * @param {string[] | null} [rawTexts] - Frozen raw-chat slice, oldest first. Falls back to `settings.rawChatTexts` for the two-argument preview/test seam.
+ * @param {string[] | null} [rawTexts] - Frozen raw-chat slice, oldest first.
  * @returns {MemoryInjection}
  */
 export function buildInjection(
@@ -68,12 +68,10 @@ export function buildInjection(
     const source = settings ?? {};
     const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
     const maskMemory = Boolean(source.enabled && source.guardMask && source.guardMaskMemory);
-    const maskRaw = Boolean(source.enabled && source.guardMask);
     const text = memoryText ? renderInjectionTemplate({ memoryText }, source) : '';
     const split = buildMicroficheSplit(layers, source, host, {
         maskMemory,
-        maskRaw,
-        rawChatTexts: rawTexts ?? readTransientRawTexts(source),
+        rawTexts,
     });
     return {
         text: maskMemory ? maskGuardText(text) : text,
@@ -86,29 +84,17 @@ export function buildInjection(
 }
 
 /**
- * The two-argument preview/test seam: a settings object may carry the frozen
- * raw slice directly. Production callers pass it as the fourth argument, so
- * this key is never persisted or normalized.
- * @param {ExtensionSettings} settings
- * @returns {unknown} Raw-chat text array, when present.
- */
-function readTransientRawTexts(settings) {
-    return /** @type {{ rawChatTexts?: unknown }} */ (/** @type {unknown} */ (settings))
-        .rawChatTexts;
-}
-
-/**
  * @param {Array<Array<{ text: string }>>} layers
  * @param {ExtensionSettings} settings
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
- * @param {{ maskMemory?: boolean, maskRaw?: boolean, rawChatTexts?: unknown }} [options] - Slot and raw-chat masking plus the frozen raw-chat slice.
+ * @param {{ maskMemory?: boolean, rawTexts?: unknown }} [options] - Slot masking plus the frozen raw-chat slice.
  * @returns {{ microfiche: import('./microfiche-policy.js').MicrofichePlan | null, microficheRaw: import('./microfiche-policy.js').MicroficheRawPlan | null }}
  */
 function buildMicroficheSplit(
     layers,
     settings,
     host = null,
-    { maskMemory = false, maskRaw = false, rawChatTexts = null } = {},
+    { maskMemory = false, rawTexts = null } = {},
 ) {
     const empty = { microfiche: null, microficheRaw: null };
     if (settings?.memoryMode !== MEMORY_MODES.MICROFICHE) {
@@ -120,8 +106,8 @@ function buildMicroficheSplit(
     }
     const planSettings = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (settings));
     const microfiche = buildMemoryPlanEntry(layers, planSettings, host, maskMemory);
-    const rawTexts = maskRawChatTexts(rawChatTexts, maskRaw);
-    const microficheRaw = buildMicroficheRawPlan(rawTexts, planSettings, host, microfiche);
+    const rawSlice = normalizeRawTexts(rawTexts);
+    const microficheRaw = buildMicroficheRawPlan(rawSlice, planSettings, host, microfiche);
     return { microfiche, microficheRaw };
 }
 
@@ -152,17 +138,14 @@ function buildMemoryPlanEntry(layers, settings, host, maskMemory) {
 }
 
 /**
- * @param {unknown} rawChatTexts - Frozen raw-chat slice, oldest first.
- * @param {boolean} maskRaw - Whether the caller masks the outgoing raw chat.
+ * @param {unknown} rawTexts - Frozen raw-chat slice, oldest first.
  * @returns {string[]} String slice in place order.
  */
-function maskRawChatTexts(rawChatTexts, maskRaw) {
-    if (!Array.isArray(rawChatTexts)) {
+function normalizeRawTexts(rawTexts) {
+    if (!Array.isArray(rawTexts)) {
         return [];
     }
-    return rawChatTexts
-        .filter((text) => typeof text === 'string' && text.length > 0)
-        .map((text) => (maskRaw ? maskGuardText(text) : text));
+    return rawTexts.filter((text) => typeof text === 'string' && text.length > 0);
 }
 
 /**

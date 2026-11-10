@@ -12,13 +12,11 @@ import { resolveMicroficheShape } from '../src/core/microfiche-paginate.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
 import { createMicrofichePageSource } from '../src/core/microfiche-pages.js';
 import {
-    expandMicrofichePromptChat,
     extractMicroficheMarkers,
-    extractMicrofichePageIndices,
     formatMicroficheMarker,
     formatMicroficheRawMarker,
 } from '../src/core/microfiche-transport.js';
-import { describeDryRunPrompt } from '../src/entry/dryrun-viewer.js';
+import { describeDryRunPrompt, expandCapturedChat } from '../src/entry/dryrun-viewer.js';
 import { onChatChanged, onChatCompletionPromptReady } from '../src/entry/events.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { installSummaryContext, makeMessages, makeSummaryStore } from './test-helpers.js';
@@ -546,7 +544,9 @@ describe('memory injection writer microfiche markers', () => {
         const text = setExtensionPrompt.mock.calls[0][1];
         const pages = readAllPages(writer);
         expect(pages.length).toBeGreaterThan(0);
-        expect(extractMicrofichePageIndices(text)).toEqual(pages.map((_, index) => index));
+        expect(extractMicroficheMarkers(text)).toEqual(
+            pages.map((_page, index) => ({ pageIndex: index, region: 'memory' })),
+        );
         expect(text).not.toContain(pages[0].text);
     });
 
@@ -642,18 +642,21 @@ describe('memory injection writer microfiche markers', () => {
         writer.update();
 
         const text = setExtensionPrompt.mock.calls[0][1];
-        const expandedChat = [{ role: 'system', content: text }];
-        expect(
-            expandMicrofichePromptChat(expandedChat, writer.resolveMicrofichePage),
-        ).toBeGreaterThan(0);
+        const expanded = expandCapturedChat(
+            [{ role: 'system', content: text }],
+            writer.resolveMicrofichePage,
+        );
+        expect(expanded.resolvedMarkers).toBeGreaterThan(0);
+        expect(expanded.unresolvedMarkers).toEqual([]);
         const view = describeDryRunPrompt({
-            chat: expandedChat,
+            chat: expanded.chat,
             epoch: getSummaryStoreMutationEpoch(getChatStore()),
             settings: getEffectiveSettings(),
-            resolvedMarkers: 1,
-            unresolvedMarkers: [],
+            resolvedMarkers: expanded.resolvedMarkers,
+            unresolvedMarkers: expanded.unresolvedMarkers,
             promptManagerReady: true,
         });
+        expect(view.imageParts).toBe(expanded.resolvedMarkers);
         expect(view.imageParts).toBeGreaterThan(0);
     });
 

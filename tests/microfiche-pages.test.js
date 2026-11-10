@@ -17,6 +17,7 @@ import {
     expandMicrofichePromptChat,
     formatMicroficheMarker,
 } from '../src/core/microfiche-transport.js';
+import { makeRawChatSlice } from './test-helpers.js';
 
 // Pagination, the split plan, and the page source seam live here: this suite
 // pins page strings, split order, and marker expansion. It never compares PNG
@@ -79,10 +80,7 @@ describe('microfiche splitMicroficheTexts', () => {
 });
 
 describe('microfiche frozen-raw plan', () => {
-    const rawChat = Array.from(
-        { length: 9 },
-        (_, index) => `Message ${index} ` + 'lorem ipsum dolor sit amet '.repeat(600),
-    );
+    const rawChat = makeRawChatSlice(9);
     const rawSettings = {
         ...GEMINI_KNOBS,
         memoryMode: 'microfiche',
@@ -95,7 +93,7 @@ describe('microfiche frozen-raw plan', () => {
     };
 
     it('images the oldest raw pages with empty memory layers', () => {
-        const injection = buildInjection([], { ...rawSettings, rawChatTexts: rawChat });
+        const injection = buildInjection([], rawSettings, null, rawChat);
         expect(injection.microfiche).toBeNull();
         expect(injection.microficheRaw).not.toBeNull();
         expect(injection.microficheRaw.imageTexts.length).toBeGreaterThan(0);
@@ -104,17 +102,14 @@ describe('microfiche frozen-raw plan', () => {
     it('leaves the memory plan unchanged when frozen raw imaging is on', () => {
         const layers = [[{ text: 'word '.repeat(500) }]];
         const withoutRaw = buildInjection(layers, rawSettings);
-        const withRaw = buildInjection(layers, {
-            ...rawSettings,
-            rawChatTexts: rawChat,
-        });
+        const withRaw = buildInjection(layers, rawSettings, null, rawChat);
         expect(withRaw.microfiche).toEqual(withoutRaw.microfiche);
         expect(withRaw.microficheRaw).not.toBeNull();
     });
 
     it('keeps the page after the cap in rawTexts', () => {
-        const settings = { ...rawSettings, microficheImageCap: 5, rawChatTexts: rawChat };
-        const injection = buildInjection([], settings);
+        const settings = { ...rawSettings, microficheImageCap: 5 };
+        const injection = buildInjection([], settings, null, rawChat);
         const shape = injection.microficheRaw.shape;
         const pages = buildMicrofichePageTexts(rawChat, shape).imageTexts;
         expect(pages.length).toBeGreaterThan(5);
@@ -123,11 +118,12 @@ describe('microfiche frozen-raw plan', () => {
     });
 
     it('leaves the region off when the frozen-raw toggle is off', () => {
-        const injection = buildInjection([], {
-            ...rawSettings,
-            microficheFrozenRawImages: false,
-            rawChatTexts: rawChat,
-        });
+        const injection = buildInjection(
+            [],
+            { ...rawSettings, microficheFrozenRawImages: false },
+            null,
+            rawChat,
+        );
         expect(injection.microficheRaw).toBeNull();
     });
 
@@ -138,16 +134,15 @@ describe('microfiche frozen-raw plan', () => {
     });
 
     it('bills raw image tokens from the one raw bucket', () => {
-        const settings = { ...rawSettings, rawChatTexts: rawChat };
-        const injection = buildInjection([], settings);
+        const injection = buildInjection([], rawSettings, null, rawChat);
         const images = injection.microficheRaw.imageTexts.length;
         const imageTokens = images * injection.microficheRaw.frameTokenEstimate;
-        const billing = describeMicroficheBilling(injection, settings);
+        const billing = describeMicroficheBilling(injection, rawSettings);
         expect(billing.images).toBe(images);
         expect(billing.imageTokens).toBe(imageTokens);
         expect(billing.bucketAfterImages).toBe(36000 - imageTokens);
-        const noImages = estimateContextPreview(settings, null);
-        const preview = estimateContextPreview(settings, injection);
+        const noImages = estimateContextPreview(rawSettings, null);
+        const preview = estimateContextPreview(rawSettings, injection);
         expect(preview.rawChatMax).toBe(noImages.rawChatMax - imageTokens);
         expect(preview.mainMax).toBe(noImages.mainMax);
     });
@@ -165,10 +160,7 @@ describe('microfiche frozen-raw plan', () => {
             queuedTokenBudget: 5000,
             microficheFrozenRawImages: true,
         };
-        const slice = Array.from(
-            { length: 3 },
-            (_, index) => `Message ${index} ` + 'lorem ipsum dolor sit amet '.repeat(600),
-        );
+        const slice = makeRawChatSlice(3);
         const plan = buildMicroficheRawPlan(slice, settings, {});
         expect(plan.effectiveCap).toBe(2);
         expect(plan.imageTexts.length).toBe(2);

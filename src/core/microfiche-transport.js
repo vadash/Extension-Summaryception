@@ -97,17 +97,6 @@ export function extractMicroficheMarkers(text) {
 }
 
 /**
- * List every page index referenced by markers in the text, in encounter order.
- * Region-tagged raw indexes share the numeric namespace with memory indexes,
- * so callers that need identity must use {@link extractMicroficheMarkers}.
- * @param {unknown} text - Candidate slot text.
- * @returns {number[]} Page indexes in encounter order.
- */
-export function extractMicrofichePageIndices(text) {
-    return extractMicroficheMarkers(text).map((marker) => marker.pageIndex);
-}
-
-/**
  * Stage one stub page for send-time expansion. Test and preview seam only;
  * the real renderer registers its own pages in a later ticket. Raw pages use
  * their own key space so a raw stub never resolves a memory page.

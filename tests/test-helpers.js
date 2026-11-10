@@ -112,6 +112,14 @@ export function makeLongMessages(count, length = 3000) {
     return makeMessages(count, { mes: 'x'.repeat(length) });
 }
 
+/** Build an oldest-first raw-chat slice of long messages for frozen-raw imaging tests. */
+export function makeRawChatSlice(count) {
+    return Array.from(
+        { length: count },
+        (_value, index) => `Message ${index} ` + 'lorem ipsum dolor sit amet '.repeat(600),
+    );
+}
+
 /** Build alternating user/assistant chat with fixed message sizes, ending on an assistant turn. */
 export function makeSizedChat(turnCount, { userLength = 100, assistantLength = 100 } = {}) {
     return Array.from({ length: Math.max(0, turnCount) * 2 }, (_value, index) =>

@@ -387,12 +387,12 @@ Code: `buildMicrofichePlan` / `splitMicroficheTexts` (src/core/microfiche-policy
 _Avoid_: fill threshold, image trigger
 
 **Raw Seal**:
-The frozen raw-chat slice, taken from the Verbatim Window plus Queued span, computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw imaging works without memory, so a fresh chat with no snippets still images this slice. While no snippet exists there is no epoch bump to thaw an underfilled first seal, so the slice re-seals as the chat grows; the first snippet starts the per-epoch freeze. Once memory exists, raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
+The frozen raw-chat slice, taken from the Verbatim Window plus queued span, computed once per Mutation Epoch and reused verbatim until the next bump clears it; tail growth ships as text and a render only reads the epoch as its cache key. Raw imaging works without memory, so a fresh chat with no snippets still images this slice. While no snippet exists there is no epoch bump to thaw an underfilled first seal, so the slice re-seals as the chat grows; the first snippet starts the per-epoch freeze. Once memory exists, raw-chat growth does not bump the store epoch, so re-slicing each generation would re-hash page keys and break provider prefix-cache stability.
 Code: `update` / `readPage` (src/core/microfiche-pages.js)
 _Avoid_: frozen tail, raw snapshot
 
 **Frozen Raw Images**:
-The Microfiche region that renders Raw Seal pages from the Verbatim Window plus Queued span, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone.
+The Microfiche region that renders Raw Seal pages from the Verbatim Window plus queued span, independent of memory; `microficheFrozenRawImages` gates this region alone while Memory Images gates memory pages alone.
 Code: `update` / `readPage` (src/core/microfiche-pages.js); `applyMicroficheMarkers` (src/features/injection.js)
 _Avoid_: raw chat images, frozen chat images
 
