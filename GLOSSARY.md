@@ -60,7 +60,7 @@ Ownership sync derives the desired ghosted ids from Snippet provenance across al
 Code: `syncGhosting` (src/core/ghosting.js)
 
 **Guard Mask**:
-The outgoing-only rewrite that replaces every `U+0020` with `$$` in user and assistant message content at the main-prompt seam, plus the Memory slot text when memory masking is on; chat storage, stored memories, and the summarizer family keep normal spaces. The Dry-Run Preview re-applies it to its clone, so the preview shows the masked form.
+The model-gated outgoing rewrite at the main-prompt seam. ENABLED (guard toggle on plus an active model name carrying `argon` or `gemini`) replaces every `U+0020` with `$$` in user and assistant message content, plus the Memory slot text when memory masking is on; DISABLED (any other model, or the toggle off) folds every literal `$$` in that content back to one space. Chat storage, stored memories, and the summarizer family keep normal spaces. The Dry-Run Preview re-applies it to its clone, so the preview shows the masked form.
 Code: `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js)
 _Avoid_: $$ mode, dollar mode
 

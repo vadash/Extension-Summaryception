@@ -56,6 +56,7 @@ function installPromptHost({ eventSource, settings = makeGuardSettings() }) {
     const ctx = installSummaryContext({ promptManager: { serviceSettings: {} }, settings });
     const mocks = /** @type {any} */ (globalThis).summaryceptionFoundationMocks.context;
     mocks.getMainApi.mockReturnValue('openai');
+    mocks.getActiveModelName.mockReturnValue('gemini-2.5-pro');
     mocks.getEventSource.mockReturnValue(eventSource);
     mocks.getEventTypes.mockReturnValue({ CHAT_COMPLETION_PROMPT_READY: EVENT_NAME });
     mocks.getPromptManager.mockImplementation(() => ctx.promptManager ?? null);

@@ -2,7 +2,7 @@ import { MEMORY_MODES, MICROFICHE_GEOMETRY_PRESETS } from '../foundation/constan
 import { getEffectiveSettings } from '../foundation/settings.js';
 import { buildMicrofichePlan, buildMicroficheRawPlan } from './microfiche-policy.js';
 import { formatAnchoredSnippetNarrative, formatSnippetAnchor } from './snippet-metadata.js';
-import { maskGuardText } from './guard-mask.js';
+import { isGuardMaskEnabled, maskGuardText } from './guard-mask.js';
 import { countTextTokens } from './token-count.js';
 
 /**
@@ -66,7 +66,9 @@ export function buildInjection(
 ) {
     const source = settings ?? {};
     const { chronologyParts, memoryText } = buildMemoryInjectionParts(layers);
-    const maskMemory = Boolean(source.enabled && source.guardMask && source.guardMaskMemory);
+    const maskMemory = Boolean(
+        source.enabled && source.guardMaskMemory && isGuardMaskEnabled(source),
+    );
     const text = memoryText ? renderInjectionTemplate({ memoryText }, source) : '';
     const split = buildMicroficheSplit(layers, source, host, {
         maskMemory,

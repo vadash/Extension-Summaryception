@@ -335,6 +335,10 @@ interface SillyTavernContext {
     promptManager?: SillyTavernPromptManager;
     /** Active host API family, e.g. 'openai' for chat completion. */
     mainApi?: string;
+    /** Live connection model name, e.g. 'Connected'. */
+    onlineStatus?: string;
+    /** Resolve the active chat-completion model for the selected source. */
+    getChatCompletionModel?: (settings?: unknown) => string;
     Popup?: SillyTavernPopup;
     POPUP_TYPE?: Record<string, number>;
     POPUP_RESULT?: Record<string, number>;

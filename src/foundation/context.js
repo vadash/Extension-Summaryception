@@ -251,6 +251,32 @@ export function getMainApi() {
 }
 
 /**
+ * Active generation model name behind the assembled prompt. Mirrors the host
+ * getGeneratingModel routing: chat completion uses the selected completion
+ * model, other APIs report the connection status holding the model name.
+ * Missing host or model reads as empty, which never matches the Guard gate.
+ * @returns {string}
+ */
+export function getActiveModelName() {
+    try {
+        const ctx = getContext();
+        const api = String(ctx?.mainApi ?? '');
+        if (api === 'textgenerationwebui' || api === 'kobold' || api === 'koboldhorde') {
+            return String(ctx?.onlineStatus ?? '');
+        }
+        if (typeof ctx?.getChatCompletionModel === 'function') {
+            const model = ctx.getChatCompletionModel();
+            if (typeof model === 'string' && model) {
+                return model;
+            }
+        }
+        return '';
+    } catch (_e) {
+        return '';
+    }
+}
+
+/**
  * Fire the host's dry-run chat-completion assembly. `generate` takes the
  * dry-run flag as its third argument, mirrors SillyTavern's own
  * prompt-manager tryGenerate, and spends no tokens.

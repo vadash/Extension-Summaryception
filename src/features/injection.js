@@ -17,7 +17,7 @@ import {
     selectSealedRegions,
 } from '../core/microfiche-pages.js';
 import { formatMicroficheMarker, formatMicroficheRawMarker } from '../core/microfiche-transport.js';
-import { maskGuardText } from '../core/guard-mask.js';
+import { isGuardMaskEnabled, maskGuardText } from '../core/guard-mask.js';
 
 // ─── Injection via setExtensionPrompt ────────────────────────────────
 
@@ -257,7 +257,7 @@ function formatMemoryRegionText(plan) {
  */
 function renderMemoryRegion(memoryText, settings) {
     const template =
-        settings.guardMask === true && settings.guardMaskMemory === true
+        settings.guardMaskMemory === true && isGuardMaskEnabled(settings)
             ? maskGuardText(String(settings.injectionTemplate || '{{summary}}'))
             : null;
     return renderInjectionTemplate(

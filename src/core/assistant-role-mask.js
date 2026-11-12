@@ -9,7 +9,7 @@ import { isPlainObject } from '../foundation/objects.js';
 import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 import { getChatStore } from '../foundation/chat-store.js';
-import { maskGuardContent } from './guard-mask.js';
+import { isGuardMaskEnabled, maskGuardContent } from './guard-mask.js';
 import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
 
 /**
@@ -47,7 +47,12 @@ export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {
  * @returns {string | null} The slot text built with memory masking off, else null.
  */
 function getUnmaskedMemorySlotContent(messages, settings) {
-    if (!messages || !settings.enabled || !settings.guardMask || settings.guardMaskMemory) {
+    if (
+        !messages ||
+        !settings.enabled ||
+        settings.guardMaskMemory ||
+        !isGuardMaskEnabled(settings)
+    ) {
         return null;
     }
     const couldCarrySlot = messages.some(

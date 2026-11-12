@@ -255,11 +255,11 @@ const HELP_ENTRIES = [
         basicHelp({
             selector: selectorFor('sc_guard_mask'),
             title: 'Gemini Argoon $$ jailbreak',
-            short: 'Replaces spaces with $$ in chat text sent to the main story model. Storage and the summarizer keep normal text.',
+            short: 'Masks spaces as $$ for argon and gemini models, restores spaces for anything else. Storage and the summarizer keep normal text.',
             controls: [controlFor('sc_guard_mask')],
             controlsText:
-                'Rewrites the chat text of every outgoing main story request with spaces replaced by $$. The mask never touches saved chat or any summarizer request.',
-            when: 'Turn it on when your Gemini jailbreak expects the $$ form in the main story prompt.',
+                'Replaces spaces with $$ in user and assistant chat text when the active model name carries argon or gemini, and folds $$ back to spaces for any other model. The mask never touches saved chat or any summarizer request.',
+            when: 'Turn it on when your jailbreak expects the $$ form in the main story prompt on argon or gemini models.',
             risk: 'Every space becomes two characters, so the main request grows and the model may echo $$ in its reply.',
         }),
     ],

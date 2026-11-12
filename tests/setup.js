@@ -54,6 +54,7 @@ const foundationMocks = vi.hoisted(() => {
         getEventSource: vi.fn(),
         getEventTypes: vi.fn(),
         getMainApi: vi.fn(),
+        getActiveModelName: vi.fn(),
         runDryRunGenerate: vi.fn(),
         getPopupApi: vi.fn(),
         getStreamingProcessor: vi.fn(),
@@ -159,6 +160,24 @@ const foundationMocks = vi.hoisted(() => {
             () => getContext().eventTypes || getContext().event_types || null,
         );
         context.getMainApi.mockImplementation(() => String(getContext().mainApi ?? ''));
+        context.getActiveModelName.mockImplementation(() => {
+            try {
+                const ctx = getContext();
+                const api = String(ctx?.mainApi ?? '');
+                if (api === 'textgenerationwebui' || api === 'kobold' || api === 'koboldhorde') {
+                    return String(ctx?.onlineStatus ?? '');
+                }
+                if (typeof ctx?.getChatCompletionModel === 'function') {
+                    const model = ctx.getChatCompletionModel();
+                    if (typeof model === 'string' && model) {
+                        return model;
+                    }
+                }
+                return '';
+            } catch {
+                return '';
+            }
+        });
         context.runDryRunGenerate.mockImplementation(async () => {
             const ctx = getContext();
             if (typeof ctx.generate !== 'function') {

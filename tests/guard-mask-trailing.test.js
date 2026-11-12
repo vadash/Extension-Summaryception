@@ -13,13 +13,16 @@ const PRESET_THREE = 'Third preset reasoning block.';
 
 /** Guard settings with the trailing Preset CoT policy a test names. */
 function guardSettings(overrides = {}) {
+    const { modelName, ...rest } = overrides;
+    const mocks = globalThis.summaryceptionFoundationMocks?.context;
+    mocks?.getActiveModelName?.mockReturnValue(modelName ?? 'gemini-2.5-pro');
     return {
         enabled: true,
         guardMask: true,
         guardMaskMemory: true,
         guardMaskCotMode: 'auto',
         guardMaskCotCount: 2,
-        ...overrides,
+        ...rest,
     };
 }
 
@@ -261,5 +264,63 @@ describe('guard mask trailing exemption through the outgoing seam', () => {
         expect(preview).toEqual(live);
         expect(preview[4].content).toBe(PRESET_ONE);
         expect(preview[3].content).toBe('I$$open$$the$$door.');
+    });
+});
+
+describe('guard mask model gate', () => {
+    it('masks spaces on an argon model name', () => {
+        installLiveChat();
+        const messages = [{ role: 'user', content: 'hello world' }];
+
+        maskGuardContent(
+            messages,
+            guardSettings({ guardMaskCotMode: 'off', modelName: 'Argon-Gemini-1' }),
+        );
+
+        expect(messages[0].content).toBe('hello$$world');
+    });
+
+    it('unmasks $$ on a non-matching model while the toggle stays on', () => {
+        installLiveChat();
+        const messages = [
+            { role: 'user', content: 'hello$$world' },
+            { role: 'assistant', content: [{ type: 'text', text: 'hi$$there' }] },
+        ];
+
+        maskGuardContent(
+            messages,
+            guardSettings({ guardMaskCotMode: 'off', modelName: 'gpt-4o-mini' }),
+        );
+
+        expect(messages[0].content).toBe('hello world');
+        expect(messages[1].content).toEqual([{ type: 'text', text: 'hi there' }]);
+    });
+
+    it('unmasks $$ while the toggle is off on a matching model', () => {
+        installLiveChat();
+        const messages = [{ role: 'user', content: 'hello$$world' }];
+
+        maskGuardContent(
+            messages,
+            guardSettings({
+                guardMask: false,
+                guardMaskCotMode: 'off',
+                modelName: 'gemini-2.5-pro',
+            }),
+        );
+
+        expect(messages[0].content).toBe('hello world');
+    });
+
+    it('leaves user and assistant text alone when the extension is off', () => {
+        installLiveChat();
+        const messages = [{ role: 'user', content: 'hello$$world' }];
+
+        maskGuardContent(
+            messages,
+            guardSettings({ enabled: false, guardMaskCotMode: 'off', modelName: 'gemini-2.5-pro' }),
+        );
+
+        expect(messages[0].content).toBe('hello$$world');
     });
 });
