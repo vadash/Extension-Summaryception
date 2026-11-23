@@ -1,9 +1,10 @@
 /**
- * Outgoing-space guard: the main-prompt copy replaces every U+0020 with `$$`,
- * while summarizer inputs fold any `$$` back to one space (ADR-0036, ADR-0037).
+ * Outgoing-space guard: the main-prompt copy encodes each run of horizontal
+ * whitespace as one U+2800 BRAILLE PATTERN BLANK, while summarizer inputs fold
+ * both U+2800 and any legacy `$$` form back to spaces (ADR-0036, ADR-0037).
  * The mask is outgoing-only: chat and storage never carry it by construction,
- * but pasted or echoed `$$` still reaches the summarizer, so every
- * summarizer-side read folds it back to one space.
+ * but pasted or echoed mask characters still reach the summarizer, so every
+ * summarizer-side read folds them back.
  */
 
 import {
@@ -14,24 +15,28 @@ import {
 import { getActiveModelName, getChat } from '../foundation/context.js';
 import { clampInteger } from '../foundation/numeric.js';
 
+const BRAILLE_BLANK = '\u2800';
+const HORIZONTAL_WHITESPACE_RUN = /[^\S\r\n]+/g;
+const MASKED_SPACE = /\$\$|\u2800/g;
+
 /**
- * Replace every U+0020 with `$$`. The replacer is a function so `$` sequences
- * in the text are inserted literally instead of being read as replacement
- * patterns.
+ * Replace each run of horizontal whitespace with one U+2800 BRAILLE PATTERN
+ * BLANK. Newlines survive untouched, an existing U+2800 stays as-is so a
+ * second pass changes nothing, and letters are never split.
  * @param {string} text
  * @returns {string}
  */
 export function maskGuardText(text) {
-    return typeof text === 'string' ? text.replaceAll(' ', () => '$$') : text;
+    return typeof text === 'string' ? text.replace(HORIZONTAL_WHITESPACE_RUN, BRAILLE_BLANK) : text;
 }
 
 /**
- * Fold every literal `$$` back to one U+0020.
+ * Fold every U+2800 and every legacy `$$` back to one U+0020 each.
  * @param {string} text
  * @returns {string}
  */
 export function unmaskGuardText(text) {
-    return typeof text === 'string' ? text.replaceAll('$$', ' ') : text;
+    return typeof text === 'string' ? text.replace(MASKED_SPACE, ' ') : text;
 }
 
 /**
@@ -81,18 +86,18 @@ export function maskGuardContentParts(content) {
 /**
  * The Guard Mask model gate: the mask is ENABLED only when the extension and
  * the guard toggle are on and the active generation model name carries
- * 'argon' or 'gemini' (case-insensitive). Every other state is DISABLED.
- * ENABLED replaces every U+0020 in outgoing user and assistant message
- * content with `$$`; DISABLED folds every literal `$$` in that
- * content back to one space, so a pasted or echoed mask never leaks through
- * behind a non-matching model. Speaker names, tool payloads, and system or
- * developer blocks stay untouched either way. The Memory slot keeps its own
- * gate in memory-injection.js: buildInjection masks the slot text when memory
- * masking is on. When that gate is off, the caller passes the unmasked slot
- * text as `skipContent` so this pass leaves it alone. Trailing user-role
- * Preset CoT messages after the last chat message stay unmasked up to the
- * configured window. Runs last at the GENERATE_AFTER_DATA seam, after the
- * user-role rewrite.
+ * 'argon', 'opus', or 'gemini' (case-insensitive). Every other state is
+ * DISABLED. ENABLED encodes each run of horizontal whitespace in outgoing user
+ * and assistant message content as one U+2800 BRAILLE PATTERN BLANK; DISABLED
+ * folds every U+2800 and every legacy `$$` in that content back to one space,
+ * so a pasted or echoed mask never leaks through behind a non-matching model.
+ * Speaker names, tool payloads, and system or developer blocks stay untouched
+ * either way. The Memory slot keeps its own gate in memory-injection.js:
+ * buildInjection masks the slot text when memory masking is on. When that gate
+ * is off, the caller passes the unmasked slot text as `skipContent` so this
+ * pass leaves it alone. Trailing user-role Preset CoT messages after the last
+ * chat message stay unmasked up to the configured window. Runs last at the
+ * GENERATE_AFTER_DATA seam, after the user-role rewrite.
  * @param {Array<{ role?: unknown, content?: unknown }> | null} messages
  * @param {{ enabled?: unknown, guardMask?: unknown, guardMaskCotMode?: unknown, guardMaskCotCount?: unknown }} [settings]
  * @param {string | null} [skipContent] - Exact message content to leave unmasked.
@@ -139,9 +144,10 @@ function applyGuardMask(messages, settings, skipContent) {
 }
 
 /**
- * DISABLED branch: fold every literal `$$` in user and assistant content back
- * to one space. No exemptions and no slot skip: pasted or echoed `$$` must not
- * survive behind a non-matching model.
+ * DISABLED branch: fold every U+2800 and every legacy `$$` in user and
+ * assistant content back to one space each. No exemptions and no slot skip:
+ * pasted or echoed mask characters must not survive behind a non-matching
+ * model.
  * @param {Array<{ role?: unknown, content?: unknown }>} messages
  * @returns {void}
  */
@@ -160,7 +166,8 @@ function applyGuardUnmask(messages) {
 
 /**
  * ENABLED only when the guard toggle is on and the active generation model
- * name carries 'argon' or 'gemini'. Unknown or unreadable models read DISABLED.
+ * name carries 'argon', 'opus', or 'gemini'. Unknown or unreadable models read
+ * DISABLED.
  * @param {{ guardMask?: unknown }} [settings]
  * @returns {boolean}
  */
@@ -168,7 +175,7 @@ export function isGuardMaskEnabled(settings = {}) {
     if (!settings.guardMask) {
         return false;
     }
-    return /argon|gemini/i.test(getActiveModelName());
+    return /argon|opus|gemini/i.test(getActiveModelName());
 }
 
 /**

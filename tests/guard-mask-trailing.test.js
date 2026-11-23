@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { maskGuardContent } from '../src/core/guard-mask.js';
+import {
+    isGuardMaskEnabled,
+    maskGuardContent,
+    maskGuardText,
+    unmaskGuardText,
+} from '../src/core/guard-mask.js';
 import { maskUserRoleAsAssistantInGenerateData } from '../src/core/assistant-role-mask.js';
 import { applyOutgoingSeamToPreview } from '../src/entry/dryrun-viewer.js';
 import { defaultSettings } from '../src/foundation/constants.js';
 import { installSummaryContext } from './test-helpers.js';
 
+const B = '\u2800';
 const LAST_CHAT = 'I open the door.';
 const PRESET_ONE = 'Think step by step before answering.';
 const PRESET_TWO = 'Second preset reasoning block.';
@@ -55,9 +61,9 @@ describe('guard mask trailing Preset CoT exemption', () => {
         maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
 
         expect(messages[4].content).toBe(PRESET_ONE);
-        expect(messages[1].content).toBe('Earlier$$chat$$line.');
-        expect(messages[2].content).toBe('Earlier$$chat$$reply.');
-        expect(messages[3].content).toBe('I$$open$$the$$door.');
+        expect(messages[1].content).toBe(`Earlier${B}chat${B}line.`);
+        expect(messages[2].content).toBe(`Earlier${B}chat${B}reply.`);
+        expect(messages[3].content).toBe(`I${B}open${B}the${B}door.`);
     });
 
     it('auto exempts exactly two trailing user messages regardless of the slider', () => {
@@ -77,8 +83,8 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         expect(messages[2].content).toBe(PRESET_ONE);
         expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[4].content).toBe('Third$$preset$$reasoning$$block.');
-        expect(messages[1].content).toBe('I$$open$$the$$door.');
+        expect(messages[4].content).toBe(`Third${B}preset${B}reasoning${B}block.`);
+        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
     });
 
     it('on clamps the slider to the declared 1-5 bounds', () => {
@@ -101,7 +107,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
             'preset reasoning 3',
             'preset reasoning 4',
         ]);
-        expect(messages[7].content).toBe('preset$$reasoning$$5');
+        expect(messages[7].content).toBe(`preset${B}reasoning${B}5`);
     });
 
     it('a missing mode behaves as auto', () => {
@@ -121,7 +127,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         expect(messages[2].content).toBe(PRESET_ONE);
         expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[4].content).toBe('Third$$preset$$reasoning$$block.');
+        expect(messages[4].content).toBe(`Third${B}preset${B}reasoning${B}block.`);
     });
 
     it('off masks every trailing preset and every chat message', () => {
@@ -138,9 +144,9 @@ describe('guard mask trailing Preset CoT exemption', () => {
             guardSettings({ guardMaskCotMode: 'off', guardMaskCotCount: 3 }),
         );
 
-        expect(messages[1].content).toBe('I$$open$$the$$door.');
-        expect(messages[2].content).toBe('Think$$step$$by$$step$$before$$answering.');
-        expect(messages[3].content).toBe('Second$$preset$$reasoning$$block.');
+        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
+        expect(messages[2].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
+        expect(messages[3].content).toBe(`Second${B}preset${B}reasoning${B}block.`);
     });
 
     it('on with a slider above the available tail stops at the available messages', () => {
@@ -156,7 +162,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         expect(messages[2].content).toBe(PRESET_ONE);
         expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[1].content).toBe('I$$open$$the$$door.');
+        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
     });
 
     it('a trailing assistant preset message stays masked and does not consume the window', () => {
@@ -172,7 +178,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
         maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
 
         expect(messages[2].content).toBe(PRESET_ONE);
-        expect(messages[3].content).toBe('assistant$$preset$$bias$$text');
+        expect(messages[3].content).toBe(`assistant${B}preset${B}bias${B}text`);
         expect(messages[4].content).toBe(PRESET_TWO);
     });
 
@@ -186,8 +192,8 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
 
-        expect(messages[1].content).toBe('Earlier$$chat$$line.');
-        expect(messages[2].content).toBe('Think$$step$$by$$step$$before$$answering.');
+        expect(messages[1].content).toBe(`Earlier${B}chat${B}line.`);
+        expect(messages[2].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
     });
 
     it('matches an anchor that the host flattened behind a speaker name', () => {
@@ -200,7 +206,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
 
-        expect(messages[1].content).toBe('Player1:$$I$$open$$the$$door.');
+        expect(messages[1].content).toBe(`Player1:${B}I${B}open${B}the${B}door.`);
         expect(messages[2].content).toBe(PRESET_ONE);
     });
 
@@ -220,7 +226,7 @@ describe('guard mask trailing Preset CoT exemption', () => {
 
         maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
 
-        expect(messages[1].content).toBe('I$$open$$the$$door.');
+        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
         expect(messages[2].content).toEqual([
             { type: 'text', text: PRESET_ONE },
             { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
@@ -247,9 +253,9 @@ describe('guard mask trailing exemption through the outgoing seam', () => {
             }),
         );
 
-        expect(messages[2].content).toBe('I$$open$$the$$door.');
+        expect(messages[2].content).toBe(`I${B}open${B}the${B}door.`);
         expect(messages[3].role).toBe('assistant');
-        expect(messages[3].content).toBe('Think$$step$$by$$step$$before$$answering.');
+        expect(messages[3].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
     });
 
     it('the Dry-Run Preview clone matches the live prompt through the same seam', () => {
@@ -263,7 +269,7 @@ describe('guard mask trailing exemption through the outgoing seam', () => {
 
         expect(preview).toEqual(live);
         expect(preview[4].content).toBe(PRESET_ONE);
-        expect(preview[3].content).toBe('I$$open$$the$$door.');
+        expect(preview[3].content).toBe(`I${B}open${B}the${B}door.`);
     });
 });
 
@@ -277,7 +283,39 @@ describe('guard mask model gate', () => {
             guardSettings({ guardMaskCotMode: 'off', modelName: 'Argon-Gemini-1' }),
         );
 
-        expect(messages[0].content).toBe('hello$$world');
+        expect(messages[0].content).toBe(`hello${B}world`);
+    });
+
+    it('masks on an opus model name', () => {
+        installLiveChat();
+        const messages = [{ role: 'user', content: 'hello world' }];
+
+        maskGuardContent(
+            messages,
+            guardSettings({ guardMaskCotMode: 'off', modelName: 'claude-opus-4-6' }),
+        );
+
+        expect(messages[0].content).toBe(`hello${B}world`);
+    });
+
+    it('reads the gate case-insensitively for opus', () => {
+        installLiveChat();
+        guardSettings({ guardMaskCotMode: 'off', modelName: 'CLAUDE-OPUS-4-6' });
+
+        expect(isGuardMaskEnabled({ guardMask: true })).toBe(true);
+        expect(isGuardMaskEnabled({ guardMask: false })).toBe(false);
+    });
+
+    it('folds an echoed braille blank behind a non-matching model', () => {
+        installLiveChat();
+        const messages = [{ role: 'user', content: `hello${B}world$$again` }];
+
+        maskGuardContent(
+            messages,
+            guardSettings({ guardMaskCotMode: 'off', modelName: 'gpt-4o-mini' }),
+        );
+
+        expect(messages[0].content).toBe('hello world again');
     });
 
     it('unmasks $$ on a non-matching model while the toggle stays on', () => {
@@ -322,5 +360,35 @@ describe('guard mask model gate', () => {
         );
 
         expect(messages[0].content).toBe('hello$$world');
+    });
+});
+
+describe('guard mask codec', () => {
+    it('encodes a horizontal whitespace run as one braille blank', () => {
+        expect(maskGuardText('hello  world')).toBe(`hello${B}world`);
+        expect(maskGuardText('a\t\tb')).toBe(`a${B}b`);
+    });
+
+    it('keeps newlines and encodes the runs around them', () => {
+        expect(maskGuardText('a \n b')).toBe(`a${B}\n${B}b`);
+        expect(maskGuardText('a\r\nb')).toBe('a\r\nb');
+    });
+
+    it('substitutes whitespace only and leaves letters untouched', () => {
+        expect(maskGuardText('plain text')).toBe(`plain${B}text`);
+        expect(maskGuardText('abc')).toBe('abc');
+    });
+
+    it('is idempotent, so an existing braille blank stays as-is', () => {
+        const once = maskGuardText('hello  world');
+
+        expect(maskGuardText(once)).toBe(once);
+        expect(maskGuardText(`a${B}b`)).toBe(`a${B}b`);
+    });
+
+    it('folds both the braille blank and legacy $$ to one space each', () => {
+        expect(unmaskGuardText(`a${B}b`)).toBe('a b');
+        expect(unmaskGuardText('a$$b')).toBe('a b');
+        expect(unmaskGuardText(`a${B}b$$c`)).toBe('a b c');
     });
 });

@@ -5,6 +5,7 @@ import { initDryRunViewer, openDryRunPreview } from '../src/entry/dryrun-viewer.
 import { installSummaryContext, makeToastrMock } from './test-helpers.js';
 
 const EVENT_NAME = 'chat_completion_prompt_ready';
+const B = '\u2800';
 
 const PAGES = new Map([[0, { dataUrl: 'data:image/png;base64,PAGE0', text: 'PAGE ZERO TEXT' }]]);
 
@@ -104,8 +105,8 @@ describe('openDryRunPreview guard mask', () => {
 
         const { view } = await capturePreview({ chat });
 
-        expect(view.chat[0].content).toBe('hello$$world');
-        expect(view.chat[1].content).toBe('general$$kenobi$$here');
+        expect(view.chat[0].content).toBe(`hello${B}world`);
+        expect(view.chat[1].content).toBe(`general${B}kenobi${B}here`);
     });
 
     it('leaves user and assistant text raw when the guard is off', async () => {
@@ -135,8 +136,8 @@ describe('openDryRunPreview guard mask', () => {
         const content = /** @type {any[]} */ (view.chat[0].content);
         expect(Array.isArray(content)).toBe(true);
         expect(content.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
-            'before$$',
-            '$$after',
+            `before${B}`,
+            `${B}after`,
         ]);
         expect(content.filter((part) => part.type === 'image_url')).toEqual([
             { type: 'image_url', image_url: { url: PAGES.get(0).dataUrl } },
@@ -164,8 +165,8 @@ describe('openDryRunPreview guard mask', () => {
         expect(view.chat[0]).not.toBe(chat[0]);
         const content = /** @type {any[]} */ (view.chat[0].content);
         expect(content.filter((part) => part.type === 'text').map((part) => part.text)).toEqual([
-            'hello$$world$$',
-            '$$tail',
+            `hello${B}world${B}`,
+            `${B}tail`,
         ]);
     });
 
