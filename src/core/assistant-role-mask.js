@@ -1,8 +1,10 @@
 /**
  * Rewrite final chat-completion request roles without touching persisted chat state.
- * The Guard Mask (ADR-0036) rides this same seam: it replaces every U+0020 with
- * `$$` in the outgoing user and assistant message content, last step after the
- * role rewrite, when the guard settings are on.
+ * The CN scrub and the Guard Mask (ADR-0036) ride this same seam. The CN scrub
+ * first strips Han ideographs and dash separators from assistant content when
+ * the CN policy toggle is on. The Guard Mask replaces every U+0020 with `$$` in
+ * the outgoing user and assistant message content, last step after the role
+ * rewrite, when the guard settings are on.
  */
 
 import { isPlainObject } from '../foundation/objects.js';
@@ -18,6 +20,10 @@ import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-inj
  */
 const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 
+const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
+const DASH_SEPARATOR_REGEX = /[\u2014\u2015]/g;
+const HORIZONTAL_WHITESPACE_RUN_REGEX = /[^\S\r\n]+/g;
+
 /**
  * Rewrite the outgoing roles and then apply the outgoing-space guard. The guard
  * runs last so it sees the rewritten roles, and it runs even when the role mask
@@ -30,10 +36,63 @@ const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
  */
 export function maskUserRoleAsAssistantInGenerateData(generateData, settings = {}) {
     const messages = getPromptMessages(generateData);
+    scrubAssistantContent(messages, settings);
     const rewritten = rewriteUserRoles(messages, settings);
     const skipContent = getUnmaskedMemorySlotContent(messages, settings);
     maskGuardContent(messages, settings, skipContent);
     return rewritten;
+}
+
+/**
+ * Strip Han ideographs and em/horizontal-bar dash separators from outgoing
+ * assistant content so an echoed model turn cannot re-seed itself. Only the
+ * payload copy changes, never the stored chat or the summarizer input. Runs
+ * before the role rewrite so only content that started as assistant is
+ * scrubbed, and only when the existing CN policy toggle is on.
+ * @param {Array<Record<string, unknown>> | null} messages
+ * @param {Partial<ExtensionSettings>} settings
+ * @returns {void}
+ */
+function scrubAssistantContent(messages, settings) {
+    if (!messages || !settings.enabled || !settings.stripChineseIdeographs) {
+        return;
+    }
+    for (const message of messages) {
+        if (message.role !== 'assistant') {
+            continue;
+        }
+        const content = message.content;
+        if (typeof content === 'string') {
+            message.content = scrubText(content);
+            continue;
+        }
+        if (!Array.isArray(content)) {
+            continue;
+        }
+        for (const part of content) {
+            if (!part || typeof part !== 'object') {
+                continue;
+            }
+            const entry = /** @type {{ text?: unknown }} */ (part);
+            if (typeof entry.text === 'string') {
+                entry.text = scrubText(entry.text);
+            }
+        }
+    }
+}
+
+/**
+ * Replace each Han ideograph with a space so the surrounding words keep a
+ * separator, fold dash separators to a space, then collapse horizontal
+ * whitespace runs. Line breaks stay.
+ * @param {string} text
+ * @returns {string}
+ */
+function scrubText(text) {
+    return text
+        .replace(CHINESE_IDEOGRAPH_REGEX, ' ')
+        .replace(DASH_SEPARATOR_REGEX, ' ')
+        .replace(HORIZONTAL_WHITESPACE_RUN_REGEX, ' ');
 }
 
 /**

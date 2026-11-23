@@ -160,6 +160,87 @@ describe('maskUserRoleAsAssistantInGenerateData modes', () => {
     });
 });
 
+function scrubSettings(overrides = {}) {
+    return {
+        enabled: true,
+        maskUserRoleAsAssistant: false,
+        stripChineseIdeographs: true,
+        ...overrides,
+    };
+}
+
+describe('maskUserRoleAsAssistantInGenerateData CN scrub', () => {
+    it('leaves assistant content byte-identical when stripChineseIdeographs is off', () => {
+        const content = 'те史НЕ слово — слово';
+        const messages = [{ role: 'assistant', content }];
+
+        maskUserRoleAsAssistantInGenerateData(
+            { messages },
+            scrubSettings({ stripChineseIdeographs: false }),
+        );
+
+        expect(messages[0].content).toBe(content);
+    });
+
+    it('replaces Han ideographs with a separator in assistant string content', () => {
+        const messages = [{ role: 'assistant', content: 'те史НЕ' }];
+
+        maskUserRoleAsAssistantInGenerateData({ messages }, scrubSettings());
+
+        expect(messages[0].content).toBe('те НЕ');
+    });
+
+    it('folds em and horizontal bar dashes to a single space in assistant content', () => {
+        const messages = [{ role: 'assistant', content: 'слово — слово―слово' }];
+
+        maskUserRoleAsAssistantInGenerateData({ messages }, scrubSettings());
+
+        expect(messages[0].content).toBe('слово слово слово');
+    });
+
+    it('scrubs text parts in multipart content and leaves image parts untouched', () => {
+        const imagePart = { type: 'image_url', image_url: { url: 'https://example.test/史.png' } };
+        const messages = [
+            {
+                role: 'assistant',
+                content: [
+                    { type: 'text', text: 'те史НЕ — текст' },
+                    imagePart,
+                    { text: 'слово―слово' },
+                ],
+            },
+        ];
+
+        maskUserRoleAsAssistantInGenerateData({ messages }, scrubSettings());
+
+        expect(messages[0].content).toEqual([
+            { type: 'text', text: 'те НЕ текст' },
+            imagePart,
+            { text: 'слово слово' },
+        ]);
+    });
+
+    it('leaves user-role content untouched', () => {
+        const messages = [{ role: 'user', content: 'те史НЕ слово — слово' }];
+
+        maskUserRoleAsAssistantInGenerateData({ messages }, scrubSettings());
+
+        expect(messages[0].content).toBe('те史НЕ слово — слово');
+    });
+
+    it('does not touch the stored chat source when scrubbing the payload', () => {
+        const chat = [{ role: 'assistant', mes: 'те史НЕ' }];
+        const payload = {
+            messages: [{ role: 'assistant', content: chat[0].mes }],
+        };
+
+        maskUserRoleAsAssistantInGenerateData(payload, scrubSettings());
+
+        expect(payload.messages[0].content).toBe('те НЕ');
+        expect(chat).toEqual([{ role: 'assistant', mes: 'те史НЕ' }]);
+    });
+});
+
 describe('maskUserRoleAsAssistantInGenerateData zero-user edge', () => {
     it('inserts no marker and rewrites nothing when there are no users', () => {
         const messages = [{ role: 'assistant', content: 'x' }];
