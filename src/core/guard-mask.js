@@ -40,8 +40,8 @@ export function unmaskGuardText(text) {
 }
 
 /**
- * Mask every `text` part of a multipart content array. Image URLs and any
- * other part shape stay untouched.
+ * Fold every U+2800 and every legacy `$$` in each `text` part back to one
+ * U+0020. Image URLs and any other part shape stay untouched.
  * @param {unknown} content - Message content array.
  * @returns {void}
  */

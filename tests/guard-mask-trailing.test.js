@@ -274,7 +274,7 @@ describe('guard mask trailing exemption through the outgoing seam', () => {
 });
 
 describe('guard mask model gate', () => {
-    it('masks spaces on an argon model name', () => {
+    it('masks whitespace on an argon model name', () => {
         installLiveChat();
         const messages = [{ role: 'user', content: 'hello world' }];
 
@@ -372,6 +372,9 @@ describe('guard mask codec', () => {
     it('keeps newlines and encodes the runs around them', () => {
         expect(maskGuardText('a \n b')).toBe(`a${B}\n${B}b`);
         expect(maskGuardText('a\r\nb')).toBe('a\r\nb');
+        expect(
+            maskGuardText(`a${String.fromCharCode(0x2028)}b${String.fromCharCode(0x2029)}c`),
+        ).toBe(`a${String.fromCharCode(0x2028)}b${String.fromCharCode(0x2029)}c`);
     });
 
     it('substitutes whitespace only and leaves letters untouched', () => {
