@@ -497,7 +497,7 @@ export const defaultSettings = Object.freeze({
     // model and leave gaps in the hidden range that still cost context.
     hideNonTextMessages: true,
     stripChineseIdeographs: true, // true = strip Han ideographs from summarizer responses
-    guardMask: false, // true = replace spaces with $$ in outgoing main story chat text
+    guardMask: false, // true = encode horizontal whitespace as U+2800 in outgoing main story chat text
     guardMaskMemory: false, // true = also mask stored memory in that request; needs guardMask
     // Trailing Preset CoT exemption: off masks the whole prompt, auto keeps a
     // fixed two-message window, on keeps guardMaskCotCount trailing messages.

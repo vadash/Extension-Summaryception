@@ -60,7 +60,7 @@ Ownership sync derives the desired ghosted ids from Snippet provenance across al
 Code: `syncGhosting` (src/core/ghosting.js)
 
 **Guard Mask**:
-The model-gated outgoing rewrite at the main-prompt seam. ENABLED (guard toggle on plus an active model name carrying `argon` or `gemini`) replaces every `U+0020` with `$$` in user and assistant message content, plus the Memory slot text when memory masking is on; DISABLED (any other model, or the toggle off) folds every literal `$$` in that content back to one space. Chat storage, stored memories, and the summarizer family keep normal spaces. The Dry-Run Preview re-applies it to its clone, so the preview shows the masked form.
+The model-gated outgoing rewrite at the main-prompt seam. ENABLED (guard toggle on plus an active model name carrying `argon`, `opus`, or `gemini`, case-insensitive) replaces each run of horizontal whitespace with one `U+2800` BRAILLE PATTERN BLANK in user and assistant message content, plus the Memory slot text when memory masking is on; DISABLED (any other model, or the toggle off) folds every `U+2800` and every legacy `$$` in that content back to one space. Chat storage, stored memories, and the summarizer family keep normal spaces. The Dry-Run Preview re-applies it to its clone, so the preview shows the masked form.
 Code: `maskUserRoleAsAssistantInGenerateData` (src/core/assistant-role-mask.js)
 _Avoid_: $$ mode, dollar mode
 
@@ -69,7 +69,7 @@ A user-role preset prompt carrying reasoning instructions after chat history.
 _Avoid_: CoT block, chain of thought
 
 **Guard Unmask**:
-The summarizer-side rewrite that turns every literal `$$` into one `U+0020` in user and assistant message content, stored Snippet prose, and Continuity Checkpoint writes; always on regardless of the Guard Mask settings, so pasted or echoed `$$` never reaches a summarizer or Auditor prompt.
+The summarizer-side rewrite that folds every `U+2800` BRAILLE PATTERN BLANK and every legacy `$$` into one `U+0020` in user and assistant message content, stored Snippet prose, and Continuity Checkpoint writes; always on regardless of the Guard Mask settings, so pasted or echoed mask characters never reach a summarizer or Auditor prompt.
 Code: `buildPassageFromRangeWithStats` (src/core/chatutils.js)
 _Avoid_: $$ cleanup, dollar decode
 

@@ -69,8 +69,9 @@ export function attachCheckpoint(message, state) {
 }
 
 /**
- * Fold any `$$` a stray echo left in the payload. The checkpoint is persisted
- * and later becomes Auditor input, so the stored copy always reads as prose.
+ * Fold any U+2800 braille blank or legacy `$$` a stray echo left in the
+ * payload. The checkpoint is persisted and later becomes Auditor input, so the
+ * stored copy always reads as prose.
  * @param {unknown} value
  * @returns {unknown}
  */

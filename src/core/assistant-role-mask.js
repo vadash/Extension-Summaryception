@@ -2,9 +2,10 @@
  * Rewrite final chat-completion request roles without touching persisted chat state.
  * The CN scrub and the Guard Mask (ADR-0036) ride this same seam. The CN scrub
  * first strips Han ideographs and dash separators from assistant content when
- * the CN policy toggle is on. The Guard Mask replaces every U+0020 with `$$` in
- * the outgoing user and assistant message content, last step after the role
- * rewrite, when the guard settings are on.
+ * the CN policy toggle is on. The Guard Mask replaces each run of horizontal
+ * whitespace with one U+2800 BRAILLE PATTERN BLANK in the outgoing user and
+ * assistant message content, last step after the role rewrite, when the guard
+ * settings are on.
  */
 
 import { isPlainObject } from '../foundation/objects.js';

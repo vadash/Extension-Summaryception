@@ -254,26 +254,26 @@ const HELP_ENTRIES = [
         'guard_mask',
         basicHelp({
             selector: selectorFor('sc_guard_mask'),
-            title: 'Gemini Argoon $$ jailbreak',
-            short: 'Masks spaces as $$ for argon and gemini models, restores spaces for anything else. Storage and the summarizer keep normal text.',
+            title: 'Braille Guard Mask',
+            short: 'Masks whitespace runs as one U+2800 braille blank for argon, opus, and gemini models, restores spaces for anything else. Legacy $$ input also folds. Storage and the summarizer keep normal text.',
             controls: [controlFor('sc_guard_mask')],
             controlsText:
-                'Replaces spaces with $$ in user and assistant chat text when the active model name carries argon or gemini, and folds $$ back to spaces for any other model. The mask never touches saved chat or any summarizer request.',
-            when: 'Turn it on when your jailbreak expects the $$ form in the main story prompt on argon or gemini models.',
-            risk: 'Every space becomes two characters, so the main request grows and the model may echo $$ in its reply.',
+                'Replaces each run of horizontal whitespace with one U+2800 braille blank in user and assistant chat text when the active model name carries argon, opus, or gemini, and folds both the braille blank and legacy $$ back to spaces for any other model. The mask never touches saved chat or any summarizer request.',
+            when: 'Turn it on when your jailbreak expects the braille form in the main story prompt on argon, opus, or gemini models.',
+            risk: 'The main request reaches the model with braille spacing, and the model may echo U+2800 in its reply.',
         }),
     ],
     [
         'guard_mask_memory',
         basicHelp({
             selector: selectorFor('sc_guard_mask_memory'),
-            title: 'Gemini Argoon $$ jailbreak for memory',
-            short: 'Sends stored memories with $$ to the main story model. Needs the main toggle on. Preview shows the masked form.',
+            title: 'Braille Guard Mask for memory',
+            short: 'Sends stored memories with the braille mask to the main story model. Needs the main toggle on. Preview shows the masked form.',
             controls: [controlFor('sc_guard_mask_memory')],
             controlsText:
-                'Applies the same $$ mask to the stored memory block inside the outgoing main story request, so the masked preview matches what the model receives. It does nothing while the main toggle is off, and its own setting is kept for later.',
+                'Applies the same braille mask to the stored memory block inside the outgoing main story request, so the masked preview matches what the model receives. It does nothing while the main toggle is off, and its own setting is kept for later.',
             when: 'Turn it on when the jailbreak also needs the injected memories in masked form.',
-            risk: 'The memory block grows on every space, which costs context tokens against the main model budget.',
+            risk: 'The memory block reaches the model with braille spacing, which spends main model context on the mask.',
         }),
     ],
     [
