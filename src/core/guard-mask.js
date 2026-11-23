@@ -16,7 +16,7 @@ import { getActiveModelName, getChat } from '../foundation/context.js';
 import { clampInteger } from '../foundation/numeric.js';
 
 const BRAILLE_BLANK = '\u2800';
-const HORIZONTAL_WHITESPACE_RUN = /[^\S\r\n]+/g;
+const HORIZONTAL_WHITESPACE_RUN = /[\t\p{Zs}]+/gu;
 const MASKED_SPACE = /\$\$|\u2800/g;
 
 /**
