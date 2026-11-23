@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFY_EVENTS } from '../src/foundation/constants.js';
 import { resolveCallProfile } from '../src/core/call-profile.js';
+import { buildPassageFromRangeWithStats } from '../src/core/chatutils.js';
 import { processSummarizerResponse } from '../src/core/summarizer-output.js';
 import {
     installBrowserRuntimeStub,
+    installSummaryContext,
+    makeMessage,
     makeNotifyRecorder,
     makeSummarySettings,
 } from './test-helpers.js';
@@ -319,5 +322,91 @@ describe('summarizer output notify', () => {
                 percent: '100.0',
             },
         ]);
+    });
+});
+
+describe('CN output direction policy', () => {
+    it('rejects output above the 5% Han share of visible characters', async () => {
+        const raw = 'a'.repeat(94) + '史'.repeat(6);
+
+        const result = await processRaw(raw, { stripChineseIdeographs: true });
+
+        expect(result.status).toBe('cn-rejected');
+        expect(result.error.retryable).toBe(true);
+        expect(result.error.message).toContain('5%');
+        expect(result.text).toBe(raw);
+    });
+
+    it('strips output at the 5% Han share boundary', async () => {
+        const raw = 'a'.repeat(95) + '史'.repeat(5);
+
+        const result = await processRaw(raw, { stripChineseIdeographs: true });
+
+        expect(result.status).not.toBe('cn-rejected');
+        expect(result.text).toBe('a'.repeat(95));
+    });
+
+    it('strips a single Han character without a language-mix event', async () => {
+        const recorder = makeNotifyRecorder();
+        const raw = 'a'.repeat(99) + '史';
+
+        const result = await processRaw(raw, { stripChineseIdeographs: true }, recorder);
+
+        expect(result.status).not.toBe('cn-rejected');
+        expect(result.text).toBe('a'.repeat(99));
+        expect(recorder.events).toEqual([]);
+    });
+
+    it('replaces a Han character between letters with a separator', async () => {
+        const raw = `те史НЕ ${'lorem ipsum dolor sit amet '.repeat(2)}`;
+
+        const result = await processRaw(raw, { stripChineseIdeographs: true });
+
+        expect(result.status).not.toBe('cn-rejected');
+        expect(result.text.startsWith('те НЕ lorem')).toBe(true);
+        expect(result.text).not.toContain('теНЕ');
+    });
+
+    it('folds em and horizontal-bar dashes when the CN policy is on', async () => {
+        const raw = `<narrative>\nAlpha—Beta―Gamma.\n</narrative>\n${SCENE_TIME_LINE}`;
+
+        const result = await processRaw(raw, { stripChineseIdeographs: true });
+
+        expect(result.status).toBe('success');
+        expect(result.text).toBe(
+            `<narrative>\nAlpha Beta Gamma.\n</narrative>\n${SCENE_TIME_LINE}`,
+        );
+    });
+
+    it('leaves dashes untouched when the CN policy is off', async () => {
+        const raw = `<narrative>\nAlpha—Beta―Gamma.\n</narrative>\n${SCENE_TIME_LINE}`;
+
+        const result = await processRaw(raw, { stripChineseIdeographs: false });
+
+        expect(result.status).toBe('success');
+        expect(result.text).toBe(raw);
+    });
+
+    it('carries a repair line naming the CN ratio on a rejection', async () => {
+        const result = await processRaw('史'.repeat(20), { stripChineseIdeographs: true });
+
+        expect(result.status).toBe('cn-rejected');
+        expect(result.repairFeedback.length).toBeGreaterThan(0);
+        expect(result.repairFeedback).toContain('100.0%');
+        expect(result.repairFeedback).toContain('5%');
+        expect(result.repairFeedback).toMatch(/Han/i);
+    });
+});
+
+describe('Passage input direction policy', () => {
+    it('keeps raw Han characters and dashes in the summarizer input passage', async () => {
+        const chat = [makeMessage({ mes: 'те史НЕ — Alpha―Beta' })];
+        installSummaryContext({ chat });
+
+        const passage = await buildPassageFromRangeWithStats(chat, 0, 0);
+
+        expect(passage.text).toContain('те史НЕ');
+        expect(passage.text).toContain('—');
+        expect(passage.text).toContain('―');
     });
 });

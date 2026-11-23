@@ -18,6 +18,9 @@ import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token
 
 const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
 const VISIBLE_CHARACTER_REGEX = /\S/gu;
+const OUTPUT_DASH_REGEX = /[\u2014\u2015]/g;
+const HORIZONTAL_WHITESPACE_RUN_REGEX = /[^\S\r\n]+/g;
+const MAX_CHINESE_IDEOGRAPH_RATIO = 0.05;
 const MIN_OUTPUT_TOKENS_FOR_SUBSTANTIAL_SOURCE = 30;
 const MIN_OUTPUT_CHARS_FOR_SUBSTANTIAL_SOURCE = 150;
 
@@ -70,6 +73,10 @@ function cleanSummarizerOutput(raw, policy) {
         }
     }
 
+    if (policy?.stripChineseIdeographs) {
+        text = text.replace(OUTPUT_DASH_REGEX, ' ').replace(HORIZONTAL_WHITESPACE_RUN_REGEX, ' ');
+    }
+
     text = cleanWhitespace(text);
 
     return text;
@@ -78,27 +85,35 @@ function cleanSummarizerOutput(raw, policy) {
 /**
  * @param {string} cleanedResult - Output after standard artifact cleanup
  * @param {import('./call-profile.js').CallProfile} profile - Call profile resolved at dispatch
- * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null, percent: string | null }}
+ * @returns {{ text: string, error: (Error & { retryable?: boolean }) | null, percent: string | null, repairFeedback: string }}
  */
 function applyChineseOutputPolicy(cleanedResult, profile) {
     if (!profile?.policy?.stripChineseIdeographs) {
-        return { text: cleanedResult, error: null, percent: null };
+        return { text: cleanedResult, error: null, percent: null, repairFeedback: '' };
     }
 
     const stats = getChineseIdeographStats(cleanedResult);
-    if (stats.chineseIdeographs > 0 && stats.ratio > 0.1) {
+    if (stats.chineseIdeographs > 0 && stats.ratio > MAX_CHINESE_IDEOGRAPH_RATIO) {
         const percent = (stats.ratio * 100).toFixed(1);
         const error = /** @type {Error & { retryable?: boolean }} */ (
-            new Error(`CN ideograph ratio ${percent}% exceeds 10%`)
+            new Error(`CN ideograph ratio ${percent}% exceeds 5%`)
         );
         error.retryable = true;
-        return { text: '', error, percent };
+        return {
+            text: '',
+            error,
+            percent,
+            repairFeedback:
+                `CN ideographs were ${percent}% of visible characters, above the 5% limit. ` +
+                'Rewrite in the scene language with no Han characters.',
+        };
     }
 
     return {
         text: cleanWhitespace(stripChineseIdeographs(cleanedResult)),
         error: null,
         percent: null,
+        repairFeedback: '',
     };
 }
 
@@ -248,11 +263,15 @@ function getChineseIdeographStats(text) {
 }
 
 /**
+ * Replace each Han ideograph with a space so the surrounding words keep a
+ * separator, then collapse the horizontal whitespace runs this creates.
  * @param {string} text - Text to clean
  * @returns {string}
  */
 function stripChineseIdeographs(text) {
-    return String(text || '').replace(CHINESE_IDEOGRAPH_REGEX, '');
+    return String(text || '')
+        .replace(CHINESE_IDEOGRAPH_REGEX, ' ')
+        .replace(HORIZONTAL_WHITESPACE_RUN_REGEX, ' ');
 }
 
 function cleanWhitespace(text) {
@@ -311,7 +330,7 @@ export async function processSummarizerResponse(rawResult, profile, notify = sil
             status: 'cn-rejected',
             text: cleanedResult,
             error: chinesePolicyResult.error,
-            repairFeedback: '',
+            repairFeedback: chinesePolicyResult.repairFeedback,
         };
     }
 
