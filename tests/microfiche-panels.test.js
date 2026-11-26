@@ -24,6 +24,7 @@ import {
     makeForegroundGate,
     makeMemoryInjectionWriter,
     makeMessages,
+    makePreservedApproval,
     makeSummaryStore,
 } from './test-helpers.js';
 
@@ -155,6 +156,7 @@ describe('microfiche panels', () => {
             gate,
             queue: { request: async () => {} },
             manualRunnerDeps: { queue: { isBusy: () => false } },
+            preservedApproval: makePreservedApproval({ gate }),
         });
 
         for (const id of [
@@ -503,6 +505,7 @@ describe('microfiche geometry presets', () => {
             gate,
             queue: { request: async () => {} },
             manualRunnerDeps: { queue: { isBusy: () => false } },
+            preservedApproval: makePreservedApproval({ gate }),
         });
         dom.element('#sc_microfiche_model_name').val('');
         dom.trigger('click', '#sc_microfiche_lookup');

@@ -16,7 +16,12 @@ import {
     formatMicroficheMarker,
     formatMicroficheRawMarker,
 } from '../src/core/microfiche-transport.js';
-import { createJQueryHarness, installSummaryContext, makeToastrMock } from './test-helpers.js';
+import {
+    createJQueryHarness,
+    installSummaryContext,
+    makePreservedApproval,
+    makeToastrMock,
+} from './test-helpers.js';
 
 const EVENT_NAME = 'chat_completion_prompt_ready';
 
@@ -547,6 +552,7 @@ describe('entry wiring', () => {
             manualRunnerDeps: /** @type {any} */ ({ queue: { isBusy: () => false } }),
             warmPages,
             resolveMicrofichePage,
+            preservedApproval: makePreservedApproval(),
         });
 
         await openWiredPreview();

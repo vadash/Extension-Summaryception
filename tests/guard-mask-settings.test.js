@@ -14,7 +14,12 @@ import {
     syncGuardMaskCotControl,
     syncSliderSettingPairs,
 } from '../src/entry/ui-bind.js';
-import { createJQueryHarness, installSummaryContext, makeForegroundGate } from './test-helpers.js';
+import {
+    createJQueryHarness,
+    installSummaryContext,
+    makeForegroundGate,
+    makePreservedApproval,
+} from './test-helpers.js';
 
 const SETTINGS_HTML_URL = new URL('../settings.html', import.meta.url);
 
@@ -69,6 +74,7 @@ async function bindGuardSettings() {
         gate: makeForegroundGate().gate,
         queue: { request: async () => {} },
         manualRunnerDeps: { queue: { isBusy: () => false } },
+        preservedApproval: makePreservedApproval(),
     });
 }
 

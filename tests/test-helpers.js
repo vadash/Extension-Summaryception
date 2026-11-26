@@ -13,6 +13,11 @@ import { createForegroundGate } from '../src/core/foreground-gate.js';
 import { initChatPersistence } from '../src/core/persist-state.js';
 import { createMemoryInjectionWriter } from '../src/features/injection.js';
 import { vi } from 'vitest';
+import { getChatStore, saveChatStore } from '../src/foundation/chat-store.js';
+import { getChat, getContext, isGeneratingFlagSet } from '../src/foundation/context.js';
+import { getEffectiveSettings } from '../src/foundation/settings.js';
+import { getChatIdentity } from '../src/core/summarizer-snapshot.js';
+import { createPreservedMessageApproval } from '../src/core/preserved-messages.js';
 
 /**
  * Shared test helpers for SillyTavern extension unit tests.
@@ -496,6 +501,29 @@ export function installOverflowingStore() {
     installSummaryContext({
         metadata: { summaryception: makeSummaryStore({ layers: [snippets] }) },
         settings: makeSummarySettings({ memoryTokenBudget: 4000 }),
+    });
+}
+
+/**
+ * Build one Preserved Message approval for entry tests with live runtime readers.
+ * @param {object} [overrides] - Gate, Queue, and persistence overrides.
+ * @returns {ReturnType<typeof createPreservedMessageApproval>} Approval transaction for one test.
+ */
+export function makePreservedApproval(overrides = {}) {
+    const { gate: gateOverride, queue: queueOverride, ...rest } = overrides;
+    const gate = gateOverride ?? { isFrozen: () => false };
+    const queue = queueOverride ?? { isBusy: () => false };
+    return createPreservedMessageApproval({
+        getChat,
+        getChatStore,
+        getEffectiveSettings,
+        getContext,
+        getChatIdentity,
+        isGenerating: isGeneratingFlagSet,
+        saveChatStore,
+        ...rest,
+        gate,
+        queue,
     });
 }
 

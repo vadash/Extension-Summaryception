@@ -1,27 +1,15 @@
-import {
-    getChat,
-    getContext,
-    getEventSource,
-    getEventTypes,
-    getPopupApi,
-    isGeneratingFlagSet,
-} from '../foundation/context.js';
+import { getChat, getEventSource, getEventTypes, getPopupApi } from '../foundation/context.js';
 import { TOAST_TITLE } from '../foundation/constants.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { ensureChatScIds, getMessageIndexByScId } from '../foundation/message-identity.js';
-import { getEffectiveSettings } from '../foundation/settings.js';
 import { refreshFull } from '../foundation/refresh.js';
 import { warn } from '../foundation/logger.js';
 import {
-    buildPreservedMessageSnapshot,
-    commitPreservedMessage,
     getPreservationEligibility,
     reconcilePreservedMessages,
     getPreservedMessages,
 } from '../core/preserved-messages.js';
-import { buildInjection } from '../core/memory-injection.js';
 import { persistChatState } from '../core/persist-state.js';
-import { getChatIdentity } from '../core/summarizer-snapshot.js';
 
 const PRESERVE_ACTION_SELECTOR = '.sc-preserve-verbatim';
 const DEFAULT_PRESERVE_RENDER_OPTIONS = Object.freeze({
@@ -30,8 +18,8 @@ const DEFAULT_PRESERVE_RENDER_OPTIONS = Object.freeze({
     stripTags: false,
 });
 
-/** @type {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue } | null} */
-let actionDeps = null;
+/** @type {{ approve: (request: { messageId: string, confirm: { show: (input: object) => Promise<unknown> }, options?: object }) => Promise<{ status: string, reason?: string }> } | null} */
+let actionApproval = null;
 /** @type {Document | null} */
 let boundDocument = null;
 /** @type {MutationObserver | null} */
@@ -41,11 +29,11 @@ let reconciliationPromise = null;
 let reconciliationQueued = false;
 
 /**
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
+ * @param {{ gate?: import('../core/foreground-gate.js').ForegroundGate, queue?: import('../core/summarizer-queue.js').SummarizerQueue, preservedApproval?: { approve: (request: object) => Promise<object> } }} deps
  * @returns {void}
  */
 export function bindPreservedMessageActions(deps) {
-    actionDeps = deps;
+    actionApproval = deps?.preservedApproval ?? null;
     if (boundDocument !== globalThis.document) {
         boundDocument = globalThis.document;
         $(document).on('click', PRESERVE_ACTION_SELECTOR, onPreserveActionClick);
@@ -205,43 +193,70 @@ function observeChat() {
  */
 async function onPreserveActionClick(event) {
     event.preventDefault?.();
-    const deps = actionDeps;
-    if (!deps || !canPreserveNow(deps)) {
+    const approval = actionApproval;
+    if (!approval || typeof approval.approve !== 'function') {
         return;
     }
-    const captured = capturePreservationTarget(this);
-    if (!captured) {
+    const messageId = resolvePreservedMessageId(this);
+    if (!messageId) {
         return;
     }
-    const eligibility = getPreservationEligibility(captured.message, captured.chat, getChatStore());
+    const chat = getChat();
+    const store = getChatStore();
+    const index = getMessageIndexByScId(chat).get(messageId);
+    const message = index !== undefined ? chat[index] : undefined;
+    const eligibility = getPreservationEligibility(message, chat, store);
     if (!eligibility.eligible) {
         showEligibilityGuidance(eligibility.reason);
         return;
     }
-    let approval = await preparePreservationApproval(captured, deps);
-    if (!approval) {
+    const confirm = createPreserveConfirm();
+    let outcome;
+    try {
+        outcome = await approval.approve({ messageId, confirm });
+    } catch (error) {
+        warn('Preserve verbatim failed:', error);
+        warnPreservation('Preserve verbatim failed. Nothing was saved.');
         return;
     }
-    const confirmation = await confirmPreservation(approval.preview, async (options) => {
-        const next = await preparePreservationApproval(captured, deps, options, true);
-        return next?.preview ?? '';
-    });
-    if (!confirmation.approved) {
+    handlePreservationOutcome(outcome);
+}
+
+/**
+ * Map one approval outcome to its entry effect: refresh on commit, a change
+ * notice on stale, existing guidance for eligibility reasons, silence else.
+ * @param {{ status: string, reason?: string } | null} outcome
+ * @returns {void}
+ */
+function handlePreservationOutcome(outcome) {
+    if (!outcome || typeof outcome !== 'object') {
         return;
     }
-    approval = await preparePreservationApproval(captured, deps, confirmation.options);
-    if (!approval || !isApprovalCurrent(captured, deps, approval)) {
+    if (outcome.status === 'committed') {
+        refreshFull();
+        syncPreservedMessageActions();
         return;
     }
-    await commitPreservationApproval(captured, approval);
+    if (outcome.status === 'stale') {
+        warnPreservation('The message changed while the dialog was open. Nothing was preserved.');
+        return;
+    }
+    if (
+        outcome.status === 'skipped' &&
+        (outcome.reason === 'summarized' ||
+            outcome.reason === 'hidden' ||
+            outcome.reason === 'system' ||
+            outcome.reason === 'preserved')
+    ) {
+        showEligibilityGuidance(outcome.reason);
+    }
 }
 
 /**
  * @param {Element} button
- * @returns {{ context: SillyTavernContext, chat: ChatMessage[], chatId: string, message: ChatMessage, messageIndex: number, id: string } | null}
+ * @returns {string | null} Stable message id for the clicked action, or null.
  */
-function capturePreservationTarget(button) {
-    const context = getContext();
+function resolvePreservedMessageId(button) {
     const chat = getChat();
     const $message = $(button).closest('.mes');
     const messageIndex = Number($message.attr('mesid'));
@@ -254,134 +269,7 @@ function capturePreservationTarget(button) {
     ) {
         return null;
     }
-    return { context, chat, chatId: getChatIdentity(context), message, messageIndex, id };
-}
-
-/**
- * @param {{ context: SillyTavernContext, chat: ChatMessage[], chatId: string, message: ChatMessage, messageIndex: number, id: string }} captured
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
- * @param {import('../core/preserved-messages.js').PreservedMessageRenderOptions} [options]
- * @param {boolean} [quiet]
- * @returns {Promise<{ preview: string, snapshot: SummaryceptionPreservedMessage, settingsFingerprint: string, previewEpoch: number, previewIndex: number | undefined } | null>}
- */
-async function preparePreservationApproval(
-    captured,
-    deps,
-    options = DEFAULT_PRESERVE_RENDER_OPTIONS,
-    quiet = false,
-) {
-    const snapshot = await buildPreservedMessageSnapshot(
-        captured.message,
-        captured.chat,
-        getChatStore(),
-        options,
-    );
-    if (!isCapturedMessageCurrent(captured) || !canPreserveNow(deps)) {
-        return null;
-    }
-    const eligibility = getPreservationEligibility(captured.message, getChat(), getChatStore());
-    if (!eligibility.eligible) {
-        if (!quiet) {
-            showEligibilityGuidance(eligibility.reason);
-        }
-        return null;
-    }
-    if (!snapshot) {
-        if (!quiet) {
-            warnPreservation('The selected cleanup options produced an empty message.');
-        }
-        return null;
-    }
-    const currentChat = getChat();
-    const currentStore = getChatStore();
-    const settings = getEffectiveSettings();
-    const preview = buildInjection(currentStore.layers, settings, null, {
-        chat: currentChat,
-        preservedMessages: [...currentStore.preservedMessages, { ...snapshot, handedOff: true }],
-    }).text;
-    if (!preview.trim() || !preview.includes('<preserved>')) {
-        if (!quiet) {
-            warnPreservation(
-                'The active Memory Injection template cannot show this preserved message.',
-            );
-        }
-        return null;
-    }
-    return {
-        preview,
-        snapshot,
-        settingsFingerprint: JSON.stringify(settings),
-        previewEpoch: currentStore.mutationEpoch,
-        previewIndex: getMessageIndexByScId(currentChat).get(snapshot.id),
-    };
-}
-
-/**
- * @param {{ context: SillyTavernContext, chat: ChatMessage[], chatId: string, message: ChatMessage, messageIndex: number, id: string }} captured
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
- * @param {{ settingsFingerprint: string, previewEpoch: number, previewIndex: number | undefined }} approval
- * @returns {boolean}
- */
-function isApprovalCurrent(captured, deps, approval) {
-    return (
-        isCapturedMessageCurrent(captured) &&
-        canPreserveNow(deps) &&
-        getChatStore().mutationEpoch === approval.previewEpoch &&
-        getMessageIndexByScId(getChat()).get(captured.id) === approval.previewIndex &&
-        JSON.stringify(getEffectiveSettings()) === approval.settingsFingerprint
-    );
-}
-
-/**
- * @param {{ message: ChatMessage, id: string }} captured
- * @param {{ snapshot: SummaryceptionPreservedMessage }} approval
- * @returns {Promise<void>}
- */
-async function commitPreservationApproval(captured, approval) {
-    const eligibility = getPreservationEligibility(captured.message, getChat(), getChatStore());
-    if (!eligibility.eligible) {
-        showEligibilityGuidance(eligibility.reason);
-        return;
-    }
-    try {
-        const result = await commitPreservedMessage(approval.snapshot);
-        if (result.status === 'preserved') {
-            refreshFull();
-        }
-        syncPreservedMessageActions();
-    } catch (error) {
-        warn('Preserve verbatim failed:', error);
-        warnPreservation('Preserve verbatim failed. Nothing was saved.');
-    }
-}
-
-/**
- * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
- * @returns {boolean}
- */
-function canPreserveNow(deps) {
-    return (
-        getEffectiveSettings().enabled &&
-        !deps.queue.isBusy() &&
-        !deps.gate.isFrozen() &&
-        !isGeneratingFlagSet()
-    );
-}
-
-/**
- * @param {{ context: SillyTavernContext, chat: ChatMessage[], chatId: string, message: ChatMessage, messageIndex: number, id: string }} captured
- * @returns {boolean}
- */
-function isCapturedMessageCurrent(captured) {
-    const context = getContext();
-    const chat = getChat();
-    const index = getMessageIndexByScId(chat).get(captured.id);
-    return (
-        chat === captured.chat &&
-        getChatIdentity(context) === captured.chatId &&
-        index === captured.messageIndex &&
-        chat[index] === captured.message
-    );
+    return id;
 }
 
 /** @param {string} reason */
@@ -408,11 +296,26 @@ function warnPreservation(message) {
  * @param {(options: import('../core/preserved-messages.js').PreservedMessageRenderOptions) => Promise<string>} renderPreview
  * @returns {Promise<{ approved: boolean, options: import('../core/preserved-messages.js').PreservedMessageRenderOptions }>}
  */
-async function confirmPreservation(preview, renderPreview) {
+/**
+ * Build the Popup adapter for the core revision contract. The adapter
+ * serializes cleanup changes, awaits the latest rerender, displays its
+ * preview, and returns the displayed revision on approval.
+ * @returns {{ show: (input: { preview: string, revision: number, rerender: (options: object) => Promise<{ revision: number, preview: string }> }) => Promise<number | null> }}
+ */
+function createPreserveConfirm() {
+    return { show: showPreserveDialog };
+}
+
+/**
+ * Show the cleanup dialog for one approval. Each change awaits its rerender
+ * and displays the latest revision; approval names that revision.
+ * @param {{ preview: string, revision: number, rerender: (options: object) => Promise<{ revision: number, preview: string }> }} input
+ * @returns {Promise<number | null>} Displayed revision on approval, else null.
+ */
+async function showPreserveDialog({ preview, revision, rerender }) {
     const popupApi = getPopupApi();
     if (!popupApi) {
-        warnPreservation('The host confirmation dialog is unavailable. Nothing was preserved.');
-        return { approved: false, options: { ...DEFAULT_PRESERVE_RENDER_OPTIONS } };
+        return null;
     }
     const $content = $('<div class="sc-preserve-dialog"></div>');
     const $options = $('<fieldset class="sc-preserve-options"></fieldset>');
@@ -446,23 +349,25 @@ async function confirmPreservation(preview, renderPreview) {
     $content.append($options);
     $content.append($preview);
 
-    let renderVersion = 0;
-    let closed = false;
+    let displayedRevision = revision;
+    let disposed = false;
     $options.on('change', () => {
-        const version = ++renderVersion;
         const options = readPreserveOptions($content);
         void Promise.resolve()
-            .then(() => renderPreview(options))
-            .then((nextPreview) => {
-                if (!closed && version === renderVersion) {
+            .then(() => rerender(options))
+            .then((next) => {
+                if (!next || typeof next.revision !== 'number') {
+                    return;
+                }
+                if (!disposed && next.revision > displayedRevision) {
+                    displayedRevision = next.revision;
                     $preview.text(
-                        nextPreview || 'The selected cleanup options produce an empty message.',
+                        next.preview || 'The selected cleanup options produce an empty message.',
                     );
                 }
             })
             .catch((error) => {
-                if (!closed && version === renderVersion) {
-                    $preview.text('Preview update failed. Choose No and try again.');
+                if (!disposed) {
                     warn('Preserve preview update failed:', error);
                 }
             });
@@ -480,11 +385,11 @@ async function confirmPreservation(preview, renderPreview) {
         cancelButton: 'No',
     });
     const result = await popup.show();
-    closed = true;
-    return {
-        approved: result === popupApi.popupResult.AFFIRMATIVE,
-        options: readPreserveOptions($content),
-    };
+    disposed = true;
+    if (result === popupApi.popupResult.AFFIRMATIVE) {
+        return displayedRevision;
+    }
+    return null;
 }
 
 /**

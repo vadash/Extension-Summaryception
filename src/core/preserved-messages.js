@@ -1,9 +1,7 @@
-import { getChat } from '../foundation/context.js';
 import {
     bumpSummaryStoreMutationEpoch,
     getChatStore,
     normalizePreservedMessages,
-    saveChatStore,
 } from '../foundation/chat-store.js';
 import { getMessageIndexByScId, resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { stripChineseIdeographs } from './cn-text.js';
@@ -164,7 +162,7 @@ export function getPreservationEligibility(message, chat, store = getChatStore()
  * @param {PreservedMessageRenderOptions} [options]
  * @returns {Promise<SummaryceptionPreservedMessage | null>}
  */
-export async function buildPreservedMessageSnapshot(message, chat, store, options = {}) {
+async function buildPreservedMessageSnapshot(message, chat, store, options = {}) {
     const { regexAtAnyDepth = true, stripCn = true, stripTags = false } = options;
     const eligibility = getPreservationEligibility(message, chat, store);
     const index = eligibility.index;
@@ -261,40 +259,6 @@ function findPrecedingSceneTime(chat, store, messageIndex) {
         }
     }
     return sceneTime ? normalizeCurrentDateTime(sceneTime) : undefined;
-}
-
-/**
- * Persist an approved snapshot with the Mutation Epoch. Before handoff the
- * record changes neither Ghosting ownership nor Memory Injection.
- * @param {SummaryceptionPreservedMessage} record
- * @returns {Promise<{ status: 'preserved' | 'already-preserved' | 'missing' | 'ineligible', epoch?: number }>}
- */
-export async function commitPreservedMessage(record) {
-    const store = getChatStore();
-    const chat = getChat();
-    const snapshot = normalizePreservedMessages([record])[0];
-    const index = snapshot ? getMessageIndexByScId(chat).get(snapshot.id) : undefined;
-    if (!snapshot || index === undefined) {
-        return { status: 'missing' };
-    }
-    if (isPreservedMessage(chat[index], store)) {
-        return { status: 'already-preserved' };
-    }
-    if (!getPreservationEligibility(chat[index], chat, store).eligible) {
-        return { status: 'ineligible' };
-    }
-    const previous = store.preservedMessages;
-    const previousEpoch = store.mutationEpoch;
-    store.preservedMessages = [...previous, snapshot];
-    const epoch = bumpSummaryStoreMutationEpoch(store);
-    try {
-        await saveChatStore();
-    } catch (error) {
-        store.preservedMessages = previous;
-        store.mutationEpoch = previousEpoch;
-        throw error;
-    }
-    return { status: 'preserved', epoch };
 }
 
 /**

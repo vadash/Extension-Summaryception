@@ -13,6 +13,7 @@ import {
     canInlineImages as probeCanInlineImages,
     getChat,
     getContext,
+    isGeneratingFlagSet,
     saveChat,
     saveMetadata,
 } from './src/foundation/context.js';
@@ -48,6 +49,8 @@ import {
     onMessageReceived,
 } from './src/entry/events.js';
 import { registerSlashCommands } from './src/entry/commands.js';
+import { getChatIdentity } from './src/core/summarizer-snapshot.js';
+import { createPreservedMessageApproval } from './src/core/preserved-messages.js';
 import { syncPreservedMessageActions } from './src/entry/preserved-message-actions.js';
 
 (async function init() {
@@ -97,6 +100,17 @@ import { syncPreservedMessageActions } from './src/entry/preserved-message-actio
         dispatch,
         usage,
         microficheHost,
+    });
+    const preservedApproval = createPreservedMessageApproval({
+        getChat,
+        getChatStore,
+        getEffectiveSettings,
+        getContext,
+        getChatIdentity,
+        isGenerating: isGeneratingFlagSet,
+        gate,
+        queue,
+        saveChatStore,
     });
     const manualRunnerDeps = {
         queue,
@@ -160,6 +174,7 @@ import { syncPreservedMessageActions } from './src/entry/preserved-message-actio
         gate,
         queue,
         manualRunnerDeps,
+        preservedApproval,
         warmPages: writer.update,
         resolveMicrofichePage: writer.resolveMicrofichePage,
     });

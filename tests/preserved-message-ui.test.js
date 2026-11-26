@@ -12,6 +12,7 @@ import {
     makeForegroundGate,
     makeMessage,
     makeNotifyRecorder,
+    makePreservedApproval,
     makeToastrMock,
     makeSummaryStore,
 } from './test-helpers.js';
@@ -52,15 +53,17 @@ function setupActions({
     globalThis.$ = dom.$;
     const queue = { isBusy: () => busy, request: async () => {} };
     const gate = makeForegroundGate().gate;
+    const preservedApproval = makePreservedApproval({ gate, queue });
     const deps = {
         notify: makeNotifyRecorder(),
         gate,
         queue,
         manualRunnerDeps: { queue },
+        preservedApproval,
     };
     beforeBind?.(dom);
     bindUIEvents(deps);
-    return { dom, queue, gate, store, deps };
+    return { dom, queue, gate, store, deps, preservedApproval };
 }
 
 function clickPreserve(dom, index) {
@@ -218,6 +221,41 @@ describe('Preserve verbatim message actions', () => {
 
         expect(getChatStore().preservedMessages).toEqual([]);
         expect(getChatStore().mutationEpoch).toBe(0);
+        expect(globalThis.toastr.warning).toHaveBeenCalledOnce();
+    });
+
+    it('treats approval while a cleanup rerender is pending as stale', async () => {
+        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
+        const { dom } = setupActions({ chat });
+        const dialog = deferred();
+        const popups = installPopup(dialog.promise);
+        let releaseRerender;
+        const rerenderGate = new Promise((resolve) => {
+            releaseRerender = resolve;
+        });
+        let calls = 0;
+        vi.spyOn(regexProxy, 'applyRegexToMessage').mockImplementation(async () => {
+            calls += 1;
+            if (calls === 1) {
+                return 'approved';
+            }
+            await rerenderGate;
+            return 'rerendered';
+        });
+
+        const clicking = clickPreserve(dom, 0);
+        await vi.waitFor(() => expect(popups).toHaveLength(1));
+        const content = popups[0].content;
+        content.find('.sc-preserve-strip-tags').prop('checked', true);
+        dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
+        await vi.waitFor(() => expect(regexProxy.applyRegexToMessage).toHaveBeenCalledTimes(2));
+        dialog.resolve(1);
+        await clicking;
+
+        expect(getChatStore().preservedMessages).toEqual([]);
+        expect(getChatStore().mutationEpoch).toBe(0);
+        expect(globalThis.toastr.warning).toHaveBeenCalledOnce();
+        releaseRerender();
     });
 
     it('adds one action per user and assistant message without duplicate bindings', () => {
@@ -236,6 +274,7 @@ describe('Preserve verbatim message actions', () => {
             gate,
             queue,
             manualRunnerDeps: { queue },
+            preservedApproval: makePreservedApproval({ gate, queue }),
         };
 
         bindUIEvents(deps);
@@ -375,7 +414,8 @@ describe('Preserve verbatim message actions', () => {
         await clickPreserve(dom, 0);
 
         expect(popups).toEqual([]);
-        expect(globalThis.toastr.warning).toHaveBeenCalledOnce();
+        expect(globalThis.toastr.warning).not.toHaveBeenCalled();
+        expect(globalThis.toastr.info).not.toHaveBeenCalled();
         expect(getChatStore().preservedMessages).toEqual([]);
         expect(getChatStore().mutationEpoch).toBe(0);
     });
@@ -479,34 +519,6 @@ describe('Preserve verbatim message actions', () => {
         expect(regex).not.toHaveBeenCalled();
         expect(popups).toEqual([]);
         expect(getChatStore().preservedMessages).toEqual([]);
-    });
-
-    it('revalidates sc_id after regex and again after the dialog', async () => {
-        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
-        const { dom } = setupActions({ chat });
-        const regexResult = deferred();
-        vi.spyOn(regexProxy, 'applyRegexToMessage').mockReturnValue(regexResult.promise);
-        const popups = installPopup(1);
-
-        const duringRegex = clickPreserve(dom, 0);
-        await vi.waitFor(() => expect(regexProxy.applyRegexToMessage).toHaveBeenCalledOnce());
-        chat[0].sc_id = 'replacement';
-        regexResult.resolve('approved');
-        await duringRegex;
-        expect(popups).toEqual([]);
-
-        chat[0].sc_id = 'm0';
-        vi.spyOn(regexProxy, 'applyRegexToMessage').mockResolvedValue('approved');
-        const dialog = deferred();
-        const dialogPopups = installPopup(dialog.promise);
-        const duringDialog = clickPreserve(dom, 0);
-        await vi.waitFor(() => expect(dialogPopups).toHaveLength(1));
-        chat[0].sc_id = 'another-replacement';
-        dialog.resolve(1);
-        await duringDialog;
-
-        expect(getChatStore().preservedMessages).toEqual([]);
-        expect(getChatStore().mutationEpoch).toBe(0);
     });
 
     it('returns the action to eligible state after Clear and reconciliation', async () => {
