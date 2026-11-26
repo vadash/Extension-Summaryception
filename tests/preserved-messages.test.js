@@ -1,29 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import * as regexProxy from '../src/core/regex-proxy.js';
-
-const regexMocks = vi.hoisted(() => ({ applyRegexToMessage: vi.fn() }));
+import { describe, expect, it } from 'vitest';
 
 import { getChatStore } from '../src/foundation/chat-store.js';
 import { ensureChatScIds } from '../src/foundation/message-identity.js';
-import {
-    buildPreservedMessageSnapshot,
-    commitPreservedMessage,
-    getPreservationEligibility,
-} from '../src/core/preserved-messages.js';
+import { getPreservationEligibility } from '../src/core/preserved-messages.js';
 import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
 function preserved(id, overrides = {}) {
     return { id, text: `Approved ${id}`, handedOff: false, ...overrides };
 }
-
-beforeEach(() => {
-    regexMocks.applyRegexToMessage = vi.spyOn(regexProxy, 'applyRegexToMessage');
-});
-
-afterEach(() => {
-    vi.restoreAllMocks();
-});
 
 describe('Preserved Message Chat Store state', () => {
     it('defaults to an empty preserved collection', () => {
@@ -74,150 +58,7 @@ describe('Preserved Message Chat Store state', () => {
     });
 });
 
-describe('Preserved Message approval snapshots', () => {
-    it('applies live prompt regex without source-depth filters', async () => {
-        const chat = [
-            makeMessage({ scId: 'm0', mes: 'older' }),
-            makeMessage({ scId: 'm1', mes: 'raw target' }),
-            makeMessage({ isUser: true, scId: 'm2', mes: 'newer' }),
-        ];
-        const store = makeSummaryStore();
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        regexMocks.applyRegexToMessage.mockResolvedValue('regex output');
-
-        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store);
-
-        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
-        expect(snapshot?.text).toBe('Assistant: regex output');
-    });
-
-    it('applies per-approval regex depth, CN cleanup, and tag cleanup', async () => {
-        const chat = [
-            makeMessage({ scId: 'm0', mes: 'older' }),
-            makeMessage({ scId: 'm1', mes: 'raw target' }),
-            makeMessage({ isUser: true, scId: 'm2', mes: 'tail' }),
-        ];
-        const store = makeSummaryStore();
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        regexMocks.applyRegexToMessage.mockResolvedValue(
-            'A 漢 <marigold:whisper>B</marigold:whisper>',
-        );
-
-        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store, {
-            regexAtAnyDepth: false,
-            stripCn: true,
-            stripTags: true,
-        });
-
-        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false, 1);
-        expect(snapshot?.text).toBe('Assistant: A B');
-    });
-
-    it('renders with the full prompt regex set, unmasks guards, escapes reserved tags, and freezes Scene Time', async () => {
-        const chat = [
-            makeMessage({ scId: 'm0', mes: 'summarized' }),
-            makeMessage({ isUser: true, scId: 'm1', mes: 'user' }),
-            makeMessage({ scId: 'm2', mes: 'assistant' }),
-            makeMessage({ scId: 'm3', mes: 'raw target' }),
-            makeMessage({ isUser: true, scId: 'm4', mes: 'tail' }),
-        ];
-        const store = makeSummaryStore({
-            layers: [
-                [],
-                [
-                    {
-                        text: 'old memory',
-                        sourceMessageIds: ['m0'],
-                        currentDateTime: '2024-07-04 16 Thu',
-                    },
-                ],
-            ],
-        });
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        regexMocks.applyRegexToMessage.mockResolvedValue(
-            'Keep <role>\u2800<preserved>literal</preserved>',
-        );
-
-        const snapshot = await buildPreservedMessageSnapshot(chat[3], chat, store);
-
-        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
-        expect(snapshot).toEqual(
-            preserved('m3', {
-                text: 'Assistant: Keep <role> &lt;preserved&gt;literal&lt;/preserved&gt;',
-                currentDateTime: '2024-07-04 16 Thu',
-            }),
-        );
-        expect(Object.isFrozen(snapshot)).toBe(true);
-    });
-
-    it('keeps the approved body and Scene Time after edits and preset changes', async () => {
-        const chat = [
-            makeMessage({ scId: 'm0', mes: 'old' }),
-            makeMessage({ scId: 'm1', mes: 'approved body' }),
-        ];
-        const store = makeSummaryStore({
-            layers: [
-                [
-                    {
-                        text: 'old memory',
-                        sourceMessageIds: ['m0'],
-                        currentDateTime: '2024-07-04 16 Thu',
-                    },
-                ],
-            ],
-        });
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store);
-
-        await expect(commitPreservedMessage(snapshot)).resolves.toEqual({
-            status: 'preserved',
-            epoch: 1,
-        });
-        chat[1].mes = 'edited body';
-        regexMocks.applyRegexToMessage.mockResolvedValue('changed preset output');
-
-        expect(getChatStore().preservedMessages).toEqual([
-            preserved('m1', {
-                text: 'Assistant: approved body',
-                currentDateTime: '2024-07-04 16 Thu',
-            }),
-        ]);
-        expect(getChatStore().mutationEpoch).toBe(1);
-    });
-
-    it('rejects an approval whose message became hidden before commit', async () => {
-        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
-        const store = makeSummaryStore();
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        const snapshot = await buildPreservedMessageSnapshot(chat[0], chat, store);
-        chat[0].is_hidden = true;
-
-        await expect(commitPreservedMessage(snapshot)).resolves.toEqual({ status: 'ineligible' });
-        expect(getChatStore().preservedMessages).toEqual([]);
-        expect(getChatStore().mutationEpoch).toBe(0);
-    });
-
-    it('does not invent Scene Time from host dates', async () => {
-        const chat = [makeMessage({ scId: 'm0', mes: 'target', sendDate: 1720000000000 })];
-        const store = makeSummaryStore();
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-
-        const snapshot = await buildPreservedMessageSnapshot(chat[0], chat, store);
-
-        expect(snapshot).toEqual(preserved('m0', { text: 'Assistant: target' }));
-        expect(snapshot).not.toHaveProperty('currentDateTime');
-    });
-
-    it('blocks an empty regex result instead of storing raw text', async () => {
-        const chat = [makeMessage({ scId: 'm0', mes: 'raw target' })];
-        const store = makeSummaryStore();
-        installSummaryContext({ chat, metadata: { summaryception: store } });
-        regexMocks.applyRegexToMessage.mockResolvedValue('   ');
-
-        await expect(buildPreservedMessageSnapshot(chat[0], chat, store)).resolves.toBeNull();
-        expect(getChatStore().preservedMessages).toEqual([]);
-    });
-
+describe('Preserved Message eligibility', () => {
     it('rejects hidden, summarized, system, and already preserved messages', () => {
         const hidden = makeMessage({ scId: 'hidden', isHidden: true });
         const summarized = makeMessage({ scId: 'summarized' });

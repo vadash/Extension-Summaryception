@@ -12,6 +12,7 @@ import { unmaskGuardText } from './guard-mask.js';
 import { normalizeCurrentDateTime } from './snippet-metadata.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
 import { applyRegexToMessage } from './regex-proxy.js';
+import { buildInjection } from './memory-injection.js';
 
 /**
  * @param {SummaryceptionStore} [store]
@@ -316,4 +317,358 @@ export function latchPreservedHandoffs(chat, store) {
         return Object.freeze({ ...record, handedOff: true });
     });
     return changed;
+}
+
+const PRESERVED_APPROVAL_DEFAULT_OPTIONS = Object.freeze({
+    regexAtAnyDepth: true,
+    stripCn: true,
+    stripTags: false,
+});
+
+/**
+ * Build the one Preserved Message approval transaction. The composition root
+ * builds one instance with live runtime readers and the Gate, Queue, and
+ * persistence collaborators, then entry calls one operation per approval.
+ * Core owns candidate construction, preview, confirmation handling, freshness,
+ * validation, and commit. Entry owns Popup, DOM, notices, and refresh.
+ * @param {object} deps
+ * @param {() => ChatMessage[]} deps.getChat - Live chat reader.
+ * @param {() => SummaryceptionStore} deps.getChatStore - Live Chat Store reader.
+ * @param {() => ExtensionSettings} deps.getEffectiveSettings - Live effective settings reader.
+ * @param {() => object} deps.getContext - Live host context reader.
+ * @param {(ctx: object) => string} deps.getChatIdentity - Chat identity seam.
+ * @param {() => boolean} deps.isGenerating - Live generation flag reader.
+ * @param {{ isFrozen: () => boolean }} deps.gate - Foreground Gate.
+ * @param {{ isBusy: () => boolean }} deps.queue - Summarizer Queue.
+ * @param {() => Promise<void>} deps.saveChatStore - Injected persistence.
+ * @returns {{ approve: (request: { messageId: string, confirm: object, options?: PreservedMessageRenderOptions }) => Promise<{ status: string, reason?: string, record?: SummaryceptionPreservedMessage, epoch?: number }> }}
+ */
+export function createPreservedMessageApproval(deps) {
+    const valid = isApprovalDepsValid(deps);
+    if (!valid) {
+        throw new Error(
+            'createPreservedMessageApproval needs live readers, Gate, Queue, and persistence.',
+        );
+    }
+    return {
+        approve: (request) => runApprovalTransaction(deps, request),
+    };
+}
+
+function isApprovalDepsValid(deps) {
+    return (
+        !!deps &&
+        typeof deps.getChat === 'function' &&
+        typeof deps.getChatStore === 'function' &&
+        typeof deps.getEffectiveSettings === 'function' &&
+        typeof deps.getContext === 'function' &&
+        typeof deps.getChatIdentity === 'function' &&
+        typeof deps.isGenerating === 'function' &&
+        !!deps.gate &&
+        typeof deps.gate.isFrozen === 'function' &&
+        !!deps.queue &&
+        typeof deps.queue.isBusy === 'function' &&
+        typeof deps.saveChatStore === 'function'
+    );
+}
+
+function normalizeApprovalOptions(value) {
+    return { ...PRESERVED_APPROVAL_DEFAULT_OPTIONS, ...(value || {}) };
+}
+
+function parseApprovedRevision(result) {
+    if (typeof result === 'number' || typeof result === 'string') {
+        return result;
+    }
+    if (!result || typeof result !== 'object') {
+        return null;
+    }
+    if (result.approved === true && result.revision !== undefined) {
+        return result.revision;
+    }
+    if (result.status === 'approved' && result.revision !== undefined) {
+        return result.revision;
+    }
+    if (result.decision === 'approved' && result.revision !== undefined) {
+        return result.revision;
+    }
+    return null;
+}
+
+function readApprovalGuard(deps) {
+    if (!deps.getEffectiveSettings().enabled) {
+        return 'disabled';
+    }
+    if (deps.queue.isBusy()) {
+        return 'busy';
+    }
+    if (deps.gate.isFrozen()) {
+        return 'frozen';
+    }
+    if (deps.isGenerating()) {
+        return 'generating';
+    }
+    return null;
+}
+
+function isMessageIdValid(messageId) {
+    return typeof messageId === 'string' && messageId.trim() !== '';
+}
+
+function resolveCurrentTarget(deps, messageId) {
+    const chat = deps.getChat();
+    const store = deps.getChatStore();
+    const chatId = deps.getChatIdentity(deps.getContext());
+    const index = getMessageIndexByScId(chat).get(messageId);
+    const message = index !== undefined ? chat[index] : undefined;
+    return { chat, store, chatId, index, message };
+}
+
+function checkInitialTarget(deps, messageId) {
+    const target = resolveCurrentTarget(deps, messageId);
+    if (!target.message || target.message.sc_id !== messageId || target.index === undefined) {
+        return { ok: false, reason: 'missing-identity' };
+    }
+    const eligibility = getPreservationEligibility(target.message, target.chat, target.store);
+    if (!eligibility.eligible) {
+        return { ok: false, reason: eligibility.reason };
+    }
+    return { ok: true, target };
+}
+
+async function buildApprovalCandidate(deps, messageId, normalized) {
+    const target = resolveCurrentTarget(deps, messageId);
+    if (!target.message || target.message.sc_id !== messageId || target.index === undefined) {
+        return { ok: false, reason: 'missing-identity' };
+    }
+    const eligibility = getPreservationEligibility(target.message, target.chat, target.store);
+    if (!eligibility.eligible) {
+        return { ok: false, reason: eligibility.reason };
+    }
+    const snapshot = await buildPreservedMessageSnapshot(
+        target.message,
+        target.chat,
+        target.store,
+        normalized,
+    );
+    if (!snapshot) {
+        return { ok: false, reason: 'empty' };
+    }
+    const preview = buildInjection(target.store.layers, deps.getEffectiveSettings(), null, {
+        chat: target.chat,
+        preservedMessages: [...target.store.preservedMessages, { ...snapshot, handedOff: true }],
+    }).text;
+    if (!preview.trim() || !preview.includes('<preserved>')) {
+        return { ok: false, reason: 'unavailable' };
+    }
+    return {
+        ok: true,
+        snapshot,
+        preview,
+        chatId: target.chatId,
+        index: target.index,
+        rawMes: String(target.message.mes),
+        isUser: Boolean(target.message.is_user),
+    };
+}
+
+function createApprovalState(initialOptions, initial) {
+    const candidates = new Map();
+    candidates.set(1, {
+        snapshot: initial.snapshot,
+        preview: initial.preview,
+        options: initialOptions,
+        chatId: initial.chatId,
+        index: initial.index,
+        rawMes: initial.rawMes,
+        isUser: initial.isUser,
+        reason: null,
+    });
+    return { candidates, nextRevision: 1, latestRevision: 1, pendingRerenders: 0 };
+}
+
+function storeRerenderedCandidate(state, revision, built, normalized) {
+    if (built.ok) {
+        state.candidates.set(revision, {
+            snapshot: built.snapshot,
+            preview: built.preview,
+            options: normalized,
+            chatId: built.chatId,
+            index: built.index,
+            rawMes: built.rawMes,
+            isUser: built.isUser,
+            reason: null,
+        });
+        return built.preview;
+    }
+    state.candidates.set(revision, {
+        snapshot: null,
+        preview: '',
+        options: normalized,
+        chatId: null,
+        index: null,
+        rawMes: null,
+        isUser: null,
+        reason: built.reason,
+    });
+    return '';
+}
+
+async function rerenderApprovalCandidate(deps, state, messageId, nextOptions) {
+    const normalized = normalizeApprovalOptions(nextOptions);
+    state.pendingRerenders += 1;
+    try {
+        const built = await buildApprovalCandidate(deps, messageId, normalized);
+        state.nextRevision += 1;
+        const revision = state.nextRevision;
+        const preview = storeRerenderedCandidate(state, revision, built, normalized);
+        state.latestRevision = revision;
+        return { revision, preview };
+    } finally {
+        state.pendingRerenders -= 1;
+    }
+}
+
+async function invokeApprovalConfirm(confirm, preview, revision, rerender) {
+    if (!confirm || typeof confirm.show !== 'function') {
+        return { status: 'skipped', reason: 'unavailable' };
+    }
+    try {
+        const decision = await confirm.show({ preview, revision, rerender });
+        const approvedRevision = parseApprovedRevision(decision);
+        if (approvedRevision === null) {
+            return { status: 'skipped', reason: 'cancelled' };
+        }
+        return { status: 'ok', revision: approvedRevision };
+    } catch {
+        return { status: 'skipped', reason: 'unavailable' };
+    }
+}
+
+function resolveApprovalRevision(state, approvedRevision) {
+    if (state.pendingRerenders > 0) {
+        return { status: 'stale' };
+    }
+    if (approvedRevision !== state.latestRevision || !state.candidates.has(approvedRevision)) {
+        return { status: 'stale' };
+    }
+    const approved = state.candidates.get(approvedRevision);
+    if (!approved.snapshot) {
+        if (approved.reason === 'missing-identity' || approved.reason === 'ineligible') {
+            return { status: 'stale' };
+        }
+        return { status: 'skipped', reason: approved.reason || 'empty' };
+    }
+    return { status: 'ok', approved };
+}
+
+function isIdentityFresh(current, messageId, approved) {
+    if (!current.message || current.message.sc_id !== messageId || current.index === undefined) {
+        return false;
+    }
+    if (current.chatId !== approved.chatId) {
+        return false;
+    }
+    if (current.index !== approved.index) {
+        return false;
+    }
+    return (
+        String(current.message.mes) === approved.rawMes &&
+        Boolean(current.message.is_user) === approved.isUser
+    );
+}
+
+async function isRenderFresh(current, approved) {
+    const fresh = await buildPreservedMessageSnapshot(
+        current.message,
+        current.chat,
+        current.store,
+        approved.options,
+    );
+    if (!fresh) {
+        return false;
+    }
+    return (
+        fresh.id === approved.snapshot.id &&
+        fresh.text === approved.snapshot.text &&
+        (fresh.currentDateTime || undefined) === (approved.snapshot.currentDateTime || undefined)
+    );
+}
+
+async function validateApprovalFreshness(deps, messageId, approved) {
+    const current = resolveCurrentTarget(deps, messageId);
+    if (!isIdentityFresh(current, messageId, approved)) {
+        return { ok: false };
+    }
+    if (!getPreservationEligibility(current.message, current.chat, current.store).eligible) {
+        return { ok: false };
+    }
+    if (!(await isRenderFresh(current, approved))) {
+        return { ok: false };
+    }
+    return { ok: true };
+}
+
+async function commitApprovedRecord(deps, messageId, snapshot) {
+    const store = deps.getChatStore();
+    if (
+        Array.isArray(store.preservedMessages) &&
+        store.preservedMessages.some((record) => record?.id === messageId)
+    ) {
+        return { status: 'stale' };
+    }
+    const previousRecords = store.preservedMessages;
+    const previousEpoch = store.mutationEpoch;
+    store.preservedMessages = [...previousRecords, snapshot];
+    const epoch = bumpSummaryStoreMutationEpoch(store);
+    try {
+        await deps.saveChatStore();
+    } catch (error) {
+        store.preservedMessages = previousRecords;
+        store.mutationEpoch = previousEpoch;
+        throw error;
+    }
+    return { status: 'committed', record: snapshot, epoch };
+}
+
+async function runApprovalTransaction(deps, request) {
+    const { messageId, confirm, options } = request ?? {};
+    if (!isMessageIdValid(messageId)) {
+        return { status: 'skipped', reason: 'missing-identity' };
+    }
+    const initialOptions = normalizeApprovalOptions(options);
+    const preGuard = readApprovalGuard(deps);
+    if (preGuard) {
+        return { status: 'skipped', reason: preGuard };
+    }
+    const initialCheck = checkInitialTarget(deps, messageId);
+    if (!initialCheck.ok) {
+        return { status: 'skipped', reason: initialCheck.reason };
+    }
+    const initial = await buildApprovalCandidate(deps, messageId, initialOptions);
+    if (!initial.ok) {
+        return { status: 'skipped', reason: initial.reason };
+    }
+    const state = createApprovalState(initialOptions, initial);
+    const rerender = (nextOptions) =>
+        rerenderApprovalCandidate(deps, state, messageId, nextOptions);
+    const confirmation = await invokeApprovalConfirm(confirm, initial.preview, 1, rerender);
+    if (confirmation.status !== 'ok') {
+        return { status: 'skipped', reason: confirmation.reason };
+    }
+    const resolution = resolveApprovalRevision(state, confirmation.revision);
+    if (resolution.status !== 'ok') {
+        return resolution.status === 'stale'
+            ? { status: 'stale' }
+            : { status: 'skipped', reason: resolution.reason };
+    }
+    const postGuard = readApprovalGuard(deps);
+    if (postGuard) {
+        return { status: 'skipped', reason: postGuard };
+    }
+    const freshness = await validateApprovalFreshness(deps, messageId, resolution.approved);
+    if (!freshness.ok) {
+        return { status: 'stale' };
+    }
+    return commitApprovedRecord(deps, messageId, resolution.approved.snapshot);
 }
