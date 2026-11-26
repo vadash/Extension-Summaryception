@@ -5,7 +5,7 @@ Browser-only SillyTavern extension for recursive layered summarization. Summariz
 ## Language
 
 **Chat Store**:
-The per-chat summary store as chat metadata holds it (ADR-0002): the layers, the Ghosting ownership, and the Mutation Epoch, with the repair a persisted store needs on read.
+The per-chat summary store as chat metadata holds it (ADR-0002): the layers, the Ghosting ownership, the Preserved Message snapshots and handoff state, and the Mutation Epoch, with the repair a persisted store needs on read.
 Code: `getChatStore` (src/foundation/chat-store.js)
 _Avoid_: chat state, metadata store
 
@@ -56,7 +56,7 @@ _Avoid_: Redo, re-summarize
 
 **Ghosting**:
 Hiding summarized turns from model context through the host command while keeping them visible in chat.
-Ownership sync derives the desired ghosted ids from Snippet provenance across all layers: it hides desired messages that are not covered yet and releases owned ids no longer referenced.
+Ownership sync derives the desired ghosted ids from Snippet provenance across all layers plus handed-off Preserved Messages: it hides desired messages that are not covered yet and releases owned ids no longer referenced.
 Code: `syncGhosting` (src/core/ghosting.js)
 
 **Guard Mask**:
@@ -93,6 +93,10 @@ Code: `AssistantTurn.index` (src/core/chatutils.js), `sc_id` (src/foundation/mes
 **Verbatim Window**:
 The recent chat range kept in model context without summarization.
 Code: `verbatimBudget` / `verbatimStartIdx` (src/core/chat-window-planner.js)
+
+**Preserved Message**:
+A user or assistant message selected before summarization whose approved, regex-rendered body is kept verbatim. It stays in raw chat until a later Layer 0 commit, then appears once in Memory Injection as an anchored `<preserved>` block; edits and preset changes do not alter it, and deleting the source message or Clear removes it.
+_Avoid_: grandfathered message, exempt message, pinned message
 
 **Output Envelope**:
 The `<narrative>…</narrative>` tag pair a Layer 0 or promotion response must wrap its prose in, followed only by the scene-time line. The close tag is the document-level contract: prose after it is rejectable, whatever the prose claims to be.
@@ -153,7 +157,7 @@ Code: `MEMORY_MODES` (src/foundation/constants.js)
 _Avoid_: Append Only
 
 **Memory Injection**:
-The read model of what ships in the prompt slot: the chronology in compact-anchor form, wrapped in the injection template, with its token cost. The same module builds and measures it, so the preview and the injected prompt are the same string. The slot's prompt role is user-configurable (system, user, or assistant), so content-based slot identity must hold for every role.
+The read model of what ships in the prompt slot: the chronology in compact-anchor form, including tagged Preserved Messages, wrapped in the injection template, with its token cost. The same module builds and measures it, so the preview and the injected prompt are the same string. The slot's prompt role is user-configurable (system, user, or assistant), so content-based slot identity must hold for every role.
 Code: `buildInjection` / `measureInjection` (src/core/memory-injection.js)
 _Avoid_: summary block, injection preview
 
