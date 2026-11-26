@@ -66,7 +66,9 @@ export function syncPreservedMessageActions() {
             !message ||
             message.is_system ||
             message.extra?.type ||
-            typeof message.is_user !== 'boolean'
+            typeof message.is_user !== 'boolean' ||
+            typeof message.sc_id !== 'string' ||
+            !String(message.mes || '').trim()
         ) {
             $message.find(PRESERVE_ACTION_SELECTOR).remove();
             return;
@@ -366,6 +368,8 @@ function showEligibilityGuidance(reason) {
         );
     } else if (reason === 'hidden') {
         toastr.info('Unhide this message before preserving it verbatim.', TOAST_TITLE);
+    } else {
+        warnPreservation('This message cannot be preserved verbatim. Nothing was saved.');
     }
 }
 

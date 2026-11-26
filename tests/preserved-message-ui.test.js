@@ -196,6 +196,17 @@ describe('Preserve verbatim message actions', () => {
         expect(dom.renderedMessages[2].$buttons.find(PRESERVE_SELECTOR)).toHaveLength(0);
     });
 
+    it('does not render a dead action for empty or unidentified messages', () => {
+        const empty = makeMessage({ scId: 'empty', mes: '   ' });
+        const unidentified = makeMessage({ scId: 'temporary', mes: 'target' });
+        delete unidentified.sc_id;
+        const chat = [empty, unidentified];
+        const { dom } = setupActions({ chat });
+
+        expect(dom.renderedMessages[0].$buttons.find(PRESERVE_SELECTOR)).toHaveLength(0);
+        expect(dom.renderedMessages[1].$buttons.find(PRESERVE_SELECTOR)).toHaveLength(0);
+    });
+
     it('restores one action after the host rerenders a message', () => {
         const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
         const { dom } = setupActions({ chat });
@@ -446,15 +457,16 @@ describe('Preserve verbatim message actions', () => {
         expect(getChatStore().mutationEpoch).toBe(0);
     });
 
-    it('returns the action to eligible state after Clear removes preservation', async () => {
+    it('returns the action to eligible state after Clear and reconciliation', async () => {
         const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
         const store = makeSummaryStore({
             preservedMessages: [{ id: 'm0', text: 'Assistant: target', handedOff: false }],
         });
-        const { dom } = setupActions({ chat, store });
+        const { dom, gate, queue } = setupActions({ chat, store });
         globalThis.confirm = vi.fn(() => true);
 
         await dom.trigger('click', '#sc_clear_memory');
+        await onAppReady({ gate, queue });
 
         expect(getChatStore().preservedMessages).toEqual([]);
         expect(dom.renderedMessages[0].$buttons.find(PRESERVE_SELECTOR).prop('disabled')).toBe(
