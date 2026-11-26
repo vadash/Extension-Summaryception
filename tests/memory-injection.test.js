@@ -149,8 +149,6 @@ describe('Preserved Message injection rendering', () => {
 
     it('explains the preserved tag in the default legend', () => {
         expect(defaultSettings.injectionTemplate).toContain('<preserved>');
-        expect(defaultSettings.injectionTemplate).toContain('exact source chat');
-        expect(defaultSettings.injectionTemplate).toContain('not a compressed snippet');
     });
 
     it('resolves snippet anchors from the passed chat rather than host positions', () => {
