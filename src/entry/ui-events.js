@@ -36,6 +36,10 @@ import {
 import { bindManualRunControls } from './ui-manual-run.js';
 import { bindDryRunPreviewButton, initDryRunViewer } from './dryrun-viewer.js';
 import { bindPromptProfiles } from './ui-prompts.js';
+import {
+    bindPreservedMessageActions,
+    syncPreservedMessageActions,
+} from './preserved-message-actions.js';
 
 /**
  * @returns {void}
@@ -72,6 +76,7 @@ export function bindUIEvents({
     bindPromptProfiles();
     initDryRunViewer({ gate, queue, warmPages, resolveMicrofichePage });
     bindDryRunPreviewButton();
+    bindPreservedMessageActions({ gate, queue });
 }
 
 function bindModeHandlers(queue) {
@@ -400,6 +405,8 @@ function bindMemoryClickHandlers(notify, gate) {
                 TOAST_TITLE,
                 { timeOut: 8000 },
             );
+        } finally {
+            syncPreservedMessageActions();
         }
     });
 

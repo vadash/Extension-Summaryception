@@ -18,6 +18,7 @@ import { updateContinuityInjection } from '../features/continuity-injection.js';
 import { updateContinuityMarker } from './continuity-marker.js';
 import { flushPendingChatSave, persistChatState } from '../core/persist-state.js';
 import { pauseMemoryToastForGeneration, showStaleCacheAdvice } from './ui-dialogs.js';
+import { syncPreservedMessageActions } from './preserved-message-actions.js';
 
 let previousPromptSectionHashes = [];
 
@@ -170,6 +171,7 @@ export function onMessageReceived(messageIndex, { notify, type, auditor, queue, 
     } catch (e) {
         warn('onMessageReceived error:', e);
     }
+    syncPreservedMessageActions();
 }
 
 /**
@@ -203,6 +205,7 @@ export function onChatChanged({ gate, queue, resetMicrofichePages }) {
     resetMicrofichePages();
     recoverPromptFreeze('chat change', gate);
     scheduleLoadedChatReconciliation(gate, queue);
+    syncPreservedMessageActions();
 }
 
 /**
@@ -212,6 +215,7 @@ export function onChatChanged({ gate, queue, resetMicrofichePages }) {
 export async function onAppReady({ gate, queue }) {
     gate.reset();
     await runSerializedReconciliation(gate, queue);
+    syncPreservedMessageActions();
 }
 
 /**
@@ -268,6 +272,7 @@ export function onGenerationStarted(args, { gate, queue }) {
     });
     pauseMemoryToastForGeneration();
     refreshUi();
+    syncPreservedMessageActions();
 }
 
 /**
@@ -297,6 +302,7 @@ export function onGenerationEnded({ gate, queue }) {
         })
         .finally(() => {
             refreshFull();
+            syncPreservedMessageActions();
         });
 }
 
@@ -348,6 +354,7 @@ async function reconcileLoadedChatState(gate) {
     }
     refreshPreview();
     await syncGhosting({ gate });
+    syncPreservedMessageActions();
 }
 
 /**

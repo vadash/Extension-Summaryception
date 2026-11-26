@@ -48,6 +48,7 @@ import {
     onMessageReceived,
 } from './src/entry/events.js';
 import { registerSlashCommands } from './src/entry/commands.js';
+import { syncPreservedMessageActions } from './src/entry/preserved-message-actions.js';
 
 (async function init() {
     const ctx = getContext();
@@ -133,7 +134,10 @@ import { registerSlashCommands } from './src/entry/commands.js';
             });
         },
         updateContinuityMarker,
-        updateUI: () => updateUI(),
+        updateUI: () => {
+            updateUI();
+            syncPreservedMessageActions();
+        },
         updatePreview: () => {
             const settings = getEffectiveSettings();
             const injection = buildUiInjection(getChatStore(), settings);

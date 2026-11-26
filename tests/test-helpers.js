@@ -316,7 +316,7 @@ export function installBrowserRuntimeStub(opts = {}) {
 }
 
 /** Build a reusable jQuery-like harness for UI unit tests. */
-export function createJQueryHarness({ attributes = {}, collections = {} } = {}) {
+export function createJQueryHarness({ attributes = {}, collections = {}, messages = [] } = {}) {
     const handlers = [];
     const elements = new Map();
     const nodeElements = new Map();
@@ -359,7 +359,11 @@ export function createJQueryHarness({ attributes = {}, collections = {} } = {}) 
         }
         if (typeof target === 'string') {
             if (Object.hasOwn(collections, target)) {
-                return createJQueryHarnessCollection(collections[target].map(element));
+                return createJQueryHarnessCollection(
+                    collections[target].map((entry) =>
+                        typeof entry === 'string' ? element(entry) : entry,
+                    ),
+                );
             }
             const selectors = String(target)
                 .split(',')
@@ -369,22 +373,50 @@ export function createJQueryHarness({ attributes = {}, collections = {} } = {}) 
                 return createJQueryHarnessCollection(selectors.map(element));
             }
             if (target.startsWith('<')) {
-                return createJQueryHarnessElement({
+                const wrapper = createJQueryHarnessElement({
                     selector: target,
                     handlers,
                     visibility,
                 });
+                for (const node of wrapper.nodes) {
+                    nodeElements.set(node, wrapper);
+                }
+                return wrapper;
             }
             return element(target);
         }
         return target;
     });
 
+    const chat = element('#chat');
+    const renderedMessages = messages.map((message, index) => {
+        const $message = element(`#sc-test-message-${index}`);
+        $message.addClass('mes').attr('mesid', String(message.index ?? index));
+        const $buttons = $('<div class="extraMesButtons"></div>');
+        $message.append($buttons);
+        chat.append($message);
+        return {
+            index: message.index ?? index,
+            $message,
+            $buttons,
+            rerender() {
+                $message.empty();
+                const $nextButtons = $('<div class="extraMesButtons"></div>');
+                $message.append($nextButtons);
+                return $nextButtons;
+            },
+        };
+    });
+    if (!Object.hasOwn(collections, '#chat .mes')) {
+        collections['#chat .mes'] = renderedMessages.map(({ $message }) => $message);
+    }
+
     return {
         $,
         element,
         elements,
         visibility,
+        renderedMessages,
         trigger(eventName, selector, target = element(selector)) {
             const entry = handlers.find(
                 (handler) =>
@@ -491,14 +523,61 @@ function createJQueryHarnessCollection(wrappers) {
         nodes,
         ids,
         length: nodes.length,
-        0: nodes[0],
-        add(other) {
-            return createJQueryHarnessCollection([...wrappers, other]);
-        },
         each(callback) {
             wrappers.forEach((wrapper, index) => {
                 callback.call(wrapper[0], index, wrapper[0]);
             });
+            return api;
+        },
+        attr(name, nextValue) {
+            if (arguments.length === 1) {
+                return wrappers[0]?.attr(name);
+            }
+            for (const wrapper of wrappers) {
+                wrapper.attr(name, nextValue);
+            }
+            return api;
+        },
+        prop(name, nextValue) {
+            if (arguments.length === 1) {
+                return wrappers[0]?.prop(name);
+            }
+            for (const wrapper of wrappers) {
+                wrapper.prop(name, nextValue);
+            }
+            return api;
+        },
+        html(nextValue) {
+            if (arguments.length === 1) {
+                for (const wrapper of wrappers) {
+                    wrapper.html(nextValue);
+                }
+                return api;
+            }
+            return wrappers[0]?.html();
+        },
+        toggleClass(className, force) {
+            for (const wrapper of wrappers) {
+                wrapper.toggleClass(className, force);
+            }
+            return api;
+        },
+        find(selector) {
+            return createJQueryHarnessCollection(
+                wrappers.flatMap((wrapper) => wrapper.find(selector)),
+            );
+        },
+        closest(selector) {
+            const matches = wrappers.map((wrapper) => wrapper.closest(selector)).filter(Boolean);
+            return createJQueryHarnessCollection(matches);
+        },
+        slice(start, end) {
+            return createJQueryHarnessCollection(wrappers.slice(start, end));
+        },
+        remove() {
+            for (const wrapper of wrappers) {
+                wrapper.remove();
+            }
             return api;
         },
         hide() {
@@ -523,6 +602,8 @@ function createJQueryHarnessCollection(wrappers) {
     return api;
 }
 
+const harnessNodeElements = new WeakMap();
+
 function createJQueryHarnessElement({ selector, attributes = {}, handlers, visibility }) {
     const id = selector.startsWith('#') ? selector.slice(1) : selector;
     const state = {
@@ -535,8 +616,15 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
         children: [],
         visible: true,
         classes: new Set(),
+        parent: null,
+        removed: false,
     };
-    const node = { id };
+    const tagName = /^<([a-z0-9]+)/i.exec(selector)?.[1]?.toUpperCase() || 'DIV';
+    const node = { id, tagName };
+    const classMatch = /class=(["'])(.*?)\1/i.exec(selector);
+    for (const className of splitClassNames(classMatch?.[2] || '')) {
+        state.classes.add(className);
+    }
     const api = {
         __summaryceptionJqueryHarness: true,
         0: node,
@@ -599,7 +687,16 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
             return api;
         },
         append(child) {
-            state.children.push(child);
+            const children = child?.__summaryceptionJqueryHarness ? child.nodes : [child];
+            for (const childNode of children) {
+                const wrapper = harnessNodeElements.get(childNode);
+                if (wrapper) {
+                    wrapper.setParent(api);
+                    state.children.push(wrapper);
+                } else {
+                    state.children.push(childNode);
+                }
+            }
             return api;
         },
         appendTo(parent) {
@@ -607,9 +704,60 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
             return api;
         },
         empty() {
+            for (const child of state.children) {
+                if (child?.setParent) {
+                    child.setParent(null);
+                }
+            }
             state.children = [];
             state.text = '';
             state.html = '';
+            return api;
+        },
+        find(selector) {
+            const matches = state.children.flatMap((child) => {
+                const wrapper = child?.__summaryceptionJqueryHarness
+                    ? child
+                    : harnessNodeElements.get(child);
+                if (!wrapper || wrapper.isRemoved()) {
+                    return [];
+                }
+                return [
+                    ...(wrapper.matches(selector) ? [wrapper] : []),
+                    ...wrapper
+                        .find(selector)
+                        .nodes.map((node) => harnessNodeElements.get(node))
+                        .filter(Boolean),
+                ];
+            });
+            return createJQueryHarnessCollection(matches);
+        },
+        closest(selector) {
+            return state.parent?.matches(selector) ? state.parent : state.parent?.closest(selector);
+        },
+        matches(selector) {
+            if (selector.startsWith('.')) {
+                return state.classes.has(selector.slice(1));
+            }
+            return selector === node.tagName;
+        },
+        isRemoved() {
+            return state.removed;
+        },
+        setParent(parent) {
+            state.parent = parent;
+        },
+        remove() {
+            const parent = state.parent;
+            if (parent) {
+                parent.detach(api);
+            }
+            state.parent = null;
+            state.removed = true;
+            return api;
+        },
+        detach(child) {
+            state.children = state.children.filter((candidate) => candidate !== child);
             return api;
         },
         addClass(classNames) {
@@ -658,6 +806,7 @@ function createJQueryHarnessElement({ selector, attributes = {}, handlers, visib
             return state.visible;
         },
     };
+    harnessNodeElements.set(node, api);
 
     function setVisible(value) {
         state.visible = value;
