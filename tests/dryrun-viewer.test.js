@@ -366,6 +366,34 @@ describe('captureHostDryRun', () => {
         expect(captured.snapshot).toEqual({ modelName: 'argon-x' });
     });
 
+    it('logs a capture-facts failure and leaves an explicit unavailable baseline', async () => {
+        const eventSource = makeEventSource();
+        const mocks = /** @type {any} */ (globalThis).summaryceptionFoundationMocks.context;
+        mocks.getEventSource.mockReturnValue(eventSource);
+        mocks.getEventTypes.mockReturnValue({ CHAT_COMPLETION_PROMPT_READY: EVENT_NAME });
+        const warn = /** @type {any} */ (globalThis).summaryceptionFoundationMocks.logger.warn;
+        warn.mockClear();
+
+        const captured = await captureHostDryRun({
+            trigger: async () => {
+                eventSource.emit(EVENT_NAME, { chat: [{ role: 'user', content: 'x' }] });
+            },
+            captureFacts: () => {
+                throw new Error('facts boom');
+            },
+        });
+
+        expect(captured.chat).toEqual([{ role: 'user', content: 'x' }]);
+        expect(captured.snapshot).toBeNull();
+        expect(warn).toHaveBeenCalledWith(
+            'Dry-Run Preview capture facts failed:',
+            expect.anything(),
+        );
+        expect(deriveOutgoingDivergence(captured.snapshot, captured.snapshot)).toEqual([
+            { kind: 'capture-unavailable' },
+        ]);
+    });
+
     it('resolves null on timeout and detaches', async () => {
         const eventSource = makeEventSource();
         const mocks = /** @type {any} */ (globalThis).summaryceptionFoundationMocks.context;

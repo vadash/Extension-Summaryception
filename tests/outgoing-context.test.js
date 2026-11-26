@@ -398,4 +398,20 @@ describe('outgoing capture divergence', () => {
         expect(preview).toEqual(live);
         expect(outgoing.slotStatus).toBe('skipped');
     });
+
+    it('reports capture-unavailable when the baseline is null or malformed', () => {
+        const writer = makeWriter(makeSlotFacts('MEMORY body'));
+        const current = captureOutgoingSnapshot({
+            writer,
+            settings: makeSettings(),
+            chat: [],
+            modelName: 'argon-x',
+        });
+
+        expect(deriveOutgoingDivergence(null, current)).toEqual([{ kind: 'capture-unavailable' }]);
+        expect(deriveOutgoingDivergence({ modelName: 'argon-x' }, current)).toEqual([
+            { kind: 'capture-unavailable' },
+        ]);
+        expect(deriveOutgoingDivergence(current, null)).toEqual([{ kind: 'capture-unavailable' }]);
+    });
 });

@@ -505,6 +505,9 @@ function divergenceText(divergence) {
     if (divergence.kind === 'slot-unresolved') {
         return 'The Memory Slot identity is unresolved; the slot was over-masked.';
     }
+    if (divergence.kind === 'capture-unavailable') {
+        return 'Capture facts were unavailable; changes since capture are unknown.';
+    }
     return divergence.kind;
 }
 
@@ -686,7 +689,8 @@ export async function captureHostDryRun({ trigger, timeoutMs = CAPTURE_TIMEOUT_M
             let snapshot = null;
             try {
                 snapshot = typeof captureFacts === 'function' ? captureFacts() : null;
-            } catch {
+            } catch (e) {
+                warn('Dry-Run Preview capture facts failed:', e);
                 snapshot = null;
             }
             settle({ chat, snapshot });

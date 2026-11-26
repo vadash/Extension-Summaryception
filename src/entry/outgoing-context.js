@@ -43,7 +43,7 @@ import {
 
 /**
  * @typedef {object} OutgoingDivergence
- * @property {'model-changed' | 'chat-tail-changed' | 'settings-changed' | 'slot-changed'} kind - Changed fact category.
+ * @property {'model-changed' | 'chat-tail-changed' | 'settings-changed' | 'slot-changed' | 'capture-unavailable'} kind - Changed fact category.
  */
 
 /**
@@ -294,8 +294,8 @@ function readSnapshotSlotKey(slotFacts) {
  * @returns {Array<OutgoingDivergence>} Changed categories.
  */
 export function deriveOutgoingDivergence(captured, current) {
-    if (!captured || !current || typeof captured !== 'object' || typeof current !== 'object') {
-        return [];
+    if (!isCaptureSnapshot(captured) || !isCaptureSnapshot(current)) {
+        return [{ kind: 'capture-unavailable' }];
     }
     return [
         ...modelDivergence(captured, current),
@@ -303,6 +303,30 @@ export function deriveOutgoingDivergence(captured, current) {
         ...settingsDivergence(captured, current),
         ...slotDivergence(captured, current),
     ];
+}
+
+/**
+ * A missing or malformed arrival baseline cannot prove nothing changed, so
+ * the viewer must say the baseline is unavailable instead of staying silent.
+ * @param {unknown} snapshot - Capture or transform facts.
+ * @returns {snapshot is import('./outgoing-context.js').OutgoingCaptureSnapshot} Whether the snapshot carries every compared field.
+ */
+function isCaptureSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') {
+        return false;
+    }
+    const record =
+        /** @type {{ modelName?: unknown, chatTailAnchor?: unknown, settings?: unknown, slotKey?: unknown, slotPresent?: unknown }} */ (
+            snapshot
+        );
+    return (
+        typeof record.modelName === 'string' &&
+        (typeof record.chatTailAnchor === 'string' || record.chatTailAnchor === null) &&
+        Boolean(record.settings) &&
+        typeof record.settings === 'object' &&
+        typeof record.slotKey === 'string' &&
+        typeof record.slotPresent === 'boolean'
+    );
 }
 /**
  * @param {OutgoingCaptureSnapshot} captured - Arrival facts.
