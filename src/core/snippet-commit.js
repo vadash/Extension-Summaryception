@@ -34,6 +34,7 @@ export async function commitSnippetMutation(store, mutate, opts = {}) {
         ),
         ghostedMessageIds: [...(store.ghostedMessageIds || [])],
         preservedMessages: [...(store.preservedMessages || [])],
+        mutationEpoch: store.mutationEpoch,
     };
 
     try {

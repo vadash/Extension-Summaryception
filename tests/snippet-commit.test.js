@@ -151,6 +151,7 @@ describe('commitSnippetMutation', () => {
         expect(store.preservedMessages).toEqual([
             { id: 'sc-1', text: 'Assistant: approved', handedOff: false },
         ]);
+        expect(store.mutationEpoch).toBe(3);
         expect(saveMetadata).toHaveBeenCalledTimes(2);
     });
 
