@@ -6,7 +6,7 @@ import {
     saveChatStore,
 } from '../foundation/chat-store.js';
 import { getMessageIndexByScId, resolveScIdsToIndices } from '../foundation/message-identity.js';
-import { formatMessageSpeakerLine, getPromptDepthsByChatIndex } from './chatutils.js';
+import { formatMessageSpeakerLine } from './chatutils.js';
 import { unmaskGuardText } from './guard-mask.js';
 import { normalizeCurrentDateTime } from './snippet-metadata.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
@@ -167,8 +167,7 @@ export async function buildPreservedMessageSnapshot(message, chat, store, _setti
         return null;
     }
     const rawText = String(message.mes || '').trim();
-    const depth = getPromptDepthsByChatIndex(chat).get(index);
-    const rendered = await applyRegexToMessage(rawText, Boolean(message.is_user), depth);
+    const rendered = await applyRegexToMessage(rawText, Boolean(message.is_user));
     const body = escapePreservedTags(unmaskGuardText(rendered));
     if (!body.trim()) {
         return null;

@@ -28,7 +28,7 @@ async function loadRegexModule() {
  * Falls back to the raw string if the regex engine is unavailable.
  * @param {string} mes - Raw message text
  * @param {boolean} isUser - True for user messages (USER_INPUT), false for assistant (AI_OUTPUT)
- * @param {number | undefined} depth - Prompt-context depth for ST regex min/max depth filters
+ * @param {number} [depth] - Prompt-context depth for ST regex min/max depth filters
  * @returns {Promise<string>} Regex-transformed text, or raw text on failure
  */
 export async function applyRegexToMessage(mes, isUser, depth) {

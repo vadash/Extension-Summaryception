@@ -80,7 +80,7 @@ describe('Preserved Message Chat Store state', () => {
 });
 
 describe('Preserved Message approval snapshots', () => {
-    it('always applies live prompt regex at the original depth', async () => {
+    it('applies live prompt regex without source-depth filters', async () => {
         const chat = [
             makeMessage({ scId: 'm0', mes: 'older' }),
             makeMessage({ scId: 'm1', mes: 'raw target' }),
@@ -97,11 +97,11 @@ describe('Preserved Message approval snapshots', () => {
             makeSummarySettings({ applyRegexScripts: false }),
         );
 
-        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false, 1);
+        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
         expect(snapshot?.text).toBe('Assistant: regex output');
     });
 
-    it('renders at original chat depth, unmasks guards, escapes reserved tags, and freezes Scene Time', async () => {
+    it('renders with the full prompt regex set, unmasks guards, escapes reserved tags, and freezes Scene Time', async () => {
         const chat = [
             makeMessage({ scId: 'm0', mes: 'summarized' }),
             makeMessage({ isUser: true, scId: 'm1', mes: 'user' }),
@@ -133,7 +133,7 @@ describe('Preserved Message approval snapshots', () => {
             makeSummarySettings({ applyRegexScripts: true }),
         );
 
-        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false, 1);
+        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
         expect(snapshot).toEqual(
             preserved('m3', {
                 text: 'Assistant: Keep <role> &lt;preserved&gt;literal&lt;/preserved&gt;',
