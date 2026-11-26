@@ -13,10 +13,10 @@ import {
     stripLeadingThinkRegion,
 } from './structural-headers.js';
 import { getSourceTokenCount, SUBSTANTIAL_SOURCE_TOKEN_THRESHOLD } from './token-budget.js';
+import { countChineseIdeographs, stripChineseIdeographs } from './cn-text.js';
 
 // ─── Output Cleaning ─────────────────────────────────────────────────
 
-const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
 const VISIBLE_CHARACTER_REGEX = /\S/gu;
 const OUTPUT_DASH_REGEX = /[\u2014\u2015]/g;
 const HORIZONTAL_WHITESPACE_RUN_REGEX = /[^\S\r\n]+/g;
@@ -253,25 +253,13 @@ function findPassageShapeRejection(output, profile) {
  */
 function getChineseIdeographStats(text) {
     const source = String(text || '');
-    const chineseIdeographs = countMatches(source, CHINESE_IDEOGRAPH_REGEX);
+    const chineseIdeographs = countChineseIdeographs(source);
     const visibleCharacters = countMatches(source, VISIBLE_CHARACTER_REGEX);
     return {
         chineseIdeographs,
         visibleCharacters,
         ratio: visibleCharacters > 0 ? chineseIdeographs / visibleCharacters : 0,
     };
-}
-
-/**
- * Replace each Han ideograph with a space so the surrounding words keep a
- * separator, then collapse the horizontal whitespace runs this creates.
- * @param {string} text - Text to clean
- * @returns {string}
- */
-function stripChineseIdeographs(text) {
-    return String(text || '')
-        .replace(CHINESE_IDEOGRAPH_REGEX, ' ')
-        .replace(HORIZONTAL_WHITESPACE_RUN_REGEX, ' ');
 }
 
 function cleanWhitespace(text) {

@@ -24,6 +24,11 @@ import { persistChatState } from '../core/persist-state.js';
 import { getChatIdentity } from '../core/summarizer-snapshot.js';
 
 const PRESERVE_ACTION_SELECTOR = '.sc-preserve-verbatim';
+const DEFAULT_PRESERVE_RENDER_OPTIONS = Object.freeze({
+    regexAtAnyDepth: true,
+    stripCn: true,
+    stripTags: false,
+});
 
 /** @type {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue } | null} */
 let actionDeps = null;
@@ -213,11 +218,19 @@ async function onPreserveActionClick(event) {
         showEligibilityGuidance(eligibility.reason);
         return;
     }
-    const approval = await preparePreservationApproval(captured, deps);
-    if (!approval || !(await confirmPreservation(approval.preview))) {
+    let approval = await preparePreservationApproval(captured, deps);
+    if (!approval) {
         return;
     }
-    if (!isApprovalCurrent(captured, deps, approval)) {
+    const confirmation = await confirmPreservation(approval.preview, async (options) => {
+        const next = await preparePreservationApproval(captured, deps, options, true);
+        return next?.preview ?? '';
+    });
+    if (!confirmation.approved) {
+        return;
+    }
+    approval = await preparePreservationApproval(captured, deps, confirmation.options);
+    if (!approval || !isApprovalCurrent(captured, deps, approval)) {
         return;
     }
     await commitPreservationApproval(captured, approval);
@@ -247,25 +260,36 @@ function capturePreservationTarget(button) {
 /**
  * @param {{ context: SillyTavernContext, chat: ChatMessage[], chatId: string, message: ChatMessage, messageIndex: number, id: string }} captured
  * @param {{ gate: import('../core/foreground-gate.js').ForegroundGate, queue: import('../core/summarizer-queue.js').SummarizerQueue }} deps
+ * @param {import('../core/preserved-messages.js').PreservedMessageRenderOptions} [options]
+ * @param {boolean} [quiet]
  * @returns {Promise<{ preview: string, snapshot: SummaryceptionPreservedMessage, settingsFingerprint: string, previewEpoch: number, previewIndex: number | undefined } | null>}
  */
-async function preparePreservationApproval(captured, deps) {
+async function preparePreservationApproval(
+    captured,
+    deps,
+    options = DEFAULT_PRESERVE_RENDER_OPTIONS,
+    quiet = false,
+) {
     const snapshot = await buildPreservedMessageSnapshot(
         captured.message,
         captured.chat,
         getChatStore(),
-        getEffectiveSettings(),
+        options,
     );
     if (!isCapturedMessageCurrent(captured) || !canPreserveNow(deps)) {
         return null;
     }
     const eligibility = getPreservationEligibility(captured.message, getChat(), getChatStore());
     if (!eligibility.eligible) {
-        showEligibilityGuidance(eligibility.reason);
+        if (!quiet) {
+            showEligibilityGuidance(eligibility.reason);
+        }
         return null;
     }
     if (!snapshot) {
-        warnPreservation('The active regex produced an empty message. Nothing was preserved.');
+        if (!quiet) {
+            warnPreservation('The selected cleanup options produced an empty message.');
+        }
         return null;
     }
     const currentChat = getChat();
@@ -276,9 +300,11 @@ async function preparePreservationApproval(captured, deps) {
         preservedMessages: [...currentStore.preservedMessages, { ...snapshot, handedOff: true }],
     }).text;
     if (!preview.trim() || !preview.includes('<preserved>')) {
-        warnPreservation(
-            'The active Memory Injection template cannot show this preserved message.',
-        );
+        if (!quiet) {
+            warnPreservation(
+                'The active Memory Injection template cannot show this preserved message.',
+            );
+        }
         return null;
     }
     return {
@@ -379,29 +405,108 @@ function warnPreservation(message) {
 
 /**
  * @param {string} preview
- * @returns {Promise<boolean>}
+ * @param {(options: import('../core/preserved-messages.js').PreservedMessageRenderOptions) => Promise<string>} renderPreview
+ * @returns {Promise<{ approved: boolean, options: import('../core/preserved-messages.js').PreservedMessageRenderOptions }>}
  */
-async function confirmPreservation(preview) {
+async function confirmPreservation(preview, renderPreview) {
     const popupApi = getPopupApi();
     if (!popupApi) {
         warnPreservation('The host confirmation dialog is unavailable. Nothing was preserved.');
-        return false;
+        return { approved: false, options: { ...DEFAULT_PRESERVE_RENDER_OPTIONS } };
     }
+    const $content = $('<div class="sc-preserve-dialog"></div>');
+    const $options = $('<fieldset class="sc-preserve-options"></fieldset>');
+    $options.append(
+        $('<legend class="sc-preserve-options-title"></legend>').text(
+            'Cleanup for this preserved message',
+        ),
+    );
+    $options.append(
+        createPreserveOption(
+            'sc-preserve-regex-depth',
+            'Apply regex at any depth',
+            DEFAULT_PRESERVE_RENDER_OPTIONS.regexAtAnyDepth,
+        ),
+    );
+    $options.append(
+        createPreserveOption(
+            'sc-preserve-strip-cn',
+            'Strip Chinese ideographs',
+            DEFAULT_PRESERVE_RENDER_OPTIONS.stripCn,
+        ),
+    );
+    $options.append(
+        createPreserveOption(
+            'sc-preserve-strip-tags',
+            'Strip markup tags and keep only visible text',
+            DEFAULT_PRESERVE_RENDER_OPTIONS.stripTags,
+        ),
+    );
+    const $preview = $('<pre class="sc-preserve-preview"></pre>').text(preview);
+    $content.append($options);
+    $content.append($preview);
+
+    let renderVersion = 0;
+    let closed = false;
+    $options.on('change', () => {
+        const version = ++renderVersion;
+        const options = readPreserveOptions($content);
+        void Promise.resolve()
+            .then(() => renderPreview(options))
+            .then((nextPreview) => {
+                if (!closed && version === renderVersion) {
+                    $preview.text(
+                        nextPreview || 'The selected cleanup options produce an empty message.',
+                    );
+                }
+            })
+            .catch((error) => {
+                if (!closed && version === renderVersion) {
+                    $preview.text('Preview update failed. Choose No and try again.');
+                    warn('Preserve preview update failed:', error);
+                }
+            });
+    });
+
     const PopupCtor =
         /** @type {new (content: unknown, type: number, inputValue?: string, options?: Record<string, unknown>) => { show: () => Promise<unknown> }} */ (
             popupApi.Popup
         );
-    const popup = new PopupCtor(
-        $('<pre class="sc-preserve-preview"></pre>').text(preview),
-        popupApi.popupType.TEXT,
-        '',
-        {
-            wide: true,
-            large: true,
-            allowVerticalScrolling: true,
-            okButton: 'Yes',
-            cancelButton: 'No',
-        },
-    );
-    return (await popup.show()) === popupApi.popupResult.AFFIRMATIVE;
+    const popup = new PopupCtor($content, popupApi.popupType.TEXT, '', {
+        wide: true,
+        large: true,
+        allowVerticalScrolling: true,
+        okButton: 'Yes',
+        cancelButton: 'No',
+    });
+    const result = await popup.show();
+    closed = true;
+    return {
+        approved: result === popupApi.popupResult.AFFIRMATIVE,
+        options: readPreserveOptions($content),
+    };
+}
+
+/**
+ * @param {string} className
+ * @param {string} label
+ * @param {boolean} checked
+ * @returns {object}
+ */
+function createPreserveOption(className, label, checked) {
+    return $('<label class="sc-preserve-option"></label>')
+        .append($(`<input type="checkbox" class="${className}">`).prop('checked', checked))
+        .append($('<span></span>').text(label));
+}
+
+/**
+ * @param {object} $content
+ * @returns {import('../core/preserved-messages.js').PreservedMessageRenderOptions}
+ */
+function readPreserveOptions($content) {
+    return {
+        regexAtAnyDepth: $content.find('.sc-preserve-regex-depth').prop('checked'),
+        stripCn: $content.find('.sc-preserve-strip-cn').prop('checked'),
+        stripTags: $content.find('.sc-preserve-strip-tags').prop('checked'),
+    };
 }

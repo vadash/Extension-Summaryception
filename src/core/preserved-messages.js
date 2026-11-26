@@ -6,7 +6,8 @@ import {
     saveChatStore,
 } from '../foundation/chat-store.js';
 import { getMessageIndexByScId, resolveScIdsToIndices } from '../foundation/message-identity.js';
-import { formatMessageSpeakerLine } from './chatutils.js';
+import { stripChineseIdeographs } from './cn-text.js';
+import { formatMessageSpeakerLine, getPromptDepthsByChatIndex } from './chatutils.js';
 import { unmaskGuardText } from './guard-mask.js';
 import { normalizeCurrentDateTime } from './snippet-metadata.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
@@ -147,15 +148,23 @@ export function getPreservationEligibility(message, chat, store = getChatStore()
 }
 
 /**
+ * @typedef {object} PreservedMessageRenderOptions
+ * @property {boolean} [regexAtAnyDepth=true] - Run prompt regex without source-depth filters.
+ * @property {boolean} [stripCn=true] - Replace Han ideographs using the shared CN cleaner.
+ * @property {boolean} [stripTags=false] - Remove markup tags while keeping visible text.
+ */
+
+/**
  * Build the exact speaker-labelled body proposed for approval. Scene Time comes
  * only from preceding Snippet memory, never from host message dates.
  * @param {ChatMessage | undefined} message
  * @param {ChatMessage[]} chat
  * @param {SummaryceptionStore} store
- * @param {ExtensionSettings} [_settings]
+ * @param {PreservedMessageRenderOptions} [options]
  * @returns {Promise<SummaryceptionPreservedMessage | null>}
  */
-export async function buildPreservedMessageSnapshot(message, chat, store, _settings) {
+export async function buildPreservedMessageSnapshot(message, chat, store, options = {}) {
+    const { regexAtAnyDepth = true, stripCn = true, stripTags = false } = options;
     const eligibility = getPreservationEligibility(message, chat, store);
     const index = eligibility.index;
     if (
@@ -167,7 +176,19 @@ export async function buildPreservedMessageSnapshot(message, chat, store, _setti
         return null;
     }
     const rawText = String(message.mes || '').trim();
-    const rendered = await applyRegexToMessage(rawText, Boolean(message.is_user));
+    let rendered = regexAtAnyDepth
+        ? await applyRegexToMessage(rawText, Boolean(message.is_user))
+        : await applyRegexToMessage(
+              rawText,
+              Boolean(message.is_user),
+              getPromptDepthsByChatIndex(chat).get(index),
+          );
+    if (stripCn) {
+        rendered = stripChineseIdeographs(rendered);
+    }
+    if (stripTags) {
+        rendered = stripMessageTags(rendered);
+    }
     const body = escapePreservedTags(unmaskGuardText(rendered));
     if (!body.trim()) {
         return null;
@@ -189,6 +210,25 @@ function escapePreservedTags(text) {
     return text
         .replaceAll('</preserved>', '&lt;/preserved&gt;')
         .replaceAll('<preserved>', '&lt;preserved&gt;');
+}
+
+const MESSAGE_COMMENT_REGEX = /<!--[\s\S]*?-->/g;
+const MESSAGE_LINE_BREAK_REGEX = /<br\s*\/?\s*>/gi;
+const MESSAGE_TAG_REGEX = /<\/?[a-zA-Z][^<>]*>/g;
+const EXCESS_BLANK_LINES_REGEX = /\n{3,}/g;
+
+/**
+ * Remove markup tags while keeping their visible text and line breaks.
+ * @param {string} text
+ * @returns {string}
+ */
+function stripMessageTags(text) {
+    return String(text || '')
+        .replace(MESSAGE_COMMENT_REGEX, '')
+        .replace(MESSAGE_LINE_BREAK_REGEX, '\n')
+        .replace(MESSAGE_TAG_REGEX, '')
+        .replace(EXCESS_BLANK_LINES_REGEX, '\n\n')
+        .trim();
 }
 
 /**

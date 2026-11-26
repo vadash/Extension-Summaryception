@@ -11,12 +11,7 @@ import {
     commitPreservedMessage,
     getPreservationEligibility,
 } from '../src/core/preserved-messages.js';
-import {
-    installSummaryContext,
-    makeMessage,
-    makeSummarySettings,
-    makeSummaryStore,
-} from './test-helpers.js';
+import { installSummaryContext, makeMessage, makeSummaryStore } from './test-helpers.js';
 
 function preserved(id, overrides = {}) {
     return { id, text: `Approved ${id}`, handedOff: false, ...overrides };
@@ -90,15 +85,32 @@ describe('Preserved Message approval snapshots', () => {
         installSummaryContext({ chat, metadata: { summaryception: store } });
         regexMocks.applyRegexToMessage.mockResolvedValue('regex output');
 
-        const snapshot = await buildPreservedMessageSnapshot(
-            chat[1],
-            chat,
-            store,
-            makeSummarySettings({ applyRegexScripts: false }),
-        );
+        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store);
 
         expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
         expect(snapshot?.text).toBe('Assistant: regex output');
+    });
+
+    it('applies per-approval regex depth, CN cleanup, and tag cleanup', async () => {
+        const chat = [
+            makeMessage({ scId: 'm0', mes: 'older' }),
+            makeMessage({ scId: 'm1', mes: 'raw target' }),
+            makeMessage({ isUser: true, scId: 'm2', mes: 'tail' }),
+        ];
+        const store = makeSummaryStore();
+        installSummaryContext({ chat, metadata: { summaryception: store } });
+        regexMocks.applyRegexToMessage.mockResolvedValue(
+            'A 漢 <marigold:whisper>B</marigold:whisper>',
+        );
+
+        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store, {
+            regexAtAnyDepth: false,
+            stripCn: true,
+            stripTags: true,
+        });
+
+        expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false, 1);
+        expect(snapshot?.text).toBe('Assistant: A B');
     });
 
     it('renders with the full prompt regex set, unmasks guards, escapes reserved tags, and freezes Scene Time', async () => {
@@ -126,12 +138,7 @@ describe('Preserved Message approval snapshots', () => {
             'Keep <role>\u2800<preserved>literal</preserved>',
         );
 
-        const snapshot = await buildPreservedMessageSnapshot(
-            chat[3],
-            chat,
-            store,
-            makeSummarySettings({ applyRegexScripts: true }),
-        );
+        const snapshot = await buildPreservedMessageSnapshot(chat[3], chat, store);
 
         expect(regexMocks.applyRegexToMessage).toHaveBeenCalledWith('raw target', false);
         expect(snapshot).toEqual(
@@ -160,12 +167,7 @@ describe('Preserved Message approval snapshots', () => {
             ],
         });
         installSummaryContext({ chat, metadata: { summaryception: store } });
-        const snapshot = await buildPreservedMessageSnapshot(
-            chat[1],
-            chat,
-            store,
-            makeSummarySettings(),
-        );
+        const snapshot = await buildPreservedMessageSnapshot(chat[1], chat, store);
 
         await expect(commitPreservedMessage(snapshot)).resolves.toEqual({
             status: 'preserved',
@@ -187,12 +189,7 @@ describe('Preserved Message approval snapshots', () => {
         const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
         const store = makeSummaryStore();
         installSummaryContext({ chat, metadata: { summaryception: store } });
-        const snapshot = await buildPreservedMessageSnapshot(
-            chat[0],
-            chat,
-            store,
-            makeSummarySettings(),
-        );
+        const snapshot = await buildPreservedMessageSnapshot(chat[0], chat, store);
         chat[0].is_hidden = true;
 
         await expect(commitPreservedMessage(snapshot)).resolves.toEqual({ status: 'ineligible' });
@@ -205,12 +202,7 @@ describe('Preserved Message approval snapshots', () => {
         const store = makeSummaryStore();
         installSummaryContext({ chat, metadata: { summaryception: store } });
 
-        const snapshot = await buildPreservedMessageSnapshot(
-            chat[0],
-            chat,
-            store,
-            makeSummarySettings(),
-        );
+        const snapshot = await buildPreservedMessageSnapshot(chat[0], chat, store);
 
         expect(snapshot).toEqual(preserved('m0', { text: 'Assistant: target' }));
         expect(snapshot).not.toHaveProperty('currentDateTime');
@@ -222,14 +214,7 @@ describe('Preserved Message approval snapshots', () => {
         installSummaryContext({ chat, metadata: { summaryception: store } });
         regexMocks.applyRegexToMessage.mockResolvedValue('   ');
 
-        await expect(
-            buildPreservedMessageSnapshot(
-                chat[0],
-                chat,
-                store,
-                makeSummarySettings({ applyRegexScripts: true }),
-            ),
-        ).resolves.toBeNull();
+        await expect(buildPreservedMessageSnapshot(chat[0], chat, store)).resolves.toBeNull();
         expect(getChatStore().preservedMessages).toEqual([]);
     });
 

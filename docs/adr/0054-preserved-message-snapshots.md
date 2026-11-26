@@ -4,7 +4,9 @@ A Preserved Message is selected before summarization and keeps an approved, rege
 
 **Approved snapshot, not live projection.** The body approved in the confirmation preview is immutable. Later edits, swipe changes, and regex-preset changes do not rewrite it; deleting the source message or running Clear removes it. Live rendering was rejected because a preset change could silently alter established memory.
 
-**Full prompt regex set.** Preservation approval runs every eligible prompt regex script without source-depth filters. A Preserved Message becomes global memory, so its former chat depth must not keep depth-gated cleanup from applying; depth-scoped formatting scripts apply too. Preserving the source-depth filter was rejected because it left such cleanup in global memory.
+**Full prompt regex set by default.** Preservation approval defaults to every eligible prompt regex script without source-depth filters. A Preserved Message becomes global memory, so its former chat depth must not keep depth-gated cleanup from applying; depth-scoped formatting scripts apply too. Preserving the source-depth filter was rejected because it left such cleanup in global memory.
+
+**Per-approval cleanup.** The confirmation modal can restore source-depth regex, disable the shared CN cleaner, or strip markup to visible text. These choices rebuild only the proposed preview and snapshot, are not saved, and never affect other extension paths; the approved result freezes the body the user confirms.
 
 **Global chronology without Promotion barriers.** Main Memory Injection orders snippets and Preserved Messages by current source position across Layer 0 and Layer 1+. Promotion remains snippet-only and may cross a preserved position; the preserved block follows the snippet whose source range contains it. Promotion barriers were rejected because they make memory unnecessarily rigid.
 

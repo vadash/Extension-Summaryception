@@ -12,6 +12,7 @@ import { isPlainObject } from '../foundation/objects.js';
 import { isTraceEnabled } from '../foundation/logger.js';
 import { LOG_PREFIX, MASK_USER_ROLE_MODES } from '../foundation/constants.js';
 import { getChatStore } from '../foundation/chat-store.js';
+import { stripChineseIdeographs } from './cn-text.js';
 import { isGuardMaskEnabled, maskGuardContent } from './guard-mask.js';
 import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-injection.js';
 
@@ -21,9 +22,7 @@ import { buildMemoryInjectionParts, renderInjectionTemplate } from './memory-inj
  */
 const COMPATIBILITY_MARKER_CONTENT = '[user-role compatibility marker]';
 
-const CHINESE_IDEOGRAPH_REGEX = /\p{Script=Han}/gu;
 const DASH_SEPARATOR_REGEX = /[\u2014\u2015]/g;
-const HORIZONTAL_WHITESPACE_RUN_REGEX = /[^\S\r\n]+/g;
 
 /**
  * Rewrite the outgoing roles and then apply the outgoing-space guard. The guard
@@ -90,10 +89,7 @@ function scrubAssistantContent(messages, settings) {
  * @returns {string}
  */
 function scrubText(text) {
-    return text
-        .replace(CHINESE_IDEOGRAPH_REGEX, ' ')
-        .replace(DASH_SEPARATOR_REGEX, ' ')
-        .replace(HORIZONTAL_WHITESPACE_RUN_REGEX, ' ');
+    return stripChineseIdeographs(text.replace(DASH_SEPARATOR_REGEX, ' '));
 }
 
 /**

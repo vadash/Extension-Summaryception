@@ -112,7 +112,8 @@ describe('Preserve verbatim message actions', () => {
         await clickPreserve(dom, 2);
 
         expect(popups).toHaveLength(1);
-        expect(popups[0].content.text()).toBe(
+        const $preview = globalThis.$(popups[0].content.find('.sc-preserve-preview').nodes[0]);
+        expect($preview.text()).toBe(
             'BEGIN\n' +
                 '[0-1@2024-07-04T16] Earlier\n' +
                 '[2-2@2024-07-04T16] <preserved>Assistant: Keep &lt;preserved&gt;exact&lt;/preserved&gt;</preserved>\n' +
@@ -134,6 +135,36 @@ describe('Preserve verbatim message actions', () => {
         expect(chat[2].is_hidden).toBe(false);
         const $action = dom.renderedMessages[2].$buttons.find(PRESERVE_SELECTOR);
         expect($action.prop('disabled')).toBe(true);
+    });
+
+    it('applies modal cleanup choices to the live preview and stored snapshot', async () => {
+        const chat = [makeMessage({ scId: 'm0', mes: 'raw target' })];
+        const { dom } = setupActions({ chat });
+        const dialog = deferred();
+        const popups = installPopup(dialog.promise);
+        vi.spyOn(regexProxy, 'applyRegexToMessage').mockResolvedValue(
+            'A 漢 <marigold:whisper>B</marigold:whisper>',
+        );
+
+        const clicking = clickPreserve(dom, 0);
+        await vi.waitFor(() => expect(popups).toHaveLength(1));
+        const content = popups[0].content;
+        expect(content.find('.sc-preserve-regex-depth').prop('checked')).toBe(true);
+        expect(content.find('.sc-preserve-strip-cn').prop('checked')).toBe(true);
+        expect(content.find('.sc-preserve-strip-tags').prop('checked')).toBe(false);
+        const previewText = () =>
+            globalThis.$(content.find('.sc-preserve-preview').nodes[0]).text();
+        expect(previewText()).not.toContain('漢');
+        expect(previewText()).toContain('<marigold:whisper>B</marigold:whisper>');
+
+        content.find('.sc-preserve-strip-tags').prop('checked', true);
+        dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
+
+        await vi.waitFor(() => expect(previewText()).not.toContain('<marigold:whisper>'));
+        expect(previewText()).toContain('A B');
+        dialog.resolve(1);
+        await clicking;
+        expect(getChatStore().preservedMessages[0].text).toBe('Assistant: A B');
     });
 
     it('approves preservation when the host returns a fresh context wrapper per call', async () => {
