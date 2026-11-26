@@ -317,6 +317,77 @@ async function showPreserveDialog({ preview, revision, rerender }) {
     if (!popupApi) {
         return null;
     }
+    const { $content, $options, $preview } = buildPreserveDialogContent(preview);
+
+    let displayedRevision = revision;
+    let disposed = false;
+    let previewValid = true;
+    let requestSeq = 0;
+    let latestRequestedSeq = 0;
+    let dispatchChain = Promise.resolve();
+    $options.on('change', () => {
+        if (disposed) {
+            return;
+        }
+        const options = readPreserveOptions($content);
+        const mySeq = ++requestSeq;
+        latestRequestedSeq = mySeq;
+        previewValid = false;
+        dispatchChain = dispatchChain.then(async () => {
+            let next;
+            try {
+                next = await rerender(options);
+            } catch (error) {
+                warn('Preserve preview update failed:', error);
+                if (mySeq === latestRequestedSeq) {
+                    $preview.text('Preview update failed. Choose No and try again.');
+                    previewValid = false;
+                }
+                return;
+            }
+            if (mySeq !== latestRequestedSeq) {
+                return;
+            }
+            if (!next || typeof next.revision !== 'number') {
+                $preview.text('Preview update failed. Choose No and try again.');
+                previewValid = false;
+                return;
+            }
+            displayedRevision = next.revision;
+            $preview.text(next.preview || 'The selected cleanup options produce an empty message.');
+            previewValid = true;
+        });
+    });
+
+    const PopupCtor =
+        /** @type {new (content: unknown, type: number, inputValue?: string, options?: Record<string, unknown>) => { show: () => Promise<unknown> }} */ (
+            popupApi.Popup
+        );
+    const popup = new PopupCtor($content, popupApi.popupType.TEXT, '', {
+        wide: true,
+        large: true,
+        allowVerticalScrolling: true,
+        okButton: 'Yes',
+        cancelButton: 'No',
+    });
+    const result = await popup.show();
+    disposed = true;
+    if (result !== popupApi.popupResult.AFFIRMATIVE) {
+        return null;
+    }
+    await dispatchChain;
+    if (!previewValid) {
+        return null;
+    }
+    return displayedRevision;
+}
+
+/**
+ * Build the dialog shell for one approval: cleanup options plus live preview.
+ * @param {string} preview
+ * @returns {{ $content: object, $options: object, $preview: object }}
+ */
+function buildPreserveDialogContent(preview) {
     const $content = $('<div class="sc-preserve-dialog"></div>');
     const $options = $('<fieldset class="sc-preserve-options"></fieldset>');
     $options.append(
@@ -348,48 +419,7 @@ async function showPreserveDialog({ preview, revision, rerender }) {
     const $preview = $('<pre class="sc-preserve-preview"></pre>').text(preview);
     $content.append($options);
     $content.append($preview);
-
-    let displayedRevision = revision;
-    let disposed = false;
-    $options.on('change', () => {
-        const options = readPreserveOptions($content);
-        void Promise.resolve()
-            .then(() => rerender(options))
-            .then((next) => {
-                if (!next || typeof next.revision !== 'number') {
-                    return;
-                }
-                if (!disposed && next.revision > displayedRevision) {
-                    displayedRevision = next.revision;
-                    $preview.text(
-                        next.preview || 'The selected cleanup options produce an empty message.',
-                    );
-                }
-            })
-            .catch((error) => {
-                if (!disposed) {
-                    warn('Preserve preview update failed:', error);
-                }
-            });
-    });
-
-    const PopupCtor =
-        /** @type {new (content: unknown, type: number, inputValue?: string, options?: Record<string, unknown>) => { show: () => Promise<unknown> }} */ (
-            popupApi.Popup
-        );
-    const popup = new PopupCtor($content, popupApi.popupType.TEXT, '', {
-        wide: true,
-        large: true,
-        allowVerticalScrolling: true,
-        okButton: 'Yes',
-        cancelButton: 'No',
-    });
-    const result = await popup.show();
-    disposed = true;
-    if (result === popupApi.popupResult.AFFIRMATIVE) {
-        return displayedRevision;
-    }
-    return null;
+    return { $content, $options, $preview };
 }
 
 /**

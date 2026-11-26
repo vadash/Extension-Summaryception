@@ -224,7 +224,7 @@ describe('Preserve verbatim message actions', () => {
         expect(globalThis.toastr.warning).toHaveBeenCalledOnce();
     });
 
-    it('treats approval while a cleanup rerender is pending as stale', async () => {
+    it('awaits a pending cleanup rerender before approval and commits its preview', async () => {
         const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
         const { dom } = setupActions({ chat });
         const dialog = deferred();
@@ -250,12 +250,93 @@ describe('Preserve verbatim message actions', () => {
         dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
         await vi.waitFor(() => expect(regexProxy.applyRegexToMessage).toHaveBeenCalledTimes(2));
         dialog.resolve(1);
+        releaseRerender();
+        await clicking;
+
+        expect(getChatStore().preservedMessages).toEqual([
+            expect.objectContaining({ id: 'm0', text: 'Assistant: rerendered' }),
+        ]);
+        expect(getChatStore().mutationEpoch).toBe(1);
+        expect(globalThis.toastr.warning).not.toHaveBeenCalled();
+    });
+
+    it('never lets a slow earlier rerender overwrite a later one', async () => {
+        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
+        const { dom } = setupActions({ chat });
+        const dialog = deferred();
+        const popups = installPopup(dialog.promise);
+        let releaseSlow;
+        const slowGate = new Promise((resolve) => {
+            releaseSlow = resolve;
+        });
+        let calls = 0;
+        vi.spyOn(regexProxy, 'applyRegexToMessage').mockImplementation(async () => {
+            calls += 1;
+            if (calls === 1) {
+                return 'approved';
+            }
+            if (calls === 2) {
+                await slowGate;
+                return 'SLOW RESULT';
+            }
+            return 'FAST RESULT';
+        });
+
+        const clicking = clickPreserve(dom, 0);
+        await vi.waitFor(() => expect(popups).toHaveLength(1));
+        const content = popups[0].content;
+        const previewText = () =>
+            globalThis.$(content.find('.sc-preserve-preview').nodes[0]).text();
+        content.find('.sc-preserve-strip-tags').prop('checked', true);
+        dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
+        await vi.waitFor(() => expect(regexProxy.applyRegexToMessage).toHaveBeenCalledTimes(2));
+        content.find('.sc-preserve-strip-cn').prop('checked', false);
+        dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(regexProxy.applyRegexToMessage).toHaveBeenCalledTimes(2);
+        releaseSlow();
+        await vi.waitFor(() => expect(previewText()).toContain('FAST RESULT'));
+        expect(previewText()).not.toContain('SLOW RESULT');
+        dialog.resolve(1);
+        await clicking;
+
+        expect(getChatStore().preservedMessages).toEqual([
+            expect.objectContaining({ id: 'm0', text: 'Assistant: FAST RESULT' }),
+        ]);
+        expect(getChatStore().mutationEpoch).toBe(1);
+    });
+
+    it('surfaces a failed rerender in the dialog and commits nothing on approval', async () => {
+        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
+        const { dom } = setupActions({ chat });
+        const dialog = deferred();
+        const popups = installPopup(dialog.promise);
+        let calls = 0;
+        vi.spyOn(regexProxy, 'applyRegexToMessage').mockImplementation(async () => {
+            calls += 1;
+            if (calls === 1) {
+                return 'approved';
+            }
+            throw new Error('regex boom');
+        });
+
+        const clicking = clickPreserve(dom, 0);
+        await vi.waitFor(() => expect(popups).toHaveLength(1));
+        const content = popups[0].content;
+        const previewText = () =>
+            globalThis.$(content.find('.sc-preserve-preview').nodes[0]).text();
+        content.find('.sc-preserve-strip-tags').prop('checked', true);
+        dom.trigger('change', '<fieldset class="sc-preserve-options"></fieldset>');
+        await vi.waitFor(() =>
+            expect(previewText()).toBe('Preview update failed. Choose No and try again.'),
+        );
+        dialog.resolve(1);
         await clicking;
 
         expect(getChatStore().preservedMessages).toEqual([]);
         expect(getChatStore().mutationEpoch).toBe(0);
-        expect(globalThis.toastr.warning).toHaveBeenCalledOnce();
-        releaseRerender();
+        expect(globalThis.toastr.warning).not.toHaveBeenCalled();
+        expect(globalThis.toastr.info).not.toHaveBeenCalled();
     });
 
     it('adds one action per user and assistant message without duplicate bindings', () => {
