@@ -177,6 +177,7 @@ import { syncPreservedMessageActions } from './src/entry/preserved-message-actio
         preservedApproval,
         warmPages: writer.update,
         resolveMicrofichePage: writer.resolveMicrofichePage,
+        writer,
     });
     bindPromptFreezeRecoveryEvents({ gate });
     initSettingsTabs();

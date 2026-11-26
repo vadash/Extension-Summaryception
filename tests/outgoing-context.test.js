@@ -7,7 +7,12 @@ import {
     MASK_USER_ROLE_MODES,
     defaultSettings,
 } from '../src/foundation/constants.js';
-import { buildOutgoingContext } from '../src/entry/outgoing-context.js';
+import {
+    buildOutgoingContext,
+    captureOutgoingSnapshot,
+    deriveOutgoingDivergence,
+} from '../src/entry/outgoing-context.js';
+import { applyOutgoingRewriteToPreview } from '../src/entry/dryrun-viewer.js';
 import { rewriteOutgoingPrompt } from '../src/core/outgoing-rewrite.js';
 import { onGenerateAfterData } from '../src/entry/events.js';
 import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
@@ -317,5 +322,80 @@ describe('outgoing live event integration', () => {
             modelName: 'argon-x',
         });
         expect(disabledPayload.prompt[0].content).toBe('off  here');
+    });
+});
+describe('outgoing capture divergence', () => {
+    it('returns no divergence when nothing changed', () => {
+        const writer = makeWriter(makeSlotFacts('MEMORY body'));
+        const options = { writer, settings: makeSettings(), chat: [], modelName: 'argon-x' };
+        const captured = captureOutgoingSnapshot(options);
+        const current = captureOutgoingSnapshot(options);
+
+        expect(deriveOutgoingDivergence(captured, current)).toEqual([]);
+    });
+
+    it('flags model, chat, settings, and slot changes separately', () => {
+        const base = {
+            writer: makeWriter(makeSlotFacts('MEMORY one')),
+            settings: makeSettings(),
+            chat: [{ mes: 'hello' }],
+            modelName: 'argon-a',
+        };
+        const captured = captureOutgoingSnapshot(base);
+
+        expect(
+            deriveOutgoingDivergence(
+                captured,
+                captureOutgoingSnapshot({ ...base, modelName: 'opus-b' }),
+            ),
+        ).toEqual([{ kind: 'model-changed' }]);
+        expect(
+            deriveOutgoingDivergence(
+                captured,
+                captureOutgoingSnapshot({ ...base, chat: [{ mes: 'moved on' }] }),
+            ),
+        ).toEqual([{ kind: 'chat-tail-changed' }]);
+        expect(
+            deriveOutgoingDivergence(
+                captured,
+                captureOutgoingSnapshot({
+                    ...base,
+                    settings: makeSettings({ guardMaskMemory: true }),
+                }),
+            ),
+        ).toEqual([{ kind: 'settings-changed' }]);
+        expect(
+            deriveOutgoingDivergence(
+                captured,
+                captureOutgoingSnapshot({
+                    ...base,
+                    writer: makeWriter(makeSlotFacts('MEMORY two')),
+                }),
+            ),
+        ).toEqual([{ kind: 'slot-changed' }]);
+    });
+
+    it('uses the shared core operation for preview and live', () => {
+        const slotText = 'MEMORY shared';
+        const settings = makeSettings();
+        const writer = makeWriter(makeSlotFacts(slotText, EXTENSION_PROMPT_ROLES.USER));
+        const input = [
+            { role: 'user', content: slotText },
+            { role: 'user', content: 'hello  world' },
+        ];
+
+        const live = structuredClone(input);
+        rewriteOutgoingPrompt(
+            live,
+            buildOutgoingContext(live, { writer, settings, modelName: 'argon-x' }),
+        );
+
+        const preview = structuredClone(input);
+        const outgoing = applyOutgoingRewriteToPreview(preview, writer, settings, {
+            modelName: 'argon-x',
+        });
+
+        expect(preview).toEqual(live);
+        expect(outgoing.slotStatus).toBe('skipped');
     });
 });

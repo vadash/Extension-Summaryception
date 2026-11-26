@@ -1,10 +1,10 @@
 /**
  * Dry-Run Preview: capture the host's dry-run chat completion, expand the
- * Microfiche markers on a clone, re-apply the outgoing role/Guard Mask seam to
- * that clone, and render the read-only prompt viewer (ADR-0041, ADR-0043).
+ * Microfiche markers on a clone, run the shared outgoing rewrite on that
+ * clone, and render the read-only prompt viewer (ADR-0041, ADR-0043).
  * The live payload never mutates here; the one-shot listener reads
- * `eventData.chat`, clones it, and the prod `onChatCompletionPromptReady`
- * dry-run early return stays untouched.
+ * `eventData.chat`, snapshots capture-time facts at arrival, clones it, and
+ * the prod `onChatCompletionPromptReady` dry-run early return stays untouched.
  */
 
 import { MEMORY_MODES, TOAST_TITLE } from '../foundation/constants.js';
@@ -27,7 +27,12 @@ import {
     resolveMicroficheRegion,
 } from '../core/microfiche-transport.js';
 import { buildInjection } from '../core/memory-injection.js';
-import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
+import { rewriteOutgoingPrompt } from '../core/outgoing-rewrite.js';
+import {
+    buildOutgoingContext,
+    captureOutgoingSnapshot,
+    deriveOutgoingDivergence,
+} from './outgoing-context.js';
 import { createMicrofichePageSource } from '../core/microfiche-pages.js';
 
 /** Guard against a host dry run that never emits its prompt-ready event. */
@@ -50,14 +55,15 @@ const CHAT_COMPLETION_API = 'openai';
 
 /**
  * @typedef {object} DryRunPromptView
- * @property {unknown[]} chat - Expanded clone with the outgoing seam transforms; the clipboard payload.
+ * @property {unknown[]} chat - Expanded clone with the shared outgoing rewrite applied; the clipboard payload.
  * @property {number} epoch - Mutation Epoch the captured memory was sealed for.
  * @property {{ memoryImages: boolean, frozenRawImages: boolean }} toggles - Image region toggles.
  * @property {number} payloadBytes - Serialized size of the captured chat.
  * @property {number} imageParts - Image parts present in the expanded clone.
  * @property {number} resolvedMarkers - Marker swaps performed on the clone.
  * @property {(number | string)[]} unresolvedMarkers - Page labels whose markers survived.
- * @property {Array<{ kind: string, count?: number }>} divergences - Known dry-run assembly differences.
+ * @property {Array<{ kind: string, count?: number }>} divergences - Known dry-run assembly differences plus capture-time changes.
+ * @property {{ slotStatus: string, staleReason: string | null }} outgoing - Shared rewrite result for the preview clone.
  */
 
 /**
@@ -65,6 +71,7 @@ const CHAT_COMPLETION_API = 'openai';
  * @property {import('../core/foreground-gate.js').ForegroundGate} gate - Refuses the capture while frozen.
  * @property {import('../core/summarizer-queue.js').SummarizerQueue} queue - Refuses the capture while work is live.
  * @property {(pageIndex: number, region?: import('../core/microfiche-transport.js').MicroficheRegion) => MicrofichePageRef | undefined} [resolveMicrofichePage] - Page reader; the composition root passes `writer.resolveMicrofichePage`.
+ * @property {import('./outgoing-context.js').OutgoingContextWriter | null} [writer] - Shared Memory Injection writer.
  * @property {() => unknown} [warmPages] - Warms the writer's sealed pages before capture; defaults to the gated injection refresh.
  * @property {() => Promise<unknown>} [triggerDryRun] - Host dry-run generate.
  * @property {(view: DryRunPromptView) => void} [showView] - Replace the host popup, for tests.
@@ -211,22 +218,32 @@ export function expandCapturedChat(chat, resolvePage) {
     return { chat: clone, resolvedMarkers, unresolvedMarkers: collectUnresolvedMarkers(clone) };
 }
 /**
- * Re-apply the live outgoing seam (role rewrite + Guard Mask) to the preview
- * clone. The host dry run early-returns before GENERATE_AFTER_DATA, so the
- * capture is pre-transform by construction (ADR-0044). Clone-only; the live
- * payload never mutates here.
+ * Run the shared outgoing rewrite on the preview clone. The host dry run
+ * early-returns before GENERATE_AFTER_DATA, so the capture is pre-transform
+ * by construction (ADR-0044). Clone-only; the live payload never mutates here.
  * @param {unknown[]} chat - Expanded preview clone.
- * @param {ExtensionSettings} settings - Effective settings.
- * @returns {void}
+ * @param {import('./outgoing-context.js').OutgoingContextWriter | null} writer - Shared writer.
+ * @param {ExtensionSettings} settings - Effective settings at transform time.
+ * @param {Partial<import('./outgoing-context.js').OutgoingContextOptions>} [overrides] - Fact overrides; tests stay host-free.
+ * @returns {{ slotStatus: string, staleReason: string | null }} Shared rewrite result.
  */
-export function applyOutgoingSeamToPreview(chat, settings) {
+export function applyOutgoingRewriteToPreview(chat, writer, settings, overrides = {}) {
     try {
-        maskUserRoleAsAssistantInGenerateData(chat, settings);
+        const context = buildOutgoingContext(/** @type {Array<Record<string, unknown>>} */ (chat), {
+            writer,
+            settings,
+            ...overrides,
+        });
+        const result = rewriteOutgoingPrompt(
+            /** @type {Array<Record<string, unknown>>} */ (chat),
+            context,
+        );
+        return { slotStatus: result.slotStatus, staleReason: result.staleReason };
     } catch (e) {
         warn('Dry-Run Preview guard mask failed:', e);
+        return { slotStatus: 'unresolved', staleReason: 'preview-failed' };
     }
 }
-
 /**
  * Adjacent unnamed system messages the live chat-completion path would squash.
  * SillyTavern skips `squashSystemMessages` for dry runs, so the capture shows
@@ -283,7 +300,7 @@ function jsonByteLength(value) {
 
 /**
  * Build the header and body facts the viewer renders.
- * @param {{ chat: unknown[], epoch: number, settings: ExtensionSettings, resolvedMarkers: number, unresolvedMarkers: (number | string)[], promptManagerReady: boolean }} input - Capture facts.
+ * @param {{ chat: unknown[], epoch: number, settings: ExtensionSettings, resolvedMarkers: number, unresolvedMarkers: (number | string)[], promptManagerReady: boolean, captureDivergences?: Array<{ kind: string, count?: number }>, outgoing?: { slotStatus: string, staleReason: string | null } }} input - Capture facts.
  * @returns {DryRunPromptView} View model.
  */
 export function describeDryRunPrompt({
@@ -293,6 +310,8 @@ export function describeDryRunPrompt({
     resolvedMarkers,
     unresolvedMarkers,
     promptManagerReady,
+    captureDivergences = [],
+    outgoing = { slotStatus: 'absent', staleReason: null },
 }) {
     const toggles = {
         memoryImages: settings?.memoryMode === MEMORY_MODES.MICROFICHE,
@@ -300,13 +319,16 @@ export function describeDryRunPrompt({
     };
     const imageParts = countImageParts(chat);
     /** @type {Array<{ kind: string, count?: number }>} */
-    const divergences = [];
+    const divergences = Array.isArray(captureDivergences) ? [...captureDivergences] : [];
     const unsquashed = countUnsquashedSystems(chat);
     if (unsquashed > 0) {
         divergences.push({ kind: 'unsquashed-systems', count: unsquashed });
     }
     if (!promptManagerReady) {
         divergences.push({ kind: 'pre-settings-ready' });
+    }
+    if (outgoing.slotStatus === 'unresolved' || outgoing.slotStatus === 'stale') {
+        divergences.push({ kind: 'slot-unresolved' });
     }
     return {
         chat,
@@ -317,6 +339,10 @@ export function describeDryRunPrompt({
         resolvedMarkers,
         unresolvedMarkers,
         divergences,
+        outgoing: {
+            slotStatus: outgoing.slotStatus,
+            staleReason: outgoing.staleReason,
+        },
     };
 }
 
@@ -464,6 +490,21 @@ function divergenceText(divergence) {
     if (divergence.kind === 'pre-settings-ready') {
         return 'Chat-completion settings were not ready; the prompt may reflect defaults.';
     }
+    if (divergence.kind === 'model-changed') {
+        return 'The generation model changed since capture; the Guard verdict may differ.';
+    }
+    if (divergence.kind === 'chat-tail-changed') {
+        return 'Chat moved since capture; the Preset CoT anchor may differ.';
+    }
+    if (divergence.kind === 'settings-changed') {
+        return 'Settings changed since capture; the rewrite may differ.';
+    }
+    if (divergence.kind === 'slot-changed') {
+        return 'Memory changed since capture; the slot identity may differ.';
+    }
+    if (divergence.kind === 'slot-unresolved') {
+        return 'The Memory Slot identity is unresolved; the slot was over-masked.';
+    }
     return divergence.kind;
 }
 
@@ -604,10 +645,12 @@ function copyWithTextarea(payload) {
  * Fire the host dry-run generate and resolve with the chat it emits. The
  * listener arms before the trigger so no prompt-ready event is missed, and it
  * detaches itself on the first event, the timeout, or a trigger failure.
- * @param {{ trigger: () => Promise<unknown>, timeoutMs?: number }} options - Trigger and timeout.
- * @returns {Promise<unknown[] | null>} Captured chat, or null when none arrived.
+ * Capture-time facts snapshot inside the event handler, so later live changes
+ * surface as divergence instead of silently moving the baseline.
+ * @param {{ trigger: () => Promise<unknown>, timeoutMs?: number, captureFacts?: () => import('./outgoing-context.js').OutgoingCaptureSnapshot | null }} options - Trigger, timeout, and arrival snapshot.
+ * @returns {Promise<{ chat: unknown[], snapshot: import('./outgoing-context.js').OutgoingCaptureSnapshot | null } | null>} Captured chat and arrival facts, or null.
  */
-export async function captureHostDryRun({ trigger, timeoutMs = CAPTURE_TIMEOUT_MS }) {
+export async function captureHostDryRun({ trigger, timeoutMs = CAPTURE_TIMEOUT_MS, captureFacts }) {
     const eventSource = getEventSource();
     const eventTypes = getEventTypes();
     const eventName = eventTypes?.CHAT_COMPLETION_PROMPT_READY;
@@ -636,7 +679,17 @@ export async function captureHostDryRun({ trigger, timeoutMs = CAPTURE_TIMEOUT_M
         /** @param {unknown} eventData - Prompt-ready payload. */
         const handler = (eventData) => {
             const chat = /** @type {{ chat?: unknown }} */ (eventData)?.chat;
-            settle(Array.isArray(chat) ? chat : null);
+            if (!Array.isArray(chat)) {
+                settle(null);
+                return;
+            }
+            let snapshot = null;
+            try {
+                snapshot = typeof captureFacts === 'function' ? captureFacts() : null;
+            } catch {
+                snapshot = null;
+            }
+            settle({ chat, snapshot });
         };
         const timer = setTimeout(() => settle(null), timeoutMs);
         eventSource.on(eventName, handler);
@@ -690,25 +743,14 @@ export async function openDryRunPreview() {
         warn('Dry-Run Preview is not wired; skipping capture.');
         return;
     }
-    if (getMainApi() !== CHAT_COMPLETION_API) {
-        toastr.warning('Dry-Run Preview needs a Chat Completion connection.', TOAST_TITLE);
+    if (previewBlocked(deps)) {
         return;
     }
-    if (deps.gate?.isFrozen()) {
-        toastr.warning('Wait for the current generation to finish.', TOAST_TITLE);
-        return;
-    }
-    if (deps.queue?.isBusy()) {
-        toastr.warning('Summarization is running. Wait for it to finish.', TOAST_TITLE);
-        return;
-    }
-    try {
-        await deps.warmPages?.();
-    } catch (e) {
-        warn('Dry-Run Preview page warm-up failed:', e);
-    }
+    await warmPreviewPages(deps);
+    const writer = deps.writer ?? null;
     const captured = await captureHostDryRun({
         trigger: deps.triggerDryRun ?? runDryRunGenerate,
+        captureFacts: () => captureOutgoingSnapshot({ writer }),
     });
     if (!captured) {
         toastr.warning(
@@ -717,22 +759,73 @@ export async function openDryRunPreview() {
         );
         return;
     }
+    const view = buildPreviewView(captured, deps, writer);
+    debug(
+        `Dry-Run Preview captured ${view.chat.length} messages, ${view.imageParts} image part(s).`,
+    );
+    await showDryRunView(view, deps);
+}
+
+/**
+ * Gate the preview behind the host API and live work. True means the caller
+ * returns early; each refusal tells the user why.
+ * @param {DryRunViewerDeps} deps - Capture dependencies.
+ * @returns {boolean} Whether the preview refuses to run.
+ */
+function previewBlocked(deps) {
+    if (getMainApi() !== CHAT_COMPLETION_API) {
+        toastr.warning('Dry-Run Preview needs a Chat Completion connection.', TOAST_TITLE);
+        return true;
+    }
+    if (deps.gate?.isFrozen()) {
+        toastr.warning('Wait for the current generation to finish.', TOAST_TITLE);
+        return true;
+    }
+    if (deps.queue?.isBusy()) {
+        toastr.warning('Summarization is running. Wait for it to finish.', TOAST_TITLE);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @param {DryRunViewerDeps} deps - Capture dependencies.
+ * @returns {Promise<void>} When the warm-up settles.
+ */
+async function warmPreviewPages(deps) {
+    try {
+        await deps.warmPages?.();
+    } catch (e) {
+        warn('Dry-Run Preview page warm-up failed:', e);
+    }
+}
+
+/**
+ * Expand the clone, run the shared rewrite once, and diff capture facts.
+ * @param {{ chat: unknown[], snapshot: import('./outgoing-context.js').OutgoingCaptureSnapshot | null }} captured - Chat and arrival facts.
+ * @param {DryRunViewerDeps} deps - Capture dependencies.
+ * @param {import('./outgoing-context.js').OutgoingContextWriter | null} writer - Shared writer.
+ * @returns {DryRunPromptView} View model.
+ */
+function buildPreviewView(captured, deps, writer) {
     const settings = deps.getSettings?.() ?? getEffectiveSettings();
-    const resolvePage = deps.resolveMicrofichePage ?? createPlanPageReader(settings);
-    const expanded = expandCapturedChat(captured, resolvePage);
-    applyOutgoingSeamToPreview(expanded.chat, settings);
-    const view = describeDryRunPrompt({
+    const resolvePage =
+        deps.resolveMicrofichePage ??
+        writer?.resolveMicrofichePage ??
+        createPlanPageReader(settings);
+    const expanded = expandCapturedChat(captured.chat, resolvePage);
+    const outgoing = applyOutgoingRewriteToPreview(expanded.chat, writer, settings);
+    const current = captureOutgoingSnapshot({ writer, settings });
+    return describeDryRunPrompt({
         chat: expanded.chat,
         epoch: getSummaryStoreMutationEpoch(getChatStore()),
         settings,
         resolvedMarkers: expanded.resolvedMarkers,
         unresolvedMarkers: expanded.unresolvedMarkers,
         promptManagerReady: Boolean(getPromptManager()?.serviceSettings),
+        captureDivergences: deriveOutgoingDivergence(captured.snapshot, current),
+        outgoing,
     });
-    debug(
-        `Dry-Run Preview captured ${view.chat.length} messages, ${view.imageParts} image part(s).`,
-    );
-    await showDryRunView(view, deps);
 }
 
 /**

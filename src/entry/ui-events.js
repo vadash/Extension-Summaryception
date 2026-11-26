@@ -57,6 +57,7 @@ function saveAndRefreshUi() {
  * @param {import('../core/summarizer-engine.js').ManualRunnerDeps} deps.manualRunnerDeps - Engine deps for manual runs and the pause latch.
  * @param {() => unknown} [deps.warmPages] - Writer page warm-up for Dry-Run Preview capture.
  * @param {(pageIndex: number, region?: 'memory' | 'raw') => { dataUrl: string, text: string } | undefined} [deps.resolveMicrofichePage] - Writer page-source reader.
+ * @param {import('./outgoing-context.js').OutgoingContextWriter | null} [deps.writer] - Shared Memory Injection writer for the preview transform.
  * @param {{ approve: (request: object) => Promise<object> }} [deps.preservedApproval] - Preserved Message approval transaction.
  * @returns {void}
  */
@@ -67,6 +68,7 @@ export function bindUIEvents({
     manualRunnerDeps,
     warmPages,
     resolveMicrofichePage,
+    writer,
     preservedApproval,
 }) {
     bindModeHandlers(queue);
@@ -76,7 +78,7 @@ export function bindUIEvents({
     bindClickHandlers(notify, gate);
     bindManualRunControls({ notify, manualRunnerDeps });
     bindPromptProfiles();
-    initDryRunViewer({ gate, queue, warmPages, resolveMicrofichePage });
+    initDryRunViewer({ gate, queue, warmPages, resolveMicrofichePage, writer });
     bindDryRunPreviewButton();
     bindPreservedMessageActions({ gate, queue, preservedApproval });
 }

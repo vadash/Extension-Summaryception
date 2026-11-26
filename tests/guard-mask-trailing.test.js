@@ -2,22 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
     isGuardMaskEnabled,
-    maskGuardContent,
+    maskGuardContentParts,
     maskGuardText,
+    unmaskGuardContentParts,
     unmaskGuardText,
 } from '../src/core/guard-mask.js';
-import { maskUserRoleAsAssistantInGenerateData } from '../src/core/assistant-role-mask.js';
-import { applyOutgoingSeamToPreview } from '../src/entry/dryrun-viewer.js';
 import { defaultSettings } from '../src/foundation/constants.js';
-import { installSummaryContext } from './test-helpers.js';
 
 const B = '\u2800';
-const LAST_CHAT = 'I open the door.';
-const PRESET_ONE = 'Think step by step before answering.';
-const PRESET_TWO = 'Second preset reasoning block.';
-const PRESET_THREE = 'Third preset reasoning block.';
 
-/** Guard settings with the trailing Preset CoT policy a test names. */
+/** Guard settings with the model gate a test names. */
 function guardSettings(overrides = {}) {
     const { modelName, ...rest } = overrides;
     const mocks = globalThis.summaryceptionFoundationMocks?.context;
@@ -25,341 +19,39 @@ function guardSettings(overrides = {}) {
     return {
         enabled: true,
         guardMask: true,
-        guardMaskMemory: true,
-        guardMaskCotMode: 'auto',
-        guardMaskCotCount: 2,
         ...rest,
     };
 }
 
-/** Install the live chat whose last message is the anchor candidate. */
-function installLiveChat(mes = LAST_CHAT, extra = {}) {
-    installSummaryContext({ chat: [{ name: 'Player1', is_user: true, mes, ...extra }] });
-}
-
-/** Chat history plus one trailing merged Preset CoT user message. */
-function promptWithOnePreset() {
-    return [
-        { role: 'system', content: 'preset system' },
-        { role: 'user', content: 'Earlier chat line.' },
-        { role: 'assistant', content: 'Earlier chat reply.' },
-        { role: 'user', content: LAST_CHAT },
-        { role: 'user', content: PRESET_ONE },
-    ];
-}
-
-describe('guard mask trailing Preset CoT exemption', () => {
-    it('ships auto with a two-message window', () => {
-        expect(defaultSettings.guardMaskCotMode).toBe('auto');
-        expect(defaultSettings.guardMaskCotCount).toBe(2);
-    });
-
-    it('on with slider 3 exempts the merged trailing preset and masks chat content', () => {
-        installLiveChat();
-        const messages = promptWithOnePreset();
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
-
-        expect(messages[4].content).toBe(PRESET_ONE);
-        expect(messages[1].content).toBe(`Earlier${B}chat${B}line.`);
-        expect(messages[2].content).toBe(`Earlier${B}chat${B}reply.`);
-        expect(messages[3].content).toBe(`I${B}open${B}the${B}door.`);
-    });
-
-    it('auto exempts exactly two trailing user messages regardless of the slider', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-            { role: 'user', content: PRESET_TWO },
-            { role: 'user', content: PRESET_THREE },
-        ];
-
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'auto', guardMaskCotCount: 5 }),
-        );
-
-        expect(messages[2].content).toBe(PRESET_ONE);
-        expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[4].content).toBe(`Third${B}preset${B}reasoning${B}block.`);
-        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
-    });
-
-    it('on clamps the slider to the declared 1-5 bounds', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            ...Array.from({ length: 6 }, (_, index) => ({
-                role: 'user',
-                content: `preset reasoning ${index}`,
-            })),
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 9 }));
-
-        expect(messages.slice(2, 7).map((message) => message.content)).toEqual([
-            'preset reasoning 0',
-            'preset reasoning 1',
-            'preset reasoning 2',
-            'preset reasoning 3',
-            'preset reasoning 4',
-        ]);
-        expect(messages[7].content).toBe(`preset${B}reasoning${B}5`);
-    });
-
-    it('a missing mode behaves as auto', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-            { role: 'user', content: PRESET_TWO },
-            { role: 'user', content: PRESET_THREE },
-        ];
-
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: undefined, guardMaskCotCount: 5 }),
-        );
-
-        expect(messages[2].content).toBe(PRESET_ONE);
-        expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[4].content).toBe(`Third${B}preset${B}reasoning${B}block.`);
-    });
-
-    it('off masks every trailing preset and every chat message', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-            { role: 'user', content: PRESET_TWO },
-        ];
-
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'off', guardMaskCotCount: 3 }),
-        );
-
-        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
-        expect(messages[2].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
-        expect(messages[3].content).toBe(`Second${B}preset${B}reasoning${B}block.`);
-    });
-
-    it('on with a slider above the available tail stops at the available messages', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-            { role: 'user', content: PRESET_TWO },
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 5 }));
-
-        expect(messages[2].content).toBe(PRESET_ONE);
-        expect(messages[3].content).toBe(PRESET_TWO);
-        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
-    });
-
-    it('a trailing assistant preset message stays masked and does not consume the window', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-            { role: 'assistant', content: 'assistant preset bias text' },
-            { role: 'user', content: PRESET_TWO },
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
-
-        expect(messages[2].content).toBe(PRESET_ONE);
-        expect(messages[3].content).toBe(`assistant${B}preset${B}bias${B}text`);
-        expect(messages[4].content).toBe(PRESET_TWO);
-    });
-
-    it('an anchor miss masks every trailing preset message', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: 'Earlier chat line.' },
-            { role: 'user', content: PRESET_ONE },
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
-
-        expect(messages[1].content).toBe(`Earlier${B}chat${B}line.`);
-        expect(messages[2].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
-    });
-
-    it('matches an anchor that the host flattened behind a speaker name', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: `Player1: ${LAST_CHAT}` },
-            { role: 'user', content: PRESET_ONE },
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
-
-        expect(messages[1].content).toBe(`Player1:${B}I${B}open${B}the${B}door.`);
-        expect(messages[2].content).toBe(PRESET_ONE);
-    });
-
-    it('exempts a multipart trailing preset message as one message', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            {
-                role: 'user',
-                content: [
-                    { type: 'text', text: PRESET_ONE },
-                    { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
-                ],
-            },
-        ];
-
-        maskGuardContent(messages, guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 }));
-
-        expect(messages[1].content).toBe(`I${B}open${B}the${B}door.`);
-        expect(messages[2].content).toEqual([
-            { type: 'text', text: PRESET_ONE },
-            { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
-        ]);
-    });
-});
-
-describe('guard mask trailing exemption through the outgoing seam', () => {
-    it('applies the post-rewrite roles, so a rewritten preset user message stays masked', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'system', content: 'preset system' },
-            { role: 'user', content: LAST_CHAT },
-            { role: 'user', content: PRESET_ONE },
-        ];
-
-        maskUserRoleAsAssistantInGenerateData(
-            { prompt: messages },
-            guardSettings({
-                guardMaskCotMode: 'on',
-                guardMaskCotCount: 3,
-                maskUserRoleAsAssistant: true,
-                maskUserRoleMode: 'marker_first',
-            }),
-        );
-
-        expect(messages[2].content).toBe(`I${B}open${B}the${B}door.`);
-        expect(messages[3].role).toBe('assistant');
-        expect(messages[3].content).toBe(`Think${B}step${B}by${B}step${B}before${B}answering.`);
-    });
-
-    it('the Dry-Run Preview clone matches the live prompt through the same seam', () => {
-        installLiveChat();
-        const live = promptWithOnePreset();
-        const preview = structuredClone(live);
-        const settings = guardSettings({ guardMaskCotMode: 'on', guardMaskCotCount: 3 });
-
-        maskUserRoleAsAssistantInGenerateData({ prompt: live }, settings);
-        applyOutgoingSeamToPreview(preview, settings);
-
-        expect(preview).toEqual(live);
-        expect(preview[4].content).toBe(PRESET_ONE);
-        expect(preview[3].content).toBe(`I${B}open${B}the${B}door.`);
-    });
-});
-
 describe('guard mask model gate', () => {
     it('masks whitespace on an argon model name', () => {
-        installLiveChat();
-        const messages = [{ role: 'user', content: 'hello world' }];
+        guardSettings({ modelName: 'Argon-Gemini-1' });
 
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'off', modelName: 'Argon-Gemini-1' }),
-        );
-
-        expect(messages[0].content).toBe(`hello${B}world`);
+        expect(isGuardMaskEnabled({ guardMask: true })).toBe(true);
+        expect(maskGuardText('hello world')).toBe(`hello${B}world`);
     });
 
     it('masks on an opus model name', () => {
-        installLiveChat();
-        const messages = [{ role: 'user', content: 'hello world' }];
+        guardSettings({ modelName: 'claude-opus-4-6' });
 
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'off', modelName: 'claude-opus-4-6' }),
-        );
-
-        expect(messages[0].content).toBe(`hello${B}world`);
+        expect(isGuardMaskEnabled({ guardMask: true })).toBe(true);
     });
 
     it('reads the gate case-insensitively for opus', () => {
-        installLiveChat();
-        guardSettings({ guardMaskCotMode: 'off', modelName: 'CLAUDE-OPUS-4-6' });
+        guardSettings({ modelName: 'CLAUDE-OPUS-4-6' });
 
         expect(isGuardMaskEnabled({ guardMask: true })).toBe(true);
         expect(isGuardMaskEnabled({ guardMask: false })).toBe(false);
     });
 
-    it('folds an echoed braille blank behind a non-matching model', () => {
-        installLiveChat();
-        const messages = [{ role: 'user', content: `hello${B}world$$again` }];
+    it('stays disabled behind a non-matching model', () => {
+        guardSettings({ modelName: 'gpt-4o-mini' });
 
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'off', modelName: 'gpt-4o-mini' }),
-        );
-
-        expect(messages[0].content).toBe('hello world again');
+        expect(isGuardMaskEnabled({ guardMask: true })).toBe(false);
     });
 
-    it('unmasks $$ on a non-matching model while the toggle stays on', () => {
-        installLiveChat();
-        const messages = [
-            { role: 'user', content: 'hello$$world' },
-            { role: 'assistant', content: [{ type: 'text', text: 'hi$$there' }] },
-        ];
-
-        maskGuardContent(
-            messages,
-            guardSettings({ guardMaskCotMode: 'off', modelName: 'gpt-4o-mini' }),
-        );
-
-        expect(messages[0].content).toBe('hello world');
-        expect(messages[1].content).toEqual([{ type: 'text', text: 'hi there' }]);
-    });
-
-    it('unmasks $$ while the toggle is off on a matching model', () => {
-        installLiveChat();
-        const messages = [{ role: 'user', content: 'hello$$world' }];
-
-        maskGuardContent(
-            messages,
-            guardSettings({
-                guardMask: false,
-                guardMaskCotMode: 'off',
-                modelName: 'gemini-2.5-pro',
-            }),
-        );
-
-        expect(messages[0].content).toBe('hello world');
-    });
-
-    it('leaves user and assistant text alone when the extension is off', () => {
-        installLiveChat();
-        const messages = [{ role: 'user', content: 'hello$$world' }];
-
-        maskGuardContent(
-            messages,
-            guardSettings({ enabled: false, guardMaskCotMode: 'off', modelName: 'gemini-2.5-pro' }),
-        );
-
-        expect(messages[0].content).toBe('hello$$world');
+    it('ships the gate off by default', () => {
+        expect(defaultSettings.guardMask).toBe(false);
     });
 });
 
@@ -393,5 +85,28 @@ describe('guard mask codec', () => {
         expect(unmaskGuardText(`a${B}b`)).toBe('a b');
         expect(unmaskGuardText('a$$b')).toBe('a b');
         expect(unmaskGuardText(`a${B}b$$c`)).toBe('a b c');
+    });
+
+    it('masks and unmasks text parts while leaving image parts opaque', () => {
+        const content = [
+            { type: 'text', text: 'hello  world' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+        ];
+
+        maskGuardContentParts(content);
+
+        expect(content[0].text).toBe(`hello${B}world`);
+        expect(content[1]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,AAAA' },
+        });
+
+        unmaskGuardContentParts(content);
+
+        expect(content[0].text).toBe('hello world');
+        expect(content[1]).toEqual({
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,AAAA' },
+        });
     });
 });

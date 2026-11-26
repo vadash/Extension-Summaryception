@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-    applyOutgoingSeamToPreview,
+    applyOutgoingRewriteToPreview,
     captureHostDryRun,
     copyPromptChat,
     describeDryRunPrompt,
@@ -10,7 +10,8 @@ import {
     openDryRunPreview,
 } from '../src/entry/dryrun-viewer.js';
 import { onChatCompletionPromptReady } from '../src/entry/events.js';
-import { maskUserRoleAsAssistantInGenerateData } from '../src/core/assistant-role-mask.js';
+import { rewriteOutgoingPrompt } from '../src/core/outgoing-rewrite.js';
+import { buildOutgoingContext, deriveOutgoingDivergence } from '../src/entry/outgoing-context.js';
 import {
     expandMicrofichePromptChat,
     formatMicroficheMarker,
@@ -163,7 +164,7 @@ describe('expandCapturedChat', () => {
 
         expect(expandMicrofichePromptChat(live, resolvePage)).toBe(2);
         const expanded = expandCapturedChat(captured, resolvePage);
-        applyOutgoingSeamToPreview(expanded.chat, makeSettings());
+        applyOutgoingRewriteToPreview(expanded.chat, null, makeSettings());
 
         expect(captured).toEqual(snapshot);
         expect(expanded.chat).toEqual(live);
@@ -195,7 +196,7 @@ describe('expandCapturedChat', () => {
         expect(expanded.chat).toEqual(live);
     });
 
-    it('re-applies the live outgoing seam to the preview clone', () => {
+    it('applies the shared outgoing rewrite to the preview clone', () => {
         const captured = [
             { role: 'system', content: 'preset block' },
             { role: 'user', content: 'raw chat text' },
@@ -207,10 +208,10 @@ describe('expandCapturedChat', () => {
         });
         const live = JSON.parse(JSON.stringify(captured));
         expandMicrofichePromptChat(live, () => undefined);
-        maskUserRoleAsAssistantInGenerateData(live, settings);
+        rewriteOutgoingPrompt(live, buildOutgoingContext(live, { writer: null, settings }));
 
         const expanded = expandCapturedChat(captured, () => undefined);
-        applyOutgoingSeamToPreview(expanded.chat, settings);
+        applyOutgoingRewriteToPreview(expanded.chat, null, settings);
 
         expect(expanded.chat).toEqual(live);
         expect(expanded.chat.map((message) => message.role)).toEqual([
@@ -257,6 +258,7 @@ describe('describeDryRunPrompt', () => {
         expect(view.resolvedMarkers).toBe(1);
         expect(view.payloadBytes).toBe(new TextEncoder().encode(JSON.stringify(chat)).length);
         expect(view.divergences).toEqual([]);
+        expect(view.outgoing.slotStatus).toBe('absent');
     });
 
     it('flags unsquashed systems and pre-settings-ready assembly', () => {
@@ -298,6 +300,27 @@ describe('describeDryRunPrompt', () => {
         });
         expect(view.divergences).toEqual([]);
     });
+
+    it('merges capture-time divergences and flags unresolved slots', () => {
+        const chat = [{ role: 'user', content: 'x' }];
+        const view = describeDryRunPrompt({
+            chat,
+            epoch: 0,
+            settings: makeSettings(),
+            resolvedMarkers: 0,
+            unresolvedMarkers: [],
+            promptManagerReady: true,
+            captureDivergences: [{ kind: 'model-changed' }, { kind: 'slot-changed' }],
+            outgoing: { slotStatus: 'stale', staleReason: 'content-changed' },
+        });
+
+        expect(view.divergences.map((entry) => entry.kind)).toEqual([
+            'model-changed',
+            'slot-changed',
+            'slot-unresolved',
+        ]);
+        expect(view.outgoing).toEqual({ slotStatus: 'stale', staleReason: 'content-changed' });
+    });
 });
 
 describe('captureHostDryRun', () => {
@@ -318,8 +341,29 @@ describe('captureHostDryRun', () => {
         });
 
         expect(order).toEqual(['trigger:1']);
-        expect(captured).toEqual([{ role: 'user', content: 'x' }]);
+        expect(captured.chat).toEqual([{ role: 'user', content: 'x' }]);
         expect(eventSource.count(EVENT_NAME)).toBe(0);
+    });
+
+    it('snapshots capture facts inside the event handler', async () => {
+        const eventSource = makeEventSource();
+        const mocks = /** @type {any} */ (globalThis).summaryceptionFoundationMocks.context;
+        mocks.getEventSource.mockReturnValue(eventSource);
+        mocks.getEventTypes.mockReturnValue({ CHAT_COMPLETION_PROMPT_READY: EVENT_NAME });
+
+        let calls = 0;
+        const captured = await captureHostDryRun({
+            trigger: async () => {
+                eventSource.emit(EVENT_NAME, { chat: [{ role: 'user', content: 'x' }] });
+            },
+            captureFacts: () => {
+                calls += 1;
+                return /** @type {any} */ ({ modelName: 'argon-x' });
+            },
+        });
+
+        expect(calls).toBe(1);
+        expect(captured.snapshot).toEqual({ modelName: 'argon-x' });
     });
 
     it('resolves null on timeout and detaches', async () => {
@@ -523,6 +567,42 @@ describe('openDryRunPreview', () => {
 
         expect(showView).not.toHaveBeenCalled();
         expect(globalThis.toastr.warning).toHaveBeenCalled();
+    });
+});
+
+describe('preview divergence', () => {
+    it('derives changed categories without user-facing text', () => {
+        const captured = {
+            modelName: 'argon-a',
+            chatTailAnchor: 'hello',
+            settings: {
+                enabled: true,
+                stripChineseIdeographs: false,
+                maskUserRoleAsAssistant: false,
+                maskUserRoleMode: undefined,
+                guardMaskMemory: false,
+                guardMaskCotMode: undefined,
+                guardMaskCotCount: undefined,
+                guardMask: true,
+            },
+            slotKey: 'key-one',
+            slotPresent: true,
+        };
+        const current = {
+            ...captured,
+            modelName: 'opus-b',
+            settings: { ...captured.settings, guardMaskMemory: true },
+            slotKey: 'key-two',
+        };
+
+        const divergences = deriveOutgoingDivergence(captured, current);
+
+        expect(divergences.map((entry) => entry.kind).sort()).toEqual(
+            ['model-changed', 'settings-changed', 'slot-changed'].sort(),
+        );
+        for (const entry of divergences) {
+            expect(Object.keys(entry)).toEqual(['kind']);
+        }
     });
 });
 

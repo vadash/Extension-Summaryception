@@ -33,6 +33,20 @@ import {
  */
 
 /**
+ * @typedef {object} OutgoingCaptureSnapshot
+ * @property {string} modelName - Active model name at capture.
+ * @property {string | null} chatTailAnchor - Last chat text at capture.
+ * @property {{ enabled: boolean, stripChineseIdeographs: boolean, maskUserRoleAsAssistant: boolean, maskUserRoleMode: string | undefined, guardMaskMemory: boolean, guardMaskCotMode: string | undefined, guardMaskCotCount: number | undefined, guardMask: boolean }} settings - Frozen transform settings at capture.
+ * @property {string} slotKey - Writer injection key at capture.
+ * @property {boolean} slotPresent - Whether the writer held a slot at capture.
+ */
+
+/**
+ * @typedef {object} OutgoingDivergence
+ * @property {'model-changed' | 'chat-tail-changed' | 'settings-changed' | 'slot-changed'} kind - Changed fact category.
+ */
+
+/**
  * Build the frozen core context for one outgoing rewrite. Entry owns every
  * host read here so the core stays host-free: effective settings, the model
  * verdict behind the active model name, the chat-tail anchor, and the
@@ -226,6 +240,109 @@ function readAnchorText(last) {
             .join('');
     }
     return '';
+}
+/**
+ * Freeze the facts the preview compares against. Called once when the host
+ * dry-run event arrives and once before the preview transform; the diff
+ * reports what changed in between without forecasting a future send.
+ * @param {OutgoingContextOptions} [options] - Writer and fact overrides.
+ * @returns {OutgoingCaptureSnapshot} Frozen capture facts.
+ */
+export function captureOutgoingSnapshot(options = {}) {
+    const facts = captureEntryFacts(options);
+    return Object.freeze({
+        modelName: facts.modelName,
+        chatTailAnchor: readChatTailAnchor(facts.chat),
+        settings: Object.freeze(pickSnapshotSettings(facts.settings)),
+        slotKey: readSnapshotSlotKey(facts.slotFacts),
+        slotPresent: facts.slotFacts?.hasSlot === true,
+    });
+}
+/**
+ * @param {Partial<ExtensionSettings>} settings - Effective settings.
+ * @returns {{ enabled: boolean, stripChineseIdeographs: boolean, maskUserRoleAsAssistant: boolean, maskUserRoleMode: string | undefined, guardMaskMemory: boolean, guardMaskCotMode: string | undefined, guardMaskCotCount: number | undefined, guardMask: boolean }} Picked transform settings.
+ */
+function pickSnapshotSettings(settings) {
+    return {
+        enabled: Boolean(settings?.enabled),
+        stripChineseIdeographs: Boolean(settings?.stripChineseIdeographs),
+        maskUserRoleAsAssistant: Boolean(settings?.maskUserRoleAsAssistant),
+        maskUserRoleMode:
+            typeof settings?.maskUserRoleMode === 'string' ? settings.maskUserRoleMode : undefined,
+        guardMaskMemory: Boolean(settings?.guardMaskMemory),
+        guardMaskCotMode:
+            typeof settings?.guardMaskCotMode === 'string' ? settings.guardMaskCotMode : undefined,
+        guardMaskCotCount:
+            typeof settings?.guardMaskCotCount === 'number'
+                ? settings.guardMaskCotCount
+                : undefined,
+        guardMask: Boolean(settings?.guardMask),
+    };
+}
+/**
+ * @param {OutgoingSlotFacts | null} slotFacts - Committed writer facts.
+ * @returns {string} Injection key or empty when missing.
+ */
+function readSnapshotSlotKey(slotFacts) {
+    return typeof slotFacts?.lastInjectionKey === 'string' ? slotFacts.lastInjectionKey : '';
+}
+/**
+ * Report which capture-time facts changed before the transform. Data only;
+ * the viewer renders the wording.
+ * @param {OutgoingCaptureSnapshot | null} captured - Facts at dry-run arrival.
+ * @param {OutgoingCaptureSnapshot | null} current - Facts at transform time.
+ * @returns {Array<OutgoingDivergence>} Changed categories.
+ */
+export function deriveOutgoingDivergence(captured, current) {
+    if (!captured || !current || typeof captured !== 'object' || typeof current !== 'object') {
+        return [];
+    }
+    return [
+        ...modelDivergence(captured, current),
+        ...chatDivergence(captured, current),
+        ...settingsDivergence(captured, current),
+        ...slotDivergence(captured, current),
+    ];
+}
+/**
+ * @param {OutgoingCaptureSnapshot} captured - Arrival facts.
+ * @param {OutgoingCaptureSnapshot} current - Transform facts.
+ * @returns {Array<OutgoingDivergence>} Model diff.
+ */
+function modelDivergence(captured, current) {
+    return String(captured.modelName ?? '') === String(current.modelName ?? '')
+        ? []
+        : [{ kind: 'model-changed' }];
+}
+/**
+ * @param {OutgoingCaptureSnapshot} captured - Arrival facts.
+ * @param {OutgoingCaptureSnapshot} current - Transform facts.
+ * @returns {Array<OutgoingDivergence>} Chat diff.
+ */
+function chatDivergence(captured, current) {
+    return String(captured.chatTailAnchor ?? '') === String(current.chatTailAnchor ?? '')
+        ? []
+        : [{ kind: 'chat-tail-changed' }];
+}
+/**
+ * @param {OutgoingCaptureSnapshot} captured - Arrival facts.
+ * @param {OutgoingCaptureSnapshot} current - Transform facts.
+ * @returns {Array<OutgoingDivergence>} Settings diff.
+ */
+function settingsDivergence(captured, current) {
+    return JSON.stringify(captured.settings ?? {}) === JSON.stringify(current.settings ?? {})
+        ? []
+        : [{ kind: 'settings-changed' }];
+}
+/**
+ * @param {OutgoingCaptureSnapshot} captured - Arrival facts.
+ * @param {OutgoingCaptureSnapshot} current - Transform facts.
+ * @returns {Array<OutgoingDivergence>} Slot diff.
+ */
+function slotDivergence(captured, current) {
+    const sameKey = String(captured.slotKey ?? '') === String(current.slotKey ?? '');
+    const samePresence = Boolean(captured.slotPresent) === Boolean(current.slotPresent);
+    return sameKey && samePresence ? [] : [{ kind: 'slot-changed' }];
 }
 
 /**

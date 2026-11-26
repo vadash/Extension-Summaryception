@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { EXTENSION_PROMPT_POSITIONS, EXTENSION_PROMPT_ROLES } from '../src/foundation/constants.js';
+import { rewriteOutgoingPrompt } from '../src/core/outgoing-rewrite.js';
+import { buildOutgoingContext } from '../src/entry/outgoing-context.js';
 import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
 import { initDryRunViewer, openDryRunPreview } from '../src/entry/dryrun-viewer.js';
 import { installSummaryContext, makeToastrMock } from './test-helpers.js';
@@ -27,9 +30,6 @@ function makeEventSource() {
             for (const handler of handlers.get(name) ?? []) {
                 handler(payload);
             }
-        },
-        count(name) {
-            return (handlers.get(name) ?? []).length;
         },
     };
 }
@@ -64,15 +64,35 @@ function installPromptHost({ eventSource, settings = makeGuardSettings() }) {
     return mocks;
 }
 
+function makeWriter(text = '', role = EXTENSION_PROMPT_ROLES.SYSTEM) {
+    const options = {
+        position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+        depth: 0,
+        scan: false,
+        role,
+    };
+    return {
+        getSlotFacts: () => ({
+            text,
+            options: { ...options },
+            hasSlot: text !== '',
+            lastInjectionKey: JSON.stringify({ text, options }),
+        }),
+        resolveMicrofichePage: () => undefined,
+    };
+}
+
 /**
  * Run the preview end to end and return the rendered view.
- * @param {{ chat: unknown[], settings?: object, resolvePage?: (pageIndex: number) => unknown }} input
+ * @param {{ chat: unknown[], settings?: object, resolvePage?: (pageIndex: number) => unknown, writer?: object, mutateAfterCapture?: () => void }} input
  * @returns {Promise<{ view: any, eventSource: ReturnType<typeof makeEventSource> }>}
  */
 async function capturePreview({
     chat,
     settings = makeGuardSettings(),
     resolvePage = () => undefined,
+    writer = makeWriter(),
+    mutateAfterCapture,
 }) {
     const eventSource = makeEventSource();
     installPromptHost({ eventSource, settings });
@@ -82,9 +102,11 @@ async function capturePreview({
         gate: /** @type {any} */ ({ isFrozen: () => false }),
         queue: /** @type {any} */ ({ isBusy: () => false }),
         resolveMicrofichePage: resolvePage,
+        writer: /** @type {any} */ (writer),
         warmPages: async () => {},
         triggerDryRun: async () => {
             eventSource.emit(EVENT_NAME, { chat, dryRun: true });
+            mutateAfterCapture?.();
         },
         showView,
         getSettings: () => settings,
@@ -96,8 +118,8 @@ async function capturePreview({
     return { view: showView.mock.calls[0][0], eventSource };
 }
 
-describe('openDryRunPreview guard mask', () => {
-    it('masks user and assistant string content when both guard toggles are on', async () => {
+describe('openDryRunPreview shared rewrite', () => {
+    it('masks user and assistant string content through the shared core operation', async () => {
         const chat = [
             { role: 'user', content: 'hello world' },
             { role: 'assistant', content: 'general kenobi here' },
@@ -107,21 +129,24 @@ describe('openDryRunPreview guard mask', () => {
 
         expect(view.chat[0].content).toBe(`hello${B}world`);
         expect(view.chat[1].content).toBe(`general${B}kenobi${B}here`);
+        expect(view.outgoing.slotStatus).toBe('absent');
     });
 
-    it('leaves user and assistant text raw when the guard is off', async () => {
+    it('matches the live rewrite on the same input', async () => {
         const chat = [
             { role: 'user', content: 'hello world' },
             { role: 'assistant', content: 'general kenobi here' },
         ];
+        const settings = makeGuardSettings();
+        const writer = makeWriter();
 
-        const { view } = await capturePreview({
-            chat,
-            settings: makeGuardSettings({ guardMask: false, guardMaskMemory: false }),
-        });
+        const { view } = await capturePreview({ chat, settings, writer });
 
-        expect(view.chat[0].content).toBe('hello world');
-        expect(view.chat[1].content).toBe('general kenobi here');
+        const live = structuredClone(chat);
+        const context = buildOutgoingContext(live, { writer, settings });
+        rewriteOutgoingPrompt(live, context);
+
+        expect(view.chat).toEqual(live);
     });
 
     it('masks expanded text parts and leaves image URLs intact', async () => {
@@ -170,14 +195,53 @@ describe('openDryRunPreview guard mask', () => {
         ]);
     });
 
-    it('leaves a system-role memory slot unmasked when memory masking is off', async () => {
-        const chat = [{ role: 'system', content: 'memory slot stays raw here' }];
+    it('skips the placed slot and masks identical text outside it', async () => {
+        const slotText = 'MEMORY <preserved>exact bytes</preserved>';
+        const chat = [
+            { role: 'system', content: slotText },
+            { role: 'user', content: 'hello  world' },
+            { role: 'user', content: slotText },
+        ];
+        const writer = makeWriter(slotText, EXTENSION_PROMPT_ROLES.SYSTEM);
 
         const { view } = await capturePreview({
             chat,
             settings: makeGuardSettings({ guardMaskMemory: false }),
+            writer,
         });
 
-        expect(view.chat[0].content).toBe('memory slot stays raw here');
+        expect(view.chat[0].content).toBe(slotText);
+        expect(view.chat[1].content).toBe(`hello${B}world`);
+        expect(view.chat[2].content).toBe(`MEMORY${B}<preserved>exact${B}bytes</preserved>`);
+        expect(view.outgoing.slotStatus).toBe('skipped');
+    });
+
+    it('reports a slot change when memory moves between capture and transform', async () => {
+        const chat = [{ role: 'user', content: 'hello world' }];
+        let key = 'key-one';
+        const writer = {
+            getSlotFacts: () => ({
+                text: 'MEMORY one',
+                options: {
+                    position: EXTENSION_PROMPT_POSITIONS.IN_CHAT,
+                    depth: 0,
+                    scan: false,
+                    role: EXTENSION_PROMPT_ROLES.SYSTEM,
+                },
+                hasSlot: true,
+                lastInjectionKey: key,
+            }),
+            resolveMicrofichePage: () => undefined,
+        };
+
+        const { view } = await capturePreview({
+            chat,
+            writer,
+            mutateAfterCapture: () => {
+                key = 'key-two';
+            },
+        });
+
+        expect(view.divergences.map((entry) => entry.kind)).toContain('slot-changed');
     });
 });
