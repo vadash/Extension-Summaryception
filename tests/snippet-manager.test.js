@@ -98,6 +98,19 @@ describe('isRegenerationCandidate', () => {
         installSummaryContext({ chat, metadata: { summaryception: store } });
         expect(isRegenerationCandidate(0, 0, queue)).toBe(false);
     });
+
+    it('is false when a source identity is preserved', () => {
+        const chat = [
+            makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
+            makeMessage({ scId: 'assistant-id', mes: 'Assistant scene.' }),
+        ];
+        const store = makeSummaryStore({
+            layers: [[{ text: 'summary', sourceMessageIds: ['user-id', 'assistant-id'] }]],
+            preservedMessages: [{ id: 'assistant-id', text: 'Assistant: exact', handedOff: false }],
+        });
+        installSummaryContext({ chat, metadata: { summaryception: store } });
+        expect(isRegenerationCandidate(0, 0, queue)).toBe(false);
+    });
 });
 
 describe('snippet regeneration request outcomes', () => {

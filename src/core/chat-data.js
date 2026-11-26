@@ -26,6 +26,7 @@ export async function clearChatData() {
         store,
         () => {
             store.layers.length = 0;
+            store.preservedMessages.length = 0;
         },
         { ghost: 'clear' },
     );

@@ -46,11 +46,34 @@ export function ensureChatScIds(chat) {
         return false;
     }
     let changed = false;
+    const seenIds = new Set();
+    const assignUniqueId = (message) => {
+        let id = createUuid();
+        while (seenIds.has(id)) {
+            id = createUuid();
+        }
+        message.sc_id = id;
+        seenIds.add(id);
+    };
     for (const message of chat) {
         const previousId = message?.sc_id;
-        const id = ensureMessageScId(message);
-        if (id !== null && id !== previousId) {
+        const existingId =
+            typeof previousId === 'string' && previousId.trim() !== '' ? previousId : null;
+        if (existingId && seenIds.has(existingId)) {
+            assignUniqueId(message);
             changed = true;
+            continue;
+        }
+        const id = ensureMessageScId(message);
+        if (id !== null) {
+            if (seenIds.has(id)) {
+                assignUniqueId(message);
+            } else {
+                seenIds.add(id);
+            }
+            if (message.sc_id !== previousId) {
+                changed = true;
+            }
         }
     }
     return changed;

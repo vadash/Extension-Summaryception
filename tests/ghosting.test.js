@@ -263,6 +263,34 @@ describe('syncGhosting ownership sync', () => {
 
         expect(recorder.events).toEqual([]);
     });
+
+    it('keeps pre-handoff preserved messages visible and unowned', async () => {
+        const chat = [makeMessage({ scId: 'preserved', mes: 'anchor' })];
+        const store = makeSummaryStore({
+            preservedMessages: [{ id: 'preserved', text: 'Assistant: anchor', handedOff: false }],
+        });
+        const { calls, runtime } = installWith(chat, store);
+
+        const outcome = await syncGhosting({ gate });
+
+        expect(calls).toEqual([]);
+        expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual([]);
+        expect(outcome).toEqual({ hidden: 0, unhidden: 0 });
+    });
+
+    it('hides handed-off preserved messages without snippet provenance', async () => {
+        const chat = [makeMessage({ scId: 'preserved', mes: 'anchor' })];
+        const store = makeSummaryStore({
+            preservedMessages: [{ id: 'preserved', text: 'Assistant: anchor', handedOff: true }],
+        });
+        const { calls, runtime } = installWith(chat, store);
+
+        const outcome = await syncGhosting({ gate });
+
+        expect(calls).toEqual(['/hide 0']);
+        expect(runtime.chatMetadata.summaryception.ghostedMessageIds).toEqual(['preserved']);
+        expect(outcome).toEqual({ hidden: 1, unhidden: 0 });
+    });
 });
 /**
  * Ghost ownership clearing and counting live beside the Ghosting engine so

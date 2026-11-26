@@ -41,10 +41,16 @@ describe('message identity', () => {
             makeMessage({ scId: 'message-3' }),
         ];
 
+        expect(ensureChatScIds(chat)).toBe(true);
+        expect(chat[0].sc_id).toBe('duplicate');
+        expect(chat[2].sc_id).not.toBe('duplicate');
+        expect(ensureChatScIds(chat)).toBe(false);
+
         expect(getMessageIndexByScId(chat)).toEqual(
             new Map([
                 ['duplicate', 0],
                 ['message-1', 1],
+                [chat[2].sc_id, 2],
                 ['message-3', 3],
             ]),
         );

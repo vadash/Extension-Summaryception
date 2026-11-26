@@ -32,6 +32,13 @@ interface SlashCommand {
     fromProps(props: Record<string, unknown>): SlashCommand;
 }
 
+interface SummaryceptionPreservedMessage {
+    id: string;
+    text: string;
+    currentDateTime?: string;
+    handedOff: boolean;
+}
+
 interface SummaryceptionSnippet {
     text: string;
     sourceMessageIds: string[];
@@ -87,6 +94,7 @@ interface SummaryceptionContinuityState {
 
 interface SummaryceptionStore {
     layers: SummaryceptionSnippet[][];
+    preservedMessages: SummaryceptionPreservedMessage[];
     ghostedMessageIds: string[];
     mutationEpoch: number;
 }

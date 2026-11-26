@@ -28,6 +28,7 @@ const jsdocDefinedTypes = [
     'SummaryceptionContinuityState',
     'SummaryceptionContinuityStep',
     'SummaryceptionSnippet',
+    'SummaryceptionPreservedMessage',
     'SummaryceptionStore',
 ];
 

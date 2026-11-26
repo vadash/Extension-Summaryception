@@ -3,6 +3,12 @@ import { getContext, getChat } from '../foundation/context.js';
 import { ensureChatScIds } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
+import {
+    getPreservedMessageIndices,
+    isPreservedMessage,
+    latchPreservedHandoffs,
+    reconcilePreservedMessages,
+} from './preserved-messages.js';
 import { debug, error, info, isTraceEnabled, serializeError, trace } from '../foundation/logger.js';
 import { repairGhostingForRange } from './ghosting.js';
 import { buildPassageFromRangeWithStats, buildFullContext } from './chatutils.js';
@@ -10,7 +16,6 @@ import { persistChatState } from './persist-state.js';
 import { buildSnippetMetadataFromText } from './snippet-metadata.js';
 import { commitSnippetMutation } from './snippet-commit.js';
 import { buildPassageNameCensus } from './refusal-guard.js';
-import { buildMemoryBody } from './memory-injection.js';
 import { formatTokenValue } from './token-count.js';
 import { SUMMARY_COMMIT_MODES } from './summarization-routes.js';
 import {
@@ -20,8 +25,8 @@ import {
 } from './summarizer-snapshot.js';
 
 /**
- * The Layer 0 Run: the one lifecycle that commits Layer 0 Snippets, whether the
- * route selects a single Passage or the cache-friendly route selects many.
+ * The Layer 0 Run commits one contiguous Passage as one Snippet. Preserved
+ * Messages split work so no run crosses a preserved barrier.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
  * @param {object} p
  * @param {import('./notify.js').NotifyAdapter | undefined} p.notify - Notify adapter threaded from the engine; a run without one stays silent.
@@ -55,129 +60,148 @@ export async function runLayer0(routePlan, { notify, gate, dispatch }) {
  */
 async function runPassages({ routePlan, notify, progress, gate, dispatch }) {
     const chat = getChat();
-    if (ensureChatScIds(chat)) {
+    const identitiesChanged = ensureChatScIds(chat);
+    const store = getChatStore();
+    const preservedChanged = reconcilePreservedMessages(chat, store);
+    if (identitiesChanged || preservedChanged) {
         await persistChatState({ chatSave: 'deferred' });
     }
-    const store = getChatStore();
     ensureLayer0(store);
 
     const boundary = getCurrentSummarizedBoundary(chat, store);
     const turns = Array.isArray(routePlan?.batchTurns) ? routePlan.batchTurns : [];
     const batch = turns.filter((turn) => turn.index > boundary);
-    const passages = resolvePassages(routePlan, { boundary, batch });
+    const passage = resolvePassages(routePlan, { boundary, batch, chat, store })[0];
 
-    if (passages.length === 0) {
+    if (!passage) {
         await repairGhosting(turns, boundary, notify, gate);
         return { status: 'idle' };
     }
-    if (passages.length === 1) {
-        const { startIdx, endIdx } = passages[0];
-        info(`Summarizing ${batch.length} assistant turns (indices ${startIdx}–${endIdx})`);
+    const passageTurns = batch.filter(
+        (turn) => turn.index >= passage.startIdx && turn.index <= passage.endIdx,
+    );
+    info(
+        `Summarizing ${passageTurns.length} assistant turns (indices ${passage.startIdx}–${passage.endIdx})`,
+    );
+
+    const result = await runPassage({
+        chat,
+        store,
+        passage,
+        contextText: buildFullContext(0),
+        notify,
+        progress,
+        total: 1,
+        dispatch,
+    });
+    if (result.status !== 'completed') {
+        return verdictFor(result.status);
     }
 
-    let contextText = buildFullContext(0);
-    const snapshots = [];
-    const entries = [];
-
-    for (const passage of passages) {
-        // Ask before each Passage after the first: a stale run aborts instead of
-        // burning the remaining requests. The comparison reads the run's first
-        // snapshot so a mutation anywhere in the run stops the rest.
-        if (snapshots.length > 0 && !isSnapshotStoreCurrent(snapshots[0], getContext(), store)) {
-            progress.settle(BATCH_PROGRESS.ABORTED);
-            return { status: 'aborted', completed: snapshots.length };
-        }
-
-        const result = await runPassage({
-            chat,
-            store,
-            passage,
-            contextText,
-            notify,
-            progress,
-            total: passages.length,
-            dispatch,
-        });
-        if (result.status !== 'completed') {
-            return verdictFor(result.status, snapshots.length);
-        }
-
-        snapshots.push(result.snapshot);
-        entries.push({
-            snapshot: result.snapshot,
-            snippet: buildLayer0Snippet(result.snapshot, result.summary),
-        });
-        contextText = buildPendingLayer0Context(
-            store.layers,
-            entries.map((entry) => entry.snippet),
-        );
-        progress.update(snapshots.length);
-    }
-
+    const entry = {
+        snapshot: result.snapshot,
+        snippet: buildLayer0Snippet(result.snapshot, result.summary),
+    };
+    progress.update(1);
     const commit = await commitLayer0({
         kind: commitKindFor(routePlan),
-        entries,
+        entries: [entry],
         notify,
         progress,
         gate,
     });
     if (commit === 'queued') {
-        return { status: 'blocked', completed: snapshots.length };
+        return { status: 'blocked', completed: 1 };
     }
     if (commit === 'stale') {
-        return { status: 'failed', failed: snapshots.length };
+        return { status: 'failed', failed: 1 };
     }
-    return { status: 'completed', completed: snapshots.length };
+    return { status: 'completed', completed: 1 };
 }
 
 /**
- * The verdict for a run that stopped before its commit: only a run that
- * captured nothing at all was idle, everything else reports what it captured.
  * @param {'idle' | 'aborted' | 'failed'} status
- * @param {number} captured - Passages summarized before the run stopped
  * @returns {import('./run-outcome.js').SummarizationRunOutcome}
  */
-function verdictFor(status, captured) {
+function verdictFor(status) {
     if (status === 'idle') {
-        return captured === 0
-            ? { status: 'idle' }
-            : { status: 'failed', completed: captured, failed: 1 };
+        return { status: 'idle' };
     }
     if (status === 'aborted') {
-        return { status: 'aborted', completed: captured };
+        return { status: 'aborted', completed: 0 };
     }
-    return { status: 'failed', completed: captured, failed: 1 };
+    return { status: 'failed', completed: 0, failed: 1 };
 }
 
 /**
- * Resolve the Passages one plan runs over. The atomic route supplies its
- * partitions; every other route spans its batch turns. Both start a Passage at
- * the summarized boundary, so the Passage covers the user turns that interleave
- * its Batch.
+ * Resolve the one contiguous Passage this run commits. Preserved Messages are
+ * hard boundaries, so a stale or discontinuous plan cannot leap across one.
  * @param {import('./summarization-routes.js').SummaryRoutePlan} routePlan
- * @param {{ boundary: number, batch: import('./chatutils.js').AssistantTurn[] }} context
+ * @param {{ boundary: number, batch: import('./chatutils.js').AssistantTurn[], chat: ChatMessage[], store: SummaryceptionStore }} context
  * @returns {{ startIdx: number, endIdx: number }[]}
  */
-function resolvePassages(routePlan, { boundary, batch }) {
+function resolvePassages(routePlan, { boundary, batch, chat, store }) {
     if (routePlan?.commitMode === SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS) {
-        return (routePlan.partitions || [])
-            .filter((partition) => partition?.turns?.length > 0)
-            .map((partition) => ({
+        for (const partition of routePlan.partitions || []) {
+            if (!partition?.turns?.some((turn) => turn.index > boundary)) {
+                continue;
+            }
+            const passage = buildContiguousPassage(chat, store, {
+                boundary,
+                batch,
                 startIdx: partition.sourceStartIdx,
                 endIdx: partition.sourceEndIdx,
-            }));
+            });
+            return passage ? [passage] : [];
+        }
+        return [];
     }
 
     if (batch.length === 0) {
         return [];
     }
     const endIdx = getSourceEndIdx(batch[batch.length - 1].index, routePlan?.sourceEndIdx);
-    const startIdx = boundary < 0 ? 0 : boundary + 1;
-    if (startIdx > endIdx) {
-        error(`passageStart (${startIdx}) > endIdx (${endIdx}). Batch already summarized?`);
-        return [];
+    const passage = buildContiguousPassage(chat, store, {
+        boundary,
+        batch,
+        startIdx: routePlan?.sourceStartIdx ?? boundary + 1,
+        endIdx,
+    });
+    return passage ? [passage] : [];
+}
+
+/**
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
+ * @param {object} range
+ * @param {number} range.boundary
+ * @param {import('./chatutils.js').AssistantTurn[]} range.batch
+ * @param {number} range.startIdx
+ * @param {number} range.endIdx
+ * @returns {{ startIdx: number, endIdx: number } | null}
+ */
+function buildContiguousPassage(
+    chat,
+    store,
+    { boundary, batch, startIdx: requestedStart, endIdx: requestedEnd },
+) {
+    let startIdx = Math.max(0, boundary + 1, requestedStart);
+    let endIdx = requestedEnd;
+    const preservedIndices = getPreservedMessageIndices(chat, store);
+    while (preservedIndices.includes(startIdx) && startIdx <= endIdx) {
+        startIdx += 1;
     }
-    return [{ startIdx, endIdx }];
+    const barrier = preservedIndices.find((index) => index >= startIdx && index <= endIdx);
+    if (barrier !== undefined) {
+        endIdx = barrier - 1;
+    }
+    if (
+        startIdx > endIdx ||
+        !batch.some((turn) => turn.index >= startIdx && turn.index <= endIdx)
+    ) {
+        return null;
+    }
+    return { startIdx, endIdx };
 }
 
 /**
@@ -388,14 +412,17 @@ function tracePassageTokens(snapshot) {
  */
 async function captureLayer0Snapshot({ chat, store, passageStart, endIdx, contextText }) {
     const ctx = getContext();
-    const sourceMessageIds = chat.slice(passageStart, endIdx + 1).map((message) => message?.sc_id);
-    const stableSourceMessageIds = /** @type {string[]} */ (sourceMessageIds);
+    const sourceMessageIds = chat
+        .slice(passageStart, endIdx + 1)
+        .filter((message) => !isPreservedMessage(message, store))
+        .map((message) => message?.sc_id);
     if (
         sourceMessageIds.length !== endIdx - passageStart + 1 ||
         sourceMessageIds.some((id) => typeof id !== 'string' || id.trim() === '')
     ) {
         throw new Error('Cannot summarize messages without stable Summaryception IDs.');
     }
+    const stableSourceMessageIds = /** @type {string[]} */ (sourceMessageIds);
     const passage = await buildPassageFromRangeWithStats(chat, passageStart, endIdx);
     const resolvedContextText = contextText ?? buildFullContext(0);
 
@@ -435,6 +462,7 @@ async function commitLayer0Snippets({ entries, notify, gate }) {
             for (const { snippet } of entries) {
                 store.layers[0].push(snippet);
             }
+            latchPreservedHandoffs(chat, store);
             trace('  Added Layer 0 snippets for current source IDs.');
         },
         {
@@ -458,17 +486,6 @@ function buildLayer0Snippet(snapshot, summary) {
         ...buildSnippetMetadataFromText(summary),
         timestamp: Date.now(),
     };
-}
-
-function buildPendingLayer0Context(layers, pendingSnippets) {
-    const workingLayers = Array.isArray(layers)
-        ? layers.map((layer) => (Array.isArray(layer) ? [...layer] : []))
-        : [];
-    if (!workingLayers[0]) {
-        workingLayers[0] = [];
-    }
-    workingLayers[0].push(...pendingSnippets);
-    return buildMemoryBody(workingLayers) || '(none yet)';
 }
 
 /**

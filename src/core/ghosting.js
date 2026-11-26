@@ -10,6 +10,10 @@ import { getEffectiveSettings } from '../foundation/settings.js';
 import { debug, error, warn } from '../foundation/logger.js';
 import { persistChatState } from './persist-state.js';
 import { collectSnippetSourceIds } from './snippet-provenance.js';
+import {
+    getHandedOffPreservedMessageIds,
+    reconcilePreservedMessages,
+} from './preserved-messages.js';
 
 /**
  * @typedef {object} GhostRangeOptions
@@ -62,7 +66,13 @@ function setGhostedMessageIds(store, nextIds) {
 export async function syncGhosting(options) {
     const chat = getChat();
     const store = getChatStore();
-    const desired = collectSnippetSourceIds(store.layers);
+    const preservedChanged = reconcilePreservedMessages(chat, store);
+    const desired = [
+        ...new Set([
+            ...collectSnippetSourceIds(store.layers),
+            ...getHandedOffPreservedMessageIds(store),
+        ]),
+    ];
     const desiredOwned = new Set(desired);
 
     const staleIds = store.ghostedMessageIds.filter((id) => !desiredOwned.has(id));
@@ -83,8 +93,10 @@ export async function syncGhosting(options) {
         });
         hidden += getRangeSize(range);
     }
-
     setGhostedMessageIds(store, desired);
+    if (preservedChanged) {
+        await persistChatState({ chatSave: 'deferred' });
+    }
     return { hidden, unhidden: countRangeMessages(staleRanges) };
 }
 

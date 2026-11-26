@@ -34,6 +34,7 @@ describe('commitSnippetMutation', () => {
             layers: [[{ text: 'old text', sourceMessageIds: ['sc-1'] }]],
             ghostedMessageIds: ['sc-1'],
             mutationEpoch: 3,
+            preservedMessages: [{ id: 'sc-1', text: 'Assistant: approved', handedOff: false }],
             ...overrides,
         });
     }
@@ -126,6 +127,10 @@ describe('commitSnippetMutation', () => {
                     store.layers[0][0].text = 'new text';
                     store.layers[0][0].sourceMessageIds.push('sc-9');
                     store.ghostedMessageIds.push('sc-9');
+                    store.preservedMessages[0] = Object.freeze({
+                        ...store.preservedMessages[0],
+                        handedOff: true,
+                    });
                     chat.push(makeMessage({ scId: 'sc-9', mes: 'extra' }));
                 },
                 {
@@ -143,7 +148,9 @@ describe('commitSnippetMutation', () => {
         expect(store.layers[0][0].text).toBe('old text');
         expect(store.layers[0][0].sourceMessageIds).toEqual(['sc-1']);
         expect(store.ghostedMessageIds).toEqual(['sc-1']);
-        expect(store.mutationEpoch).toBe(3);
+        expect(store.preservedMessages).toEqual([
+            { id: 'sc-1', text: 'Assistant: approved', handedOff: false },
+        ]);
         expect(saveMetadata).toHaveBeenCalledTimes(2);
     });
 

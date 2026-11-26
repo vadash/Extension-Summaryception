@@ -2,6 +2,7 @@ import { getChat } from '../foundation/context.js';
 import { resolveScIdsToIndices } from '../foundation/message-identity.js';
 import { getChatStore } from '../foundation/chat-store.js';
 import { buildPassageFromRangeWithStats } from '../core/chatutils.js';
+import { isPreservedMessage } from '../core/preserved-messages.js';
 import { buildPassageNameCensus } from '../core/refusal-guard.js';
 import { commitSnippetMutation } from '../core/snippet-commit.js';
 import { buildSnippetMetadataFromText } from '../core/snippet-metadata.js';
@@ -219,7 +220,8 @@ function resolveRegenerationTarget(store, chat, position, { queue, includeContex
     if (
         layerIndex !== 0 ||
         indices.length === 0 ||
-        indices[indices.length - 1] - indices[0] + 1 !== indices.length
+        indices[indices.length - 1] - indices[0] + 1 !== indices.length ||
+        indices.some((index) => isPreservedMessage(chat[index], store))
     ) {
         return { status: 'unsupported' };
     }

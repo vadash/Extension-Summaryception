@@ -314,7 +314,7 @@ describe('Layer 0 run — one Passage', () => {
     });
 });
 
-describe('Layer 0 run — atomic Passages', () => {
+describe('Layer 0 run — one atomic partition', () => {
     afterEach(() => {
         vi.restoreAllMocks();
         connectionMocks.sendSummarizerRequest.mockReset();
@@ -329,93 +329,48 @@ describe('Layer 0 run — atomic Passages', () => {
         ];
     }
 
-    const twoPartitions = [partition(1, 1), partition(3, 3)];
-
-    it('closes the shared progress exactly once when a later Passage aborts', async () => {
-        const recorder = makeNotifyRecorder();
-        installSummaryContext({
-            chat: buildAtomicChat(),
-            metadata: { summaryception: makeSummaryStore() },
-        });
-        connectionMocks.sendSummarizerRequest
-            .mockResolvedValueOnce(VALID_SUMMARY)
-            .mockRejectedValueOnce(new Error('Aborted by user'));
-        const dispatch = await makeDispatch();
-
-        await expect(
-            runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'aborted',
-            completed: 1,
-        });
-
-        const progress = progressEvents(recorder);
-        expect(progress).toHaveLength(1);
-        expect(progress[0].label).toBe('batch-memory');
-        expect(progress[0].total).toBe(2);
-        const updates = recorder.events.filter((event) => event.type === 'update');
-        expect(updates.map((event) => event.processed)).toEqual([1]);
-        expect(updates[0].handle).toBe(progress[0].handle);
-        const clears = clearEvents(recorder);
-        expect(clears).toHaveLength(1);
-        expect(clears[0].handle).toBe(progress[0].handle);
-        expect(clears[0].event).toEqual({ kind: 'batch-memory-aborted' });
-    });
-
-    it('discards the transaction when a later Passage has no text', async () => {
+    it('commits only the oldest partition and leaves later work for another run', async () => {
         const recorder = makeNotifyRecorder();
         const metadata = { summaryception: makeSummaryStore() };
-        const chat = [
-            makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
-            makeMessage({ scId: 'assistant-id', mes: 'First assistant scene.' }),
-            makeMessage({ isUser: true, scId: 'user-id-2', mes: '' }),
-            makeMessage({ scId: 'assistant-id-2', mes: '' }),
-        ];
-        installSummaryContext({ chat, metadata });
-        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
-        const dispatch = await makeDispatch();
-
-        await expect(
-            runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'failed',
-            completed: 1,
-            failed: 1,
-        });
-
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        expect(metadata.summaryception.layers[0]).toEqual([]);
-        expect(clearEvents(recorder)).toHaveLength(1);
-    });
-
-    it('settles the shared progress and reports failed when a later Passage cannot capture its snapshot', async () => {
-        const recorder = makeNotifyRecorder();
         installSummaryContext({
             chat: buildAtomicChat(),
-            metadata: { summaryception: makeSummaryStore() },
+            metadata,
         });
         connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
         const dispatch = await makeDispatch();
-        // The second source range outruns the chat, the state a chat edit mid-run
-        // leaves behind.
-        const partitions = [partition(1, 1), partition(3, 9)];
 
         await expect(
-            runLayer0(atomicPlan(partitions), { notify: recorder, gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'failed',
-        });
+            runLayer0(atomicPlan([partition(0, 1), partition(2, 3)]), {
+                notify: recorder,
+                gate,
+                dispatch,
+            }),
+        ).resolves.toEqual({ status: 'completed', completed: 1 });
 
-        const progress = progressEvents(recorder);
-        expect(progress).toHaveLength(1);
-        const clears = clearEvents(recorder);
-        expect(clears).toHaveLength(1);
-        expect(clears[0].handle).toBe(progress[0].handle);
-        expect(clears[0].event).toEqual({ kind: 'batch-memory-failed' });
+        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(progressEvents(recorder)[0].total).toBe(1);
+        expect(metadata.summaryception.layers[0]).toHaveLength(1);
+        expect(metadata.summaryception.layers[0][0].sourceMessageIds).toEqual([
+            'user-id',
+            'assistant-id',
+        ]);
     });
 
-    it('aborts remaining Passages when the store mutates mid-run', async () => {
-        const recorder = makeNotifyRecorder();
+    it('fails without dispatching when the first partition cannot capture a stable source', async () => {
+        const metadata = { summaryception: makeSummaryStore() };
+        installSummaryContext({ chat: buildAtomicChat(), metadata });
+        connectionMocks.sendSummarizerRequest.mockResolvedValue(VALID_SUMMARY);
+        const dispatch = await makeDispatch();
+
+        await expect(runLayer0(atomicPlan([partition(0, 9)]), { gate, dispatch })).resolves.toEqual(
+            { status: 'failed' },
+        );
+
+        expect(dispatch).not.toHaveBeenCalled();
+        expect(metadata.summaryception.layers[0]).toEqual([]);
+    });
+
+    it('rejects the captured snippet when the store mutates during the request', async () => {
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat: buildAtomicChat(), metadata });
         connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
@@ -424,19 +379,14 @@ describe('Layer 0 run — atomic Passages', () => {
         });
         const dispatch = await makeDispatch();
 
-        await expect(
-            runLayer0(atomicPlan(twoPartitions), { notify: recorder, gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'aborted',
-            completed: 1,
-        });
+        await expect(runLayer0(atomicPlan([partition(0, 1)]), { gate, dispatch })).resolves.toEqual(
+            { status: 'failed', failed: 1 },
+        );
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
-        expect(clearEvents(recorder)).toHaveLength(1);
-        expect(clearEvents(recorder)[0].event).toEqual({ kind: 'batch-memory-aborted' });
+        expect(metadata.summaryception.layers[0]).toEqual([]);
     });
 
-    it('aborts remaining Passages when the chat switches mid-run', async () => {
+    it('rejects the captured snippet when the chat switches during the request', async () => {
         const metadata = { summaryception: makeSummaryStore() };
         installSummaryContext({ chat: buildAtomicChat(), metadata });
         connectionMocks.sendSummarizerRequest.mockImplementation(async () => {
@@ -448,21 +398,15 @@ describe('Layer 0 run — atomic Passages', () => {
         });
         const dispatch = await makeDispatch();
 
-        await expect(
-            runLayer0(atomicPlan(twoPartitions), { notify: makeNotifyRecorder(), gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'aborted',
-            completed: 1,
-        });
+        await expect(runLayer0(atomicPlan([partition(0, 1)]), { gate, dispatch })).resolves.toEqual(
+            { status: 'failed', failed: 1 },
+        );
 
-        expect(dispatch).toHaveBeenCalledTimes(1);
+        expect(metadata.summaryception.layers[0]).toEqual([]);
     });
 
-    it('reports failed and restores chat and Layer 0 when atomic post-mutation persistence fails', async () => {
-        const chat = [
-            makeMessage({ isUser: true, scId: 'user-id', mes: 'User scene.' }),
-            makeMessage({ scId: 'assistant-id', mes: 'Assistant scene.' }),
-        ];
+    it('restores chat and Layer 0 when post-mutation persistence fails', async () => {
+        const chat = buildAtomicChat();
         const originalChat = [...chat];
         const metadata = { summaryception: makeSummaryStore() };
         let metadataSaves = 0;
@@ -478,9 +422,7 @@ describe('Layer 0 run — atomic Passages', () => {
 
         await expect(
             runLayer0(atomicPlan([partition(1, 1)]), { notify: undefined, gate, dispatch }),
-        ).resolves.toEqual({
-            status: 'failed',
-        });
+        ).resolves.toEqual({ status: 'failed' });
 
         expect(chat).toEqual(originalChat);
         expect(metadata.summaryception.layers[0]).toEqual([]);

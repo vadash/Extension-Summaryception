@@ -45,12 +45,12 @@ describe('buildAutoSummaryRoutePlan', () => {
         expect(plan.totalBatches).toBe(1);
     });
 
-    it.each([MEMORY_MODES.PREFIX_CACHE])('%s routes every B partition atomically', async (mode) => {
+    it.each([MEMORY_MODES.PREFIX_CACHE])('%s routes one oldest partition per run', async (mode) => {
         const chat = makeSizedChat(8, { userLength: 400, assistantLength: 400 });
         const plan = await buildAutoSummaryRoutePlan(chat, makeSummaryStore(), readySettings(mode));
-        expect(plan.partitions).toHaveLength(2);
-        expect(plan.totalBatches).toBe(plan.partitions.length);
-        expect(plan.partitions.flatMap((part) => part.turns)).toHaveLength(plan.overflowCount);
+        expect(plan.partitions).toHaveLength(1);
+        expect(plan.totalBatches).toBe(1);
+        expect(plan.partitions[0].turns.length).toBeLessThan(plan.overflowCount);
     });
 
     it('stays idle below Recent + Queued despite max turns', async () => {

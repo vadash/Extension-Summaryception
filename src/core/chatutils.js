@@ -1,5 +1,6 @@
 import { getChatStore } from '../foundation/chat-store.js';
 import { getEffectiveSettings } from '../foundation/settings.js';
+import { isPreservedMessage } from './preserved-messages.js';
 import { applyRegexToMessage } from './regex-proxy.js';
 import { buildMemoryBody } from './memory-injection.js';
 import { unmaskGuardText } from './guard-mask.js';
@@ -115,8 +116,11 @@ function hasRenderableConversationText(message) {
  * @param {ChatMessage | undefined} message
  * @returns {boolean}
  */
-export function isSummarizerConversationMessage(message) {
-    if (!message || !hasRenderableConversationText(message)) {
+export function isSummarizerConversationMessage(message, store = getChatStore()) {
+    if (!store || typeof store !== 'object') {
+        store = getChatStore();
+    }
+    if (isPreservedMessage(message, store) || !message || !hasRenderableConversationText(message)) {
         return false;
     }
     // Only an explicit host system flag marks a message as system. Never infer
@@ -145,11 +149,16 @@ export function collectAssistantTurns(chat, predicate) {
 }
 
 /**
- * @param {ChatMessage[]} chat - The SillyTavern chat array
- * @returns {AssistantTurn[]} Assistant turns
+ * Get assistant turns eligible for summarizer planning.
+ * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} [store]
+ * @returns {AssistantTurn[]}
  */
-export function getAssistantTurns(chat) {
-    return collectAssistantTurns(chat, (m) => isSummarizerConversationMessage(m) && !m.is_user);
+export function getAssistantTurns(chat, store = getChatStore()) {
+    return collectAssistantTurns(
+        chat,
+        (message) => isSummarizerConversationMessage(message, store) && !message.is_user,
+    );
 }
 
 /**
@@ -157,12 +166,13 @@ export function getAssistantTurns(chat) {
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @returns {AssistantTurn[]} Visible assistant turns
  */
-export function getVisibleAssistantTurns(chat) {
+export function getVisibleAssistantTurns(chat, store = getChatStore()) {
     return collectAssistantTurns(chat, (m) =>
         Boolean(
             !m.is_user &&
             !m.is_system &&
-            !isSummaryceptionOwnedMessage(m) &&
+            !isPreservedMessage(m, store) &&
+            !isSummaryceptionOwnedMessage(m, store) &&
             m.mes &&
             m.mes.trim().length > 0,
         ),
@@ -233,21 +243,18 @@ async function renderMessageLines(message, depth, { applyRegexScripts } = {}) {
  * records failing the retention predicate skipped, each survivor rendered and counted exactly once.
  * @param {ChatMessage[]} chat - The SillyTavern chat array
  * @param {number} startIndex - Requested start index
- * @param {number} endIndex - Requested end index
  * @param {object} [options] - Scan options.
- * @param {ExtensionSettings} [options.settings] - Settings supplying regex script behavior; defaults to the effective settings.
- * @param {(message: ChatMessage) => boolean} [options.isIncluded] - Retention predicate; defaults to summarizer planning rules.
+ * @param {ExtensionSettings} [options.settings]
+ * @param {SummaryceptionStore} [options.store]
+ * @param {(message: ChatMessage) => boolean} [options.isIncluded]
  * @yields {CountedChatMessage} Counted messages in traversal order
  */
-export async function* countedChatMessages(
-    chat,
-    startIndex,
-    endIndex,
-    { settings = getEffectiveSettings(), isIncluded = isSummarizerConversationMessage } = {},
-) {
+export async function* countedChatMessages(chat, startIndex, endIndex, options = {}) {
+    const { settings = getEffectiveSettings(), store = getChatStore(), isIncluded } = options;
     const promptDepths = getPromptDepthsByChatIndex(chat);
+    const include = isIncluded || ((message) => isSummarizerConversationMessage(message, store));
     for (const { index, message } of iterateChatRange(chat, startIndex, endIndex)) {
-        if (!isIncluded(message)) {
+        if (isPreservedMessage(message, store) || !include(message)) {
             continue;
         }
         const depth = promptDepths.get(index);
@@ -278,20 +285,27 @@ export async function* countedChatMessages(
  */
 
 /**
- * Skips user-hidden messages while retaining messages hidden by Summaryception ownership.
  * Also skips empty messages.
  * @param {ChatMessage[]} chat
  * @param {number} startIdx
  * @param {number} endIdx
+ * @param {object} [options]
+ * @param {SummaryceptionStore} [options.store]
  * @returns {Promise<PassageWithStats>}
  */
-export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
+export async function buildPassageFromRangeWithStats(
+    chat,
+    startIdx,
+    endIdx,
+    { store = getChatStore() } = {},
+) {
     const accumulator = { ...createBudgetStats(), finalLines: /** @type {string[]} */ ([]) };
 
     if (endIdx >= startIdx) {
         for await (const { stats, finalLine } of countedChatMessages(chat, startIdx, endIdx, {
             settings: getEffectiveSettings(),
-            isIncluded: isSummarizerPassageMessage,
+            store,
+            isIncluded: (message) => isSummarizerPassageMessage(message, store),
         })) {
             accumulator.finalLines.push(finalLine);
             addBudgetStats(accumulator, stats);
@@ -306,11 +320,14 @@ export async function buildPassageFromRangeWithStats(chat, startIdx, endIdx) {
  * @param {ChatMessage | undefined} message
  * @returns {boolean}
  */
-export function isSummaryceptionOwnedMessage(message) {
+export function isSummaryceptionOwnedMessage(message, store = getChatStore()) {
+    if (!store || typeof store !== 'object') {
+        store = getChatStore();
+    }
     if (typeof message?.sc_id !== 'string') {
         return false;
     }
-    return getChatStore().ghostedMessageIds.includes(message.sc_id);
+    return store.ghostedMessageIds.includes(message.sc_id);
 }
 
 /**
@@ -319,13 +336,17 @@ export function isSummaryceptionOwnedMessage(message) {
  * Summaryception ghosting stay in the passage while ownership is live, so a
  * committed snippet's own source range never renders as empty.
  * @param {ChatMessage | undefined} message
+ * @param {SummaryceptionStore} [store]
  * @returns {boolean}
  */
-export function isSummarizerPassageMessage(message) {
-    if (isSummaryceptionOwnedMessage(message)) {
+export function isSummarizerPassageMessage(message, store = getChatStore()) {
+    if (isPreservedMessage(message, store)) {
+        return false;
+    }
+    if (isSummaryceptionOwnedMessage(message, store)) {
         return hasRenderableConversationText(message);
     }
-    return isSummarizerConversationMessage(message);
+    return isSummarizerConversationMessage(message, store);
 }
 
 function buildPassageResult(accumulator) {

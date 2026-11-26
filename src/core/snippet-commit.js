@@ -33,7 +33,7 @@ export async function commitSnippetMutation(store, mutate, opts = {}) {
             })),
         ),
         ghostedMessageIds: [...(store.ghostedMessageIds || [])],
-        mutationEpoch: store.mutationEpoch,
+        preservedMessages: [...(store.preservedMessages || [])],
     };
 
     try {
@@ -59,6 +59,7 @@ export async function commitSnippetMutation(store, mutate, opts = {}) {
     } catch (err) {
         store.layers = rollbackPoint.layers;
         store.ghostedMessageIds = rollbackPoint.ghostedMessageIds;
+        store.preservedMessages = rollbackPoint.preservedMessages;
         store.mutationEpoch = rollbackPoint.mutationEpoch;
         await onRollback?.();
         error('Snippet commit failed, rolling back store state:', err);

@@ -14,7 +14,12 @@ import { installSummaryContext } from './test-helpers.js';
 describe('getChatStore', () => {
     it('creates a normalized default store on a fresh context', () => {
         const store = getChatStore();
-        expect(store).toMatchObject({ layers: [], ghostedMessageIds: [], mutationEpoch: 0 });
+        expect(store).toMatchObject({
+            layers: [],
+            ghostedMessageIds: [],
+            preservedMessages: [],
+            mutationEpoch: 0,
+        });
     });
 
     it('normalizes UUID arrays and rejects source-less snippets', () => {

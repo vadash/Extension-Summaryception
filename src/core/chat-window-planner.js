@@ -1,5 +1,6 @@
 import { getCurrentSummarizedBoundary } from './snippet-provenance.js';
-import { countedChatMessages, toAssistantTurn } from './chatutils.js';
+import { getPreservedMessageIndices, reconcilePreservedMessages } from './preserved-messages.js';
+import { countedChatMessages, getAssistantTurns, toAssistantTurn } from './chatutils.js';
 import { readSealedMicrofichePlans } from './microfiche-pages.js';
 import { buildLayer0Partitions } from './partition-planner.js';
 import { describeMicroficheBilling } from './token-budget.js';
@@ -44,9 +45,11 @@ const toTokenBudget = (value) => Number(value) || 0;
  * @returns {Promise<ChatWindowPlan>}
  */
 export async function buildChatWindowPlan(chat, store, settings, { ignoreReadiness = false } = {}) {
+    reconcilePreservedMessages(chat, store);
     const boundary = getCurrentSummarizedBoundary(chat, store);
-    const sourceStartIdx = boundary + 1;
-    const data = await collectLiveData(chat, sourceStartIdx, settings);
+    const preservedIndices = new Set(getPreservedMessageIndices(chat, store));
+    const sourceStartIdx = findSourceStartIdx(chat, store, boundary, preservedIndices);
+    const data = await collectLiveData(chat, sourceStartIdx, { settings, store });
     const verbatimBudget = toTokenBudget(settings.verbatimTokenBudget);
     const queuedBudget = toTokenBudget(settings.queuedTokenBudget);
     const rawBilling = readSealedRawBilling(settings);
@@ -61,6 +64,7 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     const verbatimStats = getEntryStats(data.entries, verbatimStartIdx, chat.length - 1);
     const queuedStats = getEntryStats(data.entries, sourceStartIdx, queuedEndIdx);
     const shared = {
+        store,
         sourceStartIdx,
         verbatimStartIdx,
         visibleTurns: data.visibleTurns,
@@ -94,16 +98,67 @@ export async function buildChatWindowPlan(chat, store, settings, { ignoreReadine
     if (eligibleTurns.length === 0) {
         return empty('repair');
     }
-    const latestEntry = data.entries.at(-1);
     if (
-        !latestEntry ||
-        latestEntry.message.is_user ||
-        eligibleTurns.length < settings.minSummaryTurns
+        !isAutomaticBatchReady({
+            latestEntry: data.entries.at(-1),
+            eligibleTurns,
+            preservedIndices,
+            sourceStartIdx,
+            verbatimStartIdx,
+            minSummaryTurns: settings.minSummaryTurns,
+        })
     ) {
         return empty();
     }
 
     return await buildReadyPlan({ ...readyBase, reason: 'ready' });
+}
+
+/**
+ * @param {object} readiness
+ * @param {LiveEntry | undefined} readiness.latestEntry
+ * @param {import('./chatutils.js').AssistantTurn[]} readiness.eligibleTurns
+ * @param {Set<number>} readiness.preservedIndices
+ * @param {number} readiness.sourceStartIdx
+ * @param {number} readiness.verbatimStartIdx
+ * @param {number} readiness.minSummaryTurns
+ * @returns {boolean}
+ */
+function isAutomaticBatchReady({
+    latestEntry,
+    eligibleTurns,
+    preservedIndices,
+    sourceStartIdx,
+    verbatimStartIdx,
+    minSummaryTurns,
+}) {
+    if (!latestEntry || latestEntry.message.is_user) {
+        return false;
+    }
+    return (
+        isClosedSegment(
+            preservedIndices,
+            sourceStartIdx,
+            verbatimStartIdx,
+            eligibleTurns[0].index,
+        ) || eligibleTurns.length >= minSummaryTurns
+    );
+}
+
+/**
+ * @param {Set<number>} preservedIndices
+ * @param {number} sourceStartIdx
+ * @param {number} verbatimStartIdx
+ * @param {number} firstTurnIndex
+ * @returns {boolean}
+ */
+function isClosedSegment(preservedIndices, sourceStartIdx, verbatimStartIdx, firstTurnIndex) {
+    for (const index of preservedIndices) {
+        if (index >= sourceStartIdx && index < verbatimStartIdx) {
+            return firstTurnIndex < index;
+        }
+    }
+    return false;
 }
 /**
  * The trigger line bills the prompt the run actually sends: each sealed Frozen
@@ -154,16 +209,39 @@ export function readSealedRawBilling(settings) {
 /**
  * @typedef {{ index: number, message: ChatMessage, stats: import('./token-count.js').CountedBudgetMessage }} LiveEntry
  * @typedef {{ entries: LiveEntry[], liveStats: import('./token-count.js').BudgetStats, visibleTurns: import('./chatutils.js').AssistantTurn[] }} LiveData
- * @typedef {Omit<ChatWindowPlan, 'batchTurns' | 'partitions' | 'overflowCount' | 'softOverflowCount' | 'visibleTurnCount' | 'liveTokens' | 'verbatimTokens' | 'queuedTokens'> & { chat: ChatMessage[], settings: ExtensionSettings }} ReadyPlanData
+ * @typedef {Omit<ChatWindowPlan, 'batchTurns' | 'partitions' | 'overflowCount' | 'softOverflowCount' | 'visibleTurnCount' | 'liveTokens' | 'verbatimTokens' | 'queuedTokens'> & { chat: ChatMessage[], settings: ExtensionSettings, store: SummaryceptionStore }} ReadyPlanData
  */
 
 /**
  * @param {ChatMessage[]} chat
+ * @param {SummaryceptionStore} store
+ * @param {number} boundary
+ * @param {Set<number>} preservedIndices
+ * @returns {number}
+ */
+function findSourceStartIdx(chat, store, boundary, preservedIndices) {
+    const firstTurn = getAssistantTurns(chat, store).find((turn) => turn.index > boundary);
+    let start = boundary + 1;
+    if (!firstTurn) {
+        return start;
+    }
+    for (const index of preservedIndices) {
+        if (index >= start && index < firstTurn.index) {
+            start = index + 1;
+        }
+    }
+    return start;
+}
+
+/**
+ * @param {ChatMessage[]} chat
  * @param {number} sourceStartIdx
- * @param {ExtensionSettings} settings
+ * @param {object} options
+ * @param {ExtensionSettings} options.settings
+ * @param {SummaryceptionStore} options.store
  * @returns {Promise<LiveData>}
  */
-async function collectLiveData(chat, sourceStartIdx, settings) {
+async function collectLiveData(chat, sourceStartIdx, { settings, store }) {
     const liveStats = createBudgetStats();
     const entries = [];
     const visibleTurns = [];
@@ -172,7 +250,7 @@ async function collectLiveData(chat, sourceStartIdx, settings) {
         chat,
         sourceStartIdx,
         chat.length - 1,
-        { settings },
+        { settings, store },
     )) {
         addBudgetStats(liveStats, stats);
         entries.push({ index, message, stats });
@@ -241,6 +319,7 @@ function getEntryStats(entries, startIdx, endIdx) {
 async function buildReadyPlan(data) {
     const partitions = await buildLayer0Partitions({
         chat: data.chat,
+        store: data.store,
         sourceStartIdx: data.sourceStartIdx,
         assistantTurns: data.eligibleTurns,
         settings: data.settings,

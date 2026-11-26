@@ -31,6 +31,7 @@ export const SUMMARY_COMMIT_MODES = Object.freeze({
  * @property {boolean} ready True when the route can run a summarization batch now.
  * @property {string} reason Underlying chat window plan reason.
  * @property {string} commitMode Store commit strategy from `SUMMARY_COMMIT_MODES`.
+ * @property {number} sourceStartIdx First chat index in the oldest summarizable segment.
  * @property {import('./chatutils.js').AssistantTurn[]} batchTurns Turns selected for the current batch.
  * @property {import('./partition-planner.js').SourcePartition[]} partitions Source partitions to commit.
  * @property {number} overflowCount Eligible turns awaiting summarization.
@@ -57,12 +58,13 @@ export async function buildAutoSummaryRoutePlan(chat, store, settings) {
             ready: plan.reason === 'ready',
             reason: plan.reason,
             commitMode: SUMMARY_COMMIT_MODES.ATOMIC_PARTITIONS,
-            batchTurns: plan.batchTurns,
-            partitions: plan.partitions,
+            sourceStartIdx: plan.sourceStartIdx,
+            partitions: plan.partitions.slice(0, 1),
+            batchTurns: plan.partitions[0]?.turns || [],
             overflowCount: plan.overflowCount,
-            totalBatches: plan.reason === 'ready' ? plan.partitions.length : 0,
+            totalBatches: plan.reason === 'ready' ? 1 : 0,
             visibleTurnCount: plan.visibleTurnCount,
-            tokenStats: buildWindowTokenStats(plan),
+            tokenStats: { ...buildWindowTokenStats(plan), partitionCount: 1 },
         };
     }
     return buildTurnRoute({
@@ -169,6 +171,7 @@ export async function buildSlopSummaryRoutePlan(chat, store, settings, opts = {}
         ready: plan.reason === 'ready',
         reason: plan.reason,
         commitMode: SUMMARY_COMMIT_MODES.TURNS_WITH_SOURCE_END,
+        sourceStartIdx: plan.sourceStartIdx,
         batchTurns: plan.batchTurns,
         partitions: plan.partitions,
         overflowCount: plan.eligibleTurns.length,
@@ -212,6 +215,7 @@ function buildTurnRoute({ route, ready, plan, batchTurns, totalBatches, targetIn
         ready,
         reason: plan.reason,
         commitMode: SUMMARY_COMMIT_MODES.TURNS,
+        sourceStartIdx: plan.sourceStartIdx,
         batchTurns,
         partitions: plan.partitions,
         overflowCount: plan.overflowCount,

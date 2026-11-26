@@ -4,8 +4,8 @@ import { isPlainObject, normalizeStringArray } from './objects.js';
 
 /**
  * The Summaryception store as chat metadata holds it (ADR-0002): the layers,
- * the Ghosting ownership, and the Mutation Epoch, with the repair a persisted
- * store needs on read.
+ * the Ghosting ownership, the Preserved Message snapshots, and the Mutation
+ * Epoch, with the repair a persisted store needs on read.
  */
 
 /**
@@ -53,6 +53,7 @@ export function bumpSummaryStoreMutationEpoch(store) {
  */
 function normalizeChatStore(store) {
     store.layers = normalizeLayers(store.layers);
+    store.preservedMessages = normalizePreservedMessages(store.preservedMessages);
     store.ghostedMessageIds = normalizeStringArray(store.ghostedMessageIds);
     store.mutationEpoch = normalizeMutationEpoch(store.mutationEpoch);
     return /** @type {SummaryceptionStore} */ (store);
@@ -79,8 +80,59 @@ function createDefaultChatStore() {
     return {
         layers: [],
         ghostedMessageIds: [],
+        preservedMessages: [],
         mutationEpoch: 0,
     };
+}
+
+/**
+ * Drop malformed Preserved Messages and keep the first record for each stable
+ * message identity. Approved bodies and handoff state are immutable records.
+ * @param {unknown} value
+ * @returns {SummaryceptionPreservedMessage[]}
+ */
+export function normalizePreservedMessages(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    const records = [];
+    const seen = new Set();
+    for (const candidate of value) {
+        if (!isValidPreservedMessage(candidate) || seen.has(candidate.id)) {
+            continue;
+        }
+        seen.add(candidate.id);
+        records.push(
+            Object.freeze({
+                id: candidate.id,
+                text: candidate.text,
+                ...(candidate.currentDateTime
+                    ? { currentDateTime: candidate.currentDateTime }
+                    : {}),
+                handedOff: candidate.handedOff,
+            }),
+        );
+    }
+    return records;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is SummaryceptionPreservedMessage}
+ */
+function isValidPreservedMessage(value) {
+    if (!isPlainObject(value)) {
+        return false;
+    }
+    return (
+        typeof value.id === 'string' &&
+        value.id.trim() !== '' &&
+        typeof value.text === 'string' &&
+        value.text.trim() !== '' &&
+        typeof value.handedOff === 'boolean' &&
+        (value.currentDateTime === undefined ||
+            (typeof value.currentDateTime === 'string' && value.currentDateTime.trim() !== ''))
+    );
 }
 
 /**

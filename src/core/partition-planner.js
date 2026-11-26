@@ -1,4 +1,6 @@
 import { defaultSettings } from '../foundation/constants.js';
+import { getChatStore } from '../foundation/chat-store.js';
+import { getPreservedMessageIndices, reconcilePreservedMessages } from './preserved-messages.js';
 import { countedChatMessages } from './chatutils.js';
 import { addBudgetStats, createBudgetStats } from './token-count.js';
 
@@ -25,6 +27,7 @@ const L0_SOURCE_OVERSHOOT_TOLERANCE = 1.15;
  * @param {import('./chatutils.js').AssistantTurn[]} p.assistantTurns
  * @param {ExtensionSettings} p.settings
  * @param {number} [p.finalSourceEndIdx]
+ * @param {SummaryceptionStore} [p.store]
  * @returns {Promise<SourcePartition[]>}
  */
 export async function buildLayer0Partitions({
@@ -33,14 +36,101 @@ export async function buildLayer0Partitions({
     assistantTurns,
     settings,
     finalSourceEndIdx,
+    store = getChatStore(),
 }) {
-    const turns = assistantTurns.filter((turn) => turn.index >= sourceStartIdx);
+    reconcilePreservedMessages(chat, store);
+    const maxEnd =
+        typeof finalSourceEndIdx === 'number' && Number.isInteger(finalSourceEndIdx)
+            ? finalSourceEndIdx
+            : Infinity;
+    const turns = assistantTurns
+        .filter((turn) => turn.index >= sourceStartIdx && turn.index <= maxEnd)
+        .sort((left, right) => left.index - right.index);
     if (turns.length === 0) {
         return [];
     }
 
+    const lastTurn = turns.at(-1);
+    if (!lastTurn) {
+        return [];
+    }
+    const finalEndIdx = Number.isFinite(maxEnd) ? maxEnd : lastTurn.index;
+    const sourceRanges = buildSourceRanges(
+        sourceStartIdx,
+        finalEndIdx,
+        getPreservedMessageIndices(chat, store),
+    );
+    const partitions = [];
+    for (const [rangeStart, rangeEnd] of sourceRanges) {
+        const rangeTurns = turns.filter(
+            (turn) => turn.index >= rangeStart && turn.index <= rangeEnd,
+        );
+        if (rangeTurns.length === 0) {
+            continue;
+        }
+        partitions.push(
+            ...(await buildPartitionsForRange({
+                chat,
+                store,
+                sourceStartIdx: rangeStart,
+                turns: rangeTurns,
+                settings,
+                finalSourceEndIdx: rangeEnd,
+            })),
+        );
+    }
+    return partitions;
+}
+
+/**
+ * @param {number} sourceStartIdx
+ * @param {number} finalEndIdx
+ * @param {number[]} preservedIndices
+ * @returns {Array<[number, number]>}
+ */
+function buildSourceRanges(sourceStartIdx, finalEndIdx, preservedIndices) {
+    /** @type {Array<[number, number]>} */
+    const ranges = [];
+    let start = sourceStartIdx;
+    for (const index of preservedIndices) {
+        if (index < start) {
+            continue;
+        }
+        if (index > finalEndIdx) {
+            break;
+        }
+        if (start < index) {
+            ranges.push([start, index - 1]);
+        }
+        start = index + 1;
+    }
+    if (start <= finalEndIdx) {
+        ranges.push([start, finalEndIdx]);
+    }
+    return ranges;
+}
+
+/**
+ * @param {object} p
+ * @param {ChatMessage[]} p.chat
+ * @param {SummaryceptionStore} p.store
+ * @param {number} p.sourceStartIdx
+ * @param {import('./chatutils.js').AssistantTurn[]} p.turns
+ * @param {ExtensionSettings} p.settings
+ * @param {number} p.finalSourceEndIdx
+ * @returns {Promise<SourcePartition[]>}
+ */
+async function buildPartitionsForRange({
+    chat,
+    store,
+    sourceStartIdx,
+    turns,
+    settings,
+    finalSourceEndIdx,
+}) {
     const segments = await buildTurnSegments({
         chat,
+        store,
         sourceStartIdx,
         turns,
         settings,
@@ -70,23 +160,37 @@ export async function buildLayer0Partitions({
  * @param {ChatMessage[]} chat
  * @param {number} startIdx
  * @param {number} endIdx
- * @param {ExtensionSettings} settings
+ * @param {object} [options]
+ * @param {ExtensionSettings} [options.settings]
+ * @param {SummaryceptionStore} [options.store]
  * @returns {Promise<import('./token-count.js').BudgetStats>}
  */
-export async function countSourceRangeTokens(chat, startIdx, endIdx, settings) {
+export async function countSourceRangeTokens(
+    chat,
+    startIdx,
+    endIdx,
+    { settings, store = getChatStore() } = {},
+) {
     const stats = createBudgetStats();
     if (endIdx < startIdx) {
         return stats;
     }
 
-    for await (const entry of countedChatMessages(chat, startIdx, endIdx, { settings })) {
+    for await (const entry of countedChatMessages(chat, startIdx, endIdx, { settings, store })) {
         addBudgetStats(stats, entry.stats);
     }
 
     return stats;
 }
 
-async function buildTurnSegments({ chat, sourceStartIdx, turns, settings, finalSourceEndIdx }) {
+async function buildTurnSegments({
+    chat,
+    store,
+    sourceStartIdx,
+    turns,
+    settings,
+    finalSourceEndIdx,
+}) {
     const segments = [];
     let segmentStart = sourceStartIdx;
 
@@ -98,7 +202,7 @@ async function buildTurnSegments({ chat, sourceStartIdx, turns, settings, finalS
             turn,
             sourceStartIdx: segmentStart,
             sourceEndIdx: endIdx,
-            stats: await countSourceRangeTokens(chat, segmentStart, endIdx, settings),
+            stats: await countSourceRangeTokens(chat, segmentStart, endIdx, { settings, store }),
         });
         segmentStart = endIdx + 1;
     }

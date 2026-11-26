@@ -48,6 +48,7 @@ function installDirtyChat() {
     const store = makeSummaryStore({
         layers: [[{ text: 'summary', sourceMessageIds: ['user-id', 'assistant-id'] }]],
         ghostedMessageIds: ['user-id', 'assistant-id'],
+        preservedMessages: [{ id: 'assistant-id', text: 'Assistant: approved', handedOff: true }],
     });
     const ctx = installSummaryContext({
         chat,
@@ -74,7 +75,7 @@ describe('clearChatData', () => {
         // The Chat Store is emptied in place, never deleted and recreated.
         expect(ctx.chatMetadata.summaryception).toBe(store);
         expect(store.layers).toEqual([]);
-        expect(store.ghostedMessageIds).toEqual([]);
+        expect(store.preservedMessages).toEqual([]);
         expect(store.mutationEpoch).toBeGreaterThan(0);
         expect(ctx.chatMetadata.unrelated).toEqual({ keep: true });
         expect(chat.every((message) => !Object.hasOwn(message, 'sc_id'))).toBe(true);
@@ -94,7 +95,7 @@ describe('clearChatData', () => {
         expect(commands).toEqual(['/unhide 0-1', '/unhide 0-1']);
         expect(ctx.chatMetadata.summaryception).toBe(store);
         expect(store.layers).toEqual([]);
-        expect(store.ghostedMessageIds).toEqual([]);
+        expect(store.preservedMessages).toEqual([]);
         expect(chat.every((message) => !Object.hasOwn(message, 'sc_id'))).toBe(true);
         expect(chat[1].extra).toEqual({ reasoning: 'keep' });
     });

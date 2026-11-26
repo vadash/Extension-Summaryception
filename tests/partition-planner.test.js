@@ -218,7 +218,9 @@ describe('countSourceRangeTokens', () => {
         ];
         installSummaryContext({ chat });
 
-        const stats = await countSourceRangeTokens(chat, 0, 3, makeSummarySettings());
+        const stats = await countSourceRangeTokens(chat, 0, 3, {
+            settings: makeSummarySettings(),
+        });
 
         expect(stats.finalTokens).toBe(messageLineTokens(false, 100));
     });
