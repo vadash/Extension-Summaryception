@@ -351,7 +351,6 @@ function isCapturedMessageCurrent(captured) {
     const chat = getChat();
     const index = getMessageIndexByScId(chat).get(captured.id);
     return (
-        context === captured.context &&
         chat === captured.chat &&
         getChatIdentity(context) === captured.chatId &&
         index === captured.messageIndex &&
@@ -404,5 +403,5 @@ async function confirmPreservation(preview) {
             cancelButton: 'No',
         },
     );
-    return (await popup.show()) === popupApi.popupResult.YES;
+    return (await popup.show()) === popupApi.popupResult.AFFIRMATIVE;
 }

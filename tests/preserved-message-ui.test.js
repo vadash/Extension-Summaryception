@@ -22,7 +22,7 @@ function installPopup(result) {
     const instances = [];
     const ctx = globalThis.SillyTavern.getContext();
     ctx.POPUP_TYPE = { TEXT: 1 };
-    ctx.POPUP_RESULT = { YES: 1, NO: 2, CANCEL: 0 };
+    ctx.POPUP_RESULT = { AFFIRMATIVE: 1, NEGATIVE: 0, CANCELLED: null };
     ctx.Popup = class {
         constructor(content, type, inputValue, options) {
             this.content = content;
@@ -134,6 +134,26 @@ describe('Preserve verbatim message actions', () => {
         expect(chat[2].is_hidden).toBe(false);
         const $action = dom.renderedMessages[2].$buttons.find(PRESERVE_SELECTOR);
         expect($action.prop('disabled')).toBe(true);
+    });
+
+    it('approves preservation when the host returns a fresh context wrapper per call', async () => {
+        const chat = [makeMessage({ scId: 'm0', mes: 'target' })];
+        const { dom } = setupActions({ chat });
+        const popups = installPopup(1);
+        const context = globalThis.SillyTavern.getContext();
+        globalThis.SillyTavern.getContext = () => ({ ...context });
+        vi.spyOn(regexProxy, 'applyRegexToMessage').mockResolvedValue('approved');
+
+        await clickPreserve(dom, 0);
+
+        expect(popups).toHaveLength(1);
+        expect(getChatStore().preservedMessages).toEqual([
+            {
+                id: 'm0',
+                text: 'Assistant: approved',
+                handedOff: false,
+            },
+        ]);
     });
 
     it.each([2, 0])('stores nothing when the host dialog returns %s', async (result) => {
