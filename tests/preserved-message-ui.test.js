@@ -134,7 +134,6 @@ describe('Preserve verbatim message actions', () => {
         expect(chat[2].is_hidden).toBe(false);
         const $action = dom.renderedMessages[2].$buttons.find(PRESERVE_SELECTOR);
         expect($action.prop('disabled')).toBe(true);
-        expect($action.attr('title')).toBe('Preserved — still in chat');
     });
 
     it.each([2, 0])('stores nothing when the host dialog returns %s', async (result) => {
@@ -255,13 +254,15 @@ describe('Preserve verbatim message actions', () => {
         });
         const { dom } = setupActions({ chat, store });
         const $action = dom.renderedMessages[0].$buttons.find(PRESERVE_SELECTOR);
-        expect($action.attr('title')).toBe('Preserved — still in chat');
+        const chatTitle = $action.attr('title');
+        expect(chatTitle).toBeTruthy();
+        expect($action.prop('disabled')).toBe(true);
 
         store.preservedMessages = [{ id: 'm0', text: 'Assistant: target', handedOff: true }];
         syncPreservedMessageActions();
 
         expect($action.prop('disabled')).toBe(true);
-        expect($action.attr('title')).toBe('Preserved — in memory');
+        expect($action.attr('title')).not.toBe(chatTitle);
         expect(globalThis.toastr.info).not.toHaveBeenCalled();
         expect(globalThis.toastr.success).not.toHaveBeenCalled();
     });

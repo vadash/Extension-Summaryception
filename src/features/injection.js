@@ -44,7 +44,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  * same instance owns the slot markers for image-backed memory and frozen
  * raw-chat pages (ADR-0042); its page source seals the raw-chat slice per
  * Mutation Epoch (ADR-0040).
- * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }) | null }} [deps] - Injected canvas source for Microfiche renders.
+ * @param {{ canvasFactory?: ((width: number, height: number) => { canvas: { width: number, height: number, toDataURL: (mime?: string) => string }, ctx: { fillStyle: string, fillRect: (x: number, y: number, w: number, h: number) => void } }) | null, host?: { imageBudget?: unknown } | null }} [deps] - Injected canvas source and host image budget.
  * @returns {{
  *   update: (options?: { logMemoryStatus?: boolean }) => void,
  *   reassert: () => void,
@@ -54,7 +54,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  *   resetMicrofichePages: () => void,
  * }}
  */
-export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
+export function createMemoryInjectionWriter({ canvasFactory = null, host = null } = {}) {
     /** @type {MemoryInjectionWriterState} */
     const state = {
         lastInjectionKey: '',
@@ -66,7 +66,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
     bindWriterMicrofichePageSource(state.pageSource);
 
     return {
-        update: (updateOptions) => updateMemoryInjection(state, updateOptions),
+        update: (updateOptions) => updateMemoryInjection(state, updateOptions, host),
         reassert: () => reassertMemoryInjection(state),
         registerMacro: () => registerMemoryMacro(state),
         options: getMemoryInjectionOptions,
@@ -79,9 +79,10 @@ export function createMemoryInjectionWriter({ canvasFactory = null } = {}) {
 /**
  * @param {MemoryInjectionWriterState} state - Writer state.
  * @param {{ logMemoryStatus?: boolean }} [updateOptions] - Diagnostic logging options.
+ * @param {{ imageBudget?: unknown } | null} host - Host image budget passed to Microfiche policy.
  * @returns {void}
  */
-function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
+function updateMemoryInjection(state, { logMemoryStatus = false } = {}, host = null) {
     try {
         const store = getChatStore();
         const settings = getEffectiveSettings();
@@ -93,7 +94,7 @@ function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
             settings,
             epoch,
         });
-        const injection = buildInjection(store.layers, settings, null, {
+        const injection = buildInjection(store.layers, settings, host, {
             rawTexts,
             chat,
             preservedMessages: store.preservedMessages,
@@ -249,14 +250,14 @@ function getRegionImageTexts(plan) {
  */
 function formatMemoryRegionText(plan, { includePreserved = true } = {}) {
     const imageTexts = getRegionImageTexts(plan);
-    if (imageTexts.length === 0) {
-        return null;
-    }
     if (Array.isArray(plan?.segments)) {
         const segmented = formatMemorySegments(plan.segments, imageTexts.length, includePreserved);
         if (segmented !== null) {
             return segmented;
         }
+    }
+    if (imageTexts.length === 0) {
+        return null;
     }
     const rawTexts = Array.isArray(plan?.rawTexts) ? plan.rawTexts : [];
     return [

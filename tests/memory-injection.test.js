@@ -246,6 +246,30 @@ describe('Preserved Message Microfiche integration', () => {
         expect(firstCopyEnd).toBeGreaterThan(secondMarker);
     });
 
+    it('keeps preserved text literal when the image budget is zero', () => {
+        const { chat, layers, preservedMessages } = fixture();
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers, preservedMessages }) },
+            settings: {
+                ...settings,
+                microficheGeometry: 'google',
+                microficheImageCap: 1,
+                verbatimTokenBudget: 1,
+                queuedTokenBudget: 1,
+            },
+            setExtensionPrompt,
+        });
+        const writer = makeMemoryInjectionWriter({ host: { imageBudget: 0 } });
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        expect(text).toContain('<preserved>Assistant: exact body</preserved>');
+        expect(text).not.toContain(formatMicroficheMarker(0));
+    });
+
     it('builds UI preview and accounting from the same preserved renderer', async () => {
         const { chat, layers, preservedMessages } = fixture();
         installSummaryContext({
