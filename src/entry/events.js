@@ -7,7 +7,9 @@ import { refreshFull, refreshPreview, refreshUi } from '../foundation/refresh.js
 import { syncGhosting } from '../core/ghosting.js';
 import { isAuditorTriggerMessage } from '../core/continuity-audit.js';
 import { discardCheckpoint } from '../core/continuity-checkpoint.js';
-import { maskUserRoleAsAssistantInGenerateData } from '../core/assistant-role-mask.js';
+import { rewriteOutgoingPrompt } from '../core/outgoing-rewrite.js';
+import { buildOutgoingContext } from './outgoing-context.js';
+import { isPlainObject } from '../foundation/objects.js';
 import {
     expandMicrofichePromptChat,
     resolveMicroficheStubPage,
@@ -307,18 +309,69 @@ export function onGenerationEnded({ gate, queue }) {
 }
 
 /**
+ * Live generation transform. The writer is required: entry builds the frozen
+ * context from its committed slot facts and rewrites once. Dry runs return
+ * before any host read; a missing writer warns and leaves payload untouched.
+ * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
  * @param {unknown} dryRun - Whether this is a prompt-inspection dry run.
+ * @param {{ writer?: import('./outgoing-context.js').OutgoingContextWriter, settings?: Partial<ExtensionSettings>, chat?: unknown, modelName?: unknown, resolvePage?: import('./outgoing-context.js').MicrofichePageReader }} [deps] - Shared writer plus fact overrides.
  * @returns {void}
  */
-export function onGenerateAfterData(generateData, dryRun) {
+export function onGenerateAfterData(generateData, dryRun, deps = {}) {
     if (isDryRunEvent(generateData, dryRun)) {
         return;
     }
     try {
-        maskUserRoleAsAssistantInGenerateData(generateData, getEffectiveSettings());
+        const writer = deps?.writer;
+        if (!writer || typeof writer.getSlotFacts !== 'function') {
+            warn('onGenerateAfterData missing writer: skipping outgoing rewrite.');
+            return;
+        }
+        const messages = getOutgoingMessages(generateData);
+        if (!messages) {
+            return;
+        }
+        const context = buildOutgoingContext(messages, {
+            writer,
+            ...(deps.settings !== undefined ? { settings: deps.settings } : {}),
+            ...(deps.chat !== undefined ? { chat: deps.chat } : {}),
+            ...(deps.modelName !== undefined ? { modelName: deps.modelName } : {}),
+            ...(deps.resolvePage !== undefined ? { resolvePage: deps.resolvePage } : {}),
+        });
+        rewriteOutgoingPrompt(messages, context);
     } catch (e) {
         warn('onGenerateAfterData error:', e);
     }
+}
+
+/**
+ * @param {unknown} generateData - Mutable SillyTavern GENERATE_AFTER_DATA payload.
+ * @returns {Array<Record<string, unknown>> | null} Prompt messages or null.
+ */
+function getOutgoingMessages(generateData) {
+    if (Array.isArray(generateData)) {
+        return getObjectArray(generateData);
+    }
+    if (!isPlainObject(generateData)) {
+        return null;
+    }
+    const prompt = /** @type {{ prompt?: unknown, messages?: unknown }} */ (generateData).prompt;
+    if (Array.isArray(prompt)) {
+        return getObjectArray(prompt);
+    }
+    const messages = /** @type {{ messages?: unknown }} */ (generateData).messages;
+    if (Array.isArray(messages)) {
+        return getObjectArray(messages);
+    }
+    return null;
+}
+
+/**
+ * @param {unknown[]} values - Candidate message array.
+ * @returns {Array<Record<string, unknown>> | null} Plain-object array or null.
+ */
+function getObjectArray(values) {
+    return values.every(isPlainObject) ? values : null;
 }
 
 /**

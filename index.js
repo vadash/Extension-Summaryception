@@ -199,7 +199,9 @@ import { syncPreservedMessageActions } from './src/entry/preserved-message-actio
         onGenerationStarted(args, { gate, queue }),
     );
     if (eventTypes.GENERATE_AFTER_DATA) {
-        eventSource.on(eventTypes.GENERATE_AFTER_DATA, onGenerateAfterData);
+        eventSource.on(eventTypes.GENERATE_AFTER_DATA, (generateData, dryRun) =>
+            onGenerateAfterData(generateData, dryRun, { writer }),
+        );
     }
     if (eventTypes.GENERATION_ENDED) {
         eventSource.on(eventTypes.GENERATION_ENDED, () => onGenerationEnded({ gate, queue }));

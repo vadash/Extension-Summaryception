@@ -52,6 +52,7 @@ const MEMORY_MACRO_NAME = 'summaryception_memory';
  *   options: (settings?: ExtensionSettings) => { position: number, depth: number, scan: boolean, role: number },
  *   resolveMicrofichePage: (pageIndex: number, region?: 'memory' | 'raw') => { dataUrl: string, text: string } | undefined,
  *   resetMicrofichePages: () => void,
+ *   getSlotFacts: () => { text: string, options: { position: number, depth: number, scan: boolean, role: number }, hasSlot: boolean, lastInjectionKey: string },
  * }}
  */
 export function createMemoryInjectionWriter({ canvasFactory = null, host = null } = {}) {
@@ -73,6 +74,7 @@ export function createMemoryInjectionWriter({ canvasFactory = null, host = null 
         resolveMicrofichePage: (pageIndex, region) =>
             resolveMemoryMicrofichePage(state, pageIndex, region),
         resetMicrofichePages: () => resetMemoryMicrofichePages(state),
+        getSlotFacts: () => getMemorySlotFacts(state),
     };
 }
 
@@ -152,6 +154,47 @@ function resolveMemoryMicrofichePage(state, pageIndex, region = 'memory') {
  */
 function resetMemoryMicrofichePages(state) {
     state.pageSource.reset();
+}
+/**
+ * Read-only view of the slot the writer last committed. The text and options
+ * are the exact values passed to the host, so entry can match the live prompt
+ * without re-reading settings. The existing injection key identifies the last
+ * write, which keeps freshness on the committed copy. No host write happens here.
+ * @param {MemoryInjectionWriterState} state - Writer state.
+ * @returns {{ text: string, options: { position: number, depth: number, scan: boolean, role: number }, hasSlot: boolean, lastInjectionKey: string }} Frozen facts.
+ */
+function getMemorySlotFacts(state) {
+    try {
+        const text =
+            typeof state.activeInjectionSnapshot === 'string' ? state.activeInjectionSnapshot : '';
+        const baseOptions = state.activeInjectionOptions ?? getMemoryInjectionOptions();
+        const options = {
+            position: baseOptions.position,
+            depth: baseOptions.depth,
+            scan: baseOptions.scan,
+            role: baseOptions.role,
+        };
+        const hasSlot = text !== '' && options.position !== EXTENSION_PROMPT_POSITIONS.NONE;
+        return Object.freeze({
+            text,
+            options: Object.freeze({ ...options }),
+            hasSlot,
+            lastInjectionKey: state.lastInjectionKey,
+        });
+    } catch (e) {
+        warn('memory injection slot facts error:', e);
+        return Object.freeze({
+            text: '',
+            options: Object.freeze({
+                position: EXTENSION_PROMPT_POSITIONS.NONE,
+                depth: 0,
+                scan: false,
+                role: EXTENSION_PROMPT_ROLES.SYSTEM,
+            }),
+            hasSlot: false,
+            lastInjectionKey: '',
+        });
+    }
 }
 
 /**

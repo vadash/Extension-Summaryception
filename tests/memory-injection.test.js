@@ -571,3 +571,117 @@ describe('memory injection placement', () => {
         });
     });
 });
+
+describe('memory injection slot facts', () => {
+    it('exposes the committed text, placement, presence, and injection key', () => {
+        const chat = makeMessages(4);
+        const layers = [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]];
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers }) },
+            settings: { ...defaultSettings, enabled: true },
+            setExtensionPrompt: vi.fn(),
+        });
+        const writer = makeMemoryInjectionWriter();
+
+        writer.update();
+        const facts = writer.getSlotFacts();
+
+        expect(typeof facts.text).toBe('string');
+        expect(facts.text).not.toBe('');
+        expect(facts.hasSlot).toBe(true);
+        expect(facts.options).toEqual(defaultSlotOptions());
+        expect(JSON.parse(facts.lastInjectionKey)).toEqual({
+            text: facts.text,
+            options: facts.options,
+        });
+    });
+
+    it('keeps the injection key as the freshness fact for the last write', () => {
+        const chat = makeMessages(4);
+        const layers = [[{ sourceMessageIds: ['message-1'], text: 'Second memory.' }]];
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers }) },
+            settings: { ...defaultSettings, enabled: true },
+            setExtensionPrompt,
+        });
+        const writer = makeMemoryInjectionWriter();
+
+        writer.update();
+        const first = writer.getSlotFacts();
+        writer.update();
+        const second = writer.getSlotFacts();
+
+        expect(second.lastInjectionKey).toBe(first.lastInjectionKey);
+        expect(second.text).toBe(first.text);
+        expect(setExtensionPrompt).toHaveBeenCalled();
+    });
+
+    it('reports absent presence for empty, Macro-only, and disabled placements', () => {
+        installSummaryContext({
+            chat: makeMessages(2),
+            metadata: { summaryception: makeSummaryStore({ layers: [] }) },
+            settings: { ...defaultSettings, enabled: true },
+            setExtensionPrompt: vi.fn(),
+        });
+        const emptyWriter = makeMemoryInjectionWriter();
+        emptyWriter.update();
+        expect(emptyWriter.getSlotFacts().hasSlot).toBe(false);
+        expect(emptyWriter.getSlotFacts().text).toBe('');
+
+        installSummaryContext({
+            chat: makeMessages(2),
+            metadata: {
+                summaryception: makeSummaryStore({
+                    layers: [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]],
+                }),
+            },
+            settings: {
+                ...defaultSettings,
+                enabled: true,
+                customMemoryPosition: MEMORY_POSITIONS.MACRO_ONLY,
+            },
+            setExtensionPrompt: vi.fn(),
+        });
+        const macroWriter = makeMemoryInjectionWriter();
+        macroWriter.update();
+        const macroFacts = macroWriter.getSlotFacts();
+        expect(macroFacts.hasSlot).toBe(false);
+        expect(macroFacts.options.position).toBe(EXTENSION_PROMPT_POSITIONS.NONE);
+
+        installSummaryContext({
+            chat: makeMessages(2),
+            settings: { ...defaultSettings, enabled: false },
+            setExtensionPrompt: vi.fn(),
+        });
+        const offWriter = makeMemoryInjectionWriter();
+        offWriter.update();
+        expect(offWriter.getSlotFacts().hasSlot).toBe(false);
+    });
+
+    it('returns a frozen copy that cannot mutate committed state', () => {
+        const chat = makeMessages(4);
+        const layers = [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]];
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers }) },
+            settings: { ...defaultSettings, enabled: true },
+            setExtensionPrompt: vi.fn(),
+        });
+        const writer = makeMemoryInjectionWriter();
+        writer.update();
+
+        const facts = writer.getSlotFacts();
+        expect(Object.isFrozen(facts)).toBe(true);
+        expect(Object.isFrozen(facts.options)).toBe(true);
+        const before = writer.getSlotFacts().text;
+        try {
+            /** @type {{ text?: unknown }} */ (facts).text = 'mutated';
+        } catch {
+            // Frozen facts reject mutation.
+        }
+        expect(writer.getSlotFacts().text).toBe(before);
+    });
+});
