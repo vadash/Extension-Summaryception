@@ -19,8 +19,12 @@ import { estimateTextTokens } from './token-count.js';
  */
 
 /**
- * The memory region plan: the shared region fields.
- * @typedef {MicroficheRegionPlan} MicrofichePlan
+ * @typedef {{ kind: 'image' } | { kind: 'text', text: string, preserved?: boolean }} MicroficheMemorySegment
+ */
+
+/**
+ * The memory region plan: image pages plus literal barriers in source order.
+ * @typedef {MicroficheRegionPlan & { segments: MicroficheMemorySegment[] }} MicrofichePlan
  */
 
 /**
@@ -67,16 +71,16 @@ export function splitMicroficheTexts(textsOldestFirst, keepRaw) {
 
 /**
  * One plan every Microfiche reader consumes: shape, cap, pagination, and the
- * per-frame image-token estimate. Every snippet text paginates to an image
- * page; the cap and the raw bucket decide how many ship. Unknown geometry
- * carries no preset budget and no frame estimate, so custom stays fully
- * slider/host driven.
- * @param {string[]} textsOldestFirst - Snippet texts in chronological order.
+ * per-frame image-token estimate. Imageable entries paginate in chronological
+ * runs separated by literal barriers. Literal text never enters a page or the
+ * raw image bucket, and segments keep its exact position among markers and
+ * overflow text.
+ * @param {Array<string | { text: string, literal?: boolean }>} entriesOldestFirst - Snippet text and literal preserved blocks in chronological order.
  * @param {Record<string, unknown>} settings - Settings carrying knobs, slider cap, and preset name.
  * @param {{ imageBudget?: unknown } | null} [host] - Injected host adapter budget, if any.
  * @returns {MicrofichePlan} Built plan.
  */
-export function buildMicrofichePlan(textsOldestFirst, settings, host = null) {
+export function buildMicrofichePlan(entriesOldestFirst, settings, host = null) {
     const source = settings ?? {};
     const shape = resolveMicroficheShape(source);
     const presetRecord = resolveMicrofichePresetRecord(source);
@@ -87,24 +91,86 @@ export function buildMicrofichePlan(textsOldestFirst, settings, host = null) {
             : undefined,
         'imageBudget' in presetRecord ? presetRecord.imageBudget : undefined,
     );
-    const texts = (Array.isArray(textsOldestFirst) ? textsOldestFirst : []).filter(
-        (text) => typeof text === 'string',
-    );
-    const pages = buildMicrofichePageTexts(texts, shape);
-    const imageTexts = pages.imageTexts.slice(0, effectiveCap);
-    const rawTexts = pages.imageTexts.slice(effectiveCap);
+    const runs = buildMicroficheRuns(entriesOldestFirst);
+    for (const run of runs) {
+        if (run.literal === null) {
+            run.pages = buildMicrofichePageTexts(run.texts, shape).imageTexts;
+        }
+    }
+    const pages = runs.flatMap((run) => run.pages);
     const frameTokenEstimate = resolveFrameTokenEstimate(presetRecord);
-    const budgeted = fitImagesToBucket(imageTexts, rawTexts, {
+    const budgeted = fitImagesToBucket(pages.slice(0, effectiveCap), pages.slice(effectiveCap), {
         frameTokenEstimate,
         bucketTokens: Math.max(0, resolveRawChatBucketTokens(source)),
     });
+    const imageCount = budgeted.imageTexts.length;
+    const imageTexts = pages.slice(0, imageCount);
+    const rawTexts = pages.slice(imageCount);
     return {
         shape,
         effectiveCap,
-        imageTexts: budgeted.imageTexts,
-        rawTexts: budgeted.rawTexts,
+        imageTexts,
+        rawTexts,
         frameTokenEstimate,
+        segments: buildMicroficheSegments(runs, imageCount),
     };
+}
+
+/**
+ * @param {unknown} entries
+ * @returns {Array<{ texts: string[], pages: string[], literal: string | null, preserved: boolean }>}
+ */
+function buildMicroficheRuns(entries) {
+    /** @type {Array<{ texts: string[], pages: string[], literal: string | null, preserved: boolean }>} */
+    const runs = [];
+    let texts = [];
+    const flush = () => {
+        if (texts.length > 0) {
+            runs.push({ texts, pages: [], literal: null, preserved: false });
+            texts = [];
+        }
+    };
+    for (const entry of Array.isArray(entries) ? entries : []) {
+        if (typeof entry === 'string') {
+            texts.push(entry);
+            continue;
+        }
+        if (!entry || typeof entry.text !== 'string') {
+            continue;
+        }
+        if (entry.literal === true) {
+            flush();
+            runs.push({ texts: [], pages: [], literal: entry.text, preserved: true });
+            continue;
+        }
+        texts.push(entry.text);
+    }
+    flush();
+    return runs;
+}
+
+/**
+ * @param {Array<{ pages: string[], literal: string | null }>} runs
+ * @param {number} imageCount
+ * @returns {MicroficheMemorySegment[]}
+ */
+function buildMicroficheSegments(runs, imageCount) {
+    /** @type {MicroficheMemorySegment[]} */
+    const segments = [];
+    let imageIndex = 0;
+    for (const run of runs) {
+        if (run.literal !== null) {
+            segments.push({ kind: 'text', text: run.literal, preserved: true });
+            continue;
+        }
+        for (const page of run.pages) {
+            segments.push(
+                imageIndex < imageCount ? { kind: 'image' } : { kind: 'text', text: page },
+            );
+            imageIndex++;
+        }
+    }
+    return segments;
 }
 
 /**

@@ -185,6 +185,7 @@ export const DEFAULT_INJECTION_TEMPLATE =
     '<summaryception_memory>\n' +
     'Compressed continuity: past events, oldest to newest. Newer verbatim chat and the current user message take priority.\n' +
     "anchor [A-B@YYYY-MM-DDTHH]: source messages A-B; the scene time at B is that passage's reference date, and a relative time word in the adjacent narrative (tomorrow, today, in N days, next weekday, this evening) resolves against it.\n" +
+    '<preserved>: exact source chat, not a compressed snippet.\n' +
     '{{summary}}\n' +
     '</summaryception_memory>';
 

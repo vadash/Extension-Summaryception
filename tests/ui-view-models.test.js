@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { MEMORY_MODES, defaultSettings } from '../src/foundation/constants.js';
+import { buildInjection, measureInjection } from '../src/core/memory-injection.js';
 import { describeAutoWork } from '../src/core/summarization-routes.js';
 import { readSealedMicrofichePlans } from '../src/core/microfiche-pages.js';
 import {
@@ -15,6 +16,7 @@ import {
 } from '../src/entry/ui-view-models.js';
 import {
     installSummaryContext,
+    makeMessages,
     makeMemoryInjectionWriter,
     makeSizedChat,
     makeSummaryStore,
@@ -57,6 +59,30 @@ describe('budget token labels', () => {
 });
 
 describe('context budget view model', () => {
+    it('includes the preserved token category in memory overage', async () => {
+        const chat = makeMessages(1);
+        installSummaryContext({ chat });
+        const injection = buildInjection([], { injectionTemplate: '{{summary}}' }, null, {
+            chat,
+            preservedMessages: [
+                { id: 'message-0', text: 'Assistant: exact preserved body', handedOff: true },
+            ],
+        });
+        const usage = await measureInjection(injection);
+
+        const view = buildContextBudgetViewModel({
+            budget: usage.total.count - 1,
+            verbatim: { label: 'Live Chat', kind: 'verbatim', count: 0, estimated: false },
+            layers: usage.parts,
+        });
+
+        expect(view.used).toBe(usage.total.count);
+        expect(view.overage).toBe(1);
+        expect(view.segments.find((segment) => segment.kind === 'preserved')?.count).toBe(
+            usage.preserved.count,
+        );
+    });
+
     it('builds a plain-data model with sized segments and a free-space tail', () => {
         const view = buildContextBudgetViewModel({
             budget: 16000,

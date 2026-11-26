@@ -85,14 +85,19 @@ function updateMemoryInjection(state, { logMemoryStatus = false } = {}) {
     try {
         const store = getChatStore();
         const settings = getEffectiveSettings();
+        const chat = getChat();
         const epoch = getSummaryStoreMutationEpoch(store);
         const rawTexts = state.pageSource.sealRaw({
-            chat: getChat(),
+            chat,
             store,
             settings,
             epoch,
         });
-        const injection = buildInjection(store.layers, settings, null, { rawTexts });
+        const injection = buildInjection(store.layers, settings, null, {
+            rawTexts,
+            chat,
+            preservedMessages: store.preservedMessages,
+        });
         const sealed = state.pageSource.update({
             plan: injection.microfiche,
             rawPlan: injection.microficheRaw,
@@ -215,11 +220,15 @@ function applyMicroficheMarkers(text, sealed, settings) {
         settings,
     );
     const memoryText = formatMemoryRegionText(memoryPlan);
+    const repeatedMemoryText = formatMemoryRegionText(memoryPlan, { includePreserved: false });
     const rawText = formatRawRegionText(rawPlan);
     if (memoryText === null && rawText === null) {
         return text;
     }
-    const result = memoryText === null ? text : renderMemoryRegion(memoryText, settings);
+    const result =
+        memoryText === null || repeatedMemoryText === null
+            ? text
+            : renderMemoryRegion(memoryText, repeatedMemoryText, settings);
     return rawText === null ? result : joinRegionText(result, rawText);
 }
 
@@ -232,14 +241,22 @@ function getRegionImageTexts(plan) {
 }
 
 /**
- * Memory markers replace every image page and keep the plan's raw page text.
- * @param {{ imageTexts?: unknown, rawTexts?: unknown } | null | undefined} plan - Sealed memory plan.
+ * Memory markers replace every image page and keep literal barriers and raw
+ * page text in plan order. Later recall placeholders omit preserved barriers.
+ * @param {{ imageTexts?: unknown, rawTexts?: unknown, segments?: unknown } | null | undefined} plan - Sealed memory plan.
+ * @param {{ includePreserved?: boolean }} [options] - Whether literal preserved barriers ship in this copy.
  * @returns {string | null} Memory region text, or null when the plan has no image pages.
  */
-function formatMemoryRegionText(plan) {
+function formatMemoryRegionText(plan, { includePreserved = true } = {}) {
     const imageTexts = getRegionImageTexts(plan);
     if (imageTexts.length === 0) {
         return null;
+    }
+    if (Array.isArray(plan?.segments)) {
+        const segmented = formatMemorySegments(plan.segments, imageTexts.length, includePreserved);
+        if (segmented !== null) {
+            return segmented;
+        }
     }
     const rawTexts = Array.isArray(plan?.rawTexts) ? plan.rawTexts : [];
     return [
@@ -249,19 +266,43 @@ function formatMemoryRegionText(plan) {
 }
 
 /**
+ * @param {Array<{ kind?: string, text?: unknown, preserved?: unknown }>} segments
+ * @param {number} imageCount
+ * @param {boolean} includePreserved
+ * @returns {string | null}
+ */
+function formatMemorySegments(segments, imageCount, includePreserved) {
+    let pageIndex = 0;
+    const parts = [];
+    for (const segment of segments) {
+        if (segment?.kind === 'image') {
+            parts.push(formatMicroficheMarker(pageIndex++));
+        } else if (
+            segment?.kind === 'text' &&
+            typeof segment.text === 'string' &&
+            (includePreserved || segment.preserved !== true)
+        ) {
+            parts.push(segment.text);
+        }
+    }
+    return pageIndex === imageCount ? parts.join('\n') : null;
+}
+
+/**
  * Plan text is already masked when memory masking is on, so only the template
  * needs the mask; markers must stay byte-exact for expansion.
  * @param {string} memoryText - Memory region text, already joined.
+ * @param {string} repeatedMemoryText - Snippet-only region text for later placeholders.
  * @param {ExtensionSettings} settings - Effective settings.
  * @returns {string} Rendered slot text for the memory region.
  */
-function renderMemoryRegion(memoryText, settings) {
+function renderMemoryRegion(memoryText, repeatedMemoryText, settings) {
     const template =
         settings.guardMaskMemory === true && isGuardMaskEnabled(settings)
             ? maskGuardText(String(settings.injectionTemplate || '{{summary}}'))
             : null;
     return renderInjectionTemplate(
-        { memoryText },
+        { memoryText, snippetText: repeatedMemoryText },
         template === null ? settings : { injectionTemplate: template },
     );
 }
@@ -339,7 +380,11 @@ function buildEnabledMemoryText(settings = getEffectiveSettings(), injection = n
     if (injection !== null) {
         return injection.text;
     }
-    return buildInjection(getChatStore().layers, settings).text;
+    const store = getChatStore();
+    return buildInjection(store.layers, settings, null, {
+        chat: getChat(),
+        preservedMessages: store.preservedMessages,
+    }).text;
 }
 
 function mapMemoryPosition(position) {

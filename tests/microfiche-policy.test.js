@@ -407,3 +407,69 @@ describe('microfiche raw keep-text tail', () => {
         expect(plan.overCap).toBe(true);
     });
 });
+
+describe('microfiche preserved text barriers', () => {
+    it('keeps literal preserved text between image segments', () => {
+        const preserved = '[2-2] <preserved>Assistant: exact body</preserved>';
+        const plan = buildMicrofichePlan(
+            [
+                { text: 'a'.repeat(16) },
+                { text: preserved, literal: true },
+                { text: 'b'.repeat(16) },
+            ],
+            {
+                ...TINY,
+                microficheGeometry: 'custom',
+                microficheImageCap: 8,
+            },
+        );
+
+        expect(plan.imageTexts).toEqual(['a'.repeat(16), 'b'.repeat(16)]);
+        expect(plan.segments).toEqual([
+            { kind: 'image' },
+            { kind: 'text', text: preserved, preserved: true },
+            { kind: 'image' },
+        ]);
+    });
+
+    it('keeps overflow snippet text after its preceding preserved position', () => {
+        const preserved = '[1-1] <preserved>User: exact</preserved>';
+        const plan = buildMicrofichePlan(
+            [
+                { text: 'a'.repeat(16) },
+                { text: preserved, literal: true },
+                { text: 'b'.repeat(16) },
+            ],
+            {
+                ...TINY,
+                microficheGeometry: 'custom',
+                microficheImageCap: 1,
+            },
+        );
+
+        expect(plan.segments).toEqual([
+            { kind: 'image' },
+            { kind: 'text', text: preserved, preserved: true },
+            { kind: 'text', text: 'b'.repeat(16) },
+        ]);
+    });
+
+    it('does not charge preserved text to the raw image bucket', () => {
+        const settings = {
+            ...TINY,
+            microficheGeometry: 'google',
+            microficheImageCap: 8,
+            verbatimTokenBudget: 1125,
+            queuedTokenBudget: 1125,
+        };
+        const snippet = { text: 'a'.repeat(96) };
+        const plain = buildMicrofichePlan([snippet], settings);
+        const withPreserved = buildMicrofichePlan(
+            [snippet, { text: `<preserved>${'exact '.repeat(5000)}</preserved>`, literal: true }],
+            settings,
+        );
+
+        expect(withPreserved.imageTexts).toEqual(plain.imageTexts);
+        expect(withPreserved.rawTexts).toEqual(plain.rawTexts);
+    });
+});

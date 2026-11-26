@@ -177,6 +177,25 @@ describe('expandMicroficheContent', () => {
         expect(expandMicroficheContent(42)).toEqual({ content: 42, swapped: 0 });
         expect(expandMicroficheContent(null)).toEqual({ content: null, swapped: 0 });
     });
+    it('keeps preserved text literal and positioned between image markers', () => {
+        registerStubPages();
+        const preserved = '[2-2] <preserved>Assistant: exact body</preserved>';
+        const content = `${formatMicroficheMarker(0)}\n${preserved}\n${formatMicroficheMarker(1)}`;
+
+        const result = expandMicroficheContent(content);
+
+        expect(result.swapped).toBe(2);
+        expect(
+            result.content
+                .filter((part) => part.type === 'text')
+                .map((part) => part.text)
+                .join(''),
+        ).toBe(`\n${preserved}\n`);
+        expect(result.content.filter((part) => part.type === 'image_url')).toEqual([
+            { type: 'image_url', image_url: { url: STUB_ZERO.dataUrl } },
+            { type: 'image_url', image_url: { url: STUB_ONE.dataUrl } },
+        ]);
+    });
 });
 
 describe('expandMicrofichePromptChat', () => {

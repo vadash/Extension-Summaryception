@@ -102,7 +102,10 @@ export async function updateUI() {
  * @returns {import('../core/memory-injection.js').MemoryInjection}
  */
 export function buildUiInjection(store, settings) {
-    const injection = buildInjection(store.layers, settings);
+    const injection = buildInjection(store.layers, settings, null, {
+        chat: getChat(),
+        preservedMessages: store.preservedMessages,
+    });
     return { ...injection, ...selectSealedRegions(readSealedMicrofichePlans(), settings) };
 }
 

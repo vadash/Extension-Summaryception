@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     EXTENSION_PROMPT_POSITIONS,
+    MEMORY_MODES,
     MEMORY_POSITIONS,
     defaultSettings,
 } from '../src/foundation/constants.js';
@@ -13,6 +14,7 @@ import {
     renderInjectionTemplate,
 } from '../src/core/memory-injection.js';
 import { buildMicrofichePlan } from '../src/core/microfiche-policy.js';
+import { formatMicroficheMarker } from '../src/core/microfiche-transport.js';
 import {
     formatAnchoredSnippetNarrative,
     formatSnippetAnchor,
@@ -24,7 +26,245 @@ import {
     installSummaryContext,
     makeMemoryInjectionWriter,
     makeMessages,
+    makeSummaryStore,
 } from './test-helpers.js';
+
+describe('Preserved Message injection rendering', () => {
+    it('renders the worked example in global source order with one exact block', () => {
+        const chat = makeMessages(7);
+        installSummaryContext({ chat });
+        const layers = [
+            [{ sourceMessageIds: ['message-3', 'message-6'], text: 'Late summary.' }],
+            [
+                {
+                    sourceMessageIds: ['message-0', 'message-1'],
+                    text: 'Early summary.',
+                    promoted: true,
+                },
+            ],
+        ];
+        const preservedMessages = [
+            {
+                id: 'message-2',
+                text: 'Assistant: approved body',
+                currentDateTime: '2024-01-02 14 Tue',
+                handedOff: true,
+            },
+        ];
+
+        const injection = buildInjection(layers, { injectionTemplate: '{{summary}}' }, null, {
+            chat,
+            preservedMessages,
+        });
+
+        expect(injection.text).toBe(
+            '[0-1] Early summary.\n' +
+                '[2-2@2024-01-02T14] <preserved>Assistant: approved body</preserved>\n' +
+                '[3-6] Late summary.',
+        );
+    });
+
+    it('places preserved text after a covering promoted snippet', () => {
+        const chat = makeMessages(8);
+        installSummaryContext({ chat });
+        const layers = [
+            [{ sourceMessageIds: ['message-7'], text: 'Later summary.' }],
+            [
+                {
+                    sourceMessageIds: ['message-0', 'message-6'],
+                    text: 'Covering summary.',
+                    promoted: true,
+                },
+            ],
+        ];
+
+        const injection = buildInjection(layers, { injectionTemplate: '{{summary}}' }, null, {
+            chat,
+            preservedMessages: [{ id: 'message-2', text: 'Assistant: exact', handedOff: true }],
+        });
+
+        expect(injection.text).toBe(
+            '[0-6] Covering summary.\n' +
+                '[2-2] <preserved>Assistant: exact</preserved>\n' +
+                '[7-7] Later summary.',
+        );
+    });
+
+    it('renders only handed-off records whose stable identity still resolves', () => {
+        const chat = makeMessages(3);
+        installSummaryContext({ chat });
+        const injection = buildInjection([], { injectionTemplate: '{{summary}}' }, null, {
+            chat,
+            preservedMessages: [
+                { id: 'message-0', text: 'Assistant: pending', handedOff: false },
+                { id: 'deleted', text: 'Assistant: deleted', handedOff: true },
+                { id: 'message-1', text: 'Assistant: kept', handedOff: true },
+            ],
+        });
+
+        expect(injection.text).toBe('[1-1] <preserved>Assistant: kept</preserved>');
+    });
+
+    it('puts preserved text in the first placeholder and snippets in later placeholders', () => {
+        const chat = makeMessages(3);
+        installSummaryContext({ chat });
+        const injection = buildInjection(
+            [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]],
+            { injectionTemplate: 'A {{summary}} B {{summary}} C' },
+            null,
+            {
+                chat,
+                preservedMessages: [{ id: 'message-1', text: 'Assistant: exact', handedOff: true }],
+            },
+        );
+
+        expect(injection.text.split('<preserved>').length - 1).toBe(1);
+        expect(injection.text.split('Snippet memory.').length - 1).toBe(2);
+        expect(injection.text).toContain('B [0-0] Snippet memory. C');
+    });
+
+    it('renders the template for a preserved-only body', () => {
+        const chat = makeMessages(2);
+        installSummaryContext({ chat });
+        const injection = buildInjection([], { injectionTemplate: 'Memory: {{summary}}' }, null, {
+            chat,
+            preservedMessages: [{ id: 'message-0', text: 'User: exact', handedOff: true }],
+        });
+
+        expect(injection.text).toBe('Memory: [0-0] <preserved>User: exact</preserved>');
+    });
+
+    it('keeps Memory Body and snippet-only injection free of preserved text', () => {
+        const chat = makeMessages(3);
+        installSummaryContext({ chat });
+        const layers = [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]];
+        const preservedMessages = [{ id: 'message-1', text: 'Assistant: exact', handedOff: true }];
+
+        expect(buildMemoryBody(layers)).not.toContain('Assistant: exact');
+        expect(buildInjection(layers, { injectionTemplate: '{{summary}}' }).text).not.toContain(
+            'Assistant: exact',
+        );
+        expect(preservedMessages[0].handedOff).toBe(true);
+    });
+
+    it('explains the preserved tag in the default legend', () => {
+        expect(defaultSettings.injectionTemplate).toContain('<preserved>');
+        expect(defaultSettings.injectionTemplate).toContain('exact source chat');
+        expect(defaultSettings.injectionTemplate).toContain('not a compressed snippet');
+    });
+
+    it('resolves snippet anchors from the passed chat rather than host positions', () => {
+        installSummaryContext({ chat: makeMessages(4) });
+        const chat = [
+            { sc_id: 'source-a', is_user: false, is_system: false, mes: 'a' },
+            { sc_id: 'source-b', is_user: false, is_system: false, mes: 'b' },
+        ];
+        const layers = [[{ sourceMessageIds: ['source-a', 'source-b'], text: 'Snippet.' }]];
+
+        const injection = buildInjection(layers, { injectionTemplate: '{{summary}}' }, null, {
+            chat,
+        });
+
+        expect(injection.text).toBe('[0-1] Snippet.');
+    });
+});
+
+describe('Preserved Message Microfiche integration', () => {
+    const settings = {
+        ...defaultSettings,
+        injectionTemplate: '{{summary}}',
+        memoryMode: MEMORY_MODES.MICROFICHE,
+        microficheGeometry: 'custom',
+        microficheFont: '8x8',
+        microficheCellWidth: 8,
+        microficheCellHeight: 22,
+        microficheStretch: false,
+        microficheVariant: 'bw',
+        microficheStopwordDim: false,
+        microficheColumns: 1,
+        microficheLineRepeat: 1,
+        microficheFrameSize: 64,
+        microficheImageCap: 8,
+        microficheKeepRaw: 0,
+    };
+
+    function fixture() {
+        const chat = makeMessages(3);
+        const layers = [
+            [
+                { sourceMessageIds: ['message-0'], text: 'a' },
+                { sourceMessageIds: ['message-2'], text: 'b' },
+            ],
+        ];
+        const preservedMessages = [
+            { id: 'message-1', text: 'Assistant: exact body', handedOff: true },
+        ];
+        return { chat, layers, preservedMessages };
+    }
+
+    it('keeps preserved text literal and positioned outside image pages', () => {
+        const { chat, layers, preservedMessages } = fixture();
+        installSummaryContext({ chat });
+
+        const injection = buildInjection(layers, settings, null, {
+            chat,
+            preservedMessages,
+        });
+
+        expect(injection.microfiche.imageTexts.join('\n')).not.toContain('exact body');
+        expect(injection.microfiche.segments).toEqual([
+            { kind: 'image' },
+            {
+                kind: 'text',
+                text: '[1-1] <preserved>Assistant: exact body</preserved>',
+                preserved: true,
+            },
+            { kind: 'image' },
+        ]);
+    });
+
+    it('writes preserved text once between memory markers in the final slot', () => {
+        const { chat, layers, preservedMessages } = fixture();
+        const setExtensionPrompt = vi.fn();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers, preservedMessages }) },
+            settings: { ...settings, injectionTemplate: 'A {{summary}} B {{summary}} C' },
+            setExtensionPrompt,
+        });
+        const writer = makeMemoryInjectionWriter();
+
+        writer.update();
+
+        const text = setExtensionPrompt.mock.calls[0][1];
+        const firstCopyEnd = text.indexOf(' B ');
+        const firstMarker = text.indexOf(formatMicroficheMarker(0));
+        const preservedAt = text.indexOf('<preserved>Assistant: exact body</preserved>');
+        const secondMarker = text.indexOf(formatMicroficheMarker(1));
+        expect(text.split('<preserved>').length - 1).toBe(1);
+        expect(firstMarker).toBeGreaterThanOrEqual(0);
+        expect(preservedAt).toBeGreaterThan(firstMarker);
+        expect(secondMarker).toBeGreaterThan(preservedAt);
+        expect(firstCopyEnd).toBeGreaterThan(secondMarker);
+    });
+
+    it('builds UI preview and accounting from the same preserved renderer', async () => {
+        const { chat, layers, preservedMessages } = fixture();
+        installSummaryContext({
+            chat,
+            metadata: { summaryception: makeSummaryStore({ layers, preservedMessages }) },
+            settings,
+        });
+        const { buildUiInjection } = await import('../src/entry/ui.js');
+        const { getChatStore } = await import('../src/foundation/chat-store.js');
+
+        const injection = buildUiInjection(getChatStore(), settings);
+        const usage = await measureInjection(injection);
+
+        expect(injection.text).toContain('[1-1] <preserved>Assistant: exact body</preserved>');
+        expect(usage.preserved?.kind).toBe('preserved');
+    });
+});
 
 describe('buildMemoryInjectionParts', () => {
     it('joins per-layer chronology sections with no heading of its own', () => {
@@ -57,6 +297,9 @@ describe('buildMemoryInjectionParts', () => {
             chronologyParts: [],
             chronologyText: '',
             memoryText: '',
+            snippetText: '',
+            preservedText: '',
+            entries: [],
         });
     });
 });
@@ -97,6 +340,41 @@ describe('buildInjection', () => {
 });
 
 describe('measureInjection', () => {
+    it('counts preserved text as a separate token category outside layers', async () => {
+        const chat = makeMessages(3);
+        installSummaryContext({ chat });
+        const layers = [[{ sourceMessageIds: ['message-0'], text: 'Snippet memory.' }]];
+        const options = {
+            chat,
+            preservedMessages: [
+                { id: 'message-1', text: 'Assistant: exact preserved body', handedOff: true },
+            ],
+        };
+        const injection = buildInjection(
+            layers,
+            { injectionTemplate: 'wrap {{summary}}' },
+            null,
+            options,
+        );
+        const snippetOnly = buildInjection(layers, { injectionTemplate: 'wrap {{summary}}' });
+
+        const usage = await measureInjection(injection);
+        const snippetUsage = await measureInjection(snippetOnly);
+        const expectedPreserved = await countTextTokens(injection.preservedParts[0].text);
+
+        expect(usage.preserved).toMatchObject({
+            label: 'Preserved',
+            kind: 'preserved',
+            count: expectedPreserved.count,
+            estimated: expectedPreserved.estimated,
+        });
+        expect(usage.layers).toEqual(snippetUsage.layers);
+        expect(usage.parts.some((part) => part.kind === 'preserved')).toBe(true);
+        expect(usage.parts.reduce((sum, part) => sum + part.count, 0)).toBe(usage.total.count);
+        expect(usage.total.count).toBe((await countTextTokens(injection.text)).count);
+        expect(snippetUsage.preserved).toBeNull();
+    });
+
     it('counts the text it was handed, not the current layers', async () => {
         const injection = buildInjection([[{ text: 'recall the ferry' }]], {
             injectionTemplate: 'wrap {{summary}} here',
